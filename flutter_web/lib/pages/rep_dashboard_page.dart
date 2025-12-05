@@ -4330,7 +4330,6 @@ class _ComplaintTile extends StatefulWidget {
 class _ComplaintTileState extends State<_ComplaintTile> {
   bool _hoverAccept = false;
   bool _hoverReject = false;
-  bool _expanded = false; // Toggle für Details
 
   String _pick(Map<String, dynamic>? p, List<String> keys) {
     if (p == null) return '';
@@ -4550,69 +4549,108 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                 Row(
                   children: [
                     TextButton.icon(
-                      onPressed: () => setState(() => _expanded = !_expanded),
-                      icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                      label: Text(_expanded
-                          ? (context.t.hideDetails ?? 'Details verbergen')
-                          : (context.t.showDetails ?? 'Details anzeigen')),
+                      onPressed: () async {
+                        await showDialog<void>(
+                          context: context,
+                          barrierDismissible: true,
+                          builder: (ctx) {
+                            return Dialog(
+                              insetPadding: const EdgeInsets.all(16),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 980, maxHeight: 760),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.description_outlined, size: 20),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              ticket.isEmpty ? '(ohne Ticket)' : ticket,
+                                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          _StatusChip(status: status, decision: decision, closed: widget.isClosed),
+                                          const SizedBox(width: 6),
+                                          if (repDecision.trim().isNotEmpty)
+                                            _RepTrafficLight(opinion: repDecision, compact: true),
+                                          const SizedBox(width: 6),
+                                          IconButton(
+                                            icon: const Icon(Icons.close),
+                                            tooltip: context.t.close ?? 'Schließen',
+                                            onPressed: () => Navigator.of(ctx).pop(),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Expanded(
+                                        child: SingleChildScrollView(
+                                          child: _buildDetails(
+                                            context,
+                                            segment: segment,
+                                            productType: productType,
+                                            productArea: resolvedProductArea ?? segment,
+                                            articleNo: articleNo,
+                                            batch: batch,
+                                            serial: serial,
+                                            qty: qty,
+                                            reason: reason,
+                                            desc: desc,
+                                            customerWish: customerWish,
+                                            returned: returned,
+                                            applied: applied,
+                                            injury: injury,
+                                            injuryDesc: injuryDesc,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty)
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: _buttons(),
+                                        ),
+                                      if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null)
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: OutlinedButton.icon(
+                                            icon: const Icon(Icons.undo),
+                                            label: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                                            onPressed: () async {
+                                              final ok = await showDialog<bool>(
+                                                context: context,
+                                                builder: (ctx2) => AlertDialog(
+                                                  title: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                                                  content: Text(context.t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                                                  actions: [
+                                                    TextButton(onPressed: () => Navigator.of(ctx2).pop(false), child: Text(context.t.cancel)),
+                                                    ElevatedButton(onPressed: () => Navigator.of(ctx2).pop(true), child: Text(context.t.ok ?? 'OK')),
+                                                  ],
+                                                ),
+                                              ) ?? false;
+
+                                              if (ok) widget.onWithdraw!(ticket);
+                                            },
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      icon: const Icon(Icons.open_in_new),
+                      label: Text(context.t.showDetails ?? 'Details anzeigen'),
                     ),
                   ],
                 ),
-                AnimatedCrossFade(
-                  crossFadeState: _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-                  duration: const Duration(milliseconds: 160),
-                  firstChild: _buildDetails(
-                    context,
-                    segment: segment,
-                    productType: productType,
-                    productArea: resolvedProductArea ?? segment,
-                    articleNo: articleNo,
-                    batch: batch,
-                    serial: serial,
-                    qty: qty,
-                    reason: reason,
-                    desc: desc,
-                    customerWish: customerWish,
-                    returned: returned,
-                    applied: applied,
-                    injury: injury,
-                    injuryDesc: injuryDesc,
-                  ),
-                  secondChild: const SizedBox.shrink(),
-                ),
-                
-                if (widget.onDecision != null && !widget.isClosed && repDecision.isEmpty) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: _buttons(),
-                  ),
-                ],
-                if (!widget.isClosed && repDecision.isNotEmpty && widget.onWithdraw != null) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.undo),
-                      label: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                      onPressed: () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text(context.t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
-                            content: Text(context.t.decision_withdraw_confirm ?? 'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(context.t.cancel)),
-                              ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(context.t.ok ?? 'OK')),
-                            ],
-                          ),
-                        ) ?? false;
-
-                        if (ok) widget.onWithdraw!(ticket);
-                      },
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
