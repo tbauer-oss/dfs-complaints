@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../l10n/app_localizations.dart';
 import '../models/complaint_attachment.dart';
@@ -49,9 +50,32 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
   List<ComplaintAttachment> get _imageAttachments =>
       widget.attachments.where((a) => a.isImage).toList(growable: false);
 
+  Future<pw.ImageProvider?> _loadLogo() async {
+    const logoPaths = ['assets/dfs_logo.png', 'assets/dfs_logo.svg'];
+    for (final path in logoPaths) {
+      try {
+        final bytes = (await rootBundle.load(path)).buffer.asUint8List();
+        return pw.MemoryImage(bytes);
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
+  }
+
   Future<Uint8List> _buildPdfBytes() async {
     final doc = pw.Document();
     final attachments = _imageAttachments;
+    final logo = await _loadLogo();
+
+    const spacing = 12.0;
+    const smallSpacing = 6.0;
+
+    final baseStyle = pw.TextStyle(fontSize: 11);
+    final mutedStyle = baseStyle.copyWith(color: PdfColors.grey700);
+    final labelStyle = baseStyle.copyWith(fontWeight: pw.FontWeight.bold);
+    final titleStyle = pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold);
+    final headerTitleStyle = pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold);
 
     final details = <String, String>{
       _t.segment: _payloadValue('segment'),
@@ -64,82 +88,110 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
 
     doc.addPage(
       pw.MultiPage(
-        build: (_) => [
-          pw.Text(
-            _t.complaint_summary_title,
-            style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 30, vertical: 24),
+        pageFormat: PdfPageFormat.a4,
+        header: (_) => pw.Container(
+          padding: const pw.EdgeInsets.only(bottom: smallSpacing),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(_t.complaint_summary_title, style: headerTitleStyle),
+                    pw.SizedBox(height: 2),
+                    pw.Text(_t.complaint_summary_subtitle, style: mutedStyle),
+                  ],
+                ),
+              ),
+              if (logo != null)
+                pw.Container(
+                  height: 36,
+                  width: 120,
+                  alignment: pw.Alignment.topRight,
+                  child: pw.Image(logo, fit: pw.BoxFit.contain),
+                ),
+            ],
           ),
-          pw.SizedBox(height: 6),
-          pw.Text(_t.complaint_summary_subtitle),
-          pw.SizedBox(height: 14),
-          pw.Row(children: [
-            pw.Expanded(
-              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text('${_t.complaint_summary_ticket_label}:',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text(widget.ticket),
+        ),
+        build: (_) => [
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(),
+              1: pw.FlexColumnWidth(),
+            },
+            children: [
+              pw.TableRow(children: [
+                _tableInfoCell('${_t.complaint_summary_ticket_label}:', widget.ticket, labelStyle, baseStyle),
+                _tableInfoCell('${_t.complaint_summary_date_label}:', _formattedDate(), labelStyle, baseStyle),
               ]),
-            ),
-            pw.SizedBox(width: 16),
-            pw.Expanded(
-              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text('${_t.complaint_summary_date_label}:',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Text(_formattedDate()),
-              ]),
-            ),
-          ]),
-          pw.SizedBox(height: 16),
-          pw.Text(_t.complaint_summary_customer_label,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 6),
-          for (final line in _customerLines())
-            if (line.isNotEmpty) pw.Text(line),
-          pw.SizedBox(height: 16),
-          pw.Text(_t.complaint_summary_article_label,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text(_payloadValue('article')),
-          pw.SizedBox(height: 8),
+            ],
+          ),
+          pw.SizedBox(height: spacing),
+          pw.Text(_t.complaint_summary_customer_label, style: titleStyle),
+          pw.SizedBox(height: smallSpacing),
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              for (final line in _customerLines())
+                if (line.isNotEmpty)
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 2),
+                    child: pw.Text(line, style: baseStyle),
+                  ),
+            ],
+          ),
+          pw.SizedBox(height: spacing),
+          pw.Text(_t.complaint_summary_article_label, style: titleStyle),
+          pw.SizedBox(height: smallSpacing),
+          pw.Text(_payloadValue('article'), style: baseStyle),
+          pw.SizedBox(height: smallSpacing),
           pw.Wrap(
-            spacing: 10,
+            spacing: 8,
             runSpacing: 8,
             children: [
               for (final entry in details.entries)
                 if (entry.value.isNotEmpty)
                   pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     decoration: pw.BoxDecoration(
-                      border: pw.Border.all(width: 0.4),
+                      border: pw.Border.all(width: 0.4, color: PdfColors.grey600),
                       borderRadius: pw.BorderRadius.circular(6),
                     ),
-                    child: pw.Text('${entry.key}: ${entry.value}'),
-                  )
+                    child: pw.Text('${entry.key}: ${entry.value}', style: baseStyle),
+                  ),
             ],
           ),
-          pw.SizedBox(height: 14),
-          pw.Text(_t.complaint_summary_description_label,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text(_payloadValue('desc')),
+          pw.SizedBox(height: spacing),
+          pw.Text(_t.complaint_summary_description_label, style: titleStyle),
+          pw.SizedBox(height: smallSpacing),
+          pw.Text(_payloadValue('desc'), style: baseStyle, textAlign: pw.TextAlign.justify),
           if (attachments.isNotEmpty) ...[
-            pw.SizedBox(height: 14),
-            pw.Text(_t.complaint_summary_images_label,
-                style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: spacing),
+            pw.Text(_t.complaint_summary_images_label, style: titleStyle),
+            pw.SizedBox(height: smallSpacing),
             pw.Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: attachments
-                  .map(
-                    (a) => pw.Container(
-                      width: 110,
-                      height: 110,
-                      decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.4)),
-                      child: pw.Image(pw.MemoryImage(a.bytes), fit: pw.BoxFit.cover),
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final a in attachments)
+                  pw.Container(
+                    width: 120,
+                    height: 90,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(width: 0.4, color: PdfColors.grey500),
+                      borderRadius: pw.BorderRadius.circular(4),
                     ),
-                  )
-                  .toList(),
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(4),
+                      child: pw.Image(
+                        pw.MemoryImage(a.bytes),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ],
         ],
@@ -147,6 +199,25 @@ class _ComplaintSummaryPageState extends State<ComplaintSummaryPage> {
     );
 
     return Uint8List.fromList(await doc.save());
+  }
+
+  pw.Widget _tableInfoCell(
+    String label,
+    String value,
+    pw.TextStyle labelStyle,
+    pw.TextStyle valueStyle,
+  ) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(right: 8, bottom: 4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(label, style: labelStyle),
+          pw.SizedBox(height: 2),
+          pw.Text(value, style: valueStyle),
+        ],
+      ),
+    );
   }
 
   List<String> _customerLines() {
