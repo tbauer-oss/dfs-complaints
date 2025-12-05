@@ -8716,10 +8716,10 @@ class _AdminPageState extends State<AdminPage> {
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                               ),
-                                              const SizedBox(height: 6),
+                                              const SizedBox(height: 4),
                                               Wrap(
-                                                spacing: 8,
-                                                runSpacing: 6,
+                                                spacing: 6,
+                                                runSpacing: 4,
                                                 children: [
                                                   _PortalBadge(
                                                     icon: Icons.email_outlined,
@@ -8744,16 +8744,16 @@ class _AdminPageState extends State<AdminPage> {
                                                   if (hasCustomTiles)
                                                     _PortalBadge(
                                                       icon: Icons.dashboard_customize_outlined,
-                                                      label: 'Individuelle Kacheln: ${u.tilePermissions.length}',
+                                                      label: 'Anzahl vergebener Rechte: ${u.tilePermissions.length}',
                                                       color: theme.colorScheme.tertiaryContainer,
                                                       foreground: theme.colorScheme.onTertiaryContainer,
                                                     ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 8),
+                                              const SizedBox(height: 6),
                                               Wrap(
-                                                spacing: 8,
-                                                runSpacing: 6,
+                                                spacing: 6,
+                                                runSpacing: 4,
                                                 children: deptBadges,
                                               ),
                                             ],
@@ -10869,23 +10869,24 @@ class _PortalBadge extends StatelessWidget {
             ? Colors.white
             : Colors.black87);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: color.withOpacity(0.75),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.9)),
       ),
       child: Wrap(
-        spacing: 6,
+        spacing: 5,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Icon(icon, size: 16, color: fg),
+          Icon(icon, size: 14, color: fg),
           Text(
             label,
             style: TextStyle(
               color: fg,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.1,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              height: 1.15,
             ),
           ),
         ],
