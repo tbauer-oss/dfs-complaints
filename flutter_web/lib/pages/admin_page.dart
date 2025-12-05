@@ -8075,10 +8075,20 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildPortalUserTilePermissionsEditor() {
     final theme = Theme.of(context);
-    final tiles = _menuTileIds.toList()
-      ..sort((a, b) => _tileLabel(a).toLowerCase().compareTo(_tileLabel(b).toLowerCase()));
+    final overridesCount = _portalUserTilePermissions.length;
 
-    String currentValue(String tileId) => _portalUserTilePermissions[tileId] ?? 'inherit';
+    String permissionLabel(String permission) {
+      switch (permission) {
+        case 'write':
+          return 'Schreiben & lesen';
+        case 'read':
+          return 'Nur lesen';
+        case 'none':
+          return 'Kein Zugriff';
+        default:
+          return 'Standard';
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -8090,45 +8100,126 @@ class _AdminPageState extends State<AdminPage> {
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
-        ...tiles.map(
-          (tileId) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Expanded(child: Text(_tileLabel(tileId))),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 180,
-                  child: DropdownButtonFormField<String>(
-                    value: currentValue(tileId),
-                    onChanged: _portalUserBusy
-                        ? null
-                        : (value) {
-                            final normalized = _normalizeTilePermission(value);
-                            setState(() {
-                              if (normalized == null || value == 'inherit') {
-                                _portalUserTilePermissions.remove(tileId);
-                              } else {
-                                _portalUserTilePermissions[tileId] = normalized;
-                              }
-                            });
-                          },
-                    items: const [
-                      DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
-                      DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
-                      DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
-                      DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: 'Berechtigung',
+        Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _portalUserTilePermissions.entries
+                    .take(4)
+                    .map(
+                      (e) => Chip(
+                        label: Text('${_tileLabel(e.key)} • ${permissionLabel(e.value)}'),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.tune_outlined),
+              label: Text(overridesCount == 0
+                  ? 'Kachelrechte bearbeiten'
+                  : 'Bearbeiten (${overridesCount.toString()})'),
+              onPressed: _portalUserBusy ? null : _openPortalTilePermissionsDialog,
+            ),
+          ],
+        ),
+        if (overridesCount > 4) ...[
+          const SizedBox(height: 6),
+          Text('$overridesCount individuelle Berechtigungen ausgewählt', style: theme.textTheme.bodySmall),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openPortalTilePermissionsDialog() async {
+    final tiles = _menuTileIds.toList()
+      ..sort((a, b) => _tileLabel(a).toLowerCase().compareTo(_tileLabel(b).toLowerCase()));
+    final tempPermissions = Map<String, String>.from(_portalUserTilePermissions);
+
+    String currentValue(String tileId) => tempPermissions[tileId] ?? 'inherit';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kachel-Rechte festlegen'),
+        content: SizedBox(
+          width: 520,
+          child: StatefulBuilder(
+            builder: (context, setModalState) => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Wähle pro Kachel die gewünschte Berechtigungsstufe. Ohne Auswahl gilt automatisch die Rollen-Standardberechtigung.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  ...tiles.map(
+                    (tileId) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(_tileLabel(tileId))),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 200,
+                            child: DropdownButtonFormField<String>(
+                              value: currentValue(tileId),
+                              onChanged: _portalUserBusy
+                                  ? null
+                                  : (value) {
+                                      final normalized = _normalizeTilePermission(value);
+                                      setModalState(() {
+                                        if (normalized == null || value == 'inherit') {
+                                          tempPermissions.remove(tileId);
+                                        } else {
+                                          tempPermissions[tileId] = normalized;
+                                        }
+                                      });
+                                    },
+                              items: const [
+                                DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
+                                DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
+                                DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
+                                DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Berechtigung',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check),
+            label: const Text('Übernehmen'),
+            onPressed: () {
+              setState(() {
+                _portalUserTilePermissions
+                  ..clear()
+                  ..addAll(tempPermissions);
+              });
+              Navigator.of(ctx).pop();
+            },
+          ),
+        ],
+      ),
     );
   }
 
