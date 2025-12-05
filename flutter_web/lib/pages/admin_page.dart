@@ -338,6 +338,7 @@ class _AdminPageState extends State<AdminPage> {
   final _portalUserEmailCtrl = TextEditingController();
   final _portalUserDisplayNameCtrl = TextEditingController();
   final _portalUserPasswordCtrl = TextEditingController();
+  final _portalUserPasswordRepeatCtrl = TextEditingController();
   final _portalUserDepartmentCtrl = TextEditingController();
   String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
@@ -749,6 +750,7 @@ class _AdminPageState extends State<AdminPage> {
     _portalUserEmailCtrl.dispose();
     _portalUserDisplayNameCtrl.dispose();
     _portalUserPasswordCtrl.dispose();
+    _portalUserPasswordRepeatCtrl.dispose();
     _portalUserDepartmentCtrl.dispose();
     super.dispose();
   }
@@ -857,7 +859,8 @@ class _AdminPageState extends State<AdminPage> {
 
     final selDept = _portalUserFilterDepartment.trim();
     if (selDept.isNotEmpty && selDept != 'Alle Abteilungen') {
-      list = list.where((u) => u.assignedDepartments.contains(selDept));
+      list = list.where((u) =>
+          u.assignedDepartments.contains(selDept) || u.assignedDepartments.contains('Alle'));
     }
 
     final sorted = list.toList()
@@ -871,6 +874,71 @@ class _AdminPageState extends State<AdminPage> {
       });
 
     return sorted;
+  }
+
+  bool get _portalUserHasAllDepartments => _portalUserDepartments.contains('Alle');
+
+  bool get _canShowSalesToggle =>
+      _portalUserDepartments.contains('Vertrieb') || _portalUserHasAllDepartments;
+
+  void _ensureSalesFlagValidity() {
+    if (!_canShowSalesToggle && _portalUserIsSales) {
+      _portalUserIsSales = false;
+    }
+  }
+
+  void _updateDepartmentSelection(String dep, bool selected) {
+    setState(() {
+      if (dep == 'Alle') {
+        if (selected) {
+          _portalUserDepartments
+            ..clear()
+            ..add('Alle');
+        } else {
+          _portalUserDepartments.remove(dep);
+        }
+      } else {
+        if (selected) {
+          _portalUserDepartments
+            ..remove('Alle')
+            ..add(dep);
+        } else {
+          _portalUserDepartments.remove(dep);
+        }
+      }
+      _ensureSalesFlagValidity();
+    });
+  }
+
+  void _addPortalDepartment(String value) {
+    final dep = value.trim();
+    if (dep.isEmpty) return;
+    if (dep == 'Alle') {
+      _portalUserDepartmentCtrl.clear();
+      _updateDepartmentSelection('Alle', true);
+      return;
+    }
+    setState(() {
+      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(dep)) {
+        _portalUserDepartments.add(dep);
+      }
+      _portalUserDepartmentCtrl.clear();
+      _ensureSalesFlagValidity();
+    });
+  }
+
+  String? _validatePortalUserPasswords({required bool isNew, bool checkRepeatField = false}) {
+    final password = _portalUserPasswordCtrl.text;
+    final repeat = _portalUserPasswordRepeatCtrl.text;
+    if (isNew && password.isEmpty) return 'Passwort erforderlich';
+    if (isNew && repeat.isEmpty) return 'Passwort wiederholen';
+    if ((password.isNotEmpty || repeat.isNotEmpty) && password != repeat) {
+      return 'Passwörter stimmen nicht überein';
+    }
+    if (checkRepeatField && password.isEmpty && repeat.isNotEmpty) {
+      return 'Passwort eingeben';
+    }
+    return null;
   }
 
   String? _repIdForEmail(String email) {
@@ -7886,6 +7954,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserEmailCtrl.clear();
       _portalUserDisplayNameCtrl.clear();
       _portalUserPasswordCtrl.clear();
+      _portalUserPasswordRepeatCtrl.clear();
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = PORTAL_ROLES['superuser']!;
       _portalUserStatus = 'active';
@@ -7902,6 +7971,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserEmailCtrl.text = user?.email ?? '';
       _portalUserDisplayNameCtrl.text = user?.displayName ?? '';
       _portalUserPasswordCtrl.clear();
+      _portalUserPasswordRepeatCtrl.clear();
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
@@ -7912,10 +7982,11 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserTilePermissions
         ..clear()
         ..addAll(_sanitizeTilePermissionMap(user?.tilePermissions));
+      _ensureSalesFlagValidity();
     });
   }
 
-  Future<void> _savePortalUser() async {
+  Future<void> _savePortalUser({BuildContext? dialogContext}) async {
     if (!_isSuperuser) return;
     if (!(_portalUserFormKey.currentState?.validate() ?? false)) return;
 
@@ -7957,10 +8028,12 @@ class _AdminPageState extends State<AdminPage> {
         _portalUsersLoaded = true;
       });
 
-      _startPortalUserEdit(saved);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(isNew ? 'Benutzer angelegt' : 'Benutzer aktualisiert')),
       );
+      if (dialogContext != null) {
+        Navigator.of(dialogContext).pop();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _portalUsersErr = '$e');
@@ -7991,6 +8064,200 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (mounted) setState(() => _portalUserBusy = false);
     }
+  }
+
+  Future<void> _openPortalUserDialog({PortalUser? user}) async {
+    if (user == null) {
+      _resetPortalUserForm();
+    } else {
+      _startPortalUserEdit(user);
+    }
+    _portalUserFormKey.currentState?.reset();
+
+    final theme = Theme.of(context);
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final isNew = user == null;
+        return AlertDialog(
+          title: Text(isNew ? 'Neuen Mitarbeiter anlegen' : 'Mitarbeiter-User bearbeiten'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 700, maxHeight: 760),
+            child: Form(
+              key: _portalUserFormKey,
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isNew
+                            ? 'Legen Sie hier einen neuen Mitarbeiter an. Alle Pflichtfelder müssen ausgefüllt sein.'
+                            : 'Bearbeiten Sie alle Einstellungen des ausgewählten Mitarbeiters.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _portalUserEmailCtrl,
+                        enabled: isNew,
+                        decoration: const InputDecoration(
+                          labelText: 'E-Mail (Login)',
+                          prefixIcon: Icon(Icons.mail_outline),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (v) {
+                          final value = v?.trim() ?? '';
+                          if (value.isEmpty) return 'E-Mail erforderlich';
+                          if (!value.contains('@')) return 'E-Mail prüfen';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _portalUserDisplayNameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Anzeigename (optional)',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _portalUserPasswordCtrl,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText:
+                              isNew ? 'Passwort festlegen' : 'Neues Passwort (optional)',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                        ),
+                        validator: (_) =>
+                            _validatePortalUserPasswords(isNew: isNew, checkRepeatField: false),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _portalUserPasswordRepeatCtrl,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: isNew
+                              ? 'Passwort wiederholen'
+                              : 'Neues Passwort wiederholen (optional)',
+                          prefixIcon: const Icon(Icons.lock_reset_outlined),
+                        ),
+                        validator: (_) => _validatePortalUserPasswords(
+                            isNew: isNew, checkRepeatField: true),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: _portalUserRole,
+                        items: const [
+                          DropdownMenuItem(value: 'superuser', child: Text('Superuser (Admin)')),
+                          DropdownMenuItem(value: 'user', child: Text('Normaler User')),
+                          DropdownMenuItem(value: 'readonly', child: Text('Nur lesen')),
+                        ],
+                        onChanged: _portalUserBusy
+                            ? null
+                            : (v) => setState(() => _portalUserRole = v ?? PORTAL_ROLES['user']!),
+                        decoration: const InputDecoration(
+                          labelText: 'Rolle',
+                          prefixIcon: Icon(Icons.security_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (_canShowSalesToggle)
+                        SwitchListTile.adaptive(
+                          contentPadding: const EdgeInsets.only(left: 8),
+                          title: const Text('Sales-Bearbeitung erlaubt'),
+                          subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
+                          value: _portalUserIsSales,
+                          onChanged: _portalUserBusy
+                              ? null
+                              : (v) => setState(() => _portalUserIsSales = v),
+                        ),
+                      const SizedBox(height: 4),
+                      Text('Zugeordnete Abteilungen',
+                          style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilterChip(
+                            label: const Text('Alle'),
+                            selected: _portalUserHasAllDepartments,
+                            onSelected: _portalUserBusy
+                                ? null
+                                : (selected) => _updateDepartmentSelection('Alle', selected),
+                          ),
+                          ...kInternalDepartments.map(
+                            (dep) => FilterChip(
+                              label: Text(dep),
+                              selected: _portalUserDepartments.contains(dep),
+                              onSelected: _portalUserBusy
+                                  ? null
+                                  : (v) => _updateDepartmentSelection(dep, v),
+                            ),
+                          ),
+                          if (_portalUserDepartments.isNotEmpty)
+                            ..._portalUserDepartments
+                                .where((dep) =>
+                                    !kInternalDepartments.contains(dep) && dep != 'Alle')
+                                .map((dep) => InputChip(
+                                      label: Text(dep),
+                                      onDeleted: _portalUserBusy
+                                          ? null
+                                          : () => _updateDepartmentSelection(dep, false),
+                                    )),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _portalUserDepartmentCtrl,
+                        enabled: !_portalUserBusy && !_portalUserHasAllDepartments,
+                        decoration: const InputDecoration(
+                          labelText: 'Weitere Abteilung hinzufügen',
+                          helperText: 'Enter speichert die Eingabe',
+                          prefixIcon: Icon(Icons.playlist_add),
+                        ),
+                        onSubmitted: (v) => _addPortalDepartment(v),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: _portalUserStatus,
+                        items: const [
+                          DropdownMenuItem(value: 'active', child: Text('Aktiv')),
+                          DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
+                        ],
+                        onChanged: _portalUserBusy
+                            ? null
+                            : (v) => setState(() => _portalUserStatus = v ?? 'active'),
+                        decoration: const InputDecoration(
+                          labelText: 'Status',
+                          prefixIcon: Icon(Icons.verified_user_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildPortalUserTilePermissionsEditor(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _portalUserBusy ? null : () => Navigator.of(dialogContext).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton.icon(
+              onPressed:
+                  _portalUserBusy ? null : () => _savePortalUser(dialogContext: dialogContext),
+              icon: const Icon(Icons.save_outlined),
+              label: Text(isNew ? 'Benutzer anlegen' : 'Änderungen speichern'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   List<_AdminMenuSectionState> _tileSelectionSections() {
@@ -8346,6 +8613,7 @@ class _AdminPageState extends State<AdminPage> {
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final departmentOptions = <String>{
       'Alle Abteilungen',
+      'Alle',
       ..._portalUsers.expand((u) => u.assignedDepartments),
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
@@ -8364,6 +8632,12 @@ class _AdminPageState extends State<AdminPage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
+              ElevatedButton.icon(
+                onPressed: _portalUserBusy ? null : () => _openPortalUserDialog(),
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: const Text('Neuen Mitarbeiter anlegen'),
+              ),
+              const SizedBox(width: 8),
               IconButton(
                 tooltip: 'Neu laden',
                 onPressed: _portalUsersLoading ? null : _refreshPortalUsers,
@@ -8379,436 +8653,245 @@ class _AdminPageState extends State<AdminPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(_portalUsersErr!, style: TextStyle(color: theme.colorScheme.error)),
             ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Form(
-                      key: _portalUserFormKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _editingPortalUser == null
-                                ? 'Neuen Mitarbeiter-User anlegen'
-                                : 'Mitarbeiter-User bearbeiten',
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _portalUserEmailCtrl,
-                            enabled: _editingPortalUser == null,
-                            decoration: const InputDecoration(
-                              labelText: 'E-Mail (Login)',
-                              prefixIcon: Icon(Icons.mail_outline),
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (v) {
-                              final value = v?.trim() ?? '';
-                              if (value.isEmpty) return 'E-Mail erforderlich';
-                              if (!value.contains('@')) return 'E-Mail prüfen';
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: _portalUserDisplayNameCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Anzeigename (optional)',
-                              prefixIcon: Icon(Icons.badge_outlined),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: _portalUserPasswordCtrl,
-                            obscureText: true,
-                            decoration: InputDecoration(
-                              labelText:
-                                  _editingPortalUser == null ? 'Passwort festlegen' : 'Neues Passwort (optional)',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                            ),
-                            validator: (v) {
-                              if (_editingPortalUser != null) return null;
-                              return (v ?? '').isEmpty ? 'Passwort erforderlich' : null;
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField<String>(
-                            value: _portalUserRole,
-                            items: const [
-                              DropdownMenuItem(value: 'superuser', child: Text('Superuser (Admin)')),
-                              DropdownMenuItem(value: 'user', child: Text('Normaler User')),
-                              DropdownMenuItem(value: 'readonly', child: Text('Nur lesen')),
-                            ],
-                            onChanged: _portalUserBusy
-                                ? null
-                                : (v) => setState(() => _portalUserRole = v ?? PORTAL_ROLES['user']!),
-                            decoration: const InputDecoration(
-                              labelText: 'Rolle',
-                              prefixIcon: Icon(Icons.security_outlined),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          SwitchListTile.adaptive(
-                            contentPadding: const EdgeInsets.only(left: 8),
-                            title: const Text('Sales-Bearbeitung erlaubt'),
-                            subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
-                            value: _portalUserIsSales,
-                            onChanged: _portalUserBusy
-                                ? null
-                                : (v) => setState(() => _portalUserIsSales = v),
-                          ),
-                          const SizedBox(height: 10),
-                          Text('Zugeordnete Abteilungen',
-                              style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              ...kInternalDepartments.map(
-                                (dep) => FilterChip(
-                                  label: Text(dep),
-                                  selected: _portalUserDepartments.contains(dep),
-                                  onSelected: _portalUserBusy
-                                      ? null
-                                      : (v) => setState(() {
-                                            if (v == true && !_portalUserDepartments.contains(dep)) {
-                                              _portalUserDepartments.add(dep);
-                                            } else if (v == false) {
-                                              _portalUserDepartments.remove(dep);
-                                            }
-                                          }),
-                                ),
-                              ),
-                              if (_portalUserDepartments.isNotEmpty)
-                                ..._portalUserDepartments
-                                    .where((dep) => !kInternalDepartments.contains(dep))
-                                    .map((dep) => InputChip(
-                                          label: Text(dep),
-                                          onDeleted: _portalUserBusy
-                                              ? null
-                                              : () => setState(() => _portalUserDepartments.remove(dep)),
-                                        )),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _portalUserDepartmentCtrl,
-                            enabled: !_portalUserBusy,
-                            decoration: const InputDecoration(
-                              labelText: 'Weitere Abteilung hinzufügen',
-                              helperText: 'Enter speichert die Eingabe',
-                              prefixIcon: Icon(Icons.playlist_add),
-                            ),
-                            onSubmitted: (v) {
-                              final value = v.trim();
-                              if (value.isEmpty) return;
-                              setState(() {
-                                if (!_portalUserDepartments.contains(value)) {
-                                  _portalUserDepartments.add(value);
-                                }
-                                _portalUserDepartmentCtrl.clear();
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField<String>(
-                            value: _portalUserStatus,
-                            items: const [
-                              DropdownMenuItem(value: 'active', child: Text('Aktiv')),
-                              DropdownMenuItem(value: 'inactive', child: Text('Inaktiv')),
-                            ],
-                            onChanged: _portalUserBusy
-                                ? null
-                                : (v) => setState(() => _portalUserStatus = v ?? 'active'),
-                            decoration: const InputDecoration(
-                              labelText: 'Status',
-                              prefixIcon: Icon(Icons.verified_user_outlined),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _buildPortalUserTilePermissionsEditor(),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: _portalUserBusy ? null : _savePortalUser,
-                                icon: const Icon(Icons.save_outlined),
-                                label: Text(_editingPortalUser == null ? 'Benutzer anlegen' : 'Änderungen speichern'),
-                              ),
-                              const SizedBox(width: 12),
-                              TextButton(
-                                onPressed: _portalUserBusy ? null : _resetPortalUserForm,
-                                child: const Text('Formular zurücksetzen'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text('User-Datenbank (${_portalUsers.length})',
+                          style: theme.textTheme.titleMedium),
+                      if (_portalUsersLoading) ...[
+                        const SizedBox(width: 12),
+                        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ],
+                      const SizedBox(width: 12),
+                      if (!_portalUsersLoading)
+                        Chip(
+                          avatar: const Icon(Icons.filter_alt, size: 18),
+                          label: Text('${filteredUsers.length} gefiltert'),
+                          backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+                        ),
+                    ],
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 3,
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text('User-Datenbank (${_portalUsers.length})',
-                                style: theme.textTheme.titleMedium),
-                            if (_portalUsersLoading) ...[
-                              const SizedBox(width: 12),
-                              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                            ],
-                            const SizedBox(width: 12),
-                            if (!_portalUsersLoading)
-                              Chip(
-                                avatar: const Icon(Icons.filter_alt, size: 18),
-                                label: Text('${filteredUsers.length} gefiltert'),
-                                backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.6),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 10,
-                          children: [
-                            SizedBox(
-                              width: 280,
-                              child: TextField(
-                                decoration: const InputDecoration(
-                                  labelText: 'Suchen (Name, E-Mail, Rolle, Abteilung)',
-                                  prefixIcon: Icon(Icons.search),
-                                  isDense: true,
-                                ),
-                                onChanged: (v) => setState(() => _portalUserFilterQuery = v),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 180,
-                              child: DropdownButtonFormField<String>(
-                                value: _portalUserFilterRole,
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Rolle',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.badge_outlined),
-                                ),
-                                items: roleOptions
-                                    .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
-                                    .toList(),
-                                onChanged: (v) => setState(() => _portalUserFilterRole = v ?? 'Alle Rollen'),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 180,
-                              child: DropdownButtonFormField<String>(
-                                value: _portalUserFilterStatus,
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Status',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.verified_outlined),
-                                ),
-                                items: statusOptions
-                                    .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                                    .toList(),
-                                onChanged: (v) => setState(() => _portalUserFilterStatus = v ?? 'Alle Stati'),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 220,
-                              child: DropdownButtonFormField<String>(
-                                value: _portalUserFilterDepartment,
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'Abteilung',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.business_outlined),
-                                ),
-                                items: departmentOptions
-                                    .map((d) => DropdownMenuItem<String>(value: d, child: Text(d)))
-                                    .toList(),
-                                onChanged: (v) =>
-                                    setState(() => _portalUserFilterDepartment = v ?? 'Alle Abteilungen'),
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: () => setState(() {
-                                _portalUserFilterQuery = '';
-                                _portalUserFilterRole = 'Alle Rollen';
-                                _portalUserFilterStatus = 'Alle Stati';
-                                _portalUserFilterDepartment = 'Alle Abteilungen';
-                              }),
-                              icon: const Icon(Icons.clear_all),
-                              label: const Text('Filter zurücksetzen'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (filteredUsers.isEmpty && !_portalUsersLoading)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text('Keine Mitarbeiter-/Portal-User für die Filter gefunden.'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Suchen (Name, E-Mail, Rolle, Abteilung)',
+                            prefixIcon: Icon(Icons.search),
+                            isDense: true,
                           ),
-                        if (_portalUsersLoading) const LinearProgressIndicator(),
-                        const SizedBox(height: 8),
-                        if (filteredUsers.isNotEmpty)
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: filteredUsers.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final u = filteredUsers[index];
-                              final isActive = u.portalStatus == 'active';
-                              final hasCustomTiles = u.tilePermissions.isNotEmpty;
-                              final deptBadges = u.assignedDepartments.isEmpty
-                                  ? [
-                                      _PortalBadge(
-                                        icon: Icons.work_outline,
-                                        label: 'Keine Abteilung',
-                                        color: theme.colorScheme.surfaceVariant,
-                                      ),
-                                    ]
-                                  : u.assignedDepartments
-                                      .map((dep) => _PortalBadge(
-                                            icon: Icons.work_outline,
-                                            label: dep,
-                                            color: theme.colorScheme.surfaceContainerHighest,
-                                          ))
-                                      .toList();
+                          onChanged: (v) => setState(() => _portalUserFilterQuery = v),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 180,
+                        child: DropdownButtonFormField<String>(
+                          value: _portalUserFilterRole,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Rolle',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.badge_outlined),
+                          ),
+                          items: roleOptions
+                              .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _portalUserFilterRole = v ?? 'Alle Rollen'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 180,
+                        child: DropdownButtonFormField<String>(
+                          value: _portalUserFilterStatus,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Status',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.verified_outlined),
+                          ),
+                          items: statusOptions
+                              .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _portalUserFilterStatus = v ?? 'Alle Stati'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 220,
+                        child: DropdownButtonFormField<String>(
+                          value: _portalUserFilterDepartment,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Abteilung',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.business_outlined),
+                          ),
+                          items: departmentOptions
+                              .map((d) => DropdownMenuItem<String>(value: d, child: Text(d)))
+                              .toList(),
+                          onChanged: (v) =>
+                              setState(() => _portalUserFilterDepartment = v ?? 'Alle Abteilungen'),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => setState(() {
+                          _portalUserFilterQuery = '';
+                          _portalUserFilterRole = 'Alle Rollen';
+                          _portalUserFilterStatus = 'Alle Stati';
+                          _portalUserFilterDepartment = 'Alle Abteilungen';
+                        }),
+                        icon: const Icon(Icons.clear_all),
+                        label: const Text('Filter zurücksetzen'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (filteredUsers.isEmpty && !_portalUsersLoading)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text('Keine Mitarbeiter-/Portal-User für die Filter gefunden.'),
+                    ),
+                  if (_portalUsersLoading) const LinearProgressIndicator(),
+                  const SizedBox(height: 8),
+                  if (filteredUsers.isNotEmpty)
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredUsers.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final u = filteredUsers[index];
+                        final isActive = u.portalStatus == 'active';
+                        final hasCustomTiles = u.tilePermissions.isNotEmpty;
+                        final departmentEntries = u.assignedDepartments.isEmpty
+                            ? const ['Keine Abteilung']
+                            : (u.assignedDepartments.contains('Alle')
+                                ? const ['Alle Abteilungen']
+                                : u.assignedDepartments);
 
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceContainerLowest.withOpacity(0.8),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: theme.colorScheme.shadow.withOpacity(0.04),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 3),
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerLowest.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.colorScheme.shadow.withOpacity(0.04),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: statusColor(u.portalStatus),
+                                    child: Icon(
+                                      isActive ? Icons.check : Icons.pause,
+                                      color: theme.colorScheme.onSurface,
                                     ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        CircleAvatar(
-                                          backgroundColor: statusColor(u.portalStatus),
-                                          child: Icon(
-                                            isActive ? Icons.check : Icons.pause,
-                                            color: theme.colorScheme.onSurface,
+                                        Text(
+                                          u.displayName?.isNotEmpty == true ? u.displayName! : u.email,
+                                          style: theme.textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                u.displayName?.isNotEmpty == true ? u.displayName! : u.email,
-                                                style: theme.textTheme.titleMedium?.copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Wrap(
-                                                spacing: 6,
-                                                runSpacing: 4,
-                                                children: [
-                                                  _PortalBadge(
-                                                    icon: Icons.email_outlined,
-                                                    label: u.email,
-                                                    color: theme.colorScheme.surfaceVariant,
-                                                    foreground: theme.colorScheme.onSurface,
-                                                  ),
-                                                  _PortalBadge(
-                                                    icon: Icons.badge_outlined,
-                                                    label: u.role,
-                                                    color: theme.colorScheme.primaryContainer,
-                                                    foreground: theme.colorScheme.onPrimaryContainer,
-                                                  ),
-                                                  _PortalBadge(
-                                                    icon: isActive
-                                                        ? Icons.verified_user_outlined
-                                                        : Icons.pause_circle_outline,
-                                                    label: isActive ? 'Aktiv' : 'Inaktiv',
-                                                    color: statusColor(u.portalStatus),
-                                                    foreground: theme.colorScheme.onSecondaryContainer,
-                                                  ),
-                                                  if (hasCustomTiles)
-                                                    _PortalBadge(
-                                                      icon: Icons.dashboard_customize_outlined,
-                                                      label: 'Anzahl vergebener Rechte: ${u.tilePermissions.length}',
-                                                      color: theme.colorScheme.tertiaryContainer,
-                                                      foreground: theme.colorScheme.onTertiaryContainer,
-                                                    ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Wrap(
-                                                spacing: 6,
-                                                runSpacing: 4,
-                                                children: deptBadges,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                        const SizedBox(height: 4),
                                         Wrap(
-                                          spacing: 8,
+                                          spacing: 6,
+                                          runSpacing: 4,
                                           children: [
-                                            IconButton(
-                                              tooltip: 'Bearbeiten',
-                                              onPressed: _portalUserBusy ? null : () => _startPortalUserEdit(u),
-                                              icon: const Icon(Icons.edit_outlined),
+                                            _PortalBadge(
+                                              icon: Icons.email_outlined,
+                                              label: u.email,
+                                              color: theme.colorScheme.surfaceVariant,
+                                              foreground: theme.colorScheme.onSurface,
                                             ),
-                                            IconButton(
-                                              tooltip: isActive ? 'Deaktivieren' : 'Reaktivieren',
-                                              onPressed: _portalUserBusy ? null : () => _togglePortalUserStatus(u),
-                                              icon: Icon(
-                                                isActive
-                                                    ? Icons.pause_circle_outline
-                                                    : Icons.play_circle_outline,
+                                            _PortalBadge(
+                                              icon: Icons.badge_outlined,
+                                              label: u.role,
+                                              color: theme.colorScheme.primaryContainer,
+                                              foreground: theme.colorScheme.onPrimaryContainer,
+                                            ),
+                                            _PortalBadge(
+                                              icon: isActive
+                                                  ? Icons.verified_user_outlined
+                                                  : Icons.pause_circle_outline,
+                                              label: isActive ? 'Aktiv' : 'Inaktiv',
+                                              color: statusColor(u.portalStatus),
+                                              foreground: theme.colorScheme.onSecondaryContainer,
+                                            ),
+                                            if (hasCustomTiles)
+                                              _PortalBadge(
+                                                icon: Icons.dashboard_customize_outlined,
+                                                label: 'Anzahl vergebener Rechte: ${u.tilePermissions.length}',
+                                                color: theme.colorScheme.tertiaryContainer,
+                                                foreground: theme.colorScheme.onTertiaryContainer,
                                               ),
-                                            ),
                                           ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        _PortalInfoDropdown(
+                                          icon: Icons.info_outline,
+                                          title: 'Abteilungen',
+                                          entries: departmentEntries,
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
-                              );
-                            },
+                                  ),
+                                  Wrap(
+                                    spacing: 8,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Bearbeiten',
+                                        onPressed: _portalUserBusy ? null : () => _openPortalUserDialog(user: u),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        tooltip: isActive ? 'Deaktivieren' : 'Reaktivieren',
+                                        onPressed: _portalUserBusy ? null : () => _togglePortalUserStatus(u),
+                                        icon: Icon(
+                                          isActive
+                                              ? Icons.pause_circle_outline
+                                              : Icons.play_circle_outline,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                      ],
+                        );
+                      },
                     ),
-                  ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -10910,6 +10993,63 @@ class _PortalBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PortalInfoDropdown extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final List<String> entries;
+
+  const _PortalInfoDropdown({
+    required this.title,
+    required this.icon,
+    required this.entries,
+  });
+
+  @override
+  State<_PortalInfoDropdown> createState() => _PortalInfoDropdownState();
+}
+
+class _PortalInfoDropdownState extends State<_PortalInfoDropdown> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+      ),
+      child: Theme(
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          leading: Icon(widget.icon, color: theme.colorScheme.onSurfaceVariant),
+          title: Text(
+            widget.title,
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+          onExpansionChanged: (value) => setState(() => _expanded = value),
+          children: widget.entries
+              .map(
+                (entry) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  minLeadingWidth: 0,
+                  leading: Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                  title: Text(entry, style: theme.textTheme.bodyMedium),
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
