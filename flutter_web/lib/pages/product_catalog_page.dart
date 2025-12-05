@@ -14,11 +14,13 @@ class ProductCatalogPage extends StatefulWidget {
   final String? error;
   final Future<void> Function()? onReload;
   final ValueChanged<List<DfsProduct>> onProductsChanged;
+  final bool canWrite;
 
   const ProductCatalogPage({
     super.key,
     required this.products,
     required this.onProductsChanged,
+    this.canWrite = true,
     this.loading = false,
     this.error,
     this.onReload,
@@ -317,6 +319,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Future<void> _openEditor({DfsProduct? product}) async {
+    if (!widget.canWrite) return;
     final isEdit = product != null;
     final controllers = <String, TextEditingController>{};
 
@@ -383,11 +386,13 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
           FilledButton(
-            onPressed: () {
-              final map = controllers.map((key, ctrl) => MapEntry(key, ctrl.text.trim()));
-              final updated = DfsProduct.fromHeaderMap(map);
-              Navigator.pop(ctx, updated);
-            },
+            onPressed: widget.canWrite
+                ? () {
+                    final map = controllers.map((key, ctrl) => MapEntry(key, ctrl.text.trim()));
+                    final updated = DfsProduct.fromHeaderMap(map);
+                    Navigator.pop(ctx, updated);
+                  }
+                : null,
             child: Text(isEdit ? 'Speichern' : 'Anlegen'),
           ),
         ],
@@ -418,6 +423,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Future<void> _deleteProduct(DfsProduct product) async {
+    if (!widget.canWrite) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -558,7 +564,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             ),
             const SizedBox(width: 4),
             FilledButton.icon(
-              onPressed: () => _openEditor(),
+              onPressed: widget.canWrite ? () => _openEditor() : null,
               icon: const Icon(Icons.add),
               label: const Text('Artikel hinzufügen'),
             ),
@@ -876,12 +882,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                 IconButton(
                   tooltip: 'Bearbeiten',
                   icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => _openEditor(product: product),
+                  onPressed: widget.canWrite ? () => _openEditor(product: product) : null,
                 ),
                 IconButton(
                   tooltip: 'Löschen',
                   icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _deleteProduct(product),
+                  onPressed: widget.canWrite ? () => _deleteProduct(product) : null,
                 ),
               ],
             ),

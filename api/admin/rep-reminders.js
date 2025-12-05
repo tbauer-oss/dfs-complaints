@@ -167,7 +167,7 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
   if (!['GET', 'POST'].includes(req.method || '')) return methodNotAllowed(res);
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'reps' });
   if (!actor) return;
 
   try {

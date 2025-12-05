@@ -416,7 +416,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return noContent(res);
 
   // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  const tile = req.query?.open ? 'open' : 'all';
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile });
   if (!actor) return;
   const role = normalizeRoleSafe(actor);
   const deps = actorDepartments(actor);

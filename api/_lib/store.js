@@ -80,6 +80,26 @@ const mem = {
   adminUiConfig: null,
 };
 
+export function normalizeTilePermission(value) {
+  const lc = (value ?? '').toString().trim().toLowerCase();
+  if (lc === 'write') return 'write';
+  if (lc === 'read') return 'read';
+  if (lc === 'none' || lc === 'hidden' || lc === 'hide') return 'none';
+  return null;
+}
+
+export function sanitizeTilePermissions(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [tile, perm] of Object.entries(raw)) {
+    const tileId = (tile ?? '').toString().trim();
+    if (!tileId) continue;
+    const normalized = normalizeTilePermission(perm);
+    if (normalized) out[tileId] = normalized;
+  }
+  return out;
+}
+
 const DEFAULT_DOWNLOAD_CATEGORIES = [
   'Sicherheitsdatenblätter',
   'Gebrauchsanweisungen',
@@ -1181,6 +1201,8 @@ function normalizePortalUser(u) {
   }
   normalized.assignedDepartments = normalizeDepartments(normalized.assignedDepartments);
   normalized.lang = normLang(normalized.lang || '');
+  const tilePermissions = sanitizeTilePermissions(normalized.tilePermissions);
+  if (Object.keys(tilePermissions).length > 0) normalized.tilePermissions = tilePermissions; else delete normalized.tilePermissions;
   return normalized;
 }
 

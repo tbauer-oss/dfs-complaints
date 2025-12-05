@@ -55,7 +55,7 @@ import { requirePortalAccess } from './_guard.js';
 export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'reps' });
   if (!actor) return;
 
   try {
