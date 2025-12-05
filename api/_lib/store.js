@@ -56,6 +56,7 @@ const P = 'dfs:';
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
 const KEY_PORTAL_USERS = `${P}portal:users`;
+const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
@@ -76,6 +77,7 @@ const mem = {
   downloadsCacheVersion: 0,
   downloadCategories: null,
   repDownloadSeen: new Map(),
+  adminUiConfig: null,
 };
 
 const DEFAULT_DOWNLOAD_CATEGORIES = [
@@ -1233,6 +1235,103 @@ export async function portalUsersList() {
   return Array.from(mem.portalUsers.values())
     .map(normalizePortalUser)
     .filter(Boolean);
+}
+
+function _uniqueStrings(list) {
+  const out = new Set();
+  for (const entry of list || []) {
+    const val = (entry ?? '').toString().trim();
+    if (val) out.add(val);
+  }
+  return Array.from(out.values());
+}
+
+function sanitizeRoleTileVisibility(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [role, tiles] of Object.entries(raw)) {
+    const roleKey = (role ?? '').toString().trim();
+    if (!roleKey) continue;
+    if (Array.isArray(tiles)) {
+      const filtered = _uniqueStrings(tiles);
+      if (filtered.length) out[roleKey] = filtered;
+    }
+  }
+  return out;
+}
+
+function sanitizeMenuLayout(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const base = Array.isArray(raw) ? { sections: raw } : raw;
+  const sections = [];
+  for (const entry of Array.isArray(base.sections) ? base.sections : []) {
+    if (!entry || typeof entry !== 'object') continue;
+    const title = (entry.title ?? '').toString().trim();
+    if (!title) continue;
+    const subtitle = (entry.subtitle ?? '').toString().trim();
+    const tiles = _uniqueStrings(Array.isArray(entry.tiles) ? entry.tiles : []);
+    sections.push({ title, subtitle, tiles });
+  }
+
+  const rawScale = Number(base.tileScale);
+  const tileScale = Number.isFinite(rawScale) ? Math.min(Math.max(rawScale, 0.5), 2) : 1;
+  const archived = _uniqueStrings(Array.isArray(base.archived) ? base.archived : []);
+
+  return {
+    sections,
+    tileScale,
+    archived,
+  };
+}
+
+function sanitizeNavOrder(raw) {
+  if (!Array.isArray(raw)) return [];
+  return _uniqueStrings(raw);
+}
+
+function sanitizePortalAdminUi(raw) {
+  const normalized = typeof raw === 'object' && raw ? raw : {};
+  const result = {};
+
+  const tiles = sanitizeRoleTileVisibility(normalized.roleTileVisibility);
+  if (Object.keys(tiles).length > 0) result.roleTileVisibility = tiles;
+
+  const layout = sanitizeMenuLayout(normalized.menuLayout ?? normalized.sections);
+  if (layout) result.menuLayout = layout;
+
+  const navOrder = sanitizeNavOrder(normalized.navOrder);
+  if (navOrder.length > 0) result.navOrder = navOrder;
+
+  return result;
+}
+
+export async function loadPortalAdminUi() {
+  const r = getRedis();
+  const stored = r ? await rget(KEY_PORTAL_ADMIN_UI) : mem.adminUiConfig;
+  return sanitizePortalAdminUi(stored || {});
+}
+
+export async function savePortalAdminUi(config) {
+  const current = await loadPortalAdminUi();
+  const patch = sanitizePortalAdminUi(config || {});
+  const next = { ...current };
+
+  if (patch.roleTileVisibility) {
+    next.roleTileVisibility = { ...(current.roleTileVisibility || {}), ...patch.roleTileVisibility };
+  }
+
+  if (patch.menuLayout) {
+    next.menuLayout = patch.menuLayout;
+  }
+
+  if (patch.navOrder) {
+    next.navOrder = patch.navOrder;
+  }
+
+  const r = getRedis();
+  if (r) await rset(KEY_PORTAL_ADMIN_UI, next); else mem.adminUiConfig = next;
+  return next;
 }
 
 export async function pushTokensForEmail(email) {

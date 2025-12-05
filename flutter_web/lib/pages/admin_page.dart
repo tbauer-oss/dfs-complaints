@@ -129,6 +129,29 @@ const List<String> kInternalEvaluationCauses = [
 const List<String> kInternalEvaluationTranslationLangs = ['en', 'de', 'es', 'fr', 'it'];
 
 const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
+  'superuser': [
+    'open',
+    'all',
+    'stats',
+    'pending',
+    'users',
+    'reps',
+    'news',
+    'downloads',
+    'faq',
+    'wiki',
+    'products',
+    'push',
+    'catalogs',
+    'appMeta',
+    'testMode',
+    'systemHealth',
+    'activity',
+    'createCustomer',
+    'wikiCategories',
+    'wikiArticles',
+    'portalUsers',
+  ],
   'user': [
     'open',
     'all',
@@ -378,28 +401,21 @@ class _AdminPageState extends State<AdminPage> {
     _persistCustomerContactSeen();
   }
 
-  void _loadRoleTileVisibility() {
-    final raw = html.window.localStorage[_roleTileVisibilityKey];
-    if (raw == null) return;
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map) {
-        decoded.forEach((key, value) {
-          if (value is List) {
-            _roleTileVisibility[key.toString()] =
-                value.whereType<String>().toSet();
-          }
-        });
-      }
-    } catch (_) {}
+  void _loadRoleTileVisibility({Map<String, dynamic>? stored}) {
+    final rawData = stored;
+    if (rawData != null) {
+      rawData.forEach((key, value) {
+        if (value is List) {
+          _roleTileVisibility[key.toString()] = value.whereType<String>().toSet();
+        }
+      });
+    }
   }
 
-  void _persistRoleTileVisibility() {
-    try {
-      html.window.localStorage[_roleTileVisibilityKey] = jsonEncode(
-        _roleTileVisibility.map((key, value) => MapEntry(key, value.toList())),
-      );
-    } catch (_) {}
+  void _persistRoleTileVisibility({bool syncRemote = true}) {
+    if (syncRemote) {
+      _syncAdminUiConfig(roleTileVisibility: _roleTileVisibility);
+    }
   }
 
   Set<String> _defaultTilesForRole(String role) {
@@ -464,10 +480,6 @@ class _AdminPageState extends State<AdminPage> {
   bool _bulkAssigningOpen = false;
 
   bool _loadAllComplaints = false;
-
-  static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
-  static const _roleTileVisibilityKey = 'admin_role_tiles_v1';
-  static const _navOrderStorageKey = 'admin_nav_order_v1';
   static const double _tileScaleMin = 0.6;
   static const double _tileScaleMax = 1.35;
   late final Map<String, String> _tileDefaultSection;
@@ -603,6 +615,7 @@ class _AdminPageState extends State<AdminPage> {
     _initMenuLayout();
     _applyNavOrder(_defaultNavOrder());
     _loadNavOrder();
+    _loadAdminUiConfigFromServer();
     _view = widget.initialView;
 
     if (portalTok.isEmpty && secret.isEmpty) {
@@ -4592,31 +4605,10 @@ class _AdminPageState extends State<AdminPage> {
 
   void _loadNavOrder() {
     final defaults = _defaultNavOrder();
-    final raw = html.window.localStorage[_navOrderStorageKey];
-    List<_AdminView> next = defaults;
-
-    if (raw != null) {
-      try {
-        final parsed = jsonDecode(raw);
-        if (parsed is List) {
-          final views = parsed
-              .whereType<String>()
-              .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
-              .whereNotNull()
-              .toList();
-          if (views.isNotEmpty) {
-            next = views;
-          }
-        }
-      } catch (_) {
-        // Fallback to defaults below.
-      }
-    }
-
-    _applyNavOrder(next, persist: true);
+    _applyNavOrder(defaults, persist: false, syncRemote: false);
   }
 
-  void _applyNavOrder(List<_AdminView> order, {bool persist = false}) {
+  void _applyNavOrder(List<_AdminView> order, {bool persist = false, bool syncRemote = true}) {
     final merged = _mergeNavOrder(order);
     final changed = !listEquals(_navOrder, merged);
 
@@ -4630,8 +4622,8 @@ class _AdminPageState extends State<AdminPage> {
       _navOrder = merged;
     }
 
-    if (persist) {
-      html.window.localStorage[_navOrderStorageKey] = jsonEncode(merged.map((v) => v.name).toList());
+    if (persist && syncRemote) {
+      _syncAdminUiConfig(navOrder: merged);
     }
   }
 
@@ -4711,10 +4703,8 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     bool _tileAllowed(String id) {
-      if (!_isSuperuser) {
-        final visibleTiles = _visibleTilesForRole(_portalRole);
-        if (!visibleTiles.contains(id)) return false;
-      }
+      final visibleTiles = _visibleTilesForRole(_portalRole);
+      if (!visibleTiles.contains(id)) return false;
       final view = _tileIdToView(id);
       if (view == null) return true;
       return _isViewAllowed(view);
@@ -4773,6 +4763,42 @@ class _AdminPageState extends State<AdminPage> {
     _ensureMenuTilePresent('portalUsers');
   }
 
+  Future<void> _loadAdminUiConfigFromServer() async {
+    try {
+      final config = await _api.fetchAdminUiConfig();
+      if (config.isEmpty) return;
+
+      final remoteTiles = config['roleTileVisibility'];
+      if (remoteTiles is Map<String, dynamic>) {
+        setState(() => _loadRoleTileVisibility(stored: remoteTiles));
+        _persistRoleTileVisibility(syncRemote: false);
+      }
+
+      final remoteLayout = config['menuLayout'];
+      if (remoteLayout != null) {
+        final defaults = _baseMenuSections();
+        final sections = _loadMenuLayout(defaults: defaults, storedLayout: remoteLayout);
+        setState(() => _menuSections = sections);
+        _ensureMenuTilePresent('downloads');
+        _ensureMenuTilePresent('portalUsers');
+      }
+
+      final navOrder = config['navOrder'];
+      if (navOrder is List) {
+        final views = navOrder
+            .whereType<String>()
+            .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
+            .whereNotNull()
+            .toList();
+        if (views.isNotEmpty) {
+          _applyNavOrder(views, persist: true, syncRemote: false);
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load admin UI config: $e');
+    }
+  }
+
   void _ensureMenuTilePresent(String tileId) {
     if (!_menuTileIds.contains(tileId)) return;
 
@@ -4810,16 +4836,24 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  List<_AdminMenuSectionState> _loadMenuLayout({required List<_AdminMenuSectionState> defaults}) {
+  List<_AdminMenuSectionState> _loadMenuLayout({
+    required List<_AdminMenuSectionState> defaults,
+    dynamic storedLayout,
+  }) {
     _menuTileScale = 1.0;
     _archivedTileIds.clear();
-    final raw = html.window.localStorage[_menuLayoutStorageKey];
-    if (raw == null) {
+    final rawData = storedLayout;
+    if (rawData == null) {
       return defaults.map((s) => s.copy()).toList();
     }
 
     try {
-      final parsed = jsonDecode(raw);
+      dynamic parsed = rawData;
+
+      if (parsed is String) {
+        parsed = jsonDecode(parsed);
+      }
+
       List<dynamic>? sectionData;
 
       if (parsed is Map) {
@@ -4934,12 +4968,17 @@ class _AdminPageState extends State<AdminPage> {
     _persistMenuLayout();
   }
 
-  void _persistMenuLayout() {
-    html.window.localStorage[_menuLayoutStorageKey] = jsonEncode({
-      'sections': _menuSections.map((s) => s.toJson()).toList(),
-      'tileScale': _menuTileScale,
-      'archived': _archivedTileIds.toList(),
-    });
+  Map<String, dynamic> _currentMenuLayoutPayload() => {
+        'sections': _menuSections.map((s) => s.toJson()).toList(),
+        'tileScale': _menuTileScale,
+        'archived': _archivedTileIds.toList(),
+      };
+
+  void _persistMenuLayout({bool syncRemote = true}) {
+    final payload = _currentMenuLayoutPayload();
+    if (syncRemote) {
+      _syncAdminUiConfig(menuLayout: payload);
+    }
   }
 
   void _resetMenuLayout() {
@@ -4949,6 +4988,22 @@ class _AdminPageState extends State<AdminPage> {
       _archivedTileIds.clear();
     });
     _persistMenuLayout();
+  }
+
+  Future<void> _syncAdminUiConfig({
+    Map<String, Set<String>>? roleTileVisibility,
+    Map<String, dynamic>? menuLayout,
+    List<_AdminView>? navOrder,
+  }) async {
+    try {
+      await _api.updateAdminUiConfig(
+        roleTileVisibility: roleTileVisibility,
+        menuLayout: menuLayout,
+        navOrder: navOrder?.map((v) => v.name).toList(),
+      );
+    } catch (e) {
+      debugPrint('Failed to sync admin UI config: $e');
+    }
   }
 
   String _tileLabel(String tileId) {
@@ -16184,6 +16239,36 @@ class AdminApi {
       }
       throw e.toString();
     }
+  }
+
+  Future<Map<String, dynamic>> fetchAdminUiConfig() async {
+    final res = await _request('GET', '/api/admin/ui-config');
+    if (res.status != 200) throw 'ui-config GET: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final cfg = j['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
+  }
+
+  Future<Map<String, dynamic>> updateAdminUiConfig({
+    Map<String, Set<String>>? roleTileVisibility,
+    Map<String, dynamic>? menuLayout,
+    List<String>? navOrder,
+  }) async {
+    final body = <String, dynamic>{};
+    if (roleTileVisibility != null) {
+      body['roleTileVisibility'] =
+          roleTileVisibility.map((key, value) => MapEntry(key, value.toList()));
+    }
+    if (menuLayout != null) body['menuLayout'] = menuLayout;
+    if (navOrder != null) body['navOrder'] = navOrder;
+
+    final res = await _request('POST', '/api/admin/ui-config', body: body);
+    if (res.status != 200) throw 'ui-config POST: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final cfg = j['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
   }
 
   // Pending
