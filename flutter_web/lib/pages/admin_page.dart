@@ -676,8 +676,15 @@ class _AdminPageState extends State<AdminPage> {
     if (profileRole is String && profileRole.trim().isNotEmpty) {
       _portalRole = profileRole.trim();
     }
-    final profileIsSales = widget.portalProfile?['isSales'] ?? widget.api.portalProfile?['isSales'];
-    _portalIsSales = profileIsSales == true;
+    final profileSalesFlags = [
+      widget.portalProfile?['isSales'],
+      widget.portalProfile?['canEditSales'],
+      widget.portalProfile?['salesAllowed'],
+      widget.api.portalProfile?['isSales'],
+      widget.api.portalProfile?['canEditSales'],
+      widget.api.portalProfile?['salesAllowed'],
+    ];
+    _portalIsSales = profileSalesFlags.any((flag) => flag == true);
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
