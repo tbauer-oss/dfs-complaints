@@ -38,7 +38,7 @@ async function parseUpload(body) {
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'downloads' });
   if (!actor) return;
 
   try {

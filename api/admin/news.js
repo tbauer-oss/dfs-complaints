@@ -13,7 +13,7 @@ import { requirePortalAccess } from './_guard.js';
   export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET' });
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'news' });
   if (!actor) return;
 
   try {

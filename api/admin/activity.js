@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { write: false });
+  const actor = await requirePortalAccess(req, res, { write: false, tile: 'activity' });
   if (!actor) return;
   if (req.method !== 'GET') return methodNotAllowed(res);
 
