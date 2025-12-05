@@ -12026,6 +12026,44 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     }
   }
 
+  String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
+
+  String _repLabel(String? v) {
+    switch ((v ?? '').trim()) {
+      case 'accepted':
+        return 'angenommen';
+      case 'rejected':
+        return 'abgelehnt';
+      case 'pending':
+      case '':
+        return 'offen';
+      default:
+        return v!.trim();
+    }
+  }
+
+  Color _repColor(ColorScheme scheme, String? v) {
+    switch ((v ?? '').trim()) {
+      case 'accepted':
+        return const Color(0xFF2E7D32);
+      case 'rejected':
+        return const Color(0xFFB71C1C);
+      default:
+        return const Color(0xFFF9A825);
+    }
+  }
+
+  Widget _metaPill({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: child,
+    );
+  }
+
   Future<void> _openDialog(BuildContext context) async {
     onCustomerMessageSeen?.call();
 
@@ -12160,6 +12198,47 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _metaPill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.event_available_outlined, size: 18),
+                      const SizedBox(width: 6),
+                      Text('Eingang: ${_formatDate(c.createdAt)}'),
+                    ],
+                  ),
+                ),
+                _metaPill(child: statusChip),
+                _metaPill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.brightness_1, size: 14, color: _repColor(scheme, c.repOpinion)),
+                      const SizedBox(width: 6),
+                      Text('Vertreterentscheidung: ${_repLabel(c.repOpinion)}'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                children: [
+                  Text('Entscheidung: ${_labelForDecision(c.decision)}',
+                      style: TextStyle(color: _decisionColor(c.decision), fontWeight: FontWeight.w600)),
+                  Text('Wunsch: ${c.handlingLabel}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
             if (hasNewCustomerMessage)
               Padding(
