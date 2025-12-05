@@ -12172,7 +12172,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (selectable)
                   Padding(
@@ -12181,11 +12181,41 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                   ),
                 Expanded(child: header),
                 const SizedBox(width: 12),
+                Flexible(
+                  flex: 2,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    runAlignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _metaPill(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.event_available_outlined, size: 18),
+                            const SizedBox(width: 6),
+                            Text('Eingang: ${_formatDate(c.createdAt)}'),
+                          ],
+                        ),
+                      ),
+                      _metaPill(child: statusChip),
+                      if (hasRep)
+                        _metaPill(
+                          child: _RepTrafficLight(
+                            opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                            compact: true,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    statusChip,
-                    const SizedBox(height: 10),
                     FilledButton.icon(
                       onPressed: () => _openDialog(context),
                       icon: const Icon(Icons.open_in_new),
@@ -12195,34 +12225,9 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _metaPill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.event_available_outlined, size: 18),
-                      const SizedBox(width: 6),
-                      Text('Eingang: ${_formatDate(c.createdAt)}'),
-                    ],
-                  ),
-                ),
-                _metaPill(child: statusChip),
-                if (hasRep)
-                  _metaPill(
-                    child: _RepTrafficLight(
-                      opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
-                      compact: true,
-                    ),
-                  ),
-              ],
-            ),
+            const SizedBox(height: 8),
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 6),
               child: Wrap(
                 spacing: 16,
                 runSpacing: 6,
