@@ -903,7 +903,7 @@ class _AdminPageState extends State<AdminPage> {
         if (selected) {
           _portalUserDepartments
             ..remove('Alle')
-            ..add(dep);
+            ..addAll(_canonicalizeDepartments([dep]));
         } else {
           _portalUserDepartments.remove(dep);
         }
@@ -921,8 +921,9 @@ class _AdminPageState extends State<AdminPage> {
       return;
     }
     setState(() {
-      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(dep)) {
-        _portalUserDepartments.add(dep);
+      final normalized = _canonicalizeDepartments([dep]);
+      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(normalized.first)) {
+        _portalUserDepartments.addAll(normalized);
       }
       _portalUserDepartmentCtrl.clear();
       _ensureSalesFlagValidity();
@@ -7980,6 +7981,24 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  List<String> _canonicalizeDepartments(Iterable<String> departments) {
+    final seen = <String>{};
+    final normalized = <String>[];
+    for (final dep in departments) {
+      final value = dep.trim();
+      if (value.isEmpty) continue;
+      final match = kInternalDepartments.firstWhere(
+        (entry) => entry.toLowerCase() == value.toLowerCase(),
+        orElse: () => value,
+      );
+      final key = match.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      normalized.add(match);
+    }
+    return normalized;
+  }
+
   void _resetPortalUserForm() {
     setState(() {
       _portalUserBusy = false;
@@ -8012,7 +8031,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserCanEditSales = user?.canEditSales ?? user?.salesAllowed ?? false;
       _portalUserDepartments
         ..clear()
-        ..addAll(user?.assignedDepartments ?? const <String>[]);
+        ..addAll(_canonicalizeDepartments(user?.assignedDepartments ?? const <String>[]));
       _portalUserTilePermissions
         ..clear()
         ..addAll(_sanitizeTilePermissionMap(user?.tilePermissions));
@@ -8221,6 +8240,8 @@ class _AdminPageState extends State<AdminPage> {
                             onSelected: _portalUserBusy
                                 ? null
                                 : (selected) => _updateDepartmentSelection('Alle', selected),
+                            showCheckmark: true,
+                            selectedColor: theme.colorScheme.primaryContainer,
                           ),
                           ...kInternalDepartments.map(
                             (dep) => FilterChip(
@@ -8229,6 +8250,8 @@ class _AdminPageState extends State<AdminPage> {
                               onSelected: _portalUserBusy
                                   ? null
                                   : (v) => _updateDepartmentSelection(dep, v),
+                              showCheckmark: true,
+                              selectedColor: theme.colorScheme.primaryContainer,
                             ),
                           ),
                           if (_portalUserDepartments.isNotEmpty)
@@ -8240,6 +8263,9 @@ class _AdminPageState extends State<AdminPage> {
                                       onDeleted: _portalUserBusy
                                           ? null
                                           : () => _updateDepartmentSelection(dep, false),
+                                      selected: true,
+                                      showCheckmark: true,
+                                      selectedColor: theme.colorScheme.primaryContainer,
                                     )),
                         ],
                       ),
