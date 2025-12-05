@@ -12,7 +12,13 @@ import '../models/wiki_category.dart';
 class AdminWikiArticlesPage extends StatefulWidget {
   final ApiClient api;
   final VoidCallback? onBack;
-  const AdminWikiArticlesPage({super.key, required this.api, this.onBack});
+  final bool canWrite;
+  const AdminWikiArticlesPage({
+    super.key,
+    required this.api,
+    this.onBack,
+    this.canWrite = true,
+  });
 
   @override
   State<AdminWikiArticlesPage> createState() => _AdminWikiArticlesPageState();
@@ -443,6 +449,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
 
 
   Future<void> _openForm({WikiArticle? article}) async {
+    if (!widget.canWrite) return;
     final titleCtrls = {
       for (final code in _wikiLangOrder)
         code: TextEditingController(
@@ -932,37 +939,39 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
               FilledButton(
-                onPressed: () async {
-                  final germanTitle = titleCtrls['de']?.text.trim() ?? '';
-                  if (categoryId == null || germanTitle.isEmpty) return;
-                  try {
-                    await widget.api.adminSaveWikiArticle({
-                      'categoryId': categoryId,
-                      'productGroups': productGroups,
-                      'type': type,
-                      'title': germanTitle,
-                      'teaser': teaserCtrls['de']?.text.trim() ?? '',
-                      'importance': importance,
-                      'contentMarkdown': contentCtrls['de']?.text ?? '',
-                      'tags': tags,
-                      'isActive': isActive,
-                      'translations': {
-                        for (final code in _wikiLangOrder)
-                          code: {
-                            'title': titleCtrls[code]?.text.trim() ?? '',
-                            'teaser': teaserCtrls[code]?.text.trim() ?? '',
-                            'contentMarkdown': contentCtrls[code]?.text ?? '',
-                          }
+                onPressed: !widget.canWrite
+                    ? null
+                    : () async {
+                        final germanTitle = titleCtrls['de']?.text.trim() ?? '';
+                        if (categoryId == null || germanTitle.isEmpty) return;
+                        try {
+                          await widget.api.adminSaveWikiArticle({
+                            'categoryId': categoryId,
+                            'productGroups': productGroups,
+                            'type': type,
+                            'title': germanTitle,
+                            'teaser': teaserCtrls['de']?.text.trim() ?? '',
+                            'importance': importance,
+                            'contentMarkdown': contentCtrls['de']?.text ?? '',
+                            'tags': tags,
+                            'isActive': isActive,
+                            'translations': {
+                              for (final code in _wikiLangOrder)
+                                code: {
+                                  'title': titleCtrls[code]?.text.trim() ?? '',
+                                  'teaser': teaserCtrls[code]?.text.trim() ?? '',
+                                  'contentMarkdown': contentCtrls[code]?.text ?? '',
+                                }
+                            },
+                          }, id: article?.id);
+                          if (!mounted) return;
+                          Navigator.pop(ctx, true);
+                        } catch (e) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Fehler: $e')),
+                          );
+                        }
                       },
-                    }, id: article?.id);
-                    if (!mounted) return;
-                    Navigator.pop(ctx, true);
-                  } catch (e) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(content: Text('Fehler: $e')),
-                    );
-                  }
-                },
                 child: const Text('Speichern'),
               ),
             ],
@@ -992,6 +1001,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final t = AppLocalizations.of(context)!;
+    final canWrite = widget.canWrite;
     return LayoutBuilder(
       builder: (context, cons) {
         final isCompact = cons.maxWidth < 1000;
@@ -1027,32 +1037,32 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t.adminWikiBannerTitle,
-                                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                              const SizedBox(height: 4),
-                              Text(t.adminWikiBannerSubtitle,
-                                  style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            if (widget.onBack != null)
-                              OutlinedButton.icon(
-                                onPressed: widget.onBack,
-                                icon: const Icon(Icons.arrow_back),
-                                label: Text(t.adminWikiBannerBack),
-                              ),
-                            FilledButton.icon(
-                              onPressed: _loading ? null : () => _openForm(),
-                              icon: const Icon(Icons.add),
-                              label: Text(t.adminWikiBannerNew),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(t.adminWikiBannerTitle,
+                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text(t.adminWikiBannerSubtitle,
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                              ],
                             ),
-                          ],
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              if (widget.onBack != null)
+                                OutlinedButton.icon(
+                                  onPressed: widget.onBack,
+                                  icon: const Icon(Icons.arrow_back),
+                                  label: Text(t.adminWikiBannerBack),
+                                ),
+                              FilledButton.icon(
+                                onPressed: _loading || !canWrite ? null : () => _openForm(),
+                                icon: const Icon(Icons.add),
+                                label: Text(t.adminWikiBannerNew),
+                              ),
+                            ],
                         ),
                         ],
                       ),
@@ -1332,12 +1342,12 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                                                               IconButton(
                                                                 tooltip: 'Bearbeiten',
                                                                 icon: const Icon(Icons.edit_outlined),
-                                                                onPressed: () => _openForm(article: a),
+                                                                onPressed: canWrite ? () => _openForm(article: a) : null,
                                                               ),
                                                               IconButton(
                                                                 tooltip: 'Löschen',
                                                                 icon: const Icon(Icons.delete_outline),
-                                                                onPressed: _deletingIds.contains(a.id)
+                                                                onPressed: !canWrite || _deletingIds.contains(a.id)
                                                                     ? null
                                                                     : () => _delete(a),
                                                               ),

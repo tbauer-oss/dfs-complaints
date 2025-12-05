@@ -242,7 +242,8 @@ class _AdminPageState extends State<AdminPage> {
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
   late final AdminApi _api;
   String _portalRole = 'superuser';
-  bool get _canWrite => _portalRole != 'readonly';
+  final Map<String, String> _portalTilePermissions = {};
+  bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
 
   String get _portalDisplayName {
@@ -336,6 +337,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
   final List<String> _portalUserDepartments = [];
+  final Map<String, String> _portalUserTilePermissions = {};
   PortalUser? _editingPortalUser;
   final _portalUserFormKey = GlobalKey<FormState>();
 
@@ -412,8 +414,58 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  String? _normalizeTilePermission(Object? raw) {
+    final value = raw?.toString().trim().toLowerCase() ?? '';
+    if (value == 'write') return 'write';
+    if (value == 'read') return 'read';
+    if (value == 'none' || value == 'hidden' || value == 'hide') return 'none';
+    return null;
+  }
+
+  Map<String, String> _sanitizeTilePermissionMap(Object? raw) {
+    final result = <String, String>{};
+    if (raw is Map) {
+      raw.forEach((key, value) {
+        final tile = key.toString().trim();
+        final perm = _normalizeTilePermission(value);
+        if (tile.isNotEmpty && perm != null) result[tile] = perm;
+      });
+    }
+    return result;
+  }
+
+  bool _tileVisibleForActor(String tileId) {
+    final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
+    if (override != null) return override != 'none';
+    return true;
+  }
+
+  bool _canWriteTile(String? tileId) {
+    if (tileId == null) return _portalRole != 'readonly';
+    final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
+    if (override != null) return override == 'write';
+    return _portalRole != 'readonly';
+  }
+
+  Set<String> _allowedTilesForActor() {
+    final allowed = <String>{};
+    final base = _visibleTilesForRole(_portalRole);
+    for (final tile in base) {
+      if (_tileVisibleForActor(tile)) allowed.add(tile);
+    }
+
+    _portalTilePermissions.forEach((tile, perm) {
+      final normalized = _normalizeTilePermission(perm);
+      if (normalized == null) return;
+      if (normalized == 'none') return;
+      allowed.add(tile);
+    });
+
+    return allowed;
+  }
+
   void _filterMenuSectionsForRole() {
-    final allowedTiles = _visibleTilesForRole(_portalRole);
+    final allowedTiles = _allowedTilesForActor();
     final filtered = _menuSections
         .map(
           (s) => s.copyWith(
@@ -615,6 +667,11 @@ class _AdminPageState extends State<AdminPage> {
     if (profileRole is String && profileRole.trim().isNotEmpty) {
       _portalRole = profileRole.trim();
     }
+    final profileTilePermissions =
+        widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
+    _portalTilePermissions
+      ..clear()
+      ..addAll(_sanitizeTilePermissionMap(profileTilePermissions));
     _custCountry = _defaultCountry;
     _bulkInternalAllCtrl.text = _internalNumberPrefix();
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
@@ -4470,14 +4527,13 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   bool _isViewAllowed(_AdminView view) {
-    if (_isSuperuser) return true;
     final allowed = _baseViewsForRole(_portalRole);
     if (!allowed.contains(view)) return false;
 
     final tileId = _viewToTileId(view);
     if (tileId == null) return true;
 
-    final visibleTiles = _visibleTilesForRole(_portalRole);
+    final visibleTiles = _allowedTilesForActor();
     return visibleTiles.contains(tileId);
   }
 
@@ -4725,7 +4781,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     bool _tileAllowed(String id) {
-      final visibleTiles = _visibleTilesForRole(_portalRole);
+      final visibleTiles = _allowedTilesForActor();
       if (!visibleTiles.contains(id)) return false;
       final view = _tileIdToView(id);
       if (view == null) return true;
@@ -4823,7 +4879,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _ensureMenuTilePresent(String tileId) {
-    final allowedTiles = _visibleTilesForRole(_portalRole);
+    final allowedTiles = _allowedTilesForActor();
     if (!_menuTileIds.contains(tileId) || !allowedTiles.contains(tileId)) return;
 
     final alreadyVisible = _menuSections.any((s) => s.tileIds.contains(tileId));
@@ -4864,7 +4920,7 @@ class _AdminPageState extends State<AdminPage> {
     required List<_AdminMenuSectionState> defaults,
     dynamic storedLayout,
   }) {
-    final allowedTiles = _visibleTilesForRole(_portalRole);
+    final allowedTiles = _allowedTilesForActor();
     _menuTileScale = 1.0;
     _archivedTileIds.clear();
     final rawData = storedLayout;
@@ -5649,7 +5705,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _restoreArchivedTile(String tileId) {
-    final allowedTiles = _visibleTilesForRole(_portalRole);
+    final allowedTiles = _allowedTilesForActor();
     if (!_archivedTileIds.contains(tileId) || !allowedTiles.contains(tileId)) return;
 
     setState(() {
@@ -6274,11 +6330,13 @@ class _AdminPageState extends State<AdminPage> {
       case _AdminView.wikiCategories:
         return AdminWikiCategoriesPage(
           api: widget.api,
+          canWrite: _canWriteTile('wikiCategories'),
           onBack: () => setState(() => _view = _AdminView.wiki),
         );
       case _AdminView.wikiArticles:
         return AdminWikiArticlesPage(
           api: widget.api,
+          canWrite: _canWriteTile('wikiArticles'),
           onBack: () => setState(() => _view = _AdminView.wiki),
         );
     }
@@ -7768,6 +7826,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserStatus = 'active';
       _portalUserDepartments
         ..clear();
+      _portalUserTilePermissions.clear();
     });
   }
 
@@ -7783,6 +7842,9 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartments
         ..clear()
         ..addAll(user?.assignedDepartments ?? const <String>[]);
+      _portalUserTilePermissions
+        ..clear()
+        ..addAll(_sanitizeTilePermissionMap(user?.tilePermissions));
     });
   }
 
@@ -7801,6 +7863,7 @@ class _AdminPageState extends State<AdminPage> {
               displayName: _portalUserDisplayNameCtrl.text.trim(),
               portalStatus: _portalUserStatus,
               assignedDepartments: _portalUserDepartments,
+              tilePermissions: _portalUserTilePermissions,
             )
           : await _api.updatePortalUser(
               email: _editingPortalUser!.email,
@@ -7808,6 +7871,7 @@ class _AdminPageState extends State<AdminPage> {
               role: _portalUserRole,
               portalStatus: _portalUserStatus,
               assignedDepartments: _portalUserDepartments,
+              tilePermissions: _portalUserTilePermissions,
               password: _portalUserPasswordCtrl.text.isEmpty
                   ? null
                   : _portalUserPasswordCtrl.text,
@@ -7945,6 +8009,65 @@ class _AdminPageState extends State<AdminPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPortalUserTilePermissionsEditor() {
+    final theme = Theme.of(context);
+    final tiles = _menuTileIds.toList()
+      ..sort((a, b) => _tileLabel(a).toLowerCase().compareTo(_tileLabel(b).toLowerCase()));
+
+    String currentValue(String tileId) => _portalUserTilePermissions[tileId] ?? 'inherit';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Kachel-Rechte (optional)', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(
+          'Lege hier individuelle Lese-/Schreibrechte pro Mitarbeiter-Kachel fest. Ohne Auswahl gilt die Rollen-Standardberechtigung.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        ...tiles.map(
+          (tileId) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(child: Text(_tileLabel(tileId))),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 180,
+                  child: DropdownButtonFormField<String>(
+                    value: currentValue(tileId),
+                    onChanged: _portalUserBusy
+                        ? null
+                        : (value) {
+                            final normalized = _normalizeTilePermission(value);
+                            setState(() {
+                              if (normalized == null || value == 'inherit') {
+                                _portalUserTilePermissions.remove(tileId);
+                              } else {
+                                _portalUserTilePermissions[tileId] = normalized;
+                              }
+                            });
+                          },
+                    items: const [
+                      DropdownMenuItem(value: 'inherit', child: Text('Standard (Rollen-Layout)')),
+                      DropdownMenuItem(value: 'write', child: Text('Schreiben & lesen')),
+                      DropdownMenuItem(value: 'read', child: Text('Nur lesen')),
+                      DropdownMenuItem(value: 'none', child: Text('Kein Zugriff')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Berechtigung',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -8222,6 +8345,8 @@ class _AdminPageState extends State<AdminPage> {
                               prefixIcon: Icon(Icons.verified_user_outlined),
                             ),
                           ),
+                          const SizedBox(height: 10),
+                          _buildPortalUserTilePermissionsEditor(),
                           const SizedBox(height: 16),
                           Row(
                             children: [
@@ -8267,6 +8392,8 @@ class _AdminPageState extends State<AdminPage> {
                           const Text('Keine Mitarbeiter-/Portal-User vorhanden.'),
                         ..._portalUsers.map((u) {
                           final isActive = u.portalStatus == 'active';
+                          final tileOverrideText =
+                              u.tilePermissions.isEmpty ? '' : '\nKachel-Rechte: ${u.tilePermissions.length} individuell';
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 6),
                             color: theme.colorScheme.surfaceVariant.withOpacity(0.2),
@@ -8278,7 +8405,8 @@ class _AdminPageState extends State<AdminPage> {
                               title: Text(u.displayName?.isNotEmpty == true ? u.displayName! : u.email),
                               subtitle: Text(
                                 '${u.email}\nRolle: ${u.role} — Status: ${u.portalStatus}'
-                                '\nAbteilungen: ${u.assignedDepartments.isEmpty ? '—' : u.assignedDepartments.join(', ')}',
+                                '\nAbteilungen: ${u.assignedDepartments.isEmpty ? '—' : u.assignedDepartments.join(', ')}'
+                                '$tileOverrideText',
                               ),
                               isThreeLine: true,
                               trailing: Wrap(
@@ -11172,6 +11300,7 @@ class PortalUser {
   final String portalStatus;
   final String? createdAt;
   final List<String> assignedDepartments;
+  final Map<String, String> tilePermissions;
 
   const PortalUser({
     required this.email,
@@ -11180,6 +11309,7 @@ class PortalUser {
     required this.portalStatus,
     this.createdAt,
     this.assignedDepartments = const <String>[],
+    this.tilePermissions = const <String, String>{},
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -11193,6 +11323,9 @@ class PortalUser {
                 .where((e) => e.isNotEmpty)
                 .toList()
             : const <String>[],
+        tilePermissions: (j['tilePermissions'] is Map)
+            ? (j['tilePermissions'] as Map).map((key, value) => MapEntry(key.toString(), value.toString()))
+            : const <String, String>{},
       );
 }
 
@@ -16435,6 +16568,7 @@ class AdminApi {
     String? displayName,
     String portalStatus = 'active',
     List<String>? assignedDepartments,
+    Map<String, String>? tilePermissions,
   }) async {
     final body = {
       'email': email,
@@ -16443,6 +16577,7 @@ class AdminApi {
       'portalStatus': portalStatus,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
+      if (tilePermissions != null) 'tilePermissions': tilePermissions,
     };
     final res = await _request('POST', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users POST: HTTP ${res.status} ${res.responseText}';
@@ -16457,6 +16592,7 @@ class AdminApi {
     String? portalStatus,
     String? password,
     List<String>? assignedDepartments,
+    Map<String, String>? tilePermissions,
   }) async {
     final body = <String, dynamic>{
       'email': email,
@@ -16465,6 +16601,7 @@ class AdminApi {
       if (portalStatus != null) 'portalStatus': portalStatus,
       if (password != null) 'password': password,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
+      if (tilePermissions != null) 'tilePermissions': tilePermissions,
     };
     final res = await _request('PATCH', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';

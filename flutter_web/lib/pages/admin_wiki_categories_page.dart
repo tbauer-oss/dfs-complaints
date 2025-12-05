@@ -6,7 +6,13 @@ import '../models/wiki_category.dart';
 class AdminWikiCategoriesPage extends StatefulWidget {
   final ApiClient api;
   final VoidCallback? onBack;
-  const AdminWikiCategoriesPage({super.key, required this.api, this.onBack});
+  final bool canWrite;
+  const AdminWikiCategoriesPage({
+    super.key,
+    required this.api,
+    this.onBack,
+    this.canWrite = true,
+  });
 
   @override
   State<AdminWikiCategoriesPage> createState() => _AdminWikiCategoriesPageState();
@@ -54,6 +60,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   }
 
   Future<void> _delete(WikiCategory cat) async {
+    if (!widget.canWrite) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -82,6 +89,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   }
 
   Future<void> _openForm({WikiCategory? cat}) async {
+    if (!widget.canWrite) return;
     final nameCtrls = {
       for (final code in _wikiLangOrder)
         code: TextEditingController(
@@ -175,7 +183,10 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
+            FilledButton(
+              onPressed: widget.canWrite ? () => Navigator.pop(ctx, true) : null,
+              child: const Text('Speichern'),
+            ),
           ],
         ),
       ),
@@ -221,6 +232,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   }
 
   Future<void> _toggleActive(WikiCategory cat) async {
+    if (!widget.canWrite) return;
     if (_busyIds.contains(cat.id)) return;
     setState(() => _busyIds.add(cat.id));
     final optimistic = cat.copyWith(isActive: !cat.isActive);
@@ -259,6 +271,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final canWrite = widget.canWrite;
     return LayoutBuilder(
       builder: (context, cons) {
         final isCompact = cons.maxWidth < 840;
@@ -315,7 +328,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                                   label: const Text('Zurück zur Übersicht'),
                                 ),
                               FilledButton.icon(
-                                onPressed: _loading ? null : () => _openForm(),
+                                onPressed: _loading || !canWrite ? null : () => _openForm(),
                                 icon: const Icon(Icons.add_rounded),
                                 label: const Text('Neu'),
                               ),
@@ -437,19 +450,19 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                                             icon: Icon(c.isActive
                                                 ? Icons.visibility_off_outlined
                                                 : Icons.visibility_outlined),
-                                            onPressed: _busyIds.contains(c.id)
+                                            onPressed: !canWrite || _busyIds.contains(c.id)
                                                 ? null
                                                 : () => _toggleActive(c),
                                           ),
                                           IconButton(
                                             tooltip: 'Bearbeiten',
                                             icon: const Icon(Icons.edit_outlined),
-                                            onPressed: () => _openForm(cat: c),
+                                            onPressed: canWrite ? () => _openForm(cat: c) : null,
                                           ),
                                           IconButton(
                                             tooltip: 'Löschen',
                                             icon: const Icon(Icons.delete_outline),
-                                            onPressed: () => _delete(c),
+                                            onPressed: canWrite ? () => _delete(c) : null,
                                           ),
                                         ],
                                       )),

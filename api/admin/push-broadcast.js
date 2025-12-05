@@ -53,7 +53,7 @@ function isPushConfigured() {
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  const actor = await requirePortalAccess(req, res, { write: true });
+  const actor = await requirePortalAccess(req, res, { write: true, tile: 'push' });
   if (!actor) return;
 
   if (req.method !== 'POST') {

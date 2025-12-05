@@ -6,7 +6,7 @@
 
 import bcrypt from 'bcryptjs';
 import { getAuthUser } from './auth.js';
-import { portalUserByEmail, portalUserSave } from './store.js';
+import { normalizeTilePermission, portalUserByEmail, portalUserSave, sanitizeTilePermissions } from './store.js';
 
 // Die Portal-Rolle wird direkt am User-Objekt unter `user.role` gespeichert.
 // Gültige Werte sind unten definiert und werden in den Guards/Handlers geprüft.
@@ -40,6 +40,24 @@ export function normalizeStatus(status, revoked = false) {
 export function canWrite(role) {
   const r = normalizeRole(role);
   return r === PORTAL_ROLES.superuser || r === PORTAL_ROLES.user;
+}
+
+export function tilePermissionForUser(user, tileId) {
+  if (!tileId) return canWrite(user?.role) ? 'write' : 'read';
+  const normalized = normalizeTilePermission(user?.tilePermissions?.[tileId]);
+  if (normalized) return normalized;
+  return canWrite(user?.role) ? 'write' : 'read';
+}
+
+export function canReadTile(user, tileId) {
+  const perm = tilePermissionForUser(user, tileId);
+  return perm === 'write' || perm === 'read';
+}
+
+export function canWriteTile(user, tileId) {
+  const override = normalizeTilePermission(user?.tilePermissions?.[tileId]);
+  if (override) return override === 'write';
+  return canWrite(user?.role);
 }
 
 export function canManageUsers(role) {
@@ -86,8 +104,9 @@ export async function portalUserFromRequest(req, { allowSecretFallback = true } 
     if (stored) {
       const role = normalizeRole(stored.role);
       const status = normalizeStatus(stored.portalStatus, stored.revoked);
+      const tilePermissions = sanitizeTilePermissions(stored.tilePermissions);
       if (status === 'active') {
-        return { ...stored, role, portalStatus: status };
+        return { ...stored, role, portalStatus: status, tilePermissions };
       }
     }
   }
