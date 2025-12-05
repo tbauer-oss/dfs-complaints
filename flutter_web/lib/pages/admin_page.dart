@@ -8814,7 +8814,7 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (_, i) {
                         final c = list[i];
-                        return _ComplaintEditor(
+                        return _ComplaintDialogLauncher(
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
@@ -8922,7 +8922,7 @@ class _AdminPageState extends State<AdminPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (ctx, i) {
                         final c = list[i];
-                        return _ComplaintEditor(
+                        return _ComplaintDialogLauncher(
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
                           c: c,
@@ -10870,7 +10870,7 @@ class _ComplaintsDetailList extends StatelessWidget {
           const Text('Reklamationen (Details):', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           ...r.items
-              .map((c) => _ComplaintEditor(
+              .map((c) => _ComplaintDialogLauncher(
                     key: ValueKey('complaint-${c.ticket}'),
                     api: api,
                     c: c,
@@ -10886,6 +10886,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                     onCustomerMessageSeen: parent == null
                         ? null
                         : () => parent._markCustomerMessageSeen(c),
+                    portalRole: parent?._portalRole ?? PORTAL_ROLES['superuser']!,
                   ))
               .toList(),
         ],
@@ -11973,10 +11974,295 @@ class _ComplaintDetailsDialog extends StatelessWidget {
   }
 }
 
+class _ComplaintDialogLauncher extends StatelessWidget {
+  final AdminApi api;
+  final AdminComplaint c;
+  final VoidCallback onClosed;
+  final DfsProduct? Function(String articleNumber)? productLookup;
+  final String? companyHint;
+  final bool hasRep;
+  final bool selectable;
+  final bool selected;
+  final ValueChanged<bool?>? onSelected;
+  final void Function(AdminComplaint c)? onChanged;
+  final bool hasNewCustomerMessage;
+  final VoidCallback? onCustomerMessageSeen;
+  final String portalRole;
+
+  const _ComplaintDialogLauncher({
+    super.key,
+    required this.api,
+    required this.c,
+    required this.onClosed,
+    required this.portalRole,
+    this.productLookup,
+    this.companyHint,
+    this.hasRep = false,
+    this.selectable = false,
+    this.selected = false,
+    this.onSelected,
+    this.onChanged,
+    this.hasNewCustomerMessage = false,
+    this.onCustomerMessageSeen,
+  });
+
+  String _statusLabel(int v) {
+    final m = kStatusItems.firstWhere((e) => e['value'] == v, orElse: () => const {});
+    return (m['label'] ?? 'Unbekannter Status') as String;
+  }
+
+  Color _statusColor(ColorScheme scheme, int s) {
+    switch (s) {
+      case 1:
+        return scheme.outline;
+      case 2:
+        return scheme.primary;
+      case 3:
+        return scheme.tertiary;
+      case 5:
+        return scheme.secondary;
+      default:
+        return scheme.outline;
+    }
+  }
+
+  String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
+
+  String _repLabel(String? v) {
+    switch ((v ?? '').trim()) {
+      case 'accepted':
+        return 'angenommen';
+      case 'rejected':
+        return 'abgelehnt';
+      case 'pending':
+      case '':
+        return 'offen';
+      default:
+        return v!.trim();
+    }
+  }
+
+  Color _repColor(ColorScheme scheme, String? v) {
+    switch ((v ?? '').trim()) {
+      case 'accepted':
+        return const Color(0xFF2E7D32);
+      case 'rejected':
+        return const Color(0xFFB71C1C);
+      default:
+        return const Color(0xFFF9A825);
+    }
+  }
+
+  Widget _metaPill({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: child,
+    );
+  }
+
+  Future<void> _openDialog(BuildContext context) async {
+    onCustomerMessageSeen?.call();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200, maxHeight: 900),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Reklamation ${c.ticket}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                          if ((c.internalNo ?? '').trim().isNotEmpty)
+                            Text('Intern: ${c.internalNo}',
+                                style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Schließen',
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: _ComplaintEditor(
+                      api: api,
+                      c: c,
+                      portalRole: portalRole,
+                      productLookup: productLookup,
+                      companyHint: companyHint,
+                      hasRep: hasRep,
+                      selectable: selectable,
+                      selected: selected,
+                      onSelected: onSelected,
+                      onChanged: onChanged,
+                      hasNewCustomerMessage: hasNewCustomerMessage,
+                      onCustomerMessageSeen: onCustomerMessageSeen,
+                      initiallyExpanded: true,
+                      onClosed: () {
+                        Navigator.of(ctx).pop();
+                        onClosed();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final statusChip = Chip(
+      label: Text(_statusLabel(c.status ?? 0)),
+      backgroundColor: _statusColor(scheme, c.status ?? 0).withOpacity(0.1),
+      labelStyle: TextStyle(color: _statusColor(scheme, c.status ?? 0), fontWeight: FontWeight.w700),
+      avatar: Icon(Icons.flag_outlined, color: _statusColor(scheme, c.status ?? 0), size: 18),
+    );
+
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        if ((c.internalNo ?? '').trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text('Intern: ${c.internalNo}', style: Theme.of(context).textTheme.bodySmall),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(companyHint?.trim().isNotEmpty == true ? companyHint!.trim() : c.email,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+        ),
+        if (hasRep)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text('Kunde hat Vertreter', style: Theme.of(context).textTheme.bodySmall),
+          ),
+      ],
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (selectable)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, top: 6),
+                    child: Checkbox(value: selected, onChanged: onSelected),
+                  ),
+                Expanded(child: header),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    statusChip,
+                    const SizedBox(height: 10),
+                    FilledButton.icon(
+                      onPressed: () => _openDialog(context),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Reklamation öffnen'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _metaPill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.event_available_outlined, size: 18),
+                      const SizedBox(width: 6),
+                      Text('Eingang: ${_formatDate(c.createdAt)}'),
+                    ],
+                  ),
+                ),
+                _metaPill(child: statusChip),
+                _metaPill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.brightness_1, size: 14, color: _repColor(scheme, c.repOpinion)),
+                      const SizedBox(width: 6),
+                      Text('Vertreterentscheidung: ${_repLabel(c.repOpinion)}'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                children: [
+                  Text('Entscheidung: ${_labelForDecision(c.decision)}',
+                      style: TextStyle(color: _decisionColor(c.decision), fontWeight: FontWeight.w600)),
+                  Text('Wunsch: ${c.handlingLabel}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            if (hasNewCustomerMessage)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.mark_email_unread_outlined, color: scheme.primary),
+                    const SizedBox(width: 6),
+                    Text('Neue Kunden-Nachricht', style: TextStyle(color: scheme.primary)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
   final AdminComplaint c;
   final VoidCallback onClosed;
+  final bool initiallyExpanded;
   final DfsProduct? Function(String articleNumber)? productLookup;
   final String? companyHint;
   final bool hasRep;
@@ -11993,6 +12279,7 @@ class _ComplaintEditor extends StatefulWidget {
     required this.api,
     required this.c,
     required this.onClosed,
+    this.initiallyExpanded = false,
     this.portalRole = 'superuser',
     this.productLookup,
     this.companyHint,
@@ -12018,7 +12305,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   final _qmSummaryCtrl = TextEditingController();
   final _qmSummaryTranslationCtrl = TextEditingController();
   bool _busy = false;
-  bool _expanded = false;
+  late bool _expanded;
   bool _historyExpanded = false;
   bool _showProductInfo = false;
   bool _noteOpen = false;
@@ -12307,6 +12594,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   @override
   void initState() {
     super.initState();
+    _expanded = widget.initiallyExpanded;
     _blinkCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
