@@ -32,6 +32,9 @@ export function normalizeDepartments(input) {
 export function hasDepartmentOverlap(a = [], b = []) {
   const left = normalizeDepartments(a).map((v) => v.toLowerCase());
   const right = new Set(normalizeDepartments(b).map((v) => v.toLowerCase()));
+  const leftHasAll = left.includes('alle') || left.includes('all');
+  const rightHasAll = right.has('alle') || right.has('all');
+  if (leftHasAll || rightHasAll) return true;
   if (left.length === 0 || right.size === 0) return false;
   return left.some((v) => right.has(v));
 }
