@@ -129,6 +129,29 @@ const List<String> kInternalEvaluationCauses = [
 const List<String> kInternalEvaluationTranslationLangs = ['en', 'de', 'es', 'fr', 'it'];
 
 const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
+  'superuser': [
+    'open',
+    'all',
+    'stats',
+    'pending',
+    'users',
+    'reps',
+    'news',
+    'downloads',
+    'faq',
+    'wiki',
+    'products',
+    'push',
+    'catalogs',
+    'appMeta',
+    'testMode',
+    'systemHealth',
+    'activity',
+    'createCustomer',
+    'wikiCategories',
+    'wikiArticles',
+    'portalUsers',
+  ],
   'user': [
     'open',
     'all',
