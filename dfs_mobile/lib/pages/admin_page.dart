@@ -14,6 +14,7 @@ import 'package:dfs_mobile/models/country.dart';
 import 'package:dfs_mobile/models/customer_news_entry.dart';
 import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
+import 'package:dfs_mobile/widgets/password_field.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
@@ -515,6 +516,120 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    final oldPwCtrl = TextEditingController();
+    final newPw1Ctrl = TextEditingController();
+    final newPw2Ctrl = TextEditingController();
+    String? err;
+    var busy = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            Future<void> submit() async {
+              if (newPw1Ctrl.text != newPw2Ctrl.text) {
+                setState(() => err = 'Passwörter stimmen nicht überein.');
+                return;
+              }
+
+              setState(() {
+                busy = true;
+                err = null;
+              });
+
+              try {
+                await widget.api.accountChangePassword(
+                  oldPwCtrl.text,
+                  newPw1Ctrl.text,
+                );
+
+                if (!mounted || !ctx.mounted) return;
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Passwort wurde geändert.')),
+                );
+                return;
+              } catch (e) {
+                if (!ctx.mounted) return;
+                setState(() => err = e.toString());
+              } finally {
+                if (!ctx.mounted) return;
+                setState(() => busy = false);
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Passwort ändern'),
+              content: DialogContentScroll(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (err != null) ...[
+                      Text(err!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 8),
+                    ],
+                    PasswordField(
+                      controller: oldPwCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Aktuelles Passwort',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    PasswordField(
+                      controller: newPw1Ctrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Neues Passwort',
+                        helperText:
+                            'Mindestens 8 Zeichen inklusive Buchstaben, Zahlen & Sonderzeichen.',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    PasswordField(
+                      controller: newPw2Ctrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Neues Passwort (Wiederholung)',
+                        helperText:
+                            'Mindestens 8 Zeichen inklusive Buchstaben, Zahlen & Sonderzeichen.',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: busy ? null : submit,
+                  child: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Speichern'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    oldPwCtrl.dispose();
+    newPw1Ctrl.dispose();
+    newPw2Ctrl.dispose();
+  }
+
   Future<void> _openNewsEditor({CustomerNewsEntry? entry}) async {
     final titleCtrl = TextEditingController(text: entry?.title ?? '');
     final summaryCtrl = TextEditingController(text: entry?.summary ?? '');
@@ -744,25 +859,30 @@ class _AdminPageState extends State<AdminPage> {
                   onPressed: () => setState(() => _view = _AdminView.menu),
                 ),
           actions: [
-          IconButton(
-            tooltip: 'Alles neu laden',
-            onPressed: () async {
-              await _refreshAll();
-              await _refreshOpen();
-            },
-            icon: const Icon(Icons.refresh),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: _buildBody(theme),
-          ),
+            IconButton(
+              tooltip: 'Passwort ändern',
+              onPressed: _showChangePasswordDialog,
+              icon: const Icon(Icons.lock_reset),
+            ),
+            IconButton(
+              tooltip: 'Alles neu laden',
+              onPressed: () async {
+                await _refreshAll();
+                await _refreshOpen();
+              },
+              icon: const Icon(Icons.refresh),
+            ),
+            const SizedBox(width: 6),
+          ],
         ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: _buildBody(theme),
+            ),
+          ),
         ),
         bottomNavigationBar: LegalFooter(api: widget.api),
       ),

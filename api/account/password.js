@@ -3,7 +3,12 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
-import { userByEmail, userSave } from '../_lib/store.js';
+import {
+  portalUserByEmail,
+  portalUserSave,
+  userByEmail,
+  userSave,
+} from '../_lib/store.js';
 import { isStrongPassword } from '../_lib/passwords.js';
 import bcrypt from 'bcryptjs';
 import { sendMail } from '../_lib/mailer.js';
@@ -20,10 +25,10 @@ export default async function handler(req, res) {
   const oldPw = body?.oldPassword || '';
   const newPw = body?.newPassword || '';
 
-  const u = await userByEmail(auth.email);
+  const u = (await userByEmail(auth.email)) || (await portalUserByEmail(auth.email));
   if (!u) return bad(res, 'not found', 404);
 
-  const okOld = await bcrypt.compare(oldPw, u.passhash);
+  const okOld = await bcrypt.compare(oldPw, u.passhash || u.passwordHash || '');
   if (!okOld) return bad(res, 'wrong password', 400);
 
   if (!isStrongPassword(newPw)) {
@@ -31,7 +36,22 @@ export default async function handler(req, res) {
   }
 
   const passhash = await bcrypt.hash(newPw, 10);
-  await userSave({ ...u, passhash });
+  const updatedUser = { ...u, passhash, passwordHash: passhash };
+  const isPortalUser = u.type === 'portal' || u.kind === 'staff';
+
+  if (isPortalUser) {
+    await portalUserSave(updatedUser);
+  } else {
+    await userSave(updatedUser);
+  }
+
+  const verifySaved = isPortalUser
+    ? await portalUserByEmail(auth.email)
+    : await userByEmail(auth.email);
+  if (!verifySaved) return bad(res, 'account not found after update', 500);
+
+  const okNew = await bcrypt.compare(newPw, verifySaved.passhash || verifySaved.passwordHash || '');
+  if (!okNew) return bad(res, 'could not persist new password', 500);
 
   await sendMail({
     to: auth.email, cc: 'complaint@dfs-diamon.de',

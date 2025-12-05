@@ -20,6 +20,7 @@ import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
+import '../widgets/password_field.dart';
 import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
@@ -1793,6 +1794,117 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showChangePasswordDialog() async {
+    final t = AppLocalizations.of(context)!;
+    final oldPwCtrl = TextEditingController();
+    final newPw1Ctrl = TextEditingController();
+    final newPw2Ctrl = TextEditingController();
+    String? err;
+    var busy = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          Future<void> submit() async {
+            if (newPw1Ctrl.text != newPw2Ctrl.text) {
+              setState(() => err = t.passwordsDontMatch);
+              return;
+            }
+
+            setState(() {
+              busy = true;
+              err = null;
+            });
+
+            try {
+              await widget.api.accountChangePassword(
+                oldPwCtrl.text,
+                newPw1Ctrl.text,
+              );
+
+              if (!mounted || !ctx.mounted) return;
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(t.passwordChanged ?? 'Passwort geändert.')),
+              );
+              return;
+            } catch (e) {
+              if (!ctx.mounted) return;
+              setState(() => err = e.toString());
+            } finally {
+              if (!ctx.mounted) return;
+              setState(() => busy = false);
+            }
+          }
+
+          return AlertDialog(
+            title: Text(t.changePassword ?? 'Passwort ändern'),
+            content: DialogContentScroll(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (err != null) ...[
+                    Text(err!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 8),
+                  ],
+                  PasswordField(
+                    controller: oldPwCtrl,
+                    decoration: InputDecoration(
+                      labelText: t.oldPassword ?? 'Altes Passwort',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  PasswordField(
+                    controller: newPw1Ctrl,
+                    decoration: InputDecoration(
+                      labelText: t.newPassword ?? 'Neues Passwort',
+                      helperText: t.password_requirements,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  PasswordField(
+                    controller: newPw2Ctrl,
+                    decoration: InputDecoration(
+                      labelText: t.newPasswordRepeat ?? 'Neues Passwort (Wdh.)',
+                      helperText: t.password_requirements,
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: busy ? null : () => Navigator.of(ctx).pop(),
+                child: Text(t.cancel),
+              ),
+              FilledButton(
+                onPressed: busy ? null : submit,
+                child: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(t.save ?? 'Speichern'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    oldPwCtrl.dispose();
+    newPw1Ctrl.dispose();
+    newPw2Ctrl.dispose();
   }
 
   Future<void> _openNewsEditor({CustomerNewsEntry? entry}) async {
@@ -3801,6 +3913,11 @@ class _AdminPageState extends State<AdminPage> {
           tooltip: 'Zurück zum Admin-Dashboard',
           onPressed: () => setState(() => _view = _AdminView.menu),
           icon: const Icon(Icons.home_outlined),
+        ),
+        IconButton(
+          tooltip: t.changePassword ?? 'Passwort ändern',
+          onPressed: _showChangePasswordDialog,
+          icon: const Icon(Icons.lock_reset),
         ),
         IconButton(
           tooltip: t.logoutTitle,
