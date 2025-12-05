@@ -7,6 +7,11 @@ class Complaint {
   final int status;
   final String? decision;
   final String? reportLink;
+  final Map<String, String>? externalReportLinks;
+  final Map<String, String>? internalReportLinks;
+  final Map<String, String>? reportLinks;
+  final String? qmCustomerSummary;
+  final Map<String, String>? qmCustomerSummaryTranslations;
   final Map<String, dynamic>? payload;
 
   // ⬇️ NEU: interne Reklamationsnummer
@@ -21,6 +26,11 @@ class Complaint {
     required this.status,
     this.decision,
     this.reportLink,
+    this.externalReportLinks,
+    this.internalReportLinks,
+    this.reportLinks,
+    this.qmCustomerSummary,
+    this.qmCustomerSummaryTranslations,
     this.payload,
     this.internalNo, // ⬅️ NEU
     List<ComplaintUpload>? uploads,
@@ -144,6 +154,20 @@ class Complaint {
       reportLink: (j['reportLink']?.toString().trim().isEmpty ?? true)
           ? null
           : j['reportLink']!.toString().trim(),
+      externalReportLinks: (j['externalReportLinks'] is Map)
+          ? Map<String, String>.from((j['externalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      internalReportLinks: (j['internalReportLinks'] is Map)
+          ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      reportLinks: (j['reportLinks'] is Map)
+          ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
+      qmCustomerSummaryTranslations: (j['qmCustomerSummaryTranslations'] is Map)
+          ? Map<String, String>.from(
+              (j['qmCustomerSummaryTranslations'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
       payload: _parsePayload(j['payload']),
       internalNo: _parseInternal(j), // ⬅️ NEU
       uploads: _parseUploads(j['uploads']),

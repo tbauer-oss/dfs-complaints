@@ -11,6 +11,8 @@ import {
   complaintsOpen,      // () => []  (alle offenen)
   Status,              // enum/const mit SENT.., CLOSED (hier 6)
 } from '../../_lib/store.js';
+import { generateDualReportsForComplaint } from '../../_lib/reporting.js';
+import { normalizeReportLinksMap } from '../../_lib/departments.js';
 
 function normBody(req) {
   let b = req.body;
@@ -95,6 +97,27 @@ export default async function handler(req, res) {
     if ('reportLink' in b) {
       const rl = (b.reportLink === '') ? null : strOrUndef(b.reportLink);
       c.reportLink = rl ?? null;
+    }
+
+    if (c.status === Status.CLOSED) {
+      try {
+        const generated = await generateDualReportsForComplaint(c, { preferredLang: b.reportLang || b.reportLanguage });
+        if (generated) {
+          const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
+          const mergedInternal = normalizeReportLinksMap({ ...(c.internalReportLinks || {}), ...(generated.internalLinks || {}) });
+          const mergedReportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
+          const defaultLink = mergedExternal[generated.lang]
+            || mergedExternal.de
+            || mergedExternal.en
+            || Object.values(mergedExternal)[0];
+          if (Object.keys(mergedExternal).length > 0) c.externalReportLinks = mergedExternal;
+          if (Object.keys(mergedInternal).length > 0) c.internalReportLinks = mergedInternal;
+          if (Object.keys(mergedReportLinks).length > 0) c.reportLinks = mergedReportLinks;
+          if (defaultLink) c.reportLink = defaultLink;
+        }
+      } catch (err) {
+        console.error('[admin/complaints:index] report generation failed', err?.message || err);
+      }
     }
 
     c.updatedAt = Date.now();

@@ -11058,6 +11058,10 @@ class AdminComplaint {
   String? decision;
   String? reportLink;
   Map<String, String>? reportLinks;
+  Map<String, String>? externalReportLinks;
+  Map<String, String>? internalReportLinks;
+  String? qmCustomerSummary;
+  Map<String, String>? qmCustomerSummaryTranslations;
   String? internalNo;
   String? adminNotes;
   Map<String, dynamic>? payload;
@@ -11108,6 +11112,10 @@ class AdminComplaint {
     this.decision,
     this.reportLink,
     this.reportLinks,
+    this.externalReportLinks,
+    this.internalReportLinks,
+    this.qmCustomerSummary,
+    this.qmCustomerSummaryTranslations,
     this.internalNo,
     this.adminNotes,
     this.payload,
@@ -11239,6 +11247,15 @@ class AdminComplaint {
       reportLinks: (j['reportLinks'] is Map)
           ? Map<String, String>.from((j['reportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
+      externalReportLinks: (j['externalReportLinks'] is Map)
+          ? Map<String, String>.from((j['externalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      internalReportLinks: (j['internalReportLinks'] is Map)
+          ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
+          : null,
+      qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
+      qmCustomerSummaryTranslations:
+          _parseTranslations(j['qmCustomerSummaryTranslations'] ?? payload?['qmCustomerSummaryTranslations']),
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
           ? null
           : j['internalNo']!.toString().trim(),
@@ -11282,6 +11299,11 @@ class AdminComplaint {
         'decision': decision,
         'reportLink': reportLink,
         if (reportLinks != null) 'reportLinks': reportLinks,
+        if (externalReportLinks != null) 'externalReportLinks': externalReportLinks,
+        if (internalReportLinks != null) 'internalReportLinks': internalReportLinks,
+        if (qmCustomerSummary != null) 'qmCustomerSummary': qmCustomerSummary,
+        if (qmCustomerSummaryTranslations != null)
+          'qmCustomerSummaryTranslations': qmCustomerSummaryTranslations,
         'internalDepartments': internalDepartments,
         'internalEvaluationText_de': internalEvaluationTextDe,
         'internalEvaluationCause': internalEvaluationCause,
@@ -11993,6 +12015,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   final _internalCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _internalEvalCtrl = TextEditingController();
+  final _qmSummaryCtrl = TextEditingController();
+  final _qmSummaryTranslationCtrl = TextEditingController();
   bool _busy = false;
   bool _expanded = false;
   bool _historyExpanded = false;
@@ -12005,6 +12029,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   String _descSourceLang = 'en';
   String? _payloadLang;
   String _internalEvalTargetLang = 'en';
+  String _qmSummaryTargetLang = 'en';
   bool _translatingInternalEval = false;
   String? _internalEvalTranslationError;
   String? _internalEvalCause;
@@ -12304,6 +12329,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _payloadLang = _detectPayloadLang(widget.c.payload);
     _internalEvalCtrl.text = widget.c.internalEvaluationTextDe ?? '';
     _internalEvalCause = widget.c.internalEvaluationCause;
+    _qmSummaryCtrl.text = widget.c.qmCustomerSummary ?? '';
+    _qmSummaryTargetLang =
+        (widget.c.qmCustomerSummaryTranslations?.keys.isNotEmpty ?? false)
+            ? widget.c.qmCustomerSummaryTranslations!.keys.first
+            : 'en';
+    _qmSummaryTranslationCtrl.text =
+        widget.c.qmCustomerSummaryTranslations?[_qmSummaryTargetLang] ?? '';
     _selectedDepartments = List<String>.from(widget.c.internalDepartments);
     final detected = _payloadLang;
     if (detected != null && deeplLangCodes.contains(detected)) {
@@ -12325,6 +12357,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       _internalEvalCtrl.text = widget.c.internalEvaluationTextDe ?? '';
       _internalEvalCause = widget.c.internalEvaluationCause;
       _selectedDepartments = List<String>.from(widget.c.internalDepartments);
+      _qmSummaryCtrl.text = widget.c.qmCustomerSummary ?? '';
+      _qmSummaryTargetLang =
+          (widget.c.qmCustomerSummaryTranslations?.keys.isNotEmpty ?? false)
+              ? widget.c.qmCustomerSummaryTranslations!.keys.first
+              : 'en';
+      _qmSummaryTranslationCtrl.text =
+          widget.c.qmCustomerSummaryTranslations?[_qmSummaryTargetLang] ?? '';
     }
   }
 
@@ -12334,6 +12373,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _internalCtrl.dispose();
     _notesCtrl.dispose();
     _internalEvalCtrl.dispose();
+    _qmSummaryCtrl.dispose();
+    _qmSummaryTranslationCtrl.dispose();
     _blinkCtrl.dispose();
 
     super.dispose();
@@ -12475,6 +12516,94 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
           _translatingInternalEval = false;
         });
       }
+    }
+  }
+
+  Future<void> _saveQmSummary() async {
+    if (_busy || _isPortalReadonly) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        qmCustomerSummary: _qmSummaryCtrl.text.trim(),
+      );
+      setState(() {
+        widget.c.qmCustomerSummary = updated.qmCustomerSummary;
+        widget.c.qmCustomerSummaryTranslations = updated.qmCustomerSummaryTranslations;
+        widget.c.history = updated.history;
+      });
+      _notifyChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('QM-Zusammenfassung gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveQmSummaryTranslation() async {
+    final lang = _qmSummaryTargetLang.trim();
+    if (lang.isEmpty) return;
+    if (_busy || _isPortalReadonly) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        qmCustomerSummaryTranslations: {lang: _qmSummaryTranslationCtrl.text.trim()},
+      );
+      setState(() {
+        widget.c.qmCustomerSummary = updated.qmCustomerSummary;
+        widget.c.qmCustomerSummaryTranslations = updated.qmCustomerSummaryTranslations;
+        widget.c.history = updated.history;
+      });
+      _notifyChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('QM-Übersetzung gespeichert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _copyInternalTranslationToQm() async {
+    final lang = _qmSummaryTargetLang.trim();
+    if (lang.isEmpty) return;
+    if (_busy || _isPortalReadonly) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        qmCopyInternalEvaluationLang: lang,
+      );
+      setState(() {
+        widget.c.qmCustomerSummary = updated.qmCustomerSummary;
+        widget.c.qmCustomerSummaryTranslations = updated.qmCustomerSummaryTranslations;
+        widget.c.history = updated.history;
+        _qmSummaryCtrl.text = updated.qmCustomerSummary ?? _qmSummaryCtrl.text;
+        _qmSummaryTranslationCtrl.text =
+            updated.qmCustomerSummaryTranslations?[_qmSummaryTargetLang] ?? _qmSummaryTranslationCtrl.text;
+      });
+      _notifyChanged();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Übersetzung aus interner Bewertung übernommen (${lang.toUpperCase()}).')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -14502,6 +14631,43 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       label: const Text('Link speichern'),
                     );
 
+                    Widget _linkBadges(String title, Map<String, String>? links, {bool highlight = false}) {
+                      final map = links ?? const <String, String>{};
+                      if (map.isEmpty) return const SizedBox.shrink();
+                      final scheme = Theme.of(context).colorScheme;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              title,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: highlight ? scheme.primary : null,
+                                  ),
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: map.entries
+                                .map(
+                                  (e) => ActionChip(
+                                    avatar: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                                    label: Text('${e.key.toUpperCase()}'),
+                                    onPressed: () => html.window.open(e.value, '_blank'),
+                                    backgroundColor:
+                                        highlight ? scheme.primaryContainer : scheme.surfaceVariant,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      );
+                    }
+
                     Widget buildDepartmentSelector() {
                       final availableDepartments = kInternalDepartments
                           .where((dep) => !_selectedDepartments.contains(dep))
@@ -14575,6 +14741,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         buildFieldWithAction(field: internalField, action: internalAction),
                         const SizedBox(height: 16),
                         buildFieldWithAction(field: reportField, action: reportAction),
+                        const SizedBox(height: 10),
+                        if ((widget.c.externalReportLinks?.isNotEmpty ?? false) ||
+                            (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
+                          _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
+                          _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                        ],
                         const SizedBox(height: 16),
                         Text(
                           'Betroffene interne Abteilungen',
@@ -14793,6 +14965,168 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     );
                   }
 
+                  Widget buildQmSummarySection() {
+                    final translations = widget.c.qmCustomerSummaryTranslations ?? const <String, String>{};
+                    final internalTranslations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
+                    final copyableLangs = <String>{...internalTranslations.keys};
+                    if ((widget.c.internalEvaluationTextDe ?? '').trim().isNotEmpty) {
+                      copyableLangs.add('de');
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceVariant.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: scheme.primaryContainer.withOpacity(0.35),
+                                child: Icon(Icons.verified_user_outlined, color: scheme.primary),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'QM / Kunden-Zusammenfassung',
+                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Freigegebene Zusammenfassung, die im externen Kundenreport landet. Kann mehrsprachig gepflegt werden.',
+                                      style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Text('Standard (DE/EN Fallback)', style: textTheme.labelLarge),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _qmSummaryCtrl,
+                            maxLines: 4,
+                            minLines: 3,
+                            enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                            decoration: const InputDecoration(
+                              hintText: 'Kundenfertige Kurzfassung für den Report …',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.icon(
+                              onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                  ? null
+                                  : _saveQmSummary,
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Zusammenfassung sichern'),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _qmSummaryTargetLang,
+                                  decoration: const InputDecoration(labelText: 'Zielsprache'),
+                                  items: const [
+                                    DropdownMenuItem(value: 'de', child: Text('Deutsch (DE)')),
+                                    DropdownMenuItem(value: 'en', child: Text('Englisch (EN)')),
+                                    DropdownMenuItem(value: 'fr', child: Text('Französisch (FR)')),
+                                    DropdownMenuItem(value: 'it', child: Text('Italienisch (IT)')),
+                                    DropdownMenuItem(value: 'es', child: Text('Spanisch (ES)')),
+                                  ],
+                                  onChanged: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                      ? null
+                                      : (val) {
+                                          if (val == null) return;
+                                          setState(() {
+                                            _qmSummaryTargetLang = val;
+                                            _qmSummaryTranslationCtrl.text =
+                                                translations[val] ?? translations[val.toLowerCase()] ?? '';
+                                          });
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: TextField(
+                                  controller: _qmSummaryTranslationCtrl,
+                                  maxLines: 4,
+                                  minLines: 3,
+                                  enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Übersetzung für Kundenreport',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              if (copyableLangs.contains(_qmSummaryTargetLang))
+                                OutlinedButton.icon(
+                                  onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                      ? null
+                                      : _copyInternalTranslationToQm,
+                                  icon: const Icon(Icons.copy_outlined),
+                                  label: const Text('Aus interner Übersetzung übernehmen'),
+                                )
+                              else
+                                Tooltip(
+                                  message: 'Keine gespeicherte interne Übersetzung für ${_qmSummaryTargetLang.toUpperCase()}',
+                                  child: OutlinedButton.icon(
+                                    onPressed: null,
+                                    icon: const Icon(Icons.copy_outlined),
+                                    label: const Text('Keine interne Übersetzung verfügbar'),
+                                  ),
+                                ),
+                              const SizedBox(width: 12),
+                              FilledButton.icon(
+                                onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                    ? null
+                                    : _saveQmSummaryTranslation,
+                                icon: const Icon(Icons.save_alt_outlined),
+                                label: const Text('Übersetzung speichern'),
+                              ),
+                            ],
+                          ),
+                          if (translations.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Gespeicherte QM-Übersetzungen',
+                              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: translations.entries
+                                  .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
+                                  .toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }
+
                   Widget buildHistorySection() {
                     final history = List<ComplaintHistoryEntry>.from(c.history);
                     history.sort((a, b) => b.at.compareTo(a.at));
@@ -14935,6 +15269,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   final metaSection = _lockForPortal(buildMetaSection());
                   final evalSection =
                       _lockForPortal(buildInternalEvaluationSection(), allowPortalUser: true);
+                  final qmSection = _lockForPortal(buildQmSummarySection());
 
                   final preferColumnLayout =
                       _isPortalUser && !_isPortalSuperuser && !_isPortalReadonly;
@@ -14944,12 +15279,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Column(
+                          child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   statusSection,
                                   const SizedBox(height: 24),
                                   evalSection,
+                                  const SizedBox(height: 24),
+                                  qmSection,
                                 ],
                               ),
                             ),
@@ -14970,6 +15307,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                       metaSection,
                                       const SizedBox(height: 24),
                                       evalSection,
+                                      const SizedBox(height: 24),
+                                      qmSection,
                                     ],
                                   ),
                                 ),
@@ -14983,6 +15322,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 metaSection,
                                 const SizedBox(height: 24),
                                 evalSection,
+                                const SizedBox(height: 24),
+                                qmSection,
                               ],
                             );
 
@@ -15641,6 +15982,9 @@ class AdminApi {
     String? internalEvaluationTextDe,
     String? internalEvaluationCause,
     String? translateInternalEvaluationLang,
+    String? qmCustomerSummary,
+    Map<String, String>? qmCustomerSummaryTranslations,
+    String? qmCopyInternalEvaluationLang,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
@@ -15654,6 +15998,13 @@ class AdminApi {
     if (internalEvaluationCause != null) body['internalEvaluationCause'] = internalEvaluationCause;
     if (translateInternalEvaluationLang != null && translateInternalEvaluationLang.trim().isNotEmpty) {
       body['translateInternalEvaluation'] = {'targetLang': translateInternalEvaluationLang};
+    }
+    if (qmCustomerSummary != null) body['qmCustomerSummary'] = qmCustomerSummary;
+    if (qmCustomerSummaryTranslations != null) {
+      body['qmCustomerSummaryTranslations'] = qmCustomerSummaryTranslations;
+    }
+    if (qmCopyInternalEvaluationLang != null) {
+      body['qmCopyInternalEvaluationLang'] = qmCopyInternalEvaluationLang;
     }
 
     final res = await _request('POST', '/api/admin/complaints', body: body);

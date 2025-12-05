@@ -24,7 +24,7 @@ import {
   normalizeReportLinksMap,
 } from '../_lib/departments.js';
 import { translateTexts } from '../_lib/translate.js';
-import { generateReportsForComplaint } from '../_lib/reporting.js';
+import { generateDualReportsForComplaint } from '../_lib/reporting.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -499,6 +499,11 @@ export default async function handler(req, res) {
       const internalEvalText = body?.internalEvaluationText_de;
       const internalEvalCause = body?.internalEvaluationCause;
       const translateEval = body?.translateInternalEvaluation;
+      const qmSummaryInput = body?.qmCustomerSummary;
+      const qmSummaryTranslationsInput = body?.qmCustomerSummaryTranslations;
+      const qmCopyInternalTranslationLang = body?.qmCopyInternalEvaluationLang
+        || body?.qmCopyInternalTranslationLang
+        || body?.qmCopyInternalTranslation;
       const payloadInput = normalizePayloadInput(body?.payload);
       const sendPushFlag =
         body?.sendPush === true ||
@@ -569,6 +574,8 @@ export default async function handler(req, res) {
       const prevEvalText = normalizeEvaluationText(c.internalEvaluationText_de);
       const prevEvalCause = normalizeInternalEvaluationCause(c.internalEvaluationCause);
       const prevTranslations = normalizeEvaluationTranslations(c.internalEvaluationTranslations);
+      const prevQmSummary = normalizeEvaluationText(c.qmCustomerSummary);
+      const prevQmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
       let statusChanged = false;
       let payloadChanged = false;
       let payloadChanges = [];
@@ -580,6 +587,8 @@ export default async function handler(req, res) {
       let evalTextChanged = false;
       let evalCauseChanged = false;
       let evalTranslationChanged = false;
+      let qmSummaryChanged = false;
+      let qmSummaryTranslationChanged = false;
 
       c.history = normalizeHistory(c.history);
 
@@ -645,6 +654,50 @@ export default async function handler(req, res) {
           }
         } catch (err) {
           return bad(res, err?.message || 'translation failed', 400);
+        }
+      }
+
+      if (qmSummaryInput !== undefined) {
+        const nextSummary = normalizeEvaluationText(qmSummaryInput);
+        if (nextSummary !== prevQmSummary) {
+          if (nextSummary) c.qmCustomerSummary = nextSummary; else delete c.qmCustomerSummary;
+          qmSummaryChanged = true;
+        }
+      }
+
+      if (qmSummaryTranslationsInput !== undefined && typeof qmSummaryTranslationsInput === 'object') {
+        const normalizedTranslations = normalizeEvaluationTranslations(qmSummaryTranslationsInput);
+        const merged = normalizeEvaluationTranslations({ ...prevQmTranslations, ...normalizedTranslations });
+        const same = JSON.stringify(merged) === JSON.stringify(prevQmTranslations);
+        if (!same) {
+          if (Object.keys(merged).length > 0) c.qmCustomerSummaryTranslations = merged; else delete c.qmCustomerSummaryTranslations;
+          qmSummaryTranslationChanged = true;
+        }
+      }
+
+      if (qmCopyInternalTranslationLang !== undefined) {
+        const targetLang = normalizeLangValue(qmCopyInternalTranslationLang);
+        if (!targetLang) return bad(res, 'invalid qm copy language', 400);
+        const availableEvalTranslations = normalizeEvaluationTranslations(c.internalEvaluationTranslations);
+        const sourceText = targetLang === 'de'
+          ? normalizeEvaluationText(c.internalEvaluationText_de)
+          : availableEvalTranslations[targetLang];
+        if (!sourceText) return bad(res, 'no internal evaluation translation for requested language', 400);
+
+        if (targetLang === 'de') {
+          const nextSummary = normalizeEvaluationText(sourceText);
+          if (nextSummary !== prevQmSummary) {
+            c.qmCustomerSummary = nextSummary;
+            qmSummaryChanged = true;
+          }
+        } else {
+          const currentTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations || prevQmTranslations);
+          const merged = normalizeEvaluationTranslations({ ...currentTranslations, [targetLang]: sourceText });
+          const same = JSON.stringify(merged) === JSON.stringify(currentTranslations);
+          if (!same) {
+            c.qmCustomerSummaryTranslations = merged;
+            qmSummaryTranslationChanged = true;
+          }
         }
       }
 
@@ -802,18 +855,45 @@ export default async function handler(req, res) {
         });
       }
 
+      if (qmSummaryChanged) {
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'qm-summary',
+          message: 'QM-Zusammenfassung aktualisiert',
+        });
+      }
+
+      if (qmSummaryTranslationChanged) {
+        pushHistory(c, {
+          actor: 'admin',
+          type: 'qm-summary-translation',
+          message: 'QM-Zusammenfassung übersetzt/angepasst',
+          data: { translations: c.qmCustomerSummaryTranslations || {} },
+        });
+      }
+
       if ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED) {
         const preferredLang = detectCustomerLang(account, c) || 'de';
-        const targetLangs = preferredLang === 'en' ? ['en'] : ['de'];
-        if (!targetLangs.includes('de') && !targetLangs.includes('en')) targetLangs.push('de');
         try {
-          const generated = await generateReportsForComplaint(c, { targetLangs });
-          if (generated && Object.keys(generated).length > 0) {
-            const merged = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...generated });
-            c.reportLinks = merged;
-            const defaultLink = merged[preferredLang] || merged.en || merged.de;
+          const generated = await generateDualReportsForComplaint(c, { preferredLang });
+          if (generated) {
+            const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
+            const mergedInternal = normalizeReportLinksMap({ ...(c.internalReportLinks || {}), ...(generated.internalLinks || {}) });
+            if (Object.keys(mergedExternal).length > 0) {
+              c.externalReportLinks = mergedExternal;
+              reportChanged = true;
+            }
+            if (Object.keys(mergedInternal).length > 0) {
+              c.internalReportLinks = mergedInternal;
+              reportChanged = true;
+            }
+
+            const defaultLink = mergedExternal[preferredLang]
+              || mergedExternal.de
+              || mergedExternal.en
+              || Object.values(mergedExternal)[0];
             if (defaultLink) c.reportLink = defaultLink;
-            reportChanged = true;
+            c.reportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
           }
         } catch (err) {
           console.error('admin/complaints report generation failed', err?.message || err);
