@@ -108,6 +108,12 @@ export async function portalUserFromRequest(req, { allowSecretFallback = true } 
       if (status === 'active') {
         return { ...stored, role, portalStatus: status, tilePermissions };
       }
+    } else if (normalizeRole(tokenUser.role) === PORTAL_ROLES.superuser) {
+      const role = normalizeRole(tokenUser.role);
+      const portalStatus = normalizeStatus(tokenUser.portalStatus);
+      if (portalStatus === 'active') {
+        return { ...tokenUser, role, portalStatus, tilePermissions: sanitizeTilePermissions(tokenUser.tilePermissions) };
+      }
     }
   }
 
