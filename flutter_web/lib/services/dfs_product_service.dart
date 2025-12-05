@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../models/dfs_product.dart';
 
 class DfsProductService {
-  static const assetPath = 'lib/data/dfs_products.csv';
+  static const assetPath = 'assets/data/dfs_products.csv';
 
   Future<List<DfsProduct>> loadProducts() async {
     final data = await rootBundle.load(assetPath);
