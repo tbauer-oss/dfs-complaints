@@ -14,11 +14,13 @@ class ProductCatalogPage extends StatefulWidget {
   final String? error;
   final Future<void> Function()? onReload;
   final ValueChanged<List<DfsProduct>> onProductsChanged;
+  final bool canWrite;
 
   const ProductCatalogPage({
     super.key,
     required this.products,
     required this.onProductsChanged,
+    this.canWrite = true,
     this.loading = false,
     this.error,
     this.onReload,
@@ -317,6 +319,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Future<void> _openEditor({DfsProduct? product}) async {
+    if (!widget.canWrite) return;
     final isEdit = product != null;
     final controllers = <String, TextEditingController>{};
 
@@ -383,11 +386,13 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
           FilledButton(
-            onPressed: () {
-              final map = controllers.map((key, ctrl) => MapEntry(key, ctrl.text.trim()));
-              final updated = DfsProduct.fromHeaderMap(map);
-              Navigator.pop(ctx, updated);
-            },
+            onPressed: widget.canWrite
+                ? () {
+                    final map = controllers.map((key, ctrl) => MapEntry(key, ctrl.text.trim()));
+                    final updated = DfsProduct.fromHeaderMap(map);
+                    Navigator.pop(ctx, updated);
+                  }
+                : null,
             child: Text(isEdit ? 'Speichern' : 'Anlegen'),
           ),
         ],
@@ -418,6 +423,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   Future<void> _deleteProduct(DfsProduct product) async {
+    if (!widget.canWrite) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -558,7 +564,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             ),
             const SizedBox(width: 4),
             FilledButton.icon(
-              onPressed: () => _openEditor(),
+              onPressed: widget.canWrite ? () => _openEditor() : null,
               icon: const Icon(Icons.add),
               label: const Text('Artikel hinzufügen'),
             ),
@@ -600,6 +606,24 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (!widget.canWrite)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_outline,
+                            size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Nur Lesezugriff – Änderungen sind deaktiviert.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
                 Row(
                   children: [
                     const Icon(Icons.filter_alt_outlined),
@@ -870,21 +894,29 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
           }),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Bearbeiten',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => _openEditor(product: product),
-                ),
-                IconButton(
-                  tooltip: 'Löschen',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _deleteProduct(product),
-                ),
-              ],
-            ),
+            child: widget.canWrite
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Bearbeiten',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _openEditor(product: product),
+                      ),
+                      IconButton(
+                        tooltip: 'Löschen',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _deleteProduct(product),
+                      ),
+                    ],
+                  )
+                : Text(
+                    'Nur Lesen',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Theme.of(context).disabledColor),
+                  ),
           ),
         ],
       );

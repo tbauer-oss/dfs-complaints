@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { portalUsersList, portalUserSave, portalUserDelete } from '../_lib/store.js';
+import { portalUsersList, portalUserSave, portalUserDelete, sanitizeTilePermissions } from '../_lib/store.js';
 import { normalizeDepartments } from '../_lib/departments.js';
 import {
   ADMIN_EMAILS,
@@ -24,6 +24,7 @@ function sanitizeUser(u) {
     portalStatus,
     assignedDepartments: normalizeDepartments(u.assignedDepartments || []),
     createdAt: u.createdAt || null,
+    tilePermissions: sanitizeTilePermissions(u.tilePermissions || {}),
   };
 }
 
@@ -49,6 +50,7 @@ export default async function handler(req, res) {
       const role = normalizeRole(body.role);
       const displayName = String(body.displayName || '').trim();
       const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
+      const tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (!email || !password) return bad(res, 'missing email or password', 400);
 
       const hash = await bcrypt.hash(password, 10);
@@ -60,6 +62,7 @@ export default async function handler(req, res) {
         displayName,
         assignedDepartments,
         createdAt: Date.now(),
+        tilePermissions,
       };
       await portalUserSave(user);
       return ok(res, sanitizeUser(user));
@@ -78,6 +81,7 @@ export default async function handler(req, res) {
       if (body.role) patch.role = normalizeRole(body.role);
       if (body.portalStatus) patch.portalStatus = normalizeStatus(body.portalStatus);
       if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
+      if (body.tilePermissions !== undefined) patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);
 
       if (ADMIN_EMAILS.has(email)) {
