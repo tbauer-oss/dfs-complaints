@@ -145,7 +145,9 @@ const PAYLOAD_LABELS = {
 
 const DFS_BLUE = '#005AA9';
 const DFS_DARK = '#0B345E';
+const DFS_BLUE_LIGHT = '#0E6CC4';
 const LIGHT_GREY = '#F4F6F9';
+const BORDER_GREY = '#D5DBE5';
 const TEXT_DARK = '#1F2933';
 let cachedLogo;
 
@@ -164,24 +166,36 @@ function loadLogo() {
   return cachedLogo;
 }
 
-function drawSectionTitle(doc, title) {
+function drawSectionTitle(doc, title, { index } = {}) {
   const startX = doc.page.margins.left;
   const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  doc.moveDown(0.6);
+  const label = index ? `${index}. ${title}` : title;
+
+  doc.moveDown(0.8);
+
   doc
     .save()
     .fillColor(DFS_BLUE)
-    .font('Helvetica-Bold')
-    .fontSize(12)
-    .text(title, startX + 4, doc.y, { width: availableWidth - 8 });
+    .rect(startX, doc.y - 2, 6, 18)
+    .fill()
+    .restore();
+
   doc
-    .strokeColor(DFS_BLUE)
+    .save()
+    .fillColor(DFS_DARK)
+    .font('Helvetica-Bold')
+    .fontSize(13)
+    .text(label, startX + 12, doc.y - 2, { width: availableWidth - 12 });
+
+  doc
+    .strokeColor(BORDER_GREY)
     .lineWidth(1)
-    .moveTo(startX, doc.y + 2)
-    .lineTo(startX + availableWidth, doc.y + 2)
+    .moveTo(startX, doc.y + 16)
+    .lineTo(startX + availableWidth, doc.y + 16)
     .stroke();
   doc.restore();
-  doc.moveDown(0.3);
+
+  doc.moveDown(0.6);
 }
 
 function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
@@ -202,20 +216,31 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
       const x = startX + (idx * columnWidth);
       const label = entry?.label || '';
       const value = (entry?.value ?? '') || '–';
-      const labelHeight = doc.heightOfString(label, { width: columnWidth });
-      const valueHeight = doc.heightOfString(value, { width: columnWidth });
-      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + 6);
+      const labelHeight = doc.heightOfString(label, { width: columnWidth - 10 });
+      const valueHeight = doc.heightOfString(value, { width: columnWidth - 10 });
+      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + 10);
+
+      doc
+        .save()
+        .lineWidth(0.5)
+        .strokeColor(BORDER_GREY)
+        .fillColor('#FFFFFF')
+        .roundedRect(x + 2, baseY, columnWidth - 6, rowHeight + 10, 6)
+        .fillAndStroke();
 
       doc
         .fillColor(DFS_BLUE)
+        .font('Helvetica-Bold')
         .fontSize(9)
-        .text(label, x, baseY, { width: columnWidth });
+        .text(label, x + 10, baseY + 8, { width: columnWidth - 24, continued: false });
       doc
         .fillColor(TEXT_DARK)
+        .font('Helvetica')
         .fontSize(11)
-        .text(value, x, baseY + labelHeight + 2, { width: columnWidth });
+        .text(value, x + 10, baseY + 8 + labelHeight + 2, { width: columnWidth - 24 });
+      doc.restore();
     });
-    doc.y = baseY + rowHeight + 8;
+    doc.y = baseY + rowHeight + 18;
   });
 }
 
@@ -229,7 +254,7 @@ function drawBadge(doc, text, { color = DFS_BLUE } = {}) {
   doc
     .save()
     .fillColor(color)
-    .roundedRect(startX, startY, width, 18, 6)
+    .roundedRect(startX, startY, width, 20, 8)
     .fill();
   doc
     .fillColor('#FFFFFF')
@@ -239,56 +264,79 @@ function drawBadge(doc, text, { color = DFS_BLUE } = {}) {
       align: 'center',
     })
     .restore();
-  doc.moveDown(1.2);
+  doc.moveDown(1.4);
 }
 
 function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
   const { left, right } = doc.page.margins;
   const startY = doc.y;
-  const headerHeight = 110;
+  const headerHeight = 130;
   const usableWidth = doc.page.width - left - right;
 
   doc
     .save()
-    .rect(left, startY, usableWidth, headerHeight)
+    .fillColor(DFS_BLUE)
+    .rect(left, startY, usableWidth, 10)
+    .fill()
+    .restore();
+
+  doc
+    .save()
+    .rect(left, startY + 10, usableWidth, headerHeight - 10)
     .fill(LIGHT_GREY)
     .restore();
 
   if (logoBuffer) {
     doc
       .save()
-      .image(logoBuffer, doc.page.width - right - 140, startY + 12, { fit: [130, 48], align: 'right' })
+      .image(logoBuffer, doc.page.width - right - 140, startY + 22, { fit: [130, 52], align: 'right' })
       .restore();
   }
 
+  const metaStartX = left + 16;
   doc
     .save()
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
     .fontSize(14)
-    .text('DFS-DIAMON GmbH', left + 16, startY + 14);
+    .text('DFS-DIAMON GmbH', metaStartX, startY + 18);
   doc
     .fillColor(TEXT_DARK)
+    .font('Helvetica')
     .fontSize(10)
-    .text('Reklamation / Complaint Management', left + 16, doc.y + 2);
+    .text('Reklamation / Complaint Management', metaStartX, doc.y + 2);
 
   doc
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
-    .fontSize(20)
-    .text(title, left + 16, startY + 42, { width: usableWidth / 1.6 });
-  doc
-    .fillColor(TEXT_DARK)
-    .fontSize(11)
-    .text(ticket, left + 16, doc.y + 6);
-  doc
-    .fontSize(10)
-    .fillColor(TEXT_DARK)
-    .text(dateLabel, left + 16, doc.y + 2);
-  doc.restore();
+    .fontSize(21)
+    .text(title, metaStartX, startY + 48, { width: usableWidth / 1.6 });
 
-  doc.y = startY + headerHeight + 12;
-  drawBadge(doc, status);
+  const chipY = doc.y + 8;
+  doc
+    .save()
+    .fillColor('#FFFFFF')
+    .roundedRect(metaStartX, chipY, usableWidth / 3, 44, 10)
+    .fill()
+    .lineWidth(0.7)
+    .strokeColor(BORDER_GREY)
+    .roundedRect(metaStartX, chipY, usableWidth / 3, 44, 10)
+    .stroke()
+    .restore();
+
+  doc
+    .fillColor(DFS_BLUE)
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .text(ticket, metaStartX + 12, chipY + 8, { width: usableWidth / 3 - 24 });
+  doc
+    .fillColor(TEXT_DARK)
+    .font('Helvetica')
+    .fontSize(10)
+    .text(dateLabel, metaStartX + 12, chipY + 24, { width: usableWidth / 3 - 24 });
+
+  doc.y = startY + headerHeight;
+  drawBadge(doc, status, { color: DFS_BLUE_LIGHT });
 }
 
 function labelFor(lang, key, fallback) {
@@ -406,7 +454,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       { label: 'Land', value: customer.country || '–' },
     ];
 
-    drawSectionTitle(doc, '1. Stammdaten');
+    drawSectionTitle(doc, 'Stammdaten', { index: 1 });
     drawKeyValueTable(doc, stammdaten);
 
     const produktDaten = [
@@ -418,7 +466,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       { label: payloadLabel(lang, 'expiry', 'Ablaufdatum'), value: payload.expiry || payload.expiration || '–' },
     ];
 
-    drawSectionTitle(doc, '2. Produktdaten');
+    drawSectionTitle(doc, 'Produktdaten', { index: 2 });
     drawKeyValueTable(doc, produktDaten);
 
     const descriptionEntries = [];
@@ -432,7 +480,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       }
     });
 
-    drawSectionTitle(doc, '3. Reklamationsbeschreibung');
+    drawSectionTitle(doc, 'Reklamationsbeschreibung', { index: 3 });
     drawKeyValueTable(doc, descriptionEntries.length > 0 ? descriptionEntries : [{ label: labelFor(lang, 'payload'), value: '–' }]);
 
     const remainingPayload = Object.entries(payload)
@@ -442,7 +490,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       drawKeyValueTable(doc, remainingPayload);
     }
 
-    drawSectionTitle(doc, '4. Interne Analyse');
+    drawSectionTitle(doc, 'Interne Analyse', { index: 4 });
     if (departments.length > 0) {
       drawKeyValueTable(doc, [{ label: labelFor(lang, 'departments'), value: departments.join(', ') }], { columns: 1 });
     }
@@ -455,7 +503,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       ], { columns: 1 });
     }
 
-    drawSectionTitle(doc, '5. Maßnahmen');
+    drawSectionTitle(doc, 'Maßnahmen', { index: 5 });
     const actionText = plannedActions(complaint);
     drawKeyValueTable(doc, [
       { label: labels.actions, value: actionText || '–' },
@@ -466,7 +514,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       drawKeyValueTable(doc, [{ label: labelFor(lang, 'uploads'), value: uploads.map((u) => u.name || u.url || u.downloadUrl || 'Attachment').join('\n') }], { columns: 1 });
     }
 
-    drawSectionTitle(doc, '6. Abschluss / Status');
+    drawSectionTitle(doc, 'Abschluss / Status', { index: 6 });
     drawKeyValueTable(doc, [
       { label: labelFor(lang, 'status'), value: complaint.statusLabel || complaint.status || '–' },
       { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
@@ -476,7 +524,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
     const summary = qmSummaryForLang(complaint, lang)
       || 'Zusammenfassung wird bereitgestellt / Summary will be provided soon';
 
-    drawSectionTitle(doc, labels.product);
+    drawSectionTitle(doc, labels.product, { index: 1 });
     drawKeyValueTable(doc, [
       { label: payloadLabel(lang, 'product', 'Produkt'), value: product.name || '–' },
       { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
@@ -484,21 +532,21 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
       { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
     ]);
 
-    drawSectionTitle(doc, labelFor(lang, 'customer'));
+    drawSectionTitle(doc, labelFor(lang, 'customer'), { index: 2 });
     drawKeyValueTable(doc, [
       { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '–' },
       { label: labelFor(lang, 'email'), value: complaint.email || '-' },
       { label: 'Land', value: customer.country || '–' },
     ]);
 
-    drawSectionTitle(doc, labels.qmSummary);
+    drawSectionTitle(doc, labels.qmSummary, { index: 3 });
     drawKeyValueTable(doc, [
       { label: labels.qmSummary, value: summary },
     ], { columns: 1 });
 
     const actionText = plannedActions(complaint);
     if (actionText) {
-      drawSectionTitle(doc, labels.measures);
+      drawSectionTitle(doc, labels.measures, { index: 4 });
       drawKeyValueTable(doc, [{ label: labels.measures, value: actionText }], { columns: 1 });
     }
   }
