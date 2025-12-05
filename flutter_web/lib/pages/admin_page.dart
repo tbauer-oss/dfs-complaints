@@ -4156,10 +4156,11 @@ class _AdminPageState extends State<AdminPage> {
           onPressed: _showChangePasswordDialog,
           icon: const Icon(Icons.lock_reset),
         ),
-        IconButton(
+        TextButton.icon(
           tooltip: t.logoutTitle,
           onPressed: _logoutAdmin,
           icon: const Icon(Icons.logout),
+          label: Text(t.logout),
         ),
         w.ThemeAction(),
         const SizedBox(width: 2),
