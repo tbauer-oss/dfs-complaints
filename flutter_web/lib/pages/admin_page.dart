@@ -878,8 +878,10 @@ class _AdminPageState extends State<AdminPage> {
 
   bool get _portalUserHasAllDepartments => _portalUserDepartments.contains('Alle');
 
-  bool get _canShowSalesToggle =>
-      _portalUserDepartments.contains('Vertrieb') || _portalUserHasAllDepartments;
+  bool get _canShowSalesToggle => _portalUserDepartments.any((dep) {
+        final normalized = dep.trim().toLowerCase();
+        return normalized == 'vertrieb' || normalized == 'alle';
+      });
 
   void _ensureSalesFlagValidity() {
     if (!_canShowSalesToggle && _portalUserCanEditSales) {
@@ -7951,6 +7953,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _resetPortalUserForm() {
     setState(() {
+      _portalUserBusy = false;
       _editingPortalUser = null;
       _portalUserEmailCtrl.clear();
       _portalUserDisplayNameCtrl.clear();
@@ -7968,6 +7971,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _startPortalUserEdit(PortalUser? user) {
     setState(() {
+      _portalUserBusy = false;
       _editingPortalUser = user;
       _portalUserEmailCtrl.text = user?.email ?? '';
       _portalUserDisplayNameCtrl.text = user?.displayName ?? '';
