@@ -903,7 +903,7 @@ class _AdminPageState extends State<AdminPage> {
         if (selected) {
           _portalUserDepartments
             ..remove('Alle')
-            ..add(dep);
+            ..addAll(_canonicalizeDepartments([dep]));
         } else {
           _portalUserDepartments.remove(dep);
         }
@@ -921,8 +921,9 @@ class _AdminPageState extends State<AdminPage> {
       return;
     }
     setState(() {
-      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(dep)) {
-        _portalUserDepartments.add(dep);
+      final normalized = _canonicalizeDepartments([dep]);
+      if (!_portalUserHasAllDepartments && !_portalUserDepartments.contains(normalized.first)) {
+        _portalUserDepartments.addAll(normalized);
       }
       _portalUserDepartmentCtrl.clear();
       _ensureSalesFlagValidity();
@@ -7951,6 +7952,24 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  List<String> _canonicalizeDepartments(Iterable<String> departments) {
+    final seen = <String>{};
+    final normalized = <String>[];
+    for (final dep in departments) {
+      final value = dep.trim();
+      if (value.isEmpty) continue;
+      final match = kInternalDepartments.firstWhere(
+        (entry) => entry.toLowerCase() == value.toLowerCase(),
+        orElse: () => value,
+      );
+      final key = match.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      normalized.add(match);
+    }
+    return normalized;
+  }
+
   void _resetPortalUserForm() {
     setState(() {
       _portalUserBusy = false;
@@ -7980,10 +7999,10 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
-      _portalUserCanEditSales = user?.canEditSales ?? false;
+      _portalUserCanEditSales = user?.canEditSales ?? user?.salesAllowed ?? false;
       _portalUserDepartments
         ..clear()
-        ..addAll(user?.assignedDepartments ?? const <String>[]);
+        ..addAll(_canonicalizeDepartments(user?.assignedDepartments ?? const <String>[]));
       _portalUserTilePermissions
         ..clear()
         ..addAll(_sanitizeTilePermissionMap(user?.tilePermissions));
@@ -8172,8 +8191,20 @@ class _AdminPageState extends State<AdminPage> {
                         SwitchListTile.adaptive(
                           contentPadding: const EdgeInsets.only(left: 8),
                           title: const Text('Sales-Bearbeitung erlaubt'),
-                          subtitle: const Text('Für Auftrags- oder Rechnungsnummern nach Abschluss'),
+                          subtitle: Text(
+                            _portalUserCanEditSales
+                                ? 'Aktiviert – kann Auftrags-/Rechnungsnummern nach Abschluss pflegen'
+                                : 'Deaktiviert – nur Ticketabschluss ohne Sales-Bearbeitung',
+                          ),
                           value: _portalUserCanEditSales,
+                          activeColor: theme.colorScheme.onPrimary,
+                          activeTrackColor: theme.colorScheme.primary,
+                          inactiveThumbColor: theme.colorScheme.onSurfaceVariant,
+                          inactiveTrackColor: theme.colorScheme.surfaceVariant,
+                          thumbIcon: MaterialStateProperty.resolveWith((states) {
+                            final selected = states.contains(MaterialState.selected);
+                            return Icon(selected ? Icons.check : Icons.close, size: 18);
+                          }),
                           onChanged: _portalUserBusy
                               ? null
                               : (v) => setState(() => _portalUserCanEditSales = v),
@@ -8192,15 +8223,46 @@ class _AdminPageState extends State<AdminPage> {
                             onSelected: _portalUserBusy
                                 ? null
                                 : (selected) => _updateDepartmentSelection('Alle', selected),
+                            showCheckmark: true,
+                            checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                            selectedColor: theme.colorScheme.primaryContainer,
+                            side: BorderSide(
+                              color: _portalUserHasAllDepartments
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant,
+                              width: _portalUserHasAllDepartments ? 2 : 1,
+                            ),
+                            labelStyle: TextStyle(
+                              fontWeight:
+                                  _portalUserHasAllDepartments ? FontWeight.w700 : FontWeight.w500,
+                            ),
                           ),
                           ...kInternalDepartments.map(
-                            (dep) => FilterChip(
-                              label: Text(dep),
-                              selected: _portalUserDepartments.contains(dep),
-                              onSelected: _portalUserBusy
-                                  ? null
-                                  : (v) => _updateDepartmentSelection(dep, v),
-                            ),
+                            (dep) {
+                              final selected = _portalUserDepartments.contains(dep);
+                              return FilterChip(
+                                label: Text(dep),
+                                selected: selected,
+                                onSelected: _portalUserBusy
+                                    ? null
+                                    : (v) => _updateDepartmentSelection(dep, v),
+                                showCheckmark: true,
+                                checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                                selectedColor: theme.colorScheme.primaryContainer,
+                                side: BorderSide(
+                                  color: selected
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.outlineVariant,
+                                  width: selected ? 2 : 1,
+                                ),
+                                labelStyle: TextStyle(
+                                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                  color: selected
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : theme.colorScheme.onSurface,
+                                ),
+                              );
+                            },
                           ),
                           if (_portalUserDepartments.isNotEmpty)
                             ..._portalUserDepartments
@@ -8211,6 +8273,18 @@ class _AdminPageState extends State<AdminPage> {
                                       onDeleted: _portalUserBusy
                                           ? null
                                           : () => _updateDepartmentSelection(dep, false),
+                                      selected: true,
+                                      showCheckmark: true,
+                                      checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                                      selectedColor: theme.colorScheme.primaryContainer,
+                                      side: BorderSide(
+                                        color: theme.colorScheme.primary,
+                                        width: 2,
+                                      ),
+                                      labelStyle: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                      ),
                                     )),
                         ],
                       ),
@@ -11874,6 +11948,7 @@ class PortalUser {
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
   final bool canEditSales;
+  final bool salesAllowed;
 
   const PortalUser({
     required this.email,
@@ -11884,6 +11959,7 @@ class PortalUser {
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
     this.canEditSales = false,
+    this.salesAllowed = false,
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -11900,7 +11976,8 @@ class PortalUser {
         tilePermissions: (j['tilePermissions'] is Map)
             ? (j['tilePermissions'] as Map).map((key, value) => MapEntry(key.toString(), value.toString()))
             : const <String, String>{},
-        canEditSales: (j['canEditSales'] ?? j['isSales']) == true,
+        canEditSales: (j['canEditSales'] ?? j['salesAllowed'] ?? j['isSales']) == true,
+        salesAllowed: (j['salesAllowed'] ?? j['canEditSales'] ?? j['isSales']) == true,
       );
 }
 
@@ -17398,6 +17475,7 @@ class AdminApi {
       'role': role,
       'portalStatus': portalStatus,
       'canEditSales': canEditSales,
+      'salesAllowed': canEditSales,
       'isSales': canEditSales,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
@@ -17429,6 +17507,7 @@ class AdminApi {
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
       if (canEditSales != null) ...{
         'canEditSales': canEditSales,
+        'salesAllowed': canEditSales,
         'isSales': canEditSales,
       },
     };
