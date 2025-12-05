@@ -4,12 +4,21 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
 import { wikiAdminList, wikiSaveArticle } from '../../_lib/wikiStore.js';
 import { validateArticlePayload } from '../../_lib/wikiValidation.js';
+import { normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../../_lib/portalAuth.js';
 
-function requireAdmin(req, res) {
-  const sec = (req.headers?.['x-admin-secret'] || '').toString().trim();
-  const expected = (process.env.ADMIN_SECRET || '').toString().trim();
-  if (!sec || !expected || sec !== expected) {
+async function requirePortalUser(req, res) {
+  const actor = await portalUserFromRequest(req);
+  if (!actor) {
     bad(res, 'unauthorized', 401);
+    return null;
+  }
+  return actor;
+}
+
+function assertSuperuser(actor, res) {
+  const isSuperuser = normalizeRole(actor?.role) === PORTAL_ROLES.superuser;
+  if (!isSuperuser) {
+    bad(res, 'forbidden', 403);
     return false;
   }
   return true;
@@ -18,7 +27,8 @@ function requireAdmin(req, res) {
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (!requireAdmin(req, res)) return;
+  const actor = await requirePortalUser(req, res);
+  if (!actor) return;
 
   if (req.method === 'GET') {
     const { category, productGroup, type, status, search } = req.query || {};
@@ -28,6 +38,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (!assertSuperuser(actor, res)) return;
     const body = readJson(req);
     try {
       const payload = validateArticlePayload(body || {});
