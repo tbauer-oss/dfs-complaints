@@ -518,6 +518,11 @@ export default async function handler(req, res) {
         body?.sendPush === 'true' ||
         body?.sendPush === 1 ||
         body?.sendPush === '1';
+      const deleteReportsFlag =
+        body?.deleteReports === true ||
+        body?.deleteReports === 'true' ||
+        body?.deleteReports === 1 ||
+        body?.deleteReports === '1';
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
@@ -585,6 +590,17 @@ export default async function handler(req, res) {
       const prevQmSummary = normalizeEvaluationText(c.qmCustomerSummary);
       const prevQmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
       const prevGoodwill = c.isGoodwill === true;
+      const hasReports = (complaint) => {
+        if (!complaint) return false;
+        const link = (complaint.reportLink ?? '').toString().trim();
+        const maps = [
+          complaint.reportLinks || {},
+          complaint.externalReportLinks || {},
+          complaint.internalReportLinks || {},
+        ];
+        return Boolean(link) || maps.some((m) => Object.keys(m || {}).length > 0);
+      };
+      const hadReportsBefore = hasReports(c);
       let statusChanged = false;
       let payloadChanged = false;
       let payloadChanges = [];
@@ -784,6 +800,15 @@ export default async function handler(req, res) {
         if (nextReport !== prevReportLink) reportChanged = true;
       }
 
+      if (deleteReportsFlag) {
+        const hadAny = hasReports(c);
+        delete c.reportLink;
+        delete c.reportLinks;
+        delete c.externalReportLinks;
+        delete c.internalReportLinks;
+        if (hadAny) reportChanged = true;
+      }
+
       // Interne Nummer (optional; "" => löschen)
       if (hasInternal) {
         const v = (rawInternal ?? '').toString().trim();
@@ -828,14 +853,22 @@ export default async function handler(req, res) {
       }
 
       if (reportChanged) {
-        const label = (c.reportLink ?? '').toString().trim().isEmpty
-          ? 'Report-Link entfernt'
-          : 'Report-Link hinterlegt';
+        const reportsAvailable = hasReports(c);
+        const label = deleteReportsFlag && hadReportsBefore
+          ? 'Reports gelöscht'
+          : reportsAvailable
+            ? 'Report-Link hinterlegt'
+            : 'Report-Link entfernt';
         pushHistory(c, {
           actor: 'admin',
           type: 'report',
           message: label,
-          data: { link: c.reportLink || null },
+          data: {
+            link: c.reportLink || null,
+            reportLinks: c.reportLinks || null,
+            externalReportLinks: c.externalReportLinks || null,
+            internalReportLinks: c.internalReportLinks || null,
+          },
         });
       }
 
