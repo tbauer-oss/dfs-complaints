@@ -4149,7 +4149,7 @@ class _AdminPageState extends State<AdminPage> {
         IconButton(
           tooltip: 'Zurück zum Admin-Dashboard',
           onPressed: () => setState(() => _view = _AdminView.menu),
-          iconSize: 28,
+          iconSize: 38,
           icon: const Icon(Icons.home_outlined),
         ),
         IconButton(
