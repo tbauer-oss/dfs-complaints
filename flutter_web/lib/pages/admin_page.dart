@@ -7980,7 +7980,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserDepartmentCtrl.clear();
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
-      _portalUserCanEditSales = user?.canEditSales ?? false;
+      _portalUserCanEditSales = user?.canEditSales ?? user?.salesAllowed ?? false;
       _portalUserDepartments
         ..clear()
         ..addAll(user?.assignedDepartments ?? const <String>[]);
@@ -11874,6 +11874,7 @@ class PortalUser {
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
   final bool canEditSales;
+  final bool salesAllowed;
 
   const PortalUser({
     required this.email,
@@ -11884,6 +11885,7 @@ class PortalUser {
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
     this.canEditSales = false,
+    this.salesAllowed = false,
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -11900,7 +11902,8 @@ class PortalUser {
         tilePermissions: (j['tilePermissions'] is Map)
             ? (j['tilePermissions'] as Map).map((key, value) => MapEntry(key.toString(), value.toString()))
             : const <String, String>{},
-        canEditSales: (j['canEditSales'] ?? j['isSales']) == true,
+        canEditSales: (j['canEditSales'] ?? j['salesAllowed'] ?? j['isSales']) == true,
+        salesAllowed: (j['salesAllowed'] ?? j['canEditSales'] ?? j['isSales']) == true,
       );
 }
 
@@ -17398,6 +17401,7 @@ class AdminApi {
       'role': role,
       'portalStatus': portalStatus,
       'canEditSales': canEditSales,
+      'salesAllowed': canEditSales,
       'isSales': canEditSales,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
@@ -17429,6 +17433,7 @@ class AdminApi {
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
       if (canEditSales != null) ...{
         'canEditSales': canEditSales,
+        'salesAllowed': canEditSales,
         'isSales': canEditSales,
       },
     };
