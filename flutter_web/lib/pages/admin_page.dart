@@ -379,17 +379,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _loadRoleTileVisibility({Map<String, dynamic>? stored}) {
-    dynamic rawData = stored;
-    if (rawData == null) {
-      final raw = html.window.localStorage[_roleTileVisibilityKey];
-      if (raw == null) return;
-      try {
-        rawData = jsonDecode(raw);
-      } catch (_) {
-        rawData = null;
-      }
-    }
-
+    final rawData = stored;
     if (rawData is Map) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -400,12 +390,6 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _persistRoleTileVisibility({bool syncRemote = true}) {
-    try {
-      html.window.localStorage[_roleTileVisibilityKey] = jsonEncode(
-        _roleTileVisibility.map((key, value) => MapEntry(key, value.toList())),
-      );
-    } catch (_) {}
-
     if (syncRemote) {
       _syncAdminUiConfig(roleTileVisibility: _roleTileVisibility);
     }
@@ -473,10 +457,6 @@ class _AdminPageState extends State<AdminPage> {
   bool _bulkAssigningOpen = false;
 
   bool _loadAllComplaints = false;
-
-  static const _menuLayoutStorageKey = 'admin_menu_layout_v1';
-  static const _roleTileVisibilityKey = 'admin_role_tiles_v1';
-  static const _navOrderStorageKey = 'admin_nav_order_v1';
   static const double _tileScaleMin = 0.6;
   static const double _tileScaleMax = 1.35;
   late final Map<String, String> _tileDefaultSection;
@@ -4602,28 +4582,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _loadNavOrder() {
     final defaults = _defaultNavOrder();
-    final raw = html.window.localStorage[_navOrderStorageKey];
-    List<_AdminView> next = defaults;
-
-    if (raw != null) {
-      try {
-        final parsed = jsonDecode(raw);
-        if (parsed is List) {
-          final views = parsed
-              .whereType<String>()
-              .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
-              .whereNotNull()
-              .toList();
-          if (views.isNotEmpty) {
-            next = views;
-          }
-        }
-      } catch (_) {
-        // Fallback to defaults below.
-      }
-    }
-
-    _applyNavOrder(next, persist: true, syncRemote: false);
+    _applyNavOrder(defaults, persist: false, syncRemote: false);
   }
 
   void _applyNavOrder(List<_AdminView> order, {bool persist = false, bool syncRemote = true}) {
@@ -4640,11 +4599,8 @@ class _AdminPageState extends State<AdminPage> {
       _navOrder = merged;
     }
 
-    if (persist) {
-      html.window.localStorage[_navOrderStorageKey] = jsonEncode(merged.map((v) => v.name).toList());
-      if (syncRemote) {
-        _syncAdminUiConfig(navOrder: merged);
-      }
+    if (persist && syncRemote) {
+      _syncAdminUiConfig(navOrder: merged);
     }
   }
 
@@ -4865,20 +4821,7 @@ class _AdminPageState extends State<AdminPage> {
   }) {
     _menuTileScale = 1.0;
     _archivedTileIds.clear();
-    dynamic rawData = storedLayout;
-    if (rawData == null) {
-      final raw = html.window.localStorage[_menuLayoutStorageKey];
-      if (raw == null) {
-        return defaults.map((s) => s.copy()).toList();
-      }
-
-      try {
-        rawData = jsonDecode(raw);
-      } catch (_) {
-        rawData = null;
-      }
-    }
-
+    final rawData = storedLayout;
     if (rawData == null) {
       return defaults.map((s) => s.copy()).toList();
     }
@@ -5012,8 +4955,6 @@ class _AdminPageState extends State<AdminPage> {
 
   void _persistMenuLayout({bool syncRemote = true}) {
     final payload = _currentMenuLayoutPayload();
-    html.window.localStorage[_menuLayoutStorageKey] = jsonEncode(payload);
-
     if (syncRemote) {
       _syncAdminUiConfig(menuLayout: payload);
     }
