@@ -4114,6 +4114,19 @@ class _AdminPageState extends State<AdminPage> {
       onPressed: () => setState(() => _view = _AdminView.menu),
     );
 
+    final dashboardEditButton = _view == _AdminView.menu
+        ? FilledButton.icon(
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
+            icon: Icon(_menuEditMode ? Icons.close : Icons.edit_outlined),
+            label: Text(_menuEditMode ? 'Bearbeitung schließen' : 'Bearbeiten'),
+            onPressed: () => setState(() => _menuEditMode = !_menuEditMode),
+          )
+        : null;
+
     return AppBar(
       backgroundColor: theme.colorScheme.surface,
       surfaceTintColor: Colors.transparent,
@@ -4148,17 +4161,26 @@ class _AdminPageState extends State<AdminPage> {
           const SizedBox(width: 16),
           Expanded(
             child: Center(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.16),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withOpacity(0.16),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
+                    child: homeButton,
+                  ),
+                  if (dashboardEditButton != null) ...[
+                    const SizedBox(width: 14),
+                    dashboardEditButton,
                   ],
-                ),
-                child: homeButton,
+                ],
               ),
             ),
           ),
@@ -5358,12 +5380,6 @@ class _AdminPageState extends State<AdminPage> {
                     ],
                   ),
                 ),
-                if (!_menuEditMode)
-                  FilledButton.icon(
-                    onPressed: () => setState(() => _menuEditMode = true),
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Bearbeiten'),
-                  ),
                 if (_menuEditMode) ...[
                   TextButton.icon(
                     onPressed: _addMenuSection,
