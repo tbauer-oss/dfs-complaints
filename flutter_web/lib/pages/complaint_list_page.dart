@@ -143,6 +143,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   String _sortColumn = 'receivedAt';
   bool _sortAscending = false;
   bool _filtersExpanded = false;
+  late Set<String> _visibleColumns;
   Uint8List? _logoBytes;
 
   static const List<(String, String)> _columnDefs = [
@@ -180,6 +181,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   @override
   void initState() {
     super.initState();
+    _visibleColumns = _columnDefs.map((c) => c.$2).toSet();
     _loadLogo();
   }
 
@@ -196,6 +198,27 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       final data = await rootBundle.load('assets/dfs_logo.png');
       setState(() => _logoBytes = data.buffer.asUint8List());
     } catch (_) {}
+  }
+
+  String _firstVisibleColumn(Set<String> visible) {
+    return _columnDefs.firstWhere((c) => visible.contains(c.$2)).$2;
+  }
+
+  void _toggleColumnVisibility(String columnKey) {
+    setState(() {
+      final next = {..._visibleColumns};
+      if (next.contains(columnKey)) {
+        if (next.length == 1) return;
+        next.remove(columnKey);
+      } else {
+        next.add(columnKey);
+      }
+      _visibleColumns = next;
+      if (!_visibleColumns.contains(_sortColumn)) {
+        _sortColumn = _firstVisibleColumn(_visibleColumns);
+        _sortAscending = false;
+      }
+    });
   }
 
   List<ComplaintListItem> get _filteredItems {
@@ -461,6 +484,28 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               icon: Icon(_filtersExpanded ? Icons.expand_less : Icons.filter_list),
               label: Text(_filtersExpanded ? 'Filter ausblenden' : 'Filter anzeigen'),
             ),
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              tooltip: 'Spalten ein- oder ausblenden',
+              position: PopupMenuPosition.under,
+              itemBuilder: (context) => _columnDefs
+                  .map(
+                    (c) => CheckedPopupMenuItem<String>(
+                      value: c.$2,
+                      checked: _visibleColumns.contains(c.$2),
+                      child: SizedBox(
+                        width: 240,
+                        child: Text(c.$1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onSelected: _toggleColumnVisibility,
+              child: TextButton.icon(
+                icon: const Icon(Icons.view_column_outlined),
+                label: const Text('Spalten'),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -573,6 +618,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   List<DataColumn> _buildColumns() {
     return _columnDefs
+        .where((c) => _visibleColumns.contains(c.$2))
         .map((c) => DataColumn(
               label: Text(c.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
               onSort: (i, asc) => setState(() {
@@ -584,7 +630,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   int? get _sortColumnIndex {
-    final idx = _columnDefs.indexWhere((c) => c.$2 == _sortColumn);
+    final visible = _columnDefs.where((c) => _visibleColumns.contains(c.$2)).toList();
+    final idx = visible.indexWhere((c) => c.$2 == _sortColumn);
     return idx >= 0 ? idx : null;
   }
 
@@ -600,38 +647,76 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   List<DataRow> _buildRows(List<ComplaintListItem> items) {
     return items.mapIndexed((i, c) {
+      final cells = <String, DataCell>{
+        'internalNumber': _cell(c.internalNumber),
+        'systemId': _cell(c.systemId),
+        'customer': _cell(c.customer),
+        'customerNumber': _cell(c.customerNumber),
+        'region': _cell(c.region),
+        'productGroup': _cell(c.productGroup),
+        'articleNumber': _cell(c.articleNumber),
+        'articleName': _cell(c.articleName),
+        'lotNumber': _cell(c.lotNumber),
+        'complaintType': _cell(c.complaintType),
+        'complaintReason': _cell(c.complaintReason, width: 220),
+        'receivedAt': _cell(c.receivedAt),
+        'dueAt': _cell(c.dueAt),
+        'closedAt': _cell(c.closedAt),
+        'status': _cell(c.status),
+        'goodwill': _cell(c.goodwill ? 'Ja' : 'Nein'),
+        'departments': _cell(c.departments, width: 200),
+        'assignee': _cell(c.assignee),
+        'salesCode': _cell(c.salesCode),
+        'orderNumber': _cell(c.orderNumber),
+        'invoiceNumber': _cell(c.invoiceNumber),
+        'internalAssessment': _cell(c.internalAssessment, width: 220),
+        'suspectedCause': _cell(c.suspectedCause, width: 220),
+        'immediateActions': _cell(c.immediateActions, width: 200),
+        'correctiveActions': _cell(c.correctiveActions, width: 220),
+        'recurrence': _cell(c.recurrence ? 'Ja' : 'Nein'),
+        'severity': _cell(c.severity),
+        'channel': _cell(c.channel),
+        'notes': _cell(c.notes, width: 240),
+      };
       return DataRow.byIndex(index: i, cells: [
-        _cell(c.internalNumber),
-        _cell(c.systemId),
-        _cell(c.customer),
-        _cell(c.customerNumber),
-        _cell(c.region),
-        _cell(c.productGroup),
-        _cell(c.articleNumber),
-        _cell(c.articleName),
-        _cell(c.lotNumber),
-        _cell(c.complaintType),
-        _cell(c.complaintReason, width: 220),
-        _cell(c.receivedAt),
-        _cell(c.dueAt),
-        _cell(c.closedAt),
-        _cell(c.status),
-        _cell(c.goodwill ? 'Ja' : 'Nein'),
-        _cell(c.departments, width: 200),
-        _cell(c.assignee),
-        _cell(c.salesCode),
-        _cell(c.orderNumber),
-        _cell(c.invoiceNumber),
-        _cell(c.internalAssessment, width: 220),
-        _cell(c.suspectedCause, width: 220),
-        _cell(c.immediateActions, width: 200),
-        _cell(c.correctiveActions, width: 220),
-        _cell(c.recurrence ? 'Ja' : 'Nein'),
-        _cell(c.severity),
-        _cell(c.channel),
-        _cell(c.notes, width: 240),
+        ..._visibleColumns.map((key) => cells[key]!),
       ]);
     }).toList();
+  }
+
+  Widget _buildDataTableHeader(ThemeData theme) {
+    return Scrollbar(
+      controller: _horizontalController,
+      thumbVisibility: true,
+      notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+      child: SingleChildScrollView(
+        controller: _horizontalController,
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          sortAscending: _sortAscending,
+          sortColumnIndex: _sortColumnIndex,
+          columns: _buildColumns(),
+          rows: const [],
+          headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant),
+          dataRowMinHeight: 0,
+          dataRowMaxHeight: 0,
+          headingRowHeight: 54,
+          dividerThickness: 0.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDataTableBody(List<ComplaintListItem> items) {
+    return DataTable(
+      sortAscending: _sortAscending,
+      sortColumnIndex: _sortColumnIndex,
+      columns: _buildColumns(),
+      rows: _buildRows(items),
+      headingRowHeight: 0,
+      dataRowMinHeight: 52,
+      dividerThickness: 0.4,
+    );
   }
 
   Future<void> _exportPdf(List<ComplaintListItem> items) async {
@@ -741,31 +826,31 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
             Expanded(
               child: GestureDetector(
                 onPanUpdate: _handleDrag,
-                child: Scrollbar(
-                  controller: _verticalController,
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _verticalController,
-                    scrollDirection: Axis.vertical,
-                    child: Scrollbar(
-                      controller: _horizontalController,
-                      thumbVisibility: true,
-                      notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
-                      child: SingleChildScrollView(
-                        controller: _horizontalController,
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          sortAscending: _sortAscending,
-                          sortColumnIndex: _sortColumnIndex,
-                          columns: _buildColumns(),
-                          rows: _buildRows(items),
-                          headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant),
-                          dataRowMinHeight: 52,
-                          headingRowHeight: 54,
+                child: Column(
+                  children: [
+                    _buildDataTableHeader(theme),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: _verticalController,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: _verticalController,
+                          scrollDirection: Axis.vertical,
+                          child: Scrollbar(
+                            controller: _horizontalController,
+                            thumbVisibility: true,
+                            notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+                            child: SingleChildScrollView(
+                              controller: _horizontalController,
+                              scrollDirection: Axis.horizontal,
+                              child: _buildDataTableBody(items),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
