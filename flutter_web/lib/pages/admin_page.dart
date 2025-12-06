@@ -12061,6 +12061,8 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
+}
+
 class _NavigationSection extends StatelessWidget {
   const _NavigationSection({
     super.key,
