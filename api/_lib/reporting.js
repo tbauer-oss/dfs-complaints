@@ -227,10 +227,10 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
 
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const gap = 16;
+  const gap = 14;
   const columnWidth = (usableWidth - gap * (columns - 1)) / columns;
-  const padding = 10;
-  const rowSpacing = 14;
+  const padding = 9;
+  const rowSpacing = 12;
 
   const rows = [];
   for (let i = 0; i < entries.length; i += columns) {
@@ -314,12 +314,8 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
   const usableWidth = doc.page.width - left - right;
   const topBar = 6;
   const padding = 16;
-  const logoAreaWidth = 140;
+  const logoAreaWidth = 160;
   const textWidth = usableWidth - logoAreaWidth - padding * 2;
-
-  const titleHeight = doc.heightOfString(title, { width: textWidth, align: 'left' });
-  const metaHeight = doc.heightOfString(dateLabel, { width: textWidth });
-  const headerHeight = Math.max(92, titleHeight + metaHeight + padding * 2 + 18);
 
   doc
     .save()
@@ -357,29 +353,37 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
     .fontSize(10)
     .text('Reklamation / Complaint Management', titleX, doc.y + 2);
 
+  const titleY = doc.y + 8;
   doc
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
     .fontSize(18)
-    .text(title, titleX, doc.y + 10, { width: textWidth });
+    .text(title, titleX, titleY, { width: textWidth });
 
-  const metaY = doc.y + 10;
-  const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: left + usableWidth - logoAreaWidth, y: metaY });
-
+  const metaY = doc.y + 8;
   doc
-    .save()
     .fillColor(DFS_BLUE)
     .font('Helvetica-Bold')
-    .fontSize(10)
-    .text(ticket, titleX, metaY, { width: textWidth - badge.width - 12 });
+    .fontSize(11)
+    .text(ticket, titleX, metaY, { width: textWidth });
+  const dateY = doc.y + 2;
   doc
     .fillColor(TEXT_DARK)
     .font('Helvetica')
     .fontSize(10)
-    .text(dateLabel, titleX, doc.y + 4, { width: textWidth - badge.width - 12 });
+    .text(dateLabel, titleX, dateY, { width: textWidth });
+
+  const badgeY = titleY;
+  const badgeX = left + usableWidth - logoAreaWidth + padding / 2;
+  const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: badgeX, y: badgeY });
+
+  const contentBottom = doc.y;
+  const rightBottom = Math.max(badgeY + badge.height, (logoBuffer ? contentY + 52 : contentY));
+  const headerHeight = Math.max(contentBottom, rightBottom) - startY + padding + topBar;
+
   doc.restore();
 
-  doc.y = startY + topBar + headerHeight + 12;
+  doc.y = startY + headerHeight + 6;
 }
 
 function labelFor(lang, key, fallback) {
@@ -472,6 +476,10 @@ function describeCustomer(complaint) {
       || complaint.account?.company
       || p.customerName
       || p.company
+      || p.companyName
+      || p.customerCompany
+      || p.company_name
+      || p.firma
       || complaint.customer?.name
       || '',
     contact: complaint.contact
@@ -480,6 +488,9 @@ function describeCustomer(complaint) {
       || complaint.account?.contact
       || p.contactPerson
       || p.contact
+      || p.customerPerson
+      || p.customerContactPerson
+      || p.ansprechpartner
       || p.customerContact
       || '',
     country: complaint.country
@@ -521,7 +532,7 @@ function resolveReportLanguage(complaint, { preferredLang, fallback = 'de' } = {
 async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
   const labels = REPORT_LANGS[lang] || REPORT_LANGS.en;
   const logoBuffer = loadLogo();
-  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const doc = new PDFDocument({ size: 'A4', margin: variant === 'external' ? 40 : 50 });
   const chunks = [];
   doc.on('data', (chunk) => chunks.push(chunk));
   const done = new Promise((resolve) => doc.on('end', resolve));
