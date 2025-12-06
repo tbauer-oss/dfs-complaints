@@ -5996,6 +5996,19 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'complaintList':
+        return AdminTilePro(
+          label: 'Reklamationsliste',
+          subtitle: 'Übersicht & Export',
+          icon: Icons.table_view_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.complaintList),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'stats':
         return AdminTilePro(
           label: 'Statistik & KPIs',
