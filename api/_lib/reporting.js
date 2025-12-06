@@ -12,6 +12,7 @@ import {
   normalizeDepartments,
   normalizeReportLinksMap,
 } from './departments.js';
+import { getProductByArticle } from './products.js';
 
 const REPORT_LANGS = {
   de: {
@@ -141,6 +142,17 @@ const PAYLOAD_LABELS = {
   lot: { de: 'Charge/LOT', en: 'Batch/LOT' },
   udi: { de: 'UDI-DI', en: 'UDI-DI' },
   udiDi: { de: 'UDI-DI', en: 'UDI-DI' },
+  returned: { de: 'Produkte bereits zurückgeschickt?*', en: 'Products already returned?*' },
+  privacy: { de: 'Ich stimme der Datenschutzerklärung zu.*', en: 'I agree to the privacy policy.*' },
+  injuryDesc: { de: 'Beschreibung der Verletzung*', en: 'Description of injury*' },
+};
+
+const STATUS_LABELS = {
+  1: 'Eingegangen',
+  2: 'In Bearbeitung',
+  3: 'Rückfrage erforderlich',
+  4: 'In Nacharbeit',
+  5: 'Abgeschlossen',
 };
 
 const DFS_BLUE = '#005AA9';
@@ -178,8 +190,8 @@ function drawSectionTitle(doc, title, { index } = {}) {
   const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const label = index ? `${index}. ${title}` : title;
 
-  ensureSpace(doc, 32);
-  doc.moveDown(0.5);
+  ensureSpace(doc, 36);
+  doc.moveDown(0.4);
 
   const barHeight = 18;
   const barWidth = 6;
@@ -207,7 +219,7 @@ function drawSectionTitle(doc, title, { index } = {}) {
     .stroke();
   doc.restore();
 
-  doc.moveDown(0.8);
+  doc.moveDown(1);
 }
 
 function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
@@ -215,10 +227,10 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
 
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const gap = 12;
+  const gap = 14;
   const columnWidth = (usableWidth - gap * (columns - 1)) / columns;
-  const padding = 10;
-  const rowSpacing = 10;
+  const padding = 9;
+  const rowSpacing = 12;
 
   const rows = [];
   for (let i = 0; i < entries.length; i += columns) {
@@ -232,7 +244,7 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
       const value = ((entry?.value ?? '') || '–').toString();
       const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
       const valueHeight = doc.heightOfString(value, { width: columnWidth - padding * 2 });
-      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + padding * 2 + 6);
+      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + padding * 2 + 10);
     });
 
     ensureSpace(doc, rowHeight + rowSpacing);
@@ -254,7 +266,7 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
       doc
         .fillColor(DFS_BLUE)
         .font('Helvetica-Bold')
-        .fontSize(9.5)
+        .fontSize(10)
         .text(label, x + padding, baseY + padding, { width: columnWidth - padding * 2 });
 
       const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
@@ -262,7 +274,7 @@ function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
         .fillColor(TEXT_DARK)
         .font('Helvetica')
         .fontSize(11)
-        .text(value, x + padding, baseY + padding + labelHeight + 4, {
+        .text(value, x + padding, baseY + padding + labelHeight + 6, {
           width: columnWidth - padding * 2,
         });
       doc.restore();
@@ -302,12 +314,8 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
   const usableWidth = doc.page.width - left - right;
   const topBar = 6;
   const padding = 16;
-  const logoAreaWidth = 140;
+  const logoAreaWidth = 160;
   const textWidth = usableWidth - logoAreaWidth - padding * 2;
-
-  const titleHeight = doc.heightOfString(title, { width: textWidth, align: 'left' });
-  const metaHeight = doc.heightOfString(dateLabel, { width: textWidth });
-  const headerHeight = Math.max(86, titleHeight + metaHeight + padding * 2 + 10);
 
   doc
     .save()
@@ -345,29 +353,37 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
     .fontSize(10)
     .text('Reklamation / Complaint Management', titleX, doc.y + 2);
 
+  const titleY = doc.y + 8;
   doc
     .fillColor(DFS_DARK)
     .font('Helvetica-Bold')
     .fontSize(18)
-    .text(title, titleX, doc.y + 8, { width: textWidth });
+    .text(title, titleX, titleY, { width: textWidth });
 
-  const metaY = doc.y + 6;
-  const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: left + usableWidth - logoAreaWidth, y: metaY });
-
+  const metaY = doc.y + 8;
   doc
-    .save()
     .fillColor(DFS_BLUE)
     .font('Helvetica-Bold')
-    .fontSize(10)
-    .text(ticket, titleX, metaY, { width: textWidth - badge.width - 12 });
+    .fontSize(11)
+    .text(ticket, titleX, metaY, { width: textWidth });
+  const dateY = doc.y + 2;
   doc
     .fillColor(TEXT_DARK)
     .font('Helvetica')
     .fontSize(10)
-    .text(dateLabel, titleX, doc.y + 4, { width: textWidth - badge.width - 12 });
+    .text(dateLabel, titleX, dateY, { width: textWidth });
+
+  const badgeY = titleY;
+  const badgeX = left + usableWidth - logoAreaWidth + padding / 2;
+  const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: badgeX, y: badgeY });
+
+  const contentBottom = doc.y;
+  const rightBottom = Math.max(badgeY + badge.height, (logoBuffer ? contentY + 52 : contentY));
+  const headerHeight = Math.max(contentBottom, rightBottom) - startY + padding + topBar;
+
   doc.restore();
 
-  doc.y = startY + topBar + headerHeight + 12;
+  doc.y = startY + headerHeight + 6;
 }
 
 function labelFor(lang, key, fallback) {
@@ -397,6 +413,14 @@ function textForEvaluation(complaint, lang) {
   return normalizeEvaluationText(complaint.internalEvaluationText_de) || '';
 }
 
+function statusLabelFor(complaint) {
+  if (complaint?.statusLabel) return complaint.statusLabel;
+  const status = complaint?.status;
+  if (status == null) return '';
+  const numeric = Number(status);
+  return STATUS_LABELS[numeric] || '';
+}
+
 function qmSummaryForLang(complaint, lang) {
   const map = normalizeEvaluationTranslations(complaint.qmCustomerSummaryTranslations || {});
   if (lang && map[lang]) return map[lang];
@@ -411,23 +435,77 @@ function plannedActions(complaint) {
   return (actions || '').toString();
 }
 
-function describeProduct(complaint) {
+async function describeProduct(complaint) {
   const p = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const articleNo = complaint.product?.articleNumber || p.articleNumber || p.article || p.item || '';
+
+  let catalogProduct = null;
+  if (articleNo) {
+    catalogProduct = await getProductByArticle(articleNo).catch(() => null);
+  }
+
+  const resolvedName = complaint.product?.productName
+    || p.product
+    || p.productName
+    || catalogProduct?.productName
+    || catalogProduct?.tdNumberAndName
+    || '';
+
+  const resolvedUdi = p.udi
+    || p.udiDi
+    || p.udidi
+    || complaint.product?.udiDi
+    || catalogProduct?.basicUdiDi
+    || catalogProduct?.udiSingleUnit
+    || catalogProduct?.udiVe
+    || '';
+
   return {
-    name: p.product || p.productName || p.article || '',
-    articleNo: p.articleNumber || p.article || p.item || '',
-    batch: p.batch || p.lot || p.LOT || '',
-    udi: p.udi || p.udiDi || p.udidi || '',
+    name: resolvedName,
+    articleNo,
+    batch: complaint.product?.batch || p.batch || p.lot || p.LOT || '',
+    udi: resolvedUdi,
   };
 }
 
 function describeCustomer(complaint) {
   const p = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   return {
-    company: complaint.company || complaint.customer?.company || p.customerName || p.company || '',
-    contact: complaint.contact || complaint.customer?.contact || p.contact || '',
-    country: complaint.country || p.country || '',
-    customerNo: complaint.customerNumber || complaint.customer?.customerNumber || p.customerNumber || '',
+    company: complaint.company
+      || complaint.customer?.company
+      || complaint.account?.company
+      || p.customerName
+      || p.company
+      || p.companyName
+      || p.customerCompany
+      || p.company_name
+      || p.firma
+      || complaint.customer?.name
+      || '',
+    contact: complaint.contact
+      || complaint.customer?.contact
+      || complaint.customer?.contactPerson
+      || complaint.account?.contact
+      || p.contactPerson
+      || p.contact
+      || p.customerPerson
+      || p.customerContactPerson
+      || p.ansprechpartner
+      || p.customerContact
+      || '',
+    country: complaint.country
+      || complaint.customer?.country
+      || complaint.customer?.address?.country
+      || complaint.account?.country
+      || p.country
+      || p.countryName
+      || '',
+    customerNo: complaint.customerNumber
+      || complaint.customer?.customerNumber
+      || complaint.account?.customerNumber
+      || p.customerNumber
+      || p.customerNo
+      || '',
   };
 }
 
@@ -454,32 +532,33 @@ function resolveReportLanguage(complaint, { preferredLang, fallback = 'de' } = {
 async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
   const labels = REPORT_LANGS[lang] || REPORT_LANGS.en;
   const logoBuffer = loadLogo();
-  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const doc = new PDFDocument({ size: 'A4', margin: variant === 'external' ? 40 : 50 });
   const chunks = [];
   doc.on('data', (chunk) => chunks.push(chunk));
   const done = new Promise((resolve) => doc.on('end', resolve));
 
   const customer = describeCustomer(complaint);
-  const product = describeProduct(complaint);
+  const product = await describeProduct(complaint);
   const payload = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   const departments = normalizeDepartments(complaint.internalDepartments);
   const title = variant === 'external' ? labels.externalTitle : labels.title;
+  const statusText = statusLabelFor(complaint) || complaint.status || '-';
 
   drawHeader(doc, {
     title,
     ticket: `${labelFor(lang, 'ticket')}: ${complaint.ticket || '-'}`,
     dateLabel: `${labelFor(lang, 'created')}: ${formatDate(complaint.createdAt || complaint.updatedAt)}`,
-    status: `${labelFor(lang, 'status')}: ${complaint.statusLabel || complaint.status || '-'}`,
+    status: statusText,
     logoBuffer,
   });
 
   const baseInfoEntries = [
     { label: labelFor(lang, 'ticket'), value: complaint.ticket || '–' },
-    { label: labelFor(lang, 'status'), value: complaint.statusLabel || complaint.status || '–' },
+    { label: labelFor(lang, 'status'), value: statusText || '–' },
     { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
     { label: 'Datum / Uhrzeit', value: formatDate(complaint.createdAt || complaint.updatedAt) || '–' },
     { label: 'Sprache', value: (lang || '–').toUpperCase() },
-    { label: labelFor(lang, 'customer'), value: customer.company || customer.contact || '–' },
+    { label: labelFor(lang, 'customer'), value: customer.company || '–' },
     { label: 'Kontakt', value: customer.contact || '–' },
     { label: labelFor(lang, 'email'), value: complaint.email || '–' },
     { label: 'Kundennummer', value: customer.customerNo || '–' },
@@ -497,7 +576,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
     { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
   ];
 
-  const descriptionKeys = ['desc', 'reason', 'handling', 'error', 'fehlermeldung', 'applied', 'injury', 'returned', 'privacy'];
+  const descriptionKeys = ['desc', 'reason', 'handling', 'error', 'fehlermeldung', 'applied', 'injury', 'injuryDesc', 'returned', 'privacy'];
   const productKeys = ['product', 'productName', 'article', 'articleNumber', 'item', 'lot', 'batch', 'udi', 'udiDi', 'qty', 'quantity', 'expiry', 'expiration', 'segment', 'productType'];
   const descriptionEntries = descriptionKeys
     .filter((key) => payload[key])
@@ -549,7 +628,7 @@ async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
 
     drawSectionTitle(doc, 'Abschluss / Status', { index: 6 });
     drawKeyValueTable(doc, [
-      { label: labelFor(lang, 'status'), value: complaint.statusLabel || complaint.status || '–' },
+      { label: labelFor(lang, 'status'), value: statusText || '–' },
       { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
       { label: labelFor(lang, 'notes'), value: complaint.adminNotes || '–' },
     ], { columns: 1 });
