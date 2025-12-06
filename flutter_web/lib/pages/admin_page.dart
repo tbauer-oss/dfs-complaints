@@ -415,7 +415,8 @@ class _AdminPageState extends State<AdminPage> {
     _persistCustomerContactSeen();
   }
 
-  void _loadRoleTileVisibility({Map<String, dynamic>? stored}) {
+  bool _loadRoleTileVisibility({Map<String, dynamic>? stored}) {
+    var addedDefaults = false;
     final rawData = stored;
     if (rawData != null) {
       rawData.forEach((key, value) {
@@ -432,9 +433,11 @@ class _AdminPageState extends State<AdminPage> {
         if (tiles.add(tile)) changed = true;
       }
       if (changed) {
-        _persistRoleTileVisibility(syncRemote: false);
+        addedDefaults = true;
       }
     });
+
+    return addedDefaults;
   }
 
   String? _normalizeTilePermission(Object? raw) {
@@ -5070,9 +5073,13 @@ class _AdminPageState extends State<AdminPage> {
 
       final remoteTiles = config['roleTileVisibility'];
       if (remoteTiles is Map<String, dynamic>) {
-        setState(() => _loadRoleTileVisibility(stored: remoteTiles));
+        var updatedVisibility = false;
+        setState(() => updatedVisibility = _loadRoleTileVisibility(stored: remoteTiles));
         _filterMenuSectionsForRole();
-        _persistRoleTileVisibility(syncRemote: false);
+        _ensureMenuTilePresent('complaintList');
+        if (updatedVisibility) {
+          _persistRoleTileVisibility(syncRemote: true);
+        }
       }
 
       final remoteLayout = config['menuLayout'];
