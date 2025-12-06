@@ -424,6 +424,17 @@ class _AdminPageState extends State<AdminPage> {
         }
       });
     }
+
+    _DEFAULT_ROLE_TILES.forEach((role, defaults) {
+      final tiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
+      var changed = false;
+      for (final tile in defaults) {
+        if (tiles.add(tile)) changed = true;
+      }
+      if (changed) {
+        _persistRoleTileVisibility(syncRemote: false);
+      }
+    });
   }
 
   String? _normalizeTilePermission(Object? raw) {
