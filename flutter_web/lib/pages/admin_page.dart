@@ -15021,6 +15021,38 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       if (mounted) setState(() => _busy = false);
     }
   }
+  Future<void> _generateReports() async {
+    if (_isPortalUser || _isPortalReadonly) return;
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        generateReports: true,
+      );
+      setState(() {
+        widget.c.reportLink = updated.reportLink;
+        widget.c.reportLinks = updated.reportLinks;
+        widget.c.externalReportLinks = updated.externalReportLinks;
+        widget.c.internalReportLinks = updated.internalReportLinks;
+        widget.c.status = updated.status;
+        widget.c.decision = updated.decision;
+        widget.c.history = updated.history;
+        _reportCtrl.text = updated.reportLink ?? '';
+      });
+
+      _notifyChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reports neu generiert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _deleteReports() async {
     if (_isPortalUser || _isPortalReadonly) return;
@@ -16978,17 +17010,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
                           _linkBadges('Interne Reports', widget.c.internalReportLinks),
                         ],
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: (_busy || !canEditMeta || !hasReports) ? null : _deleteReports,
-                            style: TextButton.styleFrom(
-                              foregroundColor: scheme.error,
-                              overlayColor: scheme.error.withOpacity(0.1),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            FilledButton.icon(
+                              onPressed: (_busy || !canEditMeta) ? null : _generateReports,
+                              icon: const Icon(Icons.picture_as_pdf_outlined),
+                              label: const Text('Reports erstellen'),
                             ),
-                            icon: const Icon(Icons.delete_outline),
-                            label: const Text('Reports löschen'),
-                          ),
+                            TextButton.icon(
+                              onPressed: (_busy || !canEditMeta || !hasReports) ? null : _deleteReports,
+                              style: TextButton.styleFrom(
+                                foregroundColor: scheme.error,
+                                overlayColor: scheme.error.withOpacity(0.1),
+                              ),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Reports löschen'),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -18265,10 +18306,12 @@ class AdminApi {
     int? status,
     String? decision,
     String? reportLink,
+    bool? generateReports,
     bool? deleteReports,
     String? internalNo,
     String? notes,
     bool? sendPush,
+    String? reportLang,
     List<String>? internalDepartments,
     String? internalEvaluationTextDe,
     String? internalEvaluationCause,
@@ -18281,10 +18324,12 @@ class AdminApi {
     if (status != null) body['status'] = status;
     if (decision != null) body['decision'] = decision;
     if (reportLink != null) body['reportLink'] = reportLink;
+    if (generateReports == true) body['generateReports'] = true;
     if (deleteReports == true) body['deleteReports'] = true;
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
     if (sendPush != null) body['sendPush'] = sendPush;
+    if (reportLang != null && reportLang.trim().isNotEmpty) body['reportLang'] = reportLang.trim();
     if (internalDepartments != null) body['internalDepartments'] = internalDepartments;
     if (internalEvaluationTextDe != null) body['internalEvaluationText_de'] = internalEvaluationTextDe;
     if (internalEvaluationCause != null) body['internalEvaluationCause'] = internalEvaluationCause;
