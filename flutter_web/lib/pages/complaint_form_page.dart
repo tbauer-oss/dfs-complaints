@@ -79,6 +79,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   Timer? _articleLookupDebounce;
   bool _productLoading = false;
   bool privacy = false;
+  final ValueNotifier<bool> _privacyNotifier = ValueNotifier(false);
   String? _draftId;
   final ComplaintDraftStore _draftStore = ComplaintDraftStore();
 
@@ -173,6 +174,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     _scrollCtrl.dispose();
     _busyNotifier.dispose();
     _wizardError.dispose();
+    _privacyNotifier.dispose();
     super.dispose();
   }
 
@@ -575,7 +577,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       injuryDesc.clear();
       returned = optReturnedNo;
       handling = optHandlingRep;
-      privacy = false;
+      _setPrivacy(false, markDirty: false);
       files = [];
       err = null;
       info = null;
@@ -585,6 +587,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     });
     _suppressDirty = false;
     unawaited(_clearDraft(silent: true));
+  }
+
+  void _setPrivacy(bool value, {bool markDirty = true}) {
+    setState(() {
+      privacy = value;
+      _privacyNotifier.value = value;
+      if (markDirty) _dirty = true;
+    });
   }
 
   Future<void> _loadAccount() async {
@@ -773,7 +783,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
         returned = (map['returned'] == true) ? optReturnedYes : optReturnedNo;
         handling = handlingValue;
         files = _decodeDraftFiles(map['files']);
-        privacy = map['privacy'] == true;
+        final privacyValue = map['privacy'] == true;
+        privacy = privacyValue;
+        _privacyNotifier.value = privacyValue;
         err = null;
         info = t.draftRestored;
         _dirty = false;
@@ -1403,16 +1415,19 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Checkbox(
-                value: privacy,
-                onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
-                visualDensity: VisualDensity.compact,
-                checkColor: theme.colorScheme.onPrimary,
-                fillColor: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.selected)) return theme.colorScheme.primary;
-                  if (states.contains(MaterialState.hovered)) return theme.colorScheme.primaryContainer;
-                  return theme.colorScheme.surfaceVariant;
-                }),
+              ValueListenableBuilder<bool>(
+                valueListenable: _privacyNotifier,
+                builder: (_, checked, __) => Checkbox(
+                  value: checked,
+                  onChanged: (v) => _setPrivacy(v ?? false),
+                  visualDensity: VisualDensity.compact,
+                  checkColor: theme.colorScheme.onPrimary,
+                  fillColor: MaterialStateProperty.resolveWith((states) {
+                    if (states.contains(MaterialState.selected)) return theme.colorScheme.primary;
+                    if (states.contains(MaterialState.hovered)) return theme.colorScheme.primaryContainer;
+                    return theme.colorScheme.surfaceVariant;
+                  }),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2195,6 +2210,7 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
   late final PageController _pageCtrl;
   late final ValueNotifier<String?> _errorNotifier;
   int _active = 0;
+  final ScrollController _stepperScrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -2206,6 +2222,7 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
   @override
   void dispose() {
     if (widget.errorListenable == null) _errorNotifier.dispose();
+    _stepperScrollCtrl.dispose();
     _pageCtrl.dispose();
     super.dispose();
   }
@@ -2262,6 +2279,7 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
             active: _active == widget.steps.indexOf(realSteps[i]),
             compact: compactStepper,
             theme: theme,
+            onTap: () => _goTo(widget.steps.indexOf(realSteps[i])),
           ),
           if (i != realSteps.length - 1) SizedBox(width: compactStepper ? 8 : 10),
         ]
@@ -2278,10 +2296,16 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
         );
       }
 
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(top: 10, bottom: 2),
-        child: Row(children: pills),
+      return Scrollbar(
+        controller: _stepperScrollCtrl,
+        thumbVisibility: true,
+        trackVisibility: true,
+        child: SingleChildScrollView(
+          controller: _stepperScrollCtrl,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(top: 10, bottom: 2),
+          child: Row(children: pills),
+        ),
       );
     }
 
