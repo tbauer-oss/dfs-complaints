@@ -286,16 +286,27 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           child: Card(
             elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  CircleAvatar(backgroundColor: color.withOpacity(.12), foregroundColor: color, child: Icon(icon)),
-                  const SizedBox(width: 12),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(title, style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 4),
-                    Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  ]),
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: color.withOpacity(.12),
+                    foregroundColor: color,
+                    child: Icon(icon, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(value, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -309,8 +320,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         value: e.value.toDouble(),
         color: colors[i % colors.length],
         title: e.key,
-        radius: 34,
-        titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        radius: 28,
+        titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
       );
     }).toList();
 
@@ -324,15 +335,30 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           child: Card(
             elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Durchschnittliche Bearbeitungszeit', style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+                  Text(
+                    'Durchschnittliche Bearbeitungszeit',
+                    style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${avg.toStringAsFixed(1)} Tage',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                  ),
                   const SizedBox(height: 6),
-                  Text('${avg.toStringAsFixed(1)} Tage', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 6),
-                  SizedBox(height: 90, child: PieChart(PieChartData(sections: sections, centerSpaceRadius: 22, sectionsSpace: 2))),
+                  SizedBox(
+                    height: 78,
+                    child: PieChart(
+                      PieChartData(
+                        sections: sections,
+                        centerSpaceRadius: 18,
+                        sectionsSpace: 2,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -365,9 +391,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         .toList()
       ..sort();
 
+    const denseDecoration = InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10));
+
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 10,
+      runSpacing: 10,
       children: [
         SizedBox(
           width: 280,
@@ -377,6 +405,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               labelText: 'Globale Suche',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() => _searchCtrl.clear())),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             onChanged: (_) => setState(() {}),
           ),
@@ -384,7 +414,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         SizedBox(
           width: 220,
           child: InputDecorator(
-            decoration: const InputDecoration(labelText: 'Status (Mehrfachauswahl)'),
+            decoration: denseDecoration.copyWith(labelText: 'Status (Mehrfachauswahl)'),
             child: Wrap(
               spacing: 6,
               children: statuses
@@ -409,7 +439,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               ...productGroups.map((p) => DropdownMenuItem(value: p, child: Text(p))),
             ],
             onChanged: (v) => setState(() => _filters = _filters.copyWith(productGroup: v ?? '')),
-            decoration: const InputDecoration(labelText: 'Produktgruppe'),
+            decoration: denseDecoration.copyWith(labelText: 'Produktgruppe'),
           ),
         ),
         SizedBox(
@@ -420,7 +450,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               ...customers.map((c) => DropdownMenuItem(value: c, child: Text(c))),
             ],
             onChanged: (v) => setState(() => _filters = _filters.copyWith(customer: v ?? '')),
-            decoration: const InputDecoration(labelText: 'Kunde'),
+            decoration: denseDecoration.copyWith(labelText: 'Kunde'),
           ),
         ),
         SizedBox(
@@ -431,7 +461,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               ...departments.map((d) => DropdownMenuItem(value: d, child: Text(d))),
             ],
             onChanged: (v) => setState(() => _filters = _filters.copyWith(department: v ?? '')),
-            decoration: const InputDecoration(labelText: 'Betroffene Abteilung'),
+            decoration: denseDecoration.copyWith(labelText: 'Betroffene Abteilung'),
           ),
         ),
         SizedBox(
@@ -444,7 +474,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               DropdownMenuItem(value: false, child: Text('Kulanz: Nein')),
             ],
             onChanged: (v) => setState(() => _filters = _filters.copyWith(goodwill: v, goodwillSet: true)),
-            decoration: const InputDecoration(labelText: 'Kulanz'),
+            decoration: denseDecoration.copyWith(labelText: 'Kulanz'),
           ),
         ),
         OutlinedButton.icon(
