@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -66,6 +67,7 @@ class AdminPage extends StatefulWidget {
 enum _AdminView {
   menu,
   all,
+  complaintsList,
   pending,
   portalUsers,
   users,
@@ -83,6 +85,19 @@ enum _AdminView {
   pushBroadcast,
   wikiCategories,
   wikiArticles,
+}
+
+class _PanScrollBehavior extends MaterialScrollBehavior {
+  const _PanScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.unknown,
+      };
 }
 
 enum _CustPasswordMode { adminSecret, generated }
@@ -133,11 +148,12 @@ const List<String> kInternalEvaluationCauses = [
 const List<String> kInternalEvaluationTranslationLangs = ['en', 'de', 'es', 'fr', 'it'];
 
 const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
-  'superuser': [
-    'open',
-    'all',
-    'stats',
-    'pending',
+    'superuser': [
+      'open',
+      'all',
+      'complaintsList',
+      'stats',
+      'pending',
     'users',
     'reps',
     'news',
@@ -156,11 +172,12 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiArticles',
     'portalUsers',
   ],
-  'user': [
-    'open',
-    'all',
-    'stats',
-    'pending',
+    'user': [
+      'open',
+      'all',
+      'complaintsList',
+      'stats',
+      'pending',
     'users',
     'reps',
     'news',
@@ -178,11 +195,12 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiCategories',
     'wikiArticles',
   ],
-  'readonly': [
-    'open',
-    'all',
-    'stats',
-    'pending',
+    'readonly': [
+      'open',
+      'all',
+      'complaintsList',
+      'stats',
+      'pending',
     'appMeta',
     'testMode',
     'activity',
@@ -557,6 +575,8 @@ class _AdminPageState extends State<AdminPage> {
   bool _showAllFilters = false;
   bool _showBulkAssignAll = false;
   bool _showBulkAssignOpen = false;
+  final ScrollController _complaintListVerticalCtrl = ScrollController();
+  final ScrollController _complaintListHorizontalCtrl = ScrollController();
 
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
@@ -770,6 +790,8 @@ class _AdminPageState extends State<AdminPage> {
     _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
+    _complaintListVerticalCtrl.dispose();
+    _complaintListHorizontalCtrl.dispose();
     _portalUserEmailCtrl.dispose();
     _portalUserDisplayNameCtrl.dispose();
     _portalUserPasswordCtrl.dispose();
@@ -4049,6 +4071,7 @@ class _AdminPageState extends State<AdminPage> {
     final title = switch (_view) {
       _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
+      _AdminView.complaintsList => 'Reklamationsliste',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.portalUsers    => 'User-Datenbank',
       _AdminView.users          => 'Kundendatenbank',
@@ -4797,6 +4820,12 @@ class _AdminPageState extends State<AdminPage> {
             view: _AdminView.all,
             badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
           ),
+          _AdminNavItem(
+            label: 'Reklamationsliste',
+            icon: Icons.table_view_outlined,
+            view: _AdminView.complaintsList,
+            badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
+          ),
         ],
       ),
       _AdminNavSection(
@@ -4980,6 +5009,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.open;
         case 'all':
           return _AdminView.all;
+        case 'complaintsList':
+          return _AdminView.complaintsList;
         case 'pending':
           return _AdminView.pending;
         case 'portalUsers':
@@ -5026,7 +5057,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tileIds: ['open', 'all', 'stats'],
+        tileIds: ['open', 'all', 'complaintsList', 'stats'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5072,6 +5103,7 @@ class _AdminPageState extends State<AdminPage> {
     // layout is stored without them.
     _ensureMenuTilePresent('downloads');
     _ensureMenuTilePresent('portalUsers');
+    _ensureMenuTilePresent('complaintsList');
   }
 
   Future<void> _loadAdminUiConfigFromServer() async {
@@ -5093,6 +5125,7 @@ class _AdminPageState extends State<AdminPage> {
         setState(() => _menuSections = sections);
         _ensureMenuTilePresent('downloads');
         _ensureMenuTilePresent('portalUsers');
+        _ensureMenuTilePresent('complaintsList');
       }
 
       final navOrder = config['navOrder'];
@@ -5332,6 +5365,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'Offene Reklamationen';
       case 'all':
         return 'Alle Reklamationen';
+      case 'complaintsList':
+        return 'Reklamationsliste';
       case 'stats':
         return 'Statistik & KPIs';
       case 'pending':
@@ -6522,6 +6557,8 @@ class _AdminPageState extends State<AdminPage> {
     switch (_view) {
       case _AdminView.all:
         return _buildAllComplaintsPanel();
+      case _AdminView.complaintsList:
+        return _buildComplaintListPanel();
       case _AdminView.pending:
         return _buildPendingPanel();
       case _AdminView.portalUsers:
@@ -9524,9 +9561,15 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   Widget _buildAllComplaintsPanel() {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+
     final companies = <String>{
       'Alle Firmen',
       ..._allComplaints
@@ -9547,11 +9590,282 @@ class _AdminPageState extends State<AdminPage> {
     }.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
-    final departments = <String>{
-      'Alle Abteilungen',
-      ..._allComplaints.expand((c) => c.internalDepartments),
-    }.toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    List<AdminComplaint> list = _allComplaints.where((c) {
+      final company = (_companyByEmail(c.email) ?? '').trim();
+      final repLabel = _repLabelForComplaint(c).trim();
+      final decision = (c.decision ?? '').trim();
+      final status = c.status;
+      final internal = (c.internalNo ?? '').trim();
+      final search = _allSearch.trim().toLowerCase();
+
+      bool matchesQuery() {
+        if (search.isEmpty) return true;
+        bool contains(Object? v) => v.toString().toLowerCase().contains(search);
+        final payloadMatches = (c.payload?.values.any(contains) ?? false);
+        return payloadMatches ||
+            contains(c.ticket) ||
+            contains(c.email) ||
+            contains(company) ||
+            contains(repLabel) ||
+            contains(decision) ||
+            contains(_labelForStatus(status)) ||
+            contains(c.handlingLabel) ||
+            contains(c.adminNotes ?? '') ||
+            contains(internal);
+      }
+
+      final companyMatch = _allCompanyFilter == 'Alle Firmen'
+          ? true
+          : company.toLowerCase() == _allCompanyFilter.toLowerCase();
+      final repMatch = _allRepFilter == 'Alle Vertreter'
+          ? true
+          : repLabel.toLowerCase() == _allRepFilter.toLowerCase();
+      final decisionMatch = _allDecisionFilter.isEmpty || decision == _allDecisionFilter;
+      final statusMatch = _allStatusFilter == null || status == _allStatusFilter;
+      final internalMatch = _allInternalFilter == 'Alle Nummern'
+          ? true
+          : internal == _allInternalFilter;
+
+      return matchesQuery() && companyMatch && repMatch && decisionMatch && statusMatch && internalMatch;
+    }).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    Widget buildFilterBar() {
+      Widget buildMoreFilters() {
+        return Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            children: [
+              SizedBox(
+                width: 240,
+                child: DropdownButtonFormField<String>(
+                  value: _allCompanyFilter,
+                  isExpanded: true,
+                  items: companies
+                      .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _allCompanyFilter = v ?? 'Alle Firmen'),
+                  decoration: const InputDecoration(
+                    labelText: 'Kunden (Firmenname)',
+                    prefixIcon: Icon(Icons.apartment_outlined),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: DropdownButtonFormField<String>(
+                  value: _allRepFilter,
+                  items: reps
+                      .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _allRepFilter = v ?? 'Alle Vertreter'),
+                  decoration: const InputDecoration(
+                    labelText: 'Vertreter',
+                    prefixIcon: Icon(Icons.badge_outlined),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<String>(
+                  value: _allDecisionFilter,
+                  items: [
+                    const DropdownMenuItem<String>(value: '', child: Text('Alle Entscheidungen')),
+                    ...kDecisionItems.map((d) => DropdownMenuItem<String>(
+                          value: d['value']!,
+                          child: Text(d['label']!),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _allDecisionFilter = v ?? ''),
+                  decoration: const InputDecoration(
+                    labelText: 'Entscheidungen',
+                    prefixIcon: Icon(Icons.how_to_vote_outlined),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<int?>(
+                  value: _allStatusFilter,
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
+                    ...kStatusItems.map((s) => DropdownMenuItem<int?>(
+                          value: s['value'] as int,
+                          child: Text(s['label'] as String),
+                        )),
+                  ],
+                  onChanged: (v) => setState(() => _allStatusFilter = v),
+                  decoration: const InputDecoration(
+                    labelText: 'Stati',
+                    prefixIcon: Icon(Icons.flag_outlined),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: DropdownButtonFormField<String>(
+                  value: _allInternalFilter,
+                  items: internalNos
+                      .map((n) => DropdownMenuItem<String>(value: n, child: Text(n.isEmpty ? '—' : n)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _allInternalFilter = v ?? 'Alle Nummern'),
+                  decoration: const InputDecoration(
+                    labelText: 'Interne Reklamationsnummer',
+                    prefixIcon: Icon(Icons.confirmation_number_outlined),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.spaceBetween,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextField(
+                      onChanged: (v) => setState(() => _allSearch = v),
+                      decoration: InputDecoration(
+                        labelText: 'Schnellsuche (Ticket, Kunde, Stichwort …)',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _showAllFilters = !_showAllFilters),
+                    icon: Icon(_showAllFilters ? Icons.expand_less : Icons.expand_more),
+                    label: Text(_showAllFilters ? 'Filter ausblenden' : 'Weitere Filter'),
+                  ),
+                ],
+              ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: buildMoreFilters(),
+                crossFadeState:
+                    _showAllFilters ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 150),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dashboard_customize_outlined),
+                    const SizedBox(width: 8),
+                    const Text('Alle Reklamationen',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                _countBadge(label: 'gefiltert', value: list.length),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_loadAllComplaints)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            buildFilterBar(),
+            const SizedBox(height: 10),
+            _processingGuide(isOpenList: false),
+            const SizedBox(height: 10),
+            _buildBulkInternalBar(isOpenList: false),
+            const SizedBox(height: 6),
+            Expanded(
+              child: list.isEmpty
+                  ? const Center(child: Text('Keine Reklamationen gefunden.'))
+                  : ListView.separated(
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        final c = list[i];
+                        return _ComplaintDialogLauncher(
+                          key: ValueKey('complaint-${c.ticket}'),
+                          api: _api,
+                          c: c,
+                          portalRole: _portalRole,
+                          portalIsSales: _portalIsSales,
+                          productLookup: _productByArticle,
+                          companyHint: _companyByEmail(c.email),
+                          hasRep: _customerHasRep(c.email),
+                          hasNewCustomerMessage: _hasNewCustomerMessage(c),
+                          selectable: _portalRole == 'superuser',
+                          selected: _selectedAllTickets.contains(c.ticket),
+                          onSelected: _portalRole == 'superuser'
+                              ? (v) => _toggleTicketSelection(
+                                    c.ticket,
+                                    v ?? false,
+                                    isOpenList: false,
+                                  )
+                              : null,
+                          onChanged: _syncComplaint,
+                          onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
+                          onClosed: () {
+                            _syncComplaint(c);
+                            setState(() {
+                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                              _selectedAllTickets.remove(c.ticket);
+                              _selectedOpenTickets.remove(c.ticket);
+                            });
+                            _refreshAllComplaints();
+                            _refreshOpen();
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComplaintListPanel() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     String pick(AdminComplaint c, List<String> keys) {
       final payload = c.payload ?? const <String, dynamic>{};
@@ -9600,6 +9914,32 @@ class _AdminPageState extends State<AdminPage> {
     DateTime? dueDate(AdminComplaint c) => pickDate(c, ['dueDate', 'due', 'deadline']);
     bool isGoodwill(AdminComplaint c) =>
         pickBool(c, ['isGoodwill', 'goodwill', 'kulanz', 'isKulanz']) || (c.payload?['isKulanz'] == true);
+
+    final companies = <String>{
+      'Alle Firmen',
+      ..._allComplaints
+          .map((c) => (_companyByEmail(c.email) ?? '').trim())
+          .where((s) => s.isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final reps = <String>{
+      'Alle Vertreter',
+      ..._allComplaints.map(_repLabelForComplaint).where((s) => s.trim().isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final internalNos = <String>{
+      'Alle Nummern',
+      ..._allComplaints.map((c) => (c.internalNo ?? '').trim()).where((s) => s.isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final departments = <String>{
+      'Alle Abteilungen',
+      ..._allComplaints.expand((c) => c.internalDepartments),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     final regions = <String>{
       'Alle Regionen',
@@ -9712,36 +10052,35 @@ class _AdminPageState extends State<AdminPage> {
       return '${value.substring(0, max)}…';
     }
 
-    Widget kpi(String title, String value, {String? subtitle, IconData? icon, Color? color}) {
+    Widget kpiCard(String title, String value, {IconData? icon, Color? color}) {
       return Container(
-        width: 210,
-        padding: const EdgeInsets.all(14),
+        width: 200,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: cs.outlineVariant),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                if (icon != null)
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: color ?? cs.primaryContainer,
-                    foregroundColor: color != null ? cs.onPrimaryContainer : cs.primary,
-                    child: Icon(icon, size: 18),
-                  ),
-                if (icon != null) const SizedBox(width: 10),
-                Expanded(
-                  child: Text(title, style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-                ),
-              ],
+            if (icon != null)
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: color ?? cs.primaryContainer,
+                foregroundColor: color != null ? cs.onPrimaryContainer : cs.primary,
+                child: Icon(icon, size: 18),
+              ),
+            if (icon != null) const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 4),
+                  Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(value, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-            if (subtitle != null) ...[const SizedBox(height: 4), Text(subtitle, style: theme.textTheme.bodySmall)],
           ],
         ),
       );
@@ -9829,6 +10168,466 @@ class _AdminPageState extends State<AdminPage> {
       await _exportComplaintsAsPdf(filtered, rows: rows, filterSummary: filterSummary);
     }
 
+    final vertical = _complaintListVerticalCtrl;
+    final horizontal = _complaintListHorizontalCtrl;
+
+    void handlePan(DragUpdateDetails details) {
+      if (horizontal.hasClients) {
+        final min = horizontal.position.minScrollExtent;
+        final max = horizontal.position.maxScrollExtent;
+        final next = (horizontal.offset - details.delta.dx).clamp(min, max);
+        horizontal.jumpTo(next);
+      }
+      if (vertical.hasClients) {
+        final min = vertical.position.minScrollExtent;
+        final max = vertical.position.maxScrollExtent;
+        final next = (vertical.offset - details.delta.dy).clamp(min, max);
+        vertical.jumpTo(next);
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.table_view_outlined),
+                    const SizedBox(width: 8),
+                    const Text('Reklamationsliste',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                _countBadge(label: 'gefiltert', value: total),
+                FilterChip(
+                  label: const Text('Nur offene Reklamationen'),
+                  selected: _allQuickOpen,
+                  onSelected: (v) => setState(() => _allQuickOpen = v),
+                ),
+                FilterChip(
+                  label: const Text('Abgeschlossen < 30 Tage'),
+                  selected: _allQuickRecentClosed,
+                  onSelected: (v) => setState(() => _allQuickRecentClosed = v),
+                ),
+                FilterChip(
+                  label: const Text('Kulanzfälle'),
+                  selected: _allQuickGoodwill,
+                  onSelected: (v) => setState(() => _allQuickGoodwill = v),
+                ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: filtered.isEmpty ? null : export,
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('PDF Export'),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Neu laden',
+                      onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
+                      icon: _loadAllComplaints
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  kpiCard('Reklamationen', total.toString(), icon: Icons.list_alt, color: cs.primaryContainer),
+                  kpiCard('Offen', open.toString(), icon: Icons.pending_actions, color: cs.tertiaryContainer),
+                  kpiCard('Abgeschlossen', closed.toString(), icon: Icons.verified_outlined, color: cs.secondaryContainer),
+                  kpiCard('Kulanzfälle', '$goodwillCount (${total == 0 ? '0' : ((goodwillCount / total) * 100).toStringAsFixed(0)}%)',
+                      icon: Icons.volunteer_activism_outlined, color: cs.primary),
+                  kpiCard('Ø Bearbeitungszeit', avgDuration, icon: Icons.timer_outlined, color: cs.outline),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 300,
+                          child: TextField(
+                            onChanged: (v) => setState(() => _allSearch = v),
+                            decoration: InputDecoration(
+                              labelText: 'Suche (Ticket, Kunde, Artikel …)',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 200,
+                          child: DropdownButtonFormField<int?>(
+                            value: _allStatusFilter,
+                            items: const [
+                              DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
+                              ...kStatusItems.map((s) => DropdownMenuItem<int?>(
+                                    value: s['value'] as int,
+                                    child: Text(s['label'] as String),
+                                  )),
+                            ],
+                            onChanged: (v) => setState(() => _allStatusFilter = v),
+                            decoration: const InputDecoration(
+                              labelText: 'Status',
+                              prefixIcon: Icon(Icons.flag_outlined),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 220,
+                          child: DropdownButtonFormField<String>(
+                            value: _allCompanyFilter,
+                            isExpanded: true,
+                            items: companies
+                                .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _allCompanyFilter = v ?? 'Alle Firmen'),
+                            decoration: const InputDecoration(
+                              labelText: 'Kunden',
+                              prefixIcon: Icon(Icons.apartment_outlined),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 220,
+                          child: DropdownButtonFormField<String>(
+                            value: _allRepFilter,
+                            items: reps
+                                .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _allRepFilter = v ?? 'Alle Vertreter'),
+                            decoration: const InputDecoration(
+                              labelText: 'Vertreter',
+                              prefixIcon: Icon(Icons.badge_outlined),
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _showAllFilters = !_showAllFilters),
+                          icon: Icon(_showAllFilters ? Icons.tune : Icons.filter_alt_outlined),
+                          label: Text(_showAllFilters ? 'Filter einklappen' : 'Weitere Filter'),
+                        ),
+                      ],
+                    ),
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            SizedBox(
+                              width: 200,
+                              child: DropdownButtonFormField<String>(
+                                value: _allDecisionFilter,
+                                items: [
+                                  const DropdownMenuItem<String>(value: '', child: Text('Alle Entscheidungen')),
+                                  ...kDecisionItems.map((d) => DropdownMenuItem<String>(
+                                        value: d['value']!,
+                                        child: Text(d['label']!),
+                                      )),
+                                ],
+                                onChanged: (v) => setState(() => _allDecisionFilter = v ?? ''),
+                                decoration: const InputDecoration(
+                                  labelText: 'Entscheidung',
+                                  prefixIcon: Icon(Icons.how_to_vote_outlined),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 200,
+                              child: DropdownButtonFormField<String>(
+                                value: _allInternalFilter,
+                                items: internalNos
+                                    .map((n) => DropdownMenuItem<String>(value: n, child: Text(n.isEmpty ? '—' : n)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _allInternalFilter = v ?? 'Alle Nummern'),
+                                decoration: const InputDecoration(
+                                  labelText: 'Interne Nummer',
+                                  prefixIcon: Icon(Icons.confirmation_number_outlined),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 200,
+                              child: DropdownButtonFormField<String>(
+                                value: _allRegionFilter,
+                                isExpanded: true,
+                                items: regions
+                                    .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _allRegionFilter = v ?? 'Alle Regionen'),
+                                decoration: const InputDecoration(
+                                  labelText: 'Region / Land',
+                                  prefixIcon: Icon(Icons.public_outlined),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 200,
+                              child: DropdownButtonFormField<String>(
+                                value: _allDepartmentFilter,
+                                isExpanded: true,
+                                items: departments
+                                    .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _allDepartmentFilter = v ?? 'Alle Abteilungen'),
+                                decoration: const InputDecoration(
+                                  labelText: 'Abteilung',
+                                  prefixIcon: Icon(Icons.apartment),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 200,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.event_note_outlined),
+                                label: Text(_allCreatedRange == null
+                                    ? 'Eingangsdatum (alle)'
+                                    : '${DateFormat('dd.MM.yyyy').format(_allCreatedRange!.start)} – ${DateFormat('dd.MM.yyyy').format(_allCreatedRange!.end)}'),
+                                onPressed: () => pickRange(closed: false),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 200,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.event_available_outlined),
+                                label: Text(_allClosedRange == null
+                                    ? 'Abschlussdatum (alle)'
+                                    : '${DateFormat('dd.MM.yyyy').format(_allClosedRange!.start)} – ${DateFormat('dd.MM.yyyy').format(_allClosedRange!.end)}'),
+                                onPressed: () => pickRange(closed: true),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      crossFadeState: _showAllFilters ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 150),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(child: Text('Keine Reklamationen gefunden.'))
+                  : GestureDetector(
+                      onPanUpdate: handlePan,
+                      child: ScrollConfiguration(
+                        behavior: const _PanScrollBehavior(),
+                        child: Scrollbar(
+                          controller: vertical,
+                          thumbVisibility: true,
+                          trackVisibility: true,
+                          interactive: true,
+                          child: Scrollbar(
+                            controller: horizontal,
+                            thumbVisibility: true,
+                            trackVisibility: true,
+                            interactive: true,
+                            notificationPredicate: (_) => true,
+                            child: SingleChildScrollView(
+                              controller: vertical,
+                              child: SingleChildScrollView(
+                                controller: horizontal,
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(minWidth: 1400),
+                                  child: DataTable(
+                                    sortColumnIndex: {
+                                      'internalNo': 0,
+                                      'ticket': 1,
+                                      'updatedAt': 1,
+                                      'customer': 2,
+                                      'status': 15,
+                                      'createdAt': 12,
+                                      'closedAt': 14,
+                                      'goodwill': 16,
+                                    }[_allSortColumn],
+                                    sortAscending: _allSortAsc,
+                                    columns: [
+                                      DataColumn(
+                                        label: const Text('Interne Nr.'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'internalNo';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      DataColumn(
+                                        label: const Text('Ticket-ID'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'ticket';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      DataColumn(
+                                        label: const Text('Kunde'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'customer';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      const DataColumn(label: Text('Kundennr.')),
+                                      const DataColumn(label: Text('Land / Region')),
+                                      const DataColumn(label: Text('Produktgruppe')),
+                                      const DataColumn(label: Text('Artikel-Nr.')),
+                                      const DataColumn(label: Text('Artikelbezeichnung')),
+                                      const DataColumn(label: Text('Charge / LOT')),
+                                      const DataColumn(label: Text('Kategorie')),
+                                      const DataColumn(label: Text('Grund (Haupt)')),
+                                      const DataColumn(label: Text('Grund (Detail)')),
+                                      DataColumn(
+                                        label: const Text('Eingang'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'createdAt';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      const DataColumn(label: Text('Fälligkeit')),
+                                      DataColumn(
+                                        label: const Text('Abschluss'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'closedAt';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      DataColumn(
+                                        label: const Text('Status'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'status';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      DataColumn(
+                                        label: const Text('Kulanz'),
+                                        onSort: (_, __) => setState(() {
+                                          _allSortColumn = 'goodwill';
+                                          _allSortAsc = !_allSortAsc;
+                                        }),
+                                      ),
+                                      const DataColumn(label: Text('Abteilung(en)')),
+                                      const DataColumn(label: Text('Bearbeiter intern')),
+                                      const DataColumn(label: Text('Sales-Kürzel')),
+                                      const DataColumn(label: Text('Auftragsnummer')),
+                                      const DataColumn(label: Text('Rechnungsnummer')),
+                                      const DataColumn(label: Text('Vermutete Ursache')),
+                                      const DataColumn(label: Text('Sofortmaßnahmen')),
+                                      const DataColumn(label: Text('CAPA-Referenz')),
+                                      const DataColumn(label: Text('Wiederauftreten')),
+                                      const DataColumn(label: Text('Kritikalität')),
+                                      const DataColumn(label: Text('Kanal')),
+                                      const DataColumn(label: Text('Notizen / Bewertung')),
+                                    ],
+                                    rows: rows
+                                        .map((r) => DataRow(cells: [
+                                              DataCell(Text(r['interneNr'] ?? '—')),
+                                              DataCell(Text(r['ticket'] ?? '—')),
+                                              _truncateCell(r['kunde'] ?? '—'),
+                                              DataCell(Text(r['kundennummer']?.isEmpty == true ? '—' : r['kundennummer']!)),
+                                              DataCell(Text(r['region']?.isEmpty == true ? '—' : r['region']!)),
+                                              DataCell(Text(r['produktgruppe']?.isEmpty == true ? '—' : r['produktgruppe']!)),
+                                              DataCell(Text(r['artikelnummer']?.isEmpty == true ? '—' : r['artikelnummer']!)),
+                                              _truncateCell(r['artikel'] ?? '—'),
+                                              DataCell(Text(r['charge']?.isEmpty == true ? '—' : r['charge']!)),
+                                              DataCell(Text(r['kategorie']?.isEmpty == true ? '—' : r['kategorie']!)),
+                                              _truncateCell(r['grund'] ?? '—'),
+                                              _truncateCell(r['grundDetail'] ?? '—'),
+                                              DataCell(Text(r['eingang'] ?? '—')),
+                                              DataCell(Text(r['faellig'] ?? '—')),
+                                              DataCell(Text(r['abschluss'] ?? '—')),
+                                              DataCell(Text(r['status'] ?? '—')),
+                                              DataCell(Text(r['kulanz'] ?? '—')),
+                                              _truncateCell(r['abteilung'] ?? '—'),
+                                              _truncateCell(r['bearbeiter'] ?? '—'),
+                                              DataCell(Text(r['sales'] ?? '—')),
+                                              DataCell(Text(r['auftrag'] ?? '—')),
+                                              DataCell(Text(r['rechnung'] ?? '—')),
+                                              _truncateCell(r['ursache'] ?? '—'),
+                                              _truncateCell(r['sofort'] ?? '—'),
+                                              DataCell(Text(r['capa']?.isEmpty == true ? '—' : r['capa']!)),
+                                              DataCell(Text(r['wieder'] ?? '—')),
+                                              DataCell(Text(r['kritikalitaet'] ?? '—')),
+                                              DataCell(Text(r['kanal'] ?? '—')),
+                                              _truncateCell(r['notizen'] ?? '—', maxLines: 3),
+                                            ]))
+                                        .toList(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductsPanel() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: ProductCatalogPage(
+        products: _products,
+        loading: _productsLoading,
+        error: _productErr,
+        canWrite: _canWriteTile('products'),
+        onReload: _productsLoading ? null : _loadProducts,
+        onProductsChanged: (items) => setState(() => _applyProducts(items)),
+      ),
+    );
+  }
+
+  Widget _buildOpenPanel() {
+    // Firmenliste für Filter-Dropdown (lokal)
+    final List<String> companies = <String>{
+      'Alle Firmen',
+      ..._openComplaints.map((c) => (_companyByEmail(c.email) ?? '')).where((s) => s.trim().isNotEmpty),
+      ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // ggf. gefilterte Liste bilden
+    final list = (_filterCompany == 'Alle Firmen')
+        ? _openComplaints
+        : _openComplaints
+            .where((c) => (_companyByEmail(c.email) ?? '') == _filterCompany)
+            .toList();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -9843,383 +10642,89 @@ class _AdminPageState extends State<AdminPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.dashboard_customize_outlined),
+                    const Icon(Icons.receipt_long),
                     const SizedBox(width: 8),
-                    const Text('Alle Reklamationen',
+                    const Text('Offene Reklamationen',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ],
                 ),
-                _countBadge(label: 'gefiltert', value: total),
+                _countBadge(label: 'Tickets', value: list.length),
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<String>(
+                    value: _filterCompany,
+                    onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
+                    items: companies
+                        .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
+                        .toList(),
+                    decoration: const InputDecoration(
+                      labelText: 'Kundenfilter',
+                      prefixIcon: Icon(Icons.apartment_outlined),
+                    ),
+                  ),
+                ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FilledButton.icon(
-                      onPressed: filtered.isEmpty ? null : export,
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                      label: const Text('Aktuelle Ansicht als PDF'),
-                    ),
-                    const SizedBox(width: 8),
-                    if (_loadAllComplaints)
+                    if (_loadOpen)
                       const Padding(
                         padding: EdgeInsets.only(right: 8),
                         child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                       ),
                     IconButton(
                       tooltip: 'Neu laden',
-                      onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
+                      onPressed: _loadOpen ? null : _refreshOpen,
                       icon: const Icon(Icons.refresh),
                     ),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  kpi('Reklamationen', total.toString(), icon: Icons.list_alt, color: cs.primaryContainer),
-                  kpi('Offen', open.toString(), icon: Icons.pending_actions, color: cs.tertiaryContainer),
-                  kpi('Abgeschlossen', closed.toString(), icon: Icons.verified_outlined, color: cs.secondaryContainer),
-                  kpi('Kulanzfälle', '$goodwillCount (${total == 0 ? '0' : ((goodwillCount / total) * 100).toStringAsFixed(0)}%)',
-                      icon: Icons.volunteer_activism_outlined, color: cs.primary),
-                  kpi('Ø Bearbeitungszeit', avgDuration, icon: Icons.timer_outlined, color: cs.outline),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 10,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 320,
-                          child: TextField(
-                            onChanged: (v) => setState(() => _allSearch = v),
-                            decoration: InputDecoration(
-                              labelText: 'Globale Suche (Ticket, Kunde, Artikel …)',
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                        FilterChip(
-                          label: const Text('Nur offene Reklamationen'),
-                          selected: _allQuickOpen,
-                          onSelected: (v) => setState(() => _allQuickOpen = v),
-                        ),
-                        FilterChip(
-                          label: const Text('Abgeschlossen < 30 Tage'),
-                          selected: _allQuickRecentClosed,
-                          onSelected: (v) => setState(() => _allQuickRecentClosed = v),
-                        ),
-                        FilterChip(
-                          label: const Text('Kulanzfälle'),
-                          selected: _allQuickGoodwill,
-                          onSelected: (v) => setState(() => _allQuickGoodwill = v),
-                        ),
-                        Switch.adaptive(
-                          value: _allGoodwillOnly,
-                          onChanged: (v) => setState(() => _allGoodwillOnly = v),
-                          activeColor: cs.primary,
-                        ),
-                        const Text('Nur Kulanz'),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    AnimatedCrossFade(
-                      firstChild: const SizedBox.shrink(),
-                      secondChild: Wrap(
-                        spacing: 12,
-                        runSpacing: 10,
-                        children: [
-                          SizedBox(
-                            width: 220,
-                            child: DropdownButtonFormField<String>(
-                              value: _allCompanyFilter,
-                              isExpanded: true,
-                              items: companies
-                                  .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                                  .toList(),
-                              onChanged: (v) => setState(() => _allCompanyFilter = v ?? 'Alle Firmen'),
-                              decoration: const InputDecoration(
-                                labelText: 'Kunden (Firmenname)',
-                                prefixIcon: Icon(Icons.apartment_outlined),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: DropdownButtonFormField<String>(
-                              value: _allRepFilter,
-                              items: reps
-                                  .map((r) => DropdownMenuItem<String>(value: r, child: Text(r)))
-                                  .toList(),
-                              onChanged: (v) => setState(() => _allRepFilter = v ?? 'Alle Vertreter'),
-                              decoration: const InputDecoration(
-                                labelText: 'Vertreter',
-                                prefixIcon: Icon(Icons.badge_outlined),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: DropdownButtonFormField<String>(
-                              value: _allDecisionFilter,
-                              items: [
-                                const DropdownMenuItem<String>(value: '', child: Text('Alle Entscheidungen')),
-                                ...kDecisionItems.map((d) => DropdownMenuItem<String>(
-                                      value: d['value']!,
-                                      child: Text(d['label']!),
-                                    )),
-                              ],
-                              onChanged: (v) => setState(() => _allDecisionFilter = v ?? ''),
-                              decoration: const InputDecoration(
-                                labelText: 'Entscheidungen',
-                                prefixIcon: Icon(Icons.how_to_vote_outlined),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 180,
-                            child: DropdownButtonFormField<int?>(
-                              value: _allStatusFilter,
-                              items: [
-                                const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
-                                ...List.generate(5, (i) => DropdownMenuItem<int?>(value: i + 1, child: Text(_labelForStatus(i + 1))))
-                              ],
-                              onChanged: (v) => setState(() => _allStatusFilter = v),
-                              decoration: const InputDecoration(
-                                labelText: 'Status',
-                                prefixIcon: Icon(Icons.flag_outlined),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 220,
-                            child: DropdownButtonFormField<String>(
-                              value: _allInternalFilter,
-                              items: internalNos
-                                  .map((n) => DropdownMenuItem<String>(value: n, child: Text(n.isEmpty ? '—' : n)))
-                                  .toList(),
-                              onChanged: (v) => setState(() => _allInternalFilter = v ?? 'Alle Nummern'),
-                              decoration: const InputDecoration(
-                                labelText: 'Interne Reklamationsnummer',
-                                prefixIcon: Icon(Icons.confirmation_number_outlined),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: DropdownButtonFormField<String>(
-                              value: _allDepartmentFilter,
-                              items: departments
-                                  .map((n) => DropdownMenuItem<String>(value: n, child: Text(n)))
-                                  .toList(),
-                              onChanged: (v) => setState(() => _allDepartmentFilter = v ?? 'Alle Abteilungen'),
-                              decoration: const InputDecoration(
-                                labelText: 'Betroffene Abteilung',
-                                prefixIcon: Icon(Icons.apartment_rounded),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: DropdownButtonFormField<String>(
-                              value: _allRegionFilter,
-                              items: regions
-                                  .map((n) => DropdownMenuItem<String>(value: n, child: Text(n)))
-                                  .toList(),
-                              onChanged: (v) => setState(() => _allRegionFilter = v ?? 'Alle Regionen'),
-                              decoration: const InputDecoration(
-                                labelText: 'Land / Region',
-                                prefixIcon: Icon(Icons.public_outlined),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.date_range),
-                              label: Text(_allCreatedRange == null
-                                  ? 'Anlagedatum (alle)'
-                                  : '${DateFormat('dd.MM.yyyy').format(_allCreatedRange!.start)} – ${DateFormat('dd.MM.yyyy').format(_allCreatedRange!.end)}'),
-                              onPressed: () => pickRange(closed: false),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 200,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.event_available_outlined),
-                              label: Text(_allClosedRange == null
-                                  ? 'Abschlussdatum (alle)'
-                                  : '${DateFormat('dd.MM.yyyy').format(_allClosedRange!.start)} – ${DateFormat('dd.MM.yyyy').format(_allClosedRange!.end)}'),
-                              onPressed: () => pickRange(closed: true),
-                            ),
-                          ),
-                        ],
-                      ),
-                      crossFadeState: _showAllFilters ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                      duration: const Duration(milliseconds: 150),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () => setState(() => _showAllFilters = !_showAllFilters),
-                        icon: Icon(_showAllFilters ? Icons.expand_less : Icons.expand_more),
-                        label: Text(_showAllFilters ? 'Filter ausblenden' : 'Filter anzeigen'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _processingGuide(isOpenList: false),
             const SizedBox(height: 10),
-            _buildBulkInternalBar(isOpenList: false),
+            _processingGuide(isOpenList: true),
+            const SizedBox(height: 10),
+            _buildBulkInternalBar(isOpenList: true),
             const SizedBox(height: 6),
             Expanded(
-              child: filtered.isEmpty
-                  ? const Center(child: Text('Keine Reklamationen gefunden.'))
-                  : Scrollbar(
-                      thumbVisibility: true,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 1400),
-                          child: DataTable(
-                            sortColumnIndex: {
-                              'internalNo': 0,
-                              'ticket': 1,
-                              'updatedAt': 1,
-                              'customer': 2,
-                              'status': 15,
-                              'createdAt': 12,
-                              'closedAt': 14,
-                              'goodwill': 16,
-                            }[_allSortColumn],
-                            sortAscending: _allSortAsc,
-                            columns: [
-                              DataColumn(
-                                label: const Text('Interne Nr.'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'internalNo';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              DataColumn(
-                                label: const Text('Ticket-ID'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'ticket';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              DataColumn(
-                                label: const Text('Kunde'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'customer';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              const DataColumn(label: Text('Kundennr.')),
-                              const DataColumn(label: Text('Land / Region')),
-                              const DataColumn(label: Text('Produktgruppe')),
-                              const DataColumn(label: Text('Artikel-Nr.')),
-                              const DataColumn(label: Text('Artikelbezeichnung')),
-                              const DataColumn(label: Text('Charge / LOT')),
-                              const DataColumn(label: Text('Kategorie')),
-                              const DataColumn(label: Text('Grund (Haupt)')),
-                              const DataColumn(label: Text('Grund (Detail)')),
-                              DataColumn(
-                                label: const Text('Eingang'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'createdAt';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              const DataColumn(label: Text('Fälligkeit')),
-                              DataColumn(
-                                label: const Text('Abschluss'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'closedAt';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              DataColumn(
-                                label: const Text('Status'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'status';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              DataColumn(
-                                label: const Text('Kulanz'),
-                                onSort: (_, __) => setState(() {
-                                  _allSortColumn = 'goodwill';
-                                  _allSortAsc = !_allSortAsc;
-                                }),
-                              ),
-                              const DataColumn(label: Text('Abteilung(en)')),
-                              const DataColumn(label: Text('Bearbeiter intern')),
-                              const DataColumn(label: Text('Sales-Kürzel')),
-                              const DataColumn(label: Text('Auftragsnummer')),
-                              const DataColumn(label: Text('Rechnungsnummer')),
-                              const DataColumn(label: Text('Vermutete Ursache')),
-                              const DataColumn(label: Text('Sofortmaßnahmen')),
-                              const DataColumn(label: Text('CAPA-Referenz')),
-                              const DataColumn(label: Text('Wiederauftreten')),
-                              const DataColumn(label: Text('Kritikalität')),
-                              const DataColumn(label: Text('Kanal')),
-                              const DataColumn(label: Text('Notizen / Bewertung')),
-                            ],
-                            rows: rows
-                                .map((r) => DataRow(cells: [
-                                      DataCell(Text(r['interneNr'] ?? '—')),
-                                      DataCell(Text(r['ticket'] ?? '—')),
-                                      _truncateCell(r['kunde'] ?? '—'),
-                                      DataCell(Text(r['kundennummer']?.isEmpty == true ? '—' : r['kundennummer']!)),
-                                      DataCell(Text(r['region']?.isEmpty == true ? '—' : r['region']!)),
-                                      DataCell(Text(r['produktgruppe']?.isEmpty == true ? '—' : r['produktgruppe']!)),
-                                      DataCell(Text(r['artikelnummer']?.isEmpty == true ? '—' : r['artikelnummer']!)),
-                                      _truncateCell(r['artikel'] ?? '—'),
-                                      DataCell(Text(r['charge']?.isEmpty == true ? '—' : r['charge']!)),
-                                      DataCell(Text(r['kategorie']?.isEmpty == true ? '—' : r['kategorie']!)),
-                                      _truncateCell(r['grund'] ?? '—'),
-                                      _truncateCell(r['grundDetail'] ?? '—'),
-                                      DataCell(Text(r['eingang'] ?? '—')),
-                                      DataCell(Text(r['faellig'] ?? '—')),
-                                      DataCell(Text(r['abschluss'] ?? '—')),
-                                      DataCell(Text(r['status'] ?? '—')),
-                                      DataCell(Text(r['kulanz'] ?? '—')),
-                                      _truncateCell(r['abteilung'] ?? '—'),
-                                      _truncateCell(r['bearbeiter'] ?? '—'),
-                                      DataCell(Text(r['sales'] ?? '—')),
-                                      DataCell(Text(r['auftrag'] ?? '—')),
-                                      DataCell(Text(r['rechnung'] ?? '—')),
-                                      _truncateCell(r['ursache'] ?? '—'),
-                                      _truncateCell(r['sofort'] ?? '—'),
-                                      DataCell(Text(r['capa']?.isEmpty == true ? '—' : r['capa']!)),
-                                      DataCell(Text(r['wieder'] ?? '—')),
-                                      DataCell(Text(r['kritikalitaet'] ?? '—')),
-                                      DataCell(Text(r['kanal'] ?? '—')),
-                                      _truncateCell(r['notizen'] ?? '—', maxLines: 3),
-                                    ]))
-                                .toList(),
-                          ),
-                        ),
-                      ),
+              child: list.isEmpty
+                  ? const Center(child: Text('Keine offenen Reklamationen.'))
+                  : ListView.separated(
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (ctx, i) {
+                        final c = list[i];
+                        return _ComplaintDialogLauncher(
+                          key: ValueKey('complaint-${c.ticket}'),
+                          api: _api,
+                          c: c,
+                          portalRole: _portalRole,
+                          portalIsSales: _portalIsSales,
+                          productLookup: _productByArticle,
+                          companyHint: _companyByEmail(c.email),
+                          hasRep: _customerHasRep(c.email), // ← NEU
+                          hasNewCustomerMessage: _hasNewCustomerMessage(c),
+                          selectable: _portalRole == 'superuser',
+                          selected: _selectedOpenTickets.contains(c.ticket),
+                          onSelected: _portalRole == 'superuser'
+                              ? (v) => _toggleTicketSelection(
+                                    c.ticket,
+                                    v ?? false,
+                                    isOpenList: true,
+                                  )
+                              : null,
+                          onChanged: _syncComplaint,
+                          onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
+                          onClosed: () {
+                            _syncComplaint(c);
+                            setState(() {
+                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
+                              _selectedOpenTickets.remove(c.ticket);
+                              _selectedAllTickets.remove(c.ticket);
+                            });
+                            _refreshAllComplaints();
+                          },
+                        );
+                      },
                     ),
             ),
           ],
@@ -10228,6 +10733,44 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Future<bool> _saveRep({String? id}) async {
+    if (_repBusy) return false;
+    if (!mounted) return false;
+
+    setState(() => _repBusy = true);
+    var success = false;
+    try {
+      final rep = await _api.upsertRep(
+        id: id,
+        firstName: _repFirstCtrl.text.trim(),
+        lastName:  _repLastCtrl.text.trim(),
+        email:     _repMailCtrl.text.trim(),
+        region:    _repRegion,
+        lang:      _repLang,
+      );
+
+      _repFirstCtrl.clear();
+      _repLastCtrl.clear();
+      _repMailCtrl.clear();
+      _repRegion = _repRegionOptions.first;
+      _repLang = 'de';
+
+      await _refreshReps();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
+        );
+      }
+      success = true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _repBusy = false);
+    }
 
   Future<void> _exportComplaintsAsPdf(
     List<AdminComplaint> data, {
