@@ -676,6 +676,8 @@ class _AdminPageState extends State<AdminPage> {
     if (profileRole is String && profileRole.trim().isNotEmpty) {
       _portalRole = profileRole.trim();
     }
+    bool _isTruthy(dynamic flag) =>
+        flag == true || flag == 1 || flag == '1' || (flag is String && flag.toLowerCase() == 'true');
     final profileSalesFlags = [
       widget.portalProfile?['isSales'],
       widget.portalProfile?['canEditSales'],
@@ -684,7 +686,7 @@ class _AdminPageState extends State<AdminPage> {
       widget.api.portalProfile?['canEditSales'],
       widget.api.portalProfile?['salesAllowed'],
     ];
-    _portalIsSales = profileSalesFlags.any((flag) => flag == true);
+    _portalIsSales = profileSalesFlags.any(_isTruthy);
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
