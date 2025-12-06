@@ -16397,11 +16397,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   Widget buildMetaSection() {
                     final canEditMeta = !_isPortalUser && !_isPortalReadonly;
                     final canEditDepartments = _isPortalSuperuser;
+                    final externalLinks = (widget.c.externalReportLinks?.isNotEmpty ?? false)
+                        ? widget.c.externalReportLinks
+                        : widget.c.reportLinks;
+
                     final hasReports =
                         (_reportCtrl.text.trim().isNotEmpty) ||
                             ((widget.c.reportLink?.trim().isNotEmpty ?? false)) ||
                             ((widget.c.reportLinks?.isNotEmpty ?? false)) ||
-                            ((widget.c.externalReportLinks?.isNotEmpty ?? false)) ||
+                            ((externalLinks?.isNotEmpty ?? false)) ||
                             ((widget.c.internalReportLinks?.isNotEmpty ?? false));
                     final internalField = TextField(
                       controller: _internalCtrl,
@@ -16565,9 +16569,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                         ),
                         const SizedBox(height: 10),
-                        if ((widget.c.externalReportLinks?.isNotEmpty ?? false) ||
+                        if ((externalLinks?.isNotEmpty ?? false) ||
                             (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
-                          _linkBadges('Externe Reports', widget.c.externalReportLinks, highlight: true),
+                          _linkBadges('Externe Reports', externalLinks, highlight: true),
                           _linkBadges('Interne Reports', widget.c.internalReportLinks),
                         ],
                         Align(
