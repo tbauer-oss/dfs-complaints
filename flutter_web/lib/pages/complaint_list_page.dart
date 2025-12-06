@@ -140,7 +140,9 @@ class ComplaintListPage extends StatefulWidget {
 class _ComplaintListPageState extends State<ComplaintListPage> {
   final _searchCtrl = TextEditingController();
   final ScrollController _verticalController = ScrollController();
-  final ScrollController _horizontalController = ScrollController();
+  final ScrollController _horizontalHeaderController = ScrollController();
+  final ScrollController _horizontalBodyController = ScrollController();
+  bool _isSyncingHorizontal = false;
   ComplaintFilterModel _filters = const ComplaintFilterModel();
   String _sortColumn = 'receivedAt';
   bool _sortAscending = false;
@@ -184,6 +186,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   void initState() {
     super.initState();
     _visibleColumns = _columnDefs.map((c) => c.$2).toSet();
+    _horizontalHeaderController.addListener(_syncHorizontalFromHeader);
+    _horizontalBodyController.addListener(_syncHorizontalFromBody);
     _loadLogo();
   }
 
@@ -191,8 +195,33 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   void dispose() {
     _searchCtrl.dispose();
     _verticalController.dispose();
-    _horizontalController.dispose();
+    _horizontalHeaderController.dispose();
+    _horizontalBodyController.dispose();
     super.dispose();
+  }
+
+  void _syncHorizontalFromHeader() {
+    if (!_horizontalBodyController.hasClients || _isSyncingHorizontal) return;
+    _isSyncingHorizontal = true;
+    _horizontalBodyController.jumpTo(
+      _horizontalHeaderController.offset.clamp(
+        0,
+        _horizontalBodyController.position.maxScrollExtent,
+      ),
+    );
+    _isSyncingHorizontal = false;
+  }
+
+  void _syncHorizontalFromBody() {
+    if (!_horizontalHeaderController.hasClients || _isSyncingHorizontal) return;
+    _isSyncingHorizontal = true;
+    _horizontalHeaderController.jumpTo(
+      _horizontalBodyController.offset.clamp(
+        0,
+        _horizontalHeaderController.position.maxScrollExtent,
+      ),
+    );
+    _isSyncingHorizontal = false;
   }
 
   Future<void> _loadLogo() async {
@@ -700,11 +729,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   Widget _buildDataTableHeader(ThemeData theme) {
     return Scrollbar(
-      controller: _horizontalController,
+      controller: _horizontalHeaderController,
       thumbVisibility: true,
       notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
       child: SingleChildScrollView(
-        controller: _horizontalController,
+        controller: _horizontalHeaderController,
         scrollDirection: Axis.horizontal,
         child: DataTable(
           sortAscending: _sortAscending,
@@ -846,11 +875,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
                           controller: _verticalController,
                           scrollDirection: Axis.vertical,
                           child: Scrollbar(
-                            controller: _horizontalController,
+                            controller: _horizontalBodyController,
                             thumbVisibility: true,
                             notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
                             child: SingleChildScrollView(
-                              controller: _horizontalController,
+                              controller: _horizontalBodyController,
                               scrollDirection: Axis.horizontal,
                               child: _buildDataTableBody(items),
                             ),
