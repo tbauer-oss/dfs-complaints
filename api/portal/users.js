@@ -14,20 +14,31 @@ import {
   PORTAL_ROLES,
 } from '../_lib/portalAuth.js';
 
+const isTruthy = flag => flag === true || flag === 'true' || flag === 1 || flag === '1';
+
 function sanitizeUser(u) {
   const role = normalizeRole(u.role);
   const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
+  const tilePermissions = sanitizeTilePermissions(u.tilePermissions || {});
+  const hasSalesTile = Object.entries(tilePermissions).some(([key, value]) => {
+    const normalizedKey = String(key || '').toLowerCase();
+    if (!normalizedKey.includes('sales')) return false;
+    const normalizedPerm = String(value || '').toLowerCase();
+    return normalizedPerm === 'write';
+  });
+  const isSales = isTruthy(u.isSales) || isTruthy(u.canEditSales) || isTruthy(u.salesAllowed) || hasSalesTile;
+
   return {
     email: u.email,
     displayName: u.displayName || u.contact || u.company || '',
     role,
     portalStatus,
-    isSales: u.isSales === true,
-    canEditSales: u.isSales === true,
-    salesAllowed: u.isSales === true,
+    isSales,
+    canEditSales: isSales,
+    salesAllowed: isSales,
     assignedDepartments: normalizeDepartments(u.assignedDepartments || []),
     createdAt: u.createdAt || null,
-    tilePermissions: sanitizeTilePermissions(u.tilePermissions || {}),
+    tilePermissions,
   };
 }
 

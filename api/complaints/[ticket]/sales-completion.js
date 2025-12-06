@@ -43,9 +43,8 @@ export default async function handler(req, res) {
   if (Number(complaint.status) !== Status.CLOSED) {
     return bad(res, 'Sales-Bearbeitung nur für abgeschlossene Reklamationen möglich.', 400);
   }
-  if (complaint.salesCompleted) {
-    return bad(res, 'Sales-Bereich bereits abgeschlossen.', 400);
-  }
+  // Sales users may update already completed sales data (e.g. order/invoice numbers)
+  // to correct mistakes. Keep validation below intact but allow re-submission.
 
   const body = readJson(req) || {};
   const handling = normalizeHandling(complaint);

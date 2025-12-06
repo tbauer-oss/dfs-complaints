@@ -441,6 +441,15 @@ class _AdminPageState extends State<AdminPage> {
     return result;
   }
 
+  bool _hasSalesTilePermission(Map<String, String> permissions) {
+    return permissions.entries.any((entry) {
+      final key = entry.key.toLowerCase();
+      if (!key.contains('sales')) return false;
+      final perm = _normalizeTilePermission(entry.value);
+      return perm == 'write';
+    });
+  }
+
   bool _tileVisibleForActor(String tileId) {
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
@@ -676,13 +685,23 @@ class _AdminPageState extends State<AdminPage> {
     if (profileRole is String && profileRole.trim().isNotEmpty) {
       _portalRole = profileRole.trim();
     }
-    final profileIsSales = widget.portalProfile?['isSales'] ?? widget.api.portalProfile?['isSales'];
-    _portalIsSales = profileIsSales == true;
+    bool _isTruthy(dynamic flag) =>
+        flag == true || flag == 1 || flag == '1' || (flag is String && flag.toLowerCase() == 'true');
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
       ..clear()
       ..addAll(_sanitizeTilePermissionMap(profileTilePermissions));
+    final profileSalesFlags = [
+      widget.portalProfile?['isSales'],
+      widget.portalProfile?['canEditSales'],
+      widget.portalProfile?['salesAllowed'],
+      widget.api.portalProfile?['isSales'],
+      widget.api.portalProfile?['canEditSales'],
+      widget.api.portalProfile?['salesAllowed'],
+    ];
+    final hasSalesTilePermission = _hasSalesTilePermission(_portalTilePermissions);
+    _portalIsSales = profileSalesFlags.any(_isTruthy) || hasSalesTilePermission;
     _custCountry = _defaultCountry;
     _bulkInternalAllCtrl.text = _internalNumberPrefix();
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
@@ -13753,7 +13772,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     required bool wantsReplacement,
     required bool wantsCredit,
   }) async {
-    if (!_isPortalSales || !_isPortalUser || widget.c.salesCompleted) return;
+    if (!_isPortalSales || !_isPortalUser) return;
+    final wasCompleted = widget.c.salesCompleted;
     final order = _orderNumberCtrl.text.trim();
     final invoice = _invoiceNumberCtrl.text.trim();
     final agent = _salesAgentCtrl.text.trim();
@@ -13785,7 +13805,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       if (!mounted) return;
       _applySalesUpdate(updated);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Sales-Abschluss gespeichert.')));
+          .showSnackBar(SnackBar(
+              content: Text(wasCompleted ? 'Sales-Daten aktualisiert.' : 'Sales-Abschluss gespeichert.')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -15674,7 +15695,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
               final wantsCredit = handling == 'gutschrift';
               final isClosed = c.status == 5;
               final showSalesSection = isClosed || c.salesCompleted || _isPortalSales || _isPortalSuperuser;
-              final canEditSales = _isPortalSales && _isPortalUser && isClosed && !c.salesCompleted;
+              final canEditSales = _isPortalSales && isClosed;
               if (!showSalesSection) return const SizedBox.shrink();
 
               Widget _readonlyRow(String label, String value) {
@@ -15695,6 +15716,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
               final completionInfo = c.salesCompletedAt != null
                   ? 'Abgeschlossen am ${_fmtDate(c.salesCompletedAt!.toLocal())}${c.salesCompletedBy != null ? ' durch ${c.salesCompletedBy}' : ''}'
                   : null;
+              final salesReadOnly = c.salesCompleted && !canEditSales;
 
               return Container(
                 margin: const EdgeInsets.only(top: 10),
@@ -15734,7 +15756,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       ],
                     ),
                     const SizedBox(height: 10),
-                    if (c.salesCompleted) ...[
+                    if (salesReadOnly) ...[
                       _readonlyRow('Auftragsnummer', c.orderNumber ?? ''),
                       _readonlyRow('Rechnungsnummer', c.invoiceNumber ?? ''),
                       _readonlyRow('Sachbearbeiter-Kürzel', c.salesAgentCode ?? ''),
@@ -15744,6 +15766,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           child: Text(completionInfo, style: Theme.of(context).textTheme.bodySmall),
                         ),
                     ] else ...[
+                      if (completionInfo != null && c.salesCompleted)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            completionInfo,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       if (!isClosed)
                         const Padding(
                           padding: EdgeInsets.only(bottom: 8),
@@ -15789,7 +15819,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                         wantsCredit: wantsCredit,
                                       ),
                               icon: const Icon(Icons.save_outlined),
-                              label: Text(_salesBusy ? 'Speichern ...' : 'Sales-Abschluss speichern'),
+                              label: Text(
+                                _salesBusy
+                                    ? 'Speichern ...'
+                                    : (c.salesCompleted ? 'Sales-Daten aktualisieren' : 'Sales-Abschluss speichern'),
+                              ),
                             ),
                           ),
                         )
