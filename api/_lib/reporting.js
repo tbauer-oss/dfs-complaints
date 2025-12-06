@@ -147,33 +147,32 @@ function ensureSpace(doc, requiredHeight) {
   if (doc.y + requiredHeight > bottom) doc.addPage();
 }
 
-function drawSectionTitle(doc, title, index) {
+function drawSectionTitle(doc, title, index, { compact = false } = {}) {
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const label = index ? `${index}. ${title}` : title;
 
-  ensureSpace(doc, 32);
+  const minHeight = compact ? 26 : 32;
+  ensureSpace(doc, minHeight);
   const barWidth = 6;
-  const barHeight = 16;
+  const barHeight = compact ? 12 : 16;
   const y = doc.y;
 
   doc.save();
   doc.fillColor(COLORS.primary).rect(startX, y, barWidth, barHeight).fill();
-  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(13);
-  doc.text(label, startX + barWidth + 8, y - 2, { width: usableWidth - barWidth - 8 });
-  doc.strokeColor(COLORS.border).lineWidth(0.8).moveTo(startX, doc.y + 6).lineTo(startX + usableWidth, doc.y + 6).stroke();
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(compact ? 12 : 13);
+  doc.text(label, startX + barWidth + 8, compact ? y - 3 : y - 2, { width: usableWidth - barWidth - 8 });
+  doc.strokeColor(COLORS.border).lineWidth(0.8).moveTo(startX, doc.y + (compact ? 4 : 6)).lineTo(startX + usableWidth, doc.y + (compact ? 4 : 6)).stroke();
   doc.restore();
-  doc.moveDown(0.8);
+  doc.moveDown(compact ? 0.4 : 0.8);
 }
 
-function drawKeyValue(doc, pairs, { columns = 2 } = {}) {
+function drawKeyValue(doc, pairs, { columns = 2, padding = 9, spacing = 12, valueFontSize = 11, labelFontSize = 10 } = {}) {
   if (!pairs || pairs.length === 0) return;
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const gap = 14;
   const columnWidth = (usableWidth - gap * (columns - 1)) / columns;
-  const padding = 9;
-  const spacing = 12;
 
   const rows = [];
   for (let i = 0; i < pairs.length; i += columns) rows.push(pairs.slice(i, i + columns));
@@ -181,8 +180,8 @@ function drawKeyValue(doc, pairs, { columns = 2 } = {}) {
   rows.forEach((row) => {
     let rowHeight = 0;
     row.forEach(({ label, value }) => {
-      const lh = doc.heightOfString(label, { width: columnWidth - padding * 2 });
-      const vh = doc.heightOfString(value, { width: columnWidth - padding * 2 });
+      const lh = doc.heightOfString(label, { width: columnWidth - padding * 2, align: 'left' });
+      const vh = doc.heightOfString(value, { width: columnWidth - padding * 2, align: 'left' });
       rowHeight = Math.max(rowHeight, lh + vh + padding * 2 + 8);
     });
 
@@ -194,10 +193,10 @@ function drawKeyValue(doc, pairs, { columns = 2 } = {}) {
       doc.save();
       doc.lineWidth(0.8).strokeColor(COLORS.border).fillColor('#FFFFFF');
       doc.roundedRect(x, baseY, columnWidth, rowHeight, 6).fillAndStroke();
-      doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(10);
+      doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(labelFontSize);
       doc.text(label, x + padding, baseY + padding, { width: columnWidth - padding * 2 });
       const lh = doc.heightOfString(label, { width: columnWidth - padding * 2 });
-      doc.fillColor(COLORS.text).font('Helvetica').fontSize(11);
+      doc.fillColor(COLORS.text).font('Helvetica').fontSize(valueFontSize);
       doc.text(value || '–', x + padding, baseY + padding + lh + 4, { width: columnWidth - padding * 2 });
       doc.restore();
     });
@@ -206,12 +205,12 @@ function drawKeyValue(doc, pairs, { columns = 2 } = {}) {
   });
 }
 
-function drawHeader(doc, { title, ticket, created, status, logo }) {
+function drawHeader(doc, { title, ticket, created, status, logo, compact = false }) {
   const { left, right } = doc.page.margins;
   const usableWidth = doc.page.width - left - right;
   const padding = 16;
-  const logoWidth = 150;
-  const headerHeight = 90;
+  const logoWidth = compact ? 130 : 150;
+  const headerHeight = compact ? 78 : 90;
 
   const startY = doc.y;
   doc.save();
@@ -233,7 +232,7 @@ function drawHeader(doc, { title, ticket, created, status, logo }) {
   doc.text('DFS-DIAMON GmbH', textX, contentY);
   doc.fillColor(COLORS.text).font('Helvetica').fontSize(10);
   doc.text('Reklamation / Complaint Management', textX, doc.y + 2);
-  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(18);
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(compact ? 16 : 18);
   doc.text(title, textX, doc.y + 8, { width: usableWidth - logoWidth - padding });
 
   const badgeY = doc.y + 6;
@@ -241,9 +240,9 @@ function drawHeader(doc, { title, ticket, created, status, logo }) {
   if (badgeText) drawBadge(doc, badgeText, { y: badgeY });
 
   doc.fillColor(COLORS.text).font('Helvetica').fontSize(10);
-  doc.text(ticket, textX, badgeY + 26);
+  doc.text(ticket, textX, badgeY + (compact ? 20 : 26));
   doc.text(created, textX, doc.y + 4);
-  doc.moveDown(2);
+  doc.moveDown(compact ? 1 : 2);
   doc.restore();
 }
 
@@ -384,7 +383,8 @@ async function buildReportBuffer({ complaint, variant, lang }) {
   const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   const statusText = statusLabel(complaint?.status);
 
-  const doc = new PDFDocument({ size: 'A4', margin: variant === 'external' ? 44 : 52 });
+  const isExternal = variant === 'external';
+  const doc = new PDFDocument({ size: 'A4', margin: isExternal ? 36 : 52 });
   const chunks = [];
   doc.on('data', (c) => chunks.push(c));
   const done = new Promise((resolve, reject) => { doc.on('end', resolve); doc.on('error', reject); });
@@ -395,6 +395,7 @@ async function buildReportBuffer({ complaint, variant, lang }) {
     created: `${labels.created}: ${formatDate(complaint?.createdAt || complaint?.updatedAt)}`,
     status: statusText,
     logo,
+    compact: isExternal,
   });
 
   const baseEntries = [
@@ -422,14 +423,17 @@ async function buildReportBuffer({ complaint, variant, lang }) {
   const complaintEntries = complaintDescriptionEntries(complaint, language);
   if (!complaintEntries.length) complaintEntries.push({ label: labels.description, value: '–' });
 
-  drawSectionTitle(doc, sections.base, 1);
-  drawKeyValue(doc, baseEntries);
+  // Externe Reports sollen auf eine Seite passen: kompaktere Boxen und Header.
+  const compactBox = isExternal ? { padding: 7, spacing: 8, valueFontSize: 10, labelFontSize: 9 } : {};
 
-  drawSectionTitle(doc, sections.product, 2);
-  drawKeyValue(doc, productEntries);
+  drawSectionTitle(doc, sections.base, 1, { compact: isExternal });
+  drawKeyValue(doc, baseEntries, compactBox);
 
-  drawSectionTitle(doc, sections.complaint, 3);
-  drawKeyValue(doc, complaintEntries, { columns: 1 });
+  drawSectionTitle(doc, sections.product, 2, { compact: isExternal });
+  drawKeyValue(doc, productEntries, compactBox);
+
+  drawSectionTitle(doc, sections.complaint, 3, { compact: isExternal });
+  drawKeyValue(doc, complaintEntries, isExternal ? { ...compactBox, columns: 1 } : { columns: 1 });
 
   if (variant === 'internal') {
     drawSectionTitle(doc, sections.analysis, 4);
@@ -457,9 +461,9 @@ async function buildReportBuffer({ complaint, variant, lang }) {
       { label: labels.notes, value: safe(complaint?.adminNotes) || '–' },
     ], { columns: 1 });
   } else {
-    drawSectionTitle(doc, sections.actions, 4);
+    drawSectionTitle(doc, sections.actions, 4, { compact: true });
     const actions = externalActionsBlock(complaint, language);
-    drawKeyValue(doc, actions, { columns: 1 });
+    drawKeyValue(doc, actions, { ...compactBox, columns: 1 });
   }
 
   doc.end();
