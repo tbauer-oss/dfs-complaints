@@ -12276,6 +12276,7 @@ class AdminComplaint {
   Map<String, String>? externalReportLinks;
   Map<String, String>? internalReportLinks;
   String? qmCustomerSummary;
+  String? qmMeasures;
   Map<String, String>? qmCustomerSummaryTranslations;
   String? internalNo;
   String? adminNotes;
@@ -12336,6 +12337,7 @@ class AdminComplaint {
     this.externalReportLinks,
     this.internalReportLinks,
     this.qmCustomerSummary,
+    this.qmMeasures,
     this.qmCustomerSummaryTranslations,
     this.internalNo,
     this.adminNotes,
@@ -12481,6 +12483,7 @@ class AdminComplaint {
           ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
       qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
+      qmMeasures: (j['qmMeasures'] ?? payload?['qmMeasures'])?.toString(),
       qmCustomerSummaryTranslations:
           _parseTranslations(j['qmCustomerSummaryTranslations'] ?? payload?['qmCustomerSummaryTranslations']),
       internalNo: (j['internalNo']?.toString().trim().isEmpty ?? true)
@@ -12535,6 +12538,7 @@ class AdminComplaint {
         if (externalReportLinks != null) 'externalReportLinks': externalReportLinks,
         if (internalReportLinks != null) 'internalReportLinks': internalReportLinks,
         if (qmCustomerSummary != null) 'qmCustomerSummary': qmCustomerSummary,
+        if (qmMeasures != null) 'qmMeasures': qmMeasures,
         if (qmCustomerSummaryTranslations != null)
           'qmCustomerSummaryTranslations': qmCustomerSummaryTranslations,
         'internalDepartments': internalDepartments,
@@ -13546,6 +13550,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   final _notesCtrl = TextEditingController();
   final _internalEvalCtrl = TextEditingController();
   final _qmSummaryCtrl = TextEditingController();
+  final _qmMeasuresCtrl = TextEditingController();
   final _qmSummaryTranslationCtrl = TextEditingController();
   final _orderNumberCtrl = TextEditingController();
   final _invoiceNumberCtrl = TextEditingController();
@@ -13866,6 +13871,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _internalEvalCtrl.text = widget.c.internalEvaluationTextDe ?? '';
     _internalEvalCause = widget.c.internalEvaluationCause;
     _qmSummaryCtrl.text = widget.c.qmCustomerSummary ?? '';
+    _qmMeasuresCtrl.text = widget.c.qmMeasures ?? '';
     _qmSummaryTargetLang =
         (widget.c.qmCustomerSummaryTranslations?.keys.isNotEmpty ?? false)
             ? widget.c.qmCustomerSummaryTranslations!.keys.first
@@ -13957,6 +13963,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       _internalEvalCause = widget.c.internalEvaluationCause;
       _selectedDepartments = List<String>.from(widget.c.internalDepartments);
       _qmSummaryCtrl.text = widget.c.qmCustomerSummary ?? '';
+      _qmMeasuresCtrl.text = widget.c.qmMeasures ?? '';
       _qmSummaryTargetLang =
           (widget.c.qmCustomerSummaryTranslations?.keys.isNotEmpty ?? false)
               ? widget.c.qmCustomerSummaryTranslations!.keys.first
@@ -13976,6 +13983,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     _notesCtrl.dispose();
     _internalEvalCtrl.dispose();
     _qmSummaryCtrl.dispose();
+    _qmMeasuresCtrl.dispose();
     _qmSummaryTranslationCtrl.dispose();
     _orderNumberCtrl.dispose();
     _invoiceNumberCtrl.dispose();
@@ -14131,9 +14139,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
         qmCustomerSummary: _qmSummaryCtrl.text.trim(),
+        qmMeasures: _qmMeasuresCtrl.text.trim(),
       );
       setState(() {
         widget.c.qmCustomerSummary = updated.qmCustomerSummary;
+        widget.c.qmMeasures = updated.qmMeasures;
         widget.c.qmCustomerSummaryTranslations = updated.qmCustomerSummaryTranslations;
         widget.c.history = updated.history;
       });
@@ -14163,6 +14173,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       );
       setState(() {
         widget.c.qmCustomerSummary = updated.qmCustomerSummary;
+        widget.c.qmMeasures = updated.qmMeasures;
         widget.c.qmCustomerSummaryTranslations = updated.qmCustomerSummaryTranslations;
         widget.c.history = updated.history;
       });
@@ -14192,6 +14203,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       );
       setState(() {
         widget.c.qmCustomerSummary = updated.qmCustomerSummary;
+        widget.c.qmMeasures = updated.qmMeasures;
         widget.c.qmCustomerSummaryTranslations = updated.qmCustomerSummaryTranslations;
         widget.c.history = updated.history;
         _qmSummaryCtrl.text = updated.qmCustomerSummary ?? _qmSummaryCtrl.text;
@@ -16904,6 +16916,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             ),
                           ),
                           const SizedBox(height: 10),
+                          TextField(
+                            controller: _qmMeasuresCtrl,
+                            maxLines: 4,
+                            minLines: 3,
+                            enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                            decoration: const InputDecoration(
+                              labelText: 'Maßnahmen',
+                              hintText: 'Geplante oder umgesetzte Maßnahmen für den Kundenreport …',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
                           Align(
                             alignment: Alignment.centerRight,
                             child: FilledButton.icon(
@@ -16957,7 +16981,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
                             children: [
                               if (copyableLangs.contains(_qmSummaryTargetLang))
                                 OutlinedButton.icon(
@@ -16976,7 +17002,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                     label: const Text('Keine interne Übersetzung verfügbar'),
                                   ),
                                 ),
-                              const SizedBox(width: 12),
                               FilledButton.icon(
                                 onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
                                     ? null
@@ -17913,6 +17938,7 @@ class AdminApi {
     String? internalEvaluationCause,
     String? translateInternalEvaluationLang,
     String? qmCustomerSummary,
+    String? qmMeasures,
     Map<String, String>? qmCustomerSummaryTranslations,
     String? qmCopyInternalEvaluationLang,
   }) async {
@@ -17932,6 +17958,7 @@ class AdminApi {
       body['translateInternalEvaluation'] = {'targetLang': translateInternalEvaluationLang};
     }
     if (qmCustomerSummary != null) body['qmCustomerSummary'] = qmCustomerSummary;
+    if (qmMeasures != null) body['qmMeasures'] = qmMeasures;
     if (qmCustomerSummaryTranslations != null) {
       body['qmCustomerSummaryTranslations'] = qmCustomerSummaryTranslations;
     }
