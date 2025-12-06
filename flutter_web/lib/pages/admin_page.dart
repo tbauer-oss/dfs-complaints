@@ -4711,17 +4711,19 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   String? _viewToTileId(_AdminView view) {
-    switch (view) {
-      case _AdminView.menu:
-        return null;
-      case _AdminView.open:
-        return 'open';
-      case _AdminView.all:
-        return 'all';
-      case _AdminView.pending:
-        return 'pending';
-      case _AdminView.portalUsers:
-        return 'portalUsers';
+      switch (view) {
+        case _AdminView.menu:
+          return null;
+        case _AdminView.open:
+          return 'open';
+        case _AdminView.all:
+          return 'all';
+        case _AdminView.complaintsList:
+          return 'complaintsList';
+        case _AdminView.pending:
+          return 'pending';
+        case _AdminView.portalUsers:
+          return 'portalUsers';
       case _AdminView.users:
         return 'users';
       case _AdminView.reps:
@@ -10696,12 +10698,14 @@ class _AdminPageState extends State<AdminPage> {
                           width: 200,
                           child: DropdownButtonFormField<int?>(
                             value: _allStatusFilter,
-                            items: const [
-                              DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
-                              ...kStatusItems.map((s) => DropdownMenuItem<int?>(
-                                    value: s['value'] as int,
-                                    child: Text(s['label'] as String),
-                                  )),
+                            items: [
+                              const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
+                              ...kStatusItems
+                                  .map((s) => DropdownMenuItem<int?>(
+                                        value: s['value'] as int,
+                                        child: Text(s['label'] as String),
+                                      ))
+                                  .toList(),
                             ],
                             onChanged: (v) => setState(() => _allStatusFilter = v),
                             decoration: const InputDecoration(
@@ -11179,6 +11183,9 @@ class _AdminPageState extends State<AdminPage> {
       if (mounted) setState(() => _repBusy = false);
     }
 
+    return success;
+  }
+
   Future<void> _exportComplaintsAsPdf(
     List<AdminComplaint> data, {
     required List<Map<String, String>> rows,
@@ -11296,181 +11303,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildProductsPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: ProductCatalogPage(
-        products: _products,
-        loading: _productsLoading,
-        error: _productErr,
-        canWrite: _canWriteTile('products'),
-        onReload: _productsLoading ? null : _loadProducts,
-        onProductsChanged: (items) => setState(() => _applyProducts(items)),
-      ),
-    );
-  }
 
-  Widget _buildOpenPanel() {
-    // Firmenliste für Filter-Dropdown (lokal)
-    final List<String> companies = <String>{
-      'Alle Firmen',
-      ..._openComplaints.map((c) => (_companyByEmail(c.email) ?? '')).where((s) => s.trim().isNotEmpty),
-      ..._users.map((e) => e.company).where((s) => s.trim().isNotEmpty),
-    }.toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-    // ggf. gefilterte Liste bilden
-    final list = (_filterCompany == 'Alle Firmen')
-        ? _openComplaints
-        : _openComplaints
-            .where((c) => (_companyByEmail(c.email) ?? '') == _filterCompany)
-            .toList();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.receipt_long),
-                    const SizedBox(width: 8),
-                    const Text('Offene Reklamationen',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                _countBadge(label: 'Tickets', value: list.length),
-                SizedBox(
-                  width: 240,
-                  child: DropdownButtonFormField<String>(
-                    value: _filterCompany,
-                    onChanged: (v) => setState(() => _filterCompany = v ?? 'Alle Firmen'),
-                    items: companies
-                        .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                        .toList(),
-                    decoration: const InputDecoration(
-                      labelText: 'Kundenfilter',
-                      prefixIcon: Icon(Icons.apartment_outlined),
-                    ),
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_loadOpen)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 8),
-                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                      ),
-                    IconButton(
-                      tooltip: 'Neu laden',
-                      onPressed: _loadOpen ? null : _refreshOpen,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _processingGuide(isOpenList: true),
-            const SizedBox(height: 10),
-            _buildBulkInternalBar(isOpenList: true),
-            const SizedBox(height: 6),
-            Expanded(
-              child: list.isEmpty
-                  ? const Center(child: Text('Keine offenen Reklamationen.'))
-                  : ListView.separated(
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (ctx, i) {
-                        final c = list[i];
-                        return _ComplaintDialogLauncher(
-                          key: ValueKey('complaint-${c.ticket}'),
-                          api: _api,
-                          c: c,
-                          portalRole: _portalRole,
-                          portalIsSales: _portalIsSales,
-                          productLookup: _productByArticle,
-                          companyHint: _companyByEmail(c.email),
-                          hasRep: _customerHasRep(c.email), // ← NEU
-                          hasNewCustomerMessage: _hasNewCustomerMessage(c),
-                          selectable: _portalRole == 'superuser',
-                          selected: _selectedOpenTickets.contains(c.ticket),
-                          onSelected: _portalRole == 'superuser'
-                              ? (v) => _toggleTicketSelection(
-                                    c.ticket,
-                                    v ?? false,
-                                    isOpenList: true,
-                                  )
-                              : null,
-                          onChanged: _syncComplaint,
-                          onCustomerMessageSeen: () => _markCustomerMessageSeen(c),
-                          onClosed: () {
-                            _syncComplaint(c);
-                            setState(() {
-                              _openComplaints.removeWhere((x) => x.ticket == c.ticket);
-                              _selectedOpenTickets.remove(c.ticket);
-                              _selectedAllTickets.remove(c.ticket);
-                            });
-                            _refreshAllComplaints();
-                          },
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<bool> _saveRep({String? id}) async {
-    if (_repBusy) return false;
-    if (!mounted) return false;
-
-    setState(() => _repBusy = true);
-    var success = false;
-    try {
-      final rep = await _api.upsertRep(
-        id: id,
-        firstName: _repFirstCtrl.text.trim(),
-        lastName:  _repLastCtrl.text.trim(),
-        email:     _repMailCtrl.text.trim(),
-        region:    _repRegion,
-        lang:      _repLang,
-      );
-
-      _repFirstCtrl.clear();
-      _repLastCtrl.clear();
-      _repMailCtrl.clear();
-      _repRegion = _repRegionOptions.first;
-      _repLang = 'de';
-
-      await _refreshReps();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gespeichert: ${rep.displayName}')),
-        );
-      }
-      success = true;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _repBusy = false);
-    }
-
-    return success;
   }
 
   Future<void> _editRep(Rep r) async {
@@ -12061,7 +11894,6 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
-}
 
 class _NavigationSection extends StatelessWidget {
   const _NavigationSection({
