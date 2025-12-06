@@ -324,13 +324,6 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
     .fill()
     .restore();
 
-  doc
-    .save()
-    .fillColor(LIGHT_GREY)
-    .roundedRect(left, startY + topBar, usableWidth, headerHeight, 8)
-    .fill()
-    .restore();
-
   const contentY = startY + topBar + padding;
   const titleX = left + padding;
 
@@ -380,8 +373,6 @@ function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
   const contentBottom = doc.y;
   const rightBottom = Math.max(badgeY + badge.height, (logoBuffer ? contentY + 52 : contentY));
   const headerHeight = Math.max(contentBottom, rightBottom) - startY + padding + topBar;
-
-  doc.restore();
 
   doc.y = startY + headerHeight + 6;
 }
