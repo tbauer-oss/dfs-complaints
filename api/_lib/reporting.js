@@ -1,773 +1,555 @@
 // api/_lib/reporting.js
-// PDF-Reporting für Reklamationen (Mehrsprachig erweiterbar)
+// Neu implementierte Report-Logik für Reklamationen im DFS-CI-Design.
+// Architekturziele:
+// - Nur saubere, wartbare Funktionen ohne Altlasten.
+// - Klare Trennung von internen und externen Reports.
+// - Sprachen: intern ausschließlich DE, extern DE & EN.
+// - Automatisches, idempotentes Generieren beim Statuswechsel auf "Abgeschlossen".
 
 import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import { storeGeneratedFile } from './uploads.js';
 import { normalizeLangValue } from './store.js';
-import {
-  normalizeEvaluationText,
-  normalizeEvaluationTranslations,
-  normalizeDepartments,
-  normalizeReportLinksMap,
-} from './departments.js';
+import { normalizeReportLinksMap, normalizeDepartments } from './departments.js';
 import { getProductByArticle } from './products.js';
 
-const REPORT_LANGS = {
+const STATUS_CLOSED = 5; // siehe store.js Status.CLOSED
+
+const COLORS = {
+  primary: '#005AA9',
+  primaryDark: '#0B345E',
+  accent: '#0E6CC4',
+  lightBackground: '#F4F6F9',
+  border: '#D5DBE5',
+  text: '#1F2933',
+};
+
+const LOGO_CANDIDATES = [
+  path.resolve(process.cwd(), 'flutter_web', 'assets', 'dfs_logo.png'),
+  path.resolve(process.cwd(), 'flutter_web', 'assets', 'dfs_logo.svg'),
+];
+let cachedLogo = undefined;
+
+const INTERNAL_LANGUAGE = 'de';
+const EXTERNAL_LANGUAGES = ['de', 'en'];
+
+const SECTION_TITLES = {
+  internal: {
+    de: {
+      title: 'Interner Reklamationsbericht',
+      base: 'Stammdaten',
+      product: 'Produktdaten',
+      complaint: 'Reklamationsdetails',
+      analysis: 'Analyse',
+      actions: 'Maßnahmen',
+      closure: 'Abschluss / Status',
+      attachments: 'Anhänge',
+    },
+  },
+  external: {
+    de: {
+      title: 'Externer Reklamationsbericht',
+      base: 'Kundendaten',
+      product: 'Produktdaten',
+      complaint: 'Reklamationsdetails',
+      actions: 'Maßnahmen / Entscheidung',
+    },
+    en: {
+      title: 'External Complaint Report',
+      base: 'Customer Data',
+      product: 'Product Data',
+      complaint: 'Complaint Details',
+      actions: 'Actions / Decision',
+    },
+  },
+};
+
+const LABELS = {
   de: {
-    title: 'Reklamationsbericht',
-    ticket: 'Ticket',
+    ticket: 'Ticketnummer',
     status: 'Status',
     decision: 'Entscheidung',
-    customer: 'Kunde / Kontakt',
-    email: 'E-Mail',
     created: 'Erstellt am',
-    payload: 'Reklamationsdaten',
-    internalEvaluation: 'Interne Bewertung',
-    internalCause: 'Vermutete Ursache',
-    departments: 'Betroffene Abteilungen',
-    uploads: 'Anhänge',
-    measures: 'Maßnahmen',
-    qmSummary: 'QM Zusammenfassung',
-    product: 'Produktdaten',
+    language: 'Sprache',
+    customer: 'Kunde',
+    contact: 'Ansprechpartner',
+    email: 'E-Mail',
+    customerNo: 'Kundennummer',
+    country: 'Land',
+    productName: 'Produkt',
+    articleNo: 'Artikelnummer',
     batch: 'Charge / LOT',
     udi: 'UDI-DI',
-    actions: 'Geplante Maßnahmen',
+    quantity: 'Menge',
+    segment: 'Produktbereich',
+    productType: 'Produkttyp',
+    description: 'Beschreibung',
+    reason: 'Reklamationsgrund',
+    handling: 'Gewünschte Behandlung',
+    actions: 'Maßnahmen',
+    qmSummary: 'QM Zusammenfassung für Kunden',
+    internalEval: 'Interne Bewertung / Analyse',
+    internalCause: 'Vermutete Ursache',
+    departments: 'Betroffene Abteilungen',
     notes: 'Interne Notizen',
-    externalTitle: 'Externer Reklamationsbericht',
+    uploads: 'Anhänge',
+    decisionText: 'Entscheidung',
+    actionNote: 'Erläuterung',
   },
   en: {
-    title: 'Complaint Report',
     ticket: 'Ticket',
     status: 'Status',
     decision: 'Decision',
-    customer: 'Customer / Contact',
-    email: 'Email',
     created: 'Created at',
-    payload: 'Complaint data',
-    internalEvaluation: 'Internal assessment',
-    internalCause: 'Likely cause',
-    departments: 'Affected departments',
-    uploads: 'Attachments',
-    measures: 'Actions',
-    qmSummary: 'QM summary',
-    product: 'Product data',
+    language: 'Language',
+    customer: 'Customer',
+    contact: 'Contact',
+    email: 'Email',
+    customerNo: 'Customer No.',
+    country: 'Country',
+    productName: 'Product',
+    articleNo: 'Article No.',
     batch: 'Batch / LOT',
     udi: 'UDI-DI',
-    actions: 'Planned actions',
+    quantity: 'Quantity',
+    segment: 'Segment',
+    productType: 'Product type',
+    description: 'Description',
+    reason: 'Reason',
+    handling: 'Requested handling',
+    actions: 'Actions',
+    qmSummary: 'Customer Summary',
+    internalEval: 'Internal evaluation',
+    internalCause: 'Likely cause',
+    departments: 'Affected departments',
     notes: 'Internal notes',
-    externalTitle: 'External complaint report',
-  },
-  es: {
-    title: 'Informe de reclamación',
-    ticket: 'Ticket',
-    status: 'Estado',
-    decision: 'Decisión',
-    customer: 'Cliente / Contacto',
-    email: 'Correo',
-    created: 'Creado el',
-    payload: 'Datos de la reclamación',
-    internalEvaluation: 'Evaluación interna',
-    internalCause: 'Causa probable',
-    departments: 'Departamentos afectados',
-    uploads: 'Adjuntos',
-    measures: 'Medidas',
-    qmSummary: 'Resumen de QM',
-    product: 'Datos del producto',
-    batch: 'Lote',
-    udi: 'UDI-DI',
-    actions: 'Acciones planificadas',
-    notes: 'Notas internas',
-    externalTitle: 'Informe externo de reclamación',
-  },
-  fr: {
-    title: 'Rapport de réclamation',
-    ticket: 'Ticket',
-    status: 'Statut',
-    decision: 'Décision',
-    customer: 'Client / Contact',
-    email: 'E-mail',
-    created: 'Créé le',
-    payload: 'Données de réclamation',
-    internalEvaluation: 'Évaluation interne',
-    internalCause: 'Cause probable',
-    departments: 'Départements concernés',
-    uploads: 'Pièces jointes',
-    measures: 'Mesures',
-    qmSummary: 'Résumé QM',
-    product: 'Données produit',
-    batch: 'Lot',
-    udi: 'UDI-DI',
-    actions: 'Actions prévues',
-    notes: 'Notes internes',
-    externalTitle: 'Rapport de réclamation externe',
-  },
-  it: {
-    title: 'Rapporto di reclamo',
-    ticket: 'Ticket',
-    status: 'Stato',
-    decision: 'Decisione',
-    customer: 'Cliente / Contatto',
-    email: 'Email',
-    created: 'Creato il',
-    payload: 'Dati del reclamo',
-    internalEvaluation: 'Valutazione interna',
-    internalCause: 'Causa probabile',
-    departments: 'Reparti coinvolti',
-    uploads: 'Allegati',
-    measures: 'Azioni',
-    qmSummary: 'Sintesi QM',
-    product: 'Dati prodotto',
-    batch: 'Lotto',
-    udi: 'UDI-DI',
-    actions: 'Azioni pianificate',
-    notes: 'Note interne',
-    externalTitle: 'Rapporto reclamo esterno',
+    uploads: 'Attachments',
+    decisionText: 'Decision',
+    actionNote: 'Explanation',
   },
 };
 
-const PAYLOAD_LABELS = {
-  article: { de: 'Artikel', en: 'Article' },
-  batch: { de: 'Charge', en: 'Batch' },
-  qty: { de: 'Menge', en: 'Quantity' },
-  expiry: { de: 'Ablaufdatum', en: 'Expiry' },
-  desc: { de: 'Fehler / Beschreibung', en: 'Description' },
-  reason: { de: 'Grund', en: 'Reason' },
-  handling: { de: 'Gewünschte Behandlung', en: 'Requested handling' },
-  segment: { de: 'Produktbereich', en: 'Segment' },
-  productType: { de: 'Produkttyp', en: 'Product type' },
-  product: { de: 'Produktname', en: 'Product name' },
-  productName: { de: 'Produktname', en: 'Product name' },
-  lot: { de: 'Charge/LOT', en: 'Batch/LOT' },
-  udi: { de: 'UDI-DI', en: 'UDI-DI' },
-  udiDi: { de: 'UDI-DI', en: 'UDI-DI' },
-  returned: { de: 'Produkte bereits zurückgeschickt?*', en: 'Products already returned?*' },
-  privacy: { de: 'Ich stimme der Datenschutzerklärung zu.*', en: 'I agree to the privacy policy.*' },
-  injuryDesc: { de: 'Beschreibung der Verletzung*', en: 'Description of injury*' },
-};
-
-const STATUS_LABELS = {
-  1: 'Eingegangen',
-  2: 'In Bearbeitung',
-  3: 'Rückfrage erforderlich',
-  4: 'In Nacharbeit',
-  5: 'Abgeschlossen',
-};
-
-const DFS_BLUE = '#005AA9';
-const DFS_DARK = '#0B345E';
-const DFS_BLUE_LIGHT = '#0E6CC4';
-const LIGHT_GREY = '#F4F6F9';
-const BORDER_GREY = '#D5DBE5';
-const TEXT_DARK = '#1F2933';
-let cachedLogo;
-
-function ensureSpace(doc, requiredHeight) {
-  const bottomLimit = doc.page.height - doc.page.margins.bottom;
-  if (doc.y + requiredHeight > bottomLimit) {
-    doc.addPage();
+function resolveLogoBuffer() {
+  if (cachedLogo !== undefined) return cachedLogo;
+  for (const candidate of LOGO_CANDIDATES) {
+    if (fs.existsSync(candidate)) {
+      cachedLogo = fs.readFileSync(candidate);
+      return cachedLogo;
+    }
   }
-}
-
-function resolveLogoPath() {
-  const candidates = [
-    path.resolve(process.cwd(), 'flutter_web', 'assets', 'dfs_logo.png'),
-  ];
-  return candidates.find((p) => fs.existsSync(p));
-}
-
-function loadLogo() {
-  if (cachedLogo === undefined) {
-    const found = resolveLogoPath();
-    cachedLogo = found ? fs.readFileSync(found) : null;
-  }
+  cachedLogo = null;
   return cachedLogo;
 }
 
-function drawSectionTitle(doc, title, { index } = {}) {
-  const startX = doc.page.margins.left;
-  const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const label = index ? `${index}. ${title}` : title;
-
-  ensureSpace(doc, 36);
-  doc.moveDown(0.4);
-
-  const barHeight = 18;
-  const barWidth = 6;
-  const titleY = doc.y;
-
-  doc
-    .save()
-    .fillColor(DFS_BLUE)
-    .rect(startX, titleY - 2, barWidth, barHeight)
-    .fill()
-    .restore();
-
-  doc
-    .save()
-    .fillColor(DFS_DARK)
-    .font('Helvetica-Bold')
-    .fontSize(13)
-    .text(label, startX + barWidth + 8, titleY - 1, { width: availableWidth - barWidth - 8 });
-
-  doc
-    .strokeColor(BORDER_GREY)
-    .lineWidth(0.8)
-    .moveTo(startX, doc.y + 10)
-    .lineTo(startX + availableWidth, doc.y + 10)
-    .stroke();
-  doc.restore();
-
-  doc.moveDown(1);
+function ensureSpace(doc, requiredHeight) {
+  const bottom = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + requiredHeight > bottom) doc.addPage();
 }
 
-function drawKeyValueTable(doc, entries, { columns = 2 } = {}) {
-  if (!entries || entries.length === 0) return;
+function drawSectionTitle(doc, title, index, { compact = false } = {}) {
+  const startX = doc.page.margins.left;
+  const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const label = index ? `${index}. ${title}` : title;
 
+  const minHeight = compact ? 26 : 32;
+  ensureSpace(doc, minHeight);
+  const barWidth = 6;
+  const barHeight = compact ? 12 : 16;
+  const y = doc.y;
+
+  doc.save();
+  doc.fillColor(COLORS.primary).rect(startX, y, barWidth, barHeight).fill();
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(compact ? 12 : 13);
+  doc.text(label, startX + barWidth + 8, compact ? y - 3 : y - 2, { width: usableWidth - barWidth - 8 });
+  doc.strokeColor(COLORS.border).lineWidth(0.8).moveTo(startX, doc.y + (compact ? 4 : 6)).lineTo(startX + usableWidth, doc.y + (compact ? 4 : 6)).stroke();
+  doc.restore();
+  doc.moveDown(compact ? 0.4 : 0.8);
+}
+
+function drawKeyValue(doc, pairs, { columns = 2, padding = 9, spacing = 12, valueFontSize = 11, labelFontSize = 10 } = {}) {
+  if (!pairs || pairs.length === 0) return;
   const startX = doc.page.margins.left;
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const gap = 14;
   const columnWidth = (usableWidth - gap * (columns - 1)) / columns;
-  const padding = 9;
-  const rowSpacing = 12;
 
   const rows = [];
-  for (let i = 0; i < entries.length; i += columns) {
-    rows.push(entries.slice(i, i + columns));
-  }
+  for (let i = 0; i < pairs.length; i += columns) rows.push(pairs.slice(i, i + columns));
 
   rows.forEach((row) => {
     let rowHeight = 0;
-    row.forEach((entry) => {
-      const label = (entry?.label || '').toString();
-      const value = ((entry?.value ?? '') || '–').toString();
-      const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
-      const valueHeight = doc.heightOfString(value, { width: columnWidth - padding * 2 });
-      rowHeight = Math.max(rowHeight, labelHeight + valueHeight + padding * 2 + 10);
+    row.forEach(({ label, value }) => {
+      const lh = doc.heightOfString(label, { width: columnWidth - padding * 2, align: 'left' });
+      const vh = doc.heightOfString(value, { width: columnWidth - padding * 2, align: 'left' });
+      rowHeight = Math.max(rowHeight, lh + vh + padding * 2 + 8);
     });
 
-    ensureSpace(doc, rowHeight + rowSpacing);
+    ensureSpace(doc, rowHeight + spacing);
     const baseY = doc.y;
 
-    row.forEach((entry, idx) => {
-      const label = (entry?.label || '').toString();
-      const value = ((entry?.value ?? '') || '–').toString();
+    row.forEach(({ label, value }, idx) => {
       const x = startX + idx * (columnWidth + gap);
-
-      doc
-        .save()
-        .lineWidth(0.8)
-        .strokeColor(BORDER_GREY)
-        .fillColor('#FFFFFF')
-        .roundedRect(x, baseY, columnWidth, rowHeight, 6)
-        .fillAndStroke();
-
-      doc
-        .fillColor(DFS_BLUE)
-        .font('Helvetica-Bold')
-        .fontSize(10)
-        .text(label, x + padding, baseY + padding, { width: columnWidth - padding * 2 });
-
-      const labelHeight = doc.heightOfString(label, { width: columnWidth - padding * 2 });
-      doc
-        .fillColor(TEXT_DARK)
-        .font('Helvetica')
-        .fontSize(11)
-        .text(value, x + padding, baseY + padding + labelHeight + 6, {
-          width: columnWidth - padding * 2,
-        });
+      doc.save();
+      doc.lineWidth(0.8).strokeColor(COLORS.border).fillColor('#FFFFFF');
+      doc.roundedRect(x, baseY, columnWidth, rowHeight, 6).fillAndStroke();
+      doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(labelFontSize);
+      doc.text(label, x + padding, baseY + padding, { width: columnWidth - padding * 2 });
+      const lh = doc.heightOfString(label, { width: columnWidth - padding * 2 });
+      doc.fillColor(COLORS.text).font('Helvetica').fontSize(valueFontSize);
+      doc.text(value || '–', x + padding, baseY + padding + lh + 4, { width: columnWidth - padding * 2 });
       doc.restore();
     });
 
-    doc.y = baseY + rowHeight + rowSpacing;
+    doc.y = baseY + rowHeight + spacing;
   });
 }
 
-function drawBadge(doc, text, { color = DFS_BLUE, x, y } = {}) {
-  if (!text) return { width: 0, height: 0 };
+function drawHeader(doc, { title, ticket, created, status, logo, compact = false }) {
+  const { left, right } = doc.page.margins;
+  const usableWidth = doc.page.width - left - right;
+  const padding = 16;
+  const logoWidth = compact ? 130 : 150;
+  const headerHeight = compact ? 78 : 90;
+
+  const startY = doc.y;
+  doc.save();
+  doc.fillColor(COLORS.primary).rect(left, startY, usableWidth, 6).fill();
+  doc.fillColor(COLORS.lightBackground).roundedRect(left, startY + 6, usableWidth, headerHeight, 8).fill();
+  doc.restore();
+
+  const textX = left + padding;
+  const contentY = startY + 6 + padding;
+
+  if (logo) {
+    doc.save();
+    doc.image(logo, left + usableWidth - logoWidth, contentY - 4, { fit: [logoWidth - padding, 48], align: 'right' });
+    doc.restore();
+  }
+
+  doc.save();
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(12);
+  doc.text('DFS-DIAMON GmbH', textX, contentY);
+  doc.fillColor(COLORS.text).font('Helvetica').fontSize(10);
+  doc.text('Reklamation / Complaint Management', textX, doc.y + 2);
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(compact ? 16 : 18);
+  doc.text(title, textX, doc.y + 8, { width: usableWidth - logoWidth - padding });
+
+  const badgeY = doc.y + 6;
+  const badgeText = status ? `Status: ${status}` : '';
+  if (badgeText) drawBadge(doc, badgeText, { y: badgeY });
+
+  doc.fillColor(COLORS.text).font('Helvetica').fontSize(10);
+  doc.text(ticket, textX, badgeY + (compact ? 20 : 26));
+  doc.text(created, textX, doc.y + 4);
+  doc.moveDown(compact ? 1 : 2);
+  doc.restore();
+}
+
+function drawBadge(doc, text, { color = COLORS.primary, y }) {
+  if (!text) return;
   const paddingX = 8;
   const paddingY = 4;
   const width = doc.widthOfString(text, { fontSize: 10 }) + paddingX * 2;
-  const height = 20;
-  const startX = typeof x === 'number' ? x : (doc.page.width - doc.page.margins.right - width);
-  const startY = typeof y === 'number' ? y : doc.y;
-  doc
-    .save()
-    .fillColor(color)
-    .roundedRect(startX, startY, width, height, 8)
-    .fill();
-  doc
-    .fillColor('#FFFFFF')
-    .fontSize(10)
-    .text(text, startX + paddingX, startY + paddingY - 1, {
-      width: width - paddingX * 2,
-      align: 'center',
-    })
-    .restore();
-  return { width, height };
-}
-
-function drawHeader(doc, { title, ticket, dateLabel, status, logoBuffer }) {
-  const { left, right } = doc.page.margins;
-  const startY = doc.y;
-  const usableWidth = doc.page.width - left - right;
-  const topBar = 6;
-  const padding = 16;
-  const logoAreaWidth = 160;
-  const textWidth = usableWidth - logoAreaWidth - padding * 2;
-
-  doc
-    .save()
-    .fillColor(DFS_BLUE)
-    .rect(left, startY, usableWidth, topBar)
-    .fill()
-    .restore();
-
-  doc
-    .save()
-    .fillColor(LIGHT_GREY)
-    .roundedRect(left, startY + topBar, usableWidth, headerHeight, 8)
-    .fill()
-    .restore();
-
-  const contentY = startY + topBar + padding;
-  const titleX = left + padding;
-
-  if (logoBuffer) {
-    doc
-      .save()
-      .image(logoBuffer, left + usableWidth - logoAreaWidth, contentY, { fit: [logoAreaWidth - padding, 50], align: 'right' })
-      .restore();
-  }
-
-  doc
-    .save()
-    .fillColor(DFS_DARK)
-    .font('Helvetica-Bold')
-    .fontSize(12)
-    .text('DFS-DIAMON GmbH', titleX, contentY);
-  doc
-    .fillColor(TEXT_DARK)
-    .font('Helvetica')
-    .fontSize(10)
-    .text('Reklamation / Complaint Management', titleX, doc.y + 2);
-
-  const titleY = doc.y + 8;
-  doc
-    .fillColor(DFS_DARK)
-    .font('Helvetica-Bold')
-    .fontSize(18)
-    .text(title, titleX, titleY, { width: textWidth });
-
-  const metaY = doc.y + 8;
-  doc
-    .fillColor(DFS_BLUE)
-    .font('Helvetica-Bold')
-    .fontSize(11)
-    .text(ticket, titleX, metaY, { width: textWidth });
-  const dateY = doc.y + 2;
-  doc
-    .fillColor(TEXT_DARK)
-    .font('Helvetica')
-    .fontSize(10)
-    .text(dateLabel, titleX, dateY, { width: textWidth });
-
-  const badgeY = titleY;
-  const badgeX = left + usableWidth - logoAreaWidth + padding / 2;
-  const badge = drawBadge(doc, status, { color: DFS_BLUE_LIGHT, x: badgeX, y: badgeY });
-
-  const contentBottom = doc.y;
-  const rightBottom = Math.max(badgeY + badge.height, (logoBuffer ? contentY + 52 : contentY));
-  const headerHeight = Math.max(contentBottom, rightBottom) - startY + padding + topBar;
-
+  const x = doc.page.width - doc.page.margins.right - width;
+  const startY = y ?? doc.y;
+  doc.save();
+  doc.fillColor(color).roundedRect(x, startY, width, 20, 8).fill();
+  doc.fillColor('#FFFFFF').fontSize(10).text(text, x + paddingX, startY + paddingY - 1, { width: width - paddingX * 2, align: 'center' });
   doc.restore();
-
-  doc.y = startY + headerHeight + 6;
-}
-
-function labelFor(lang, key, fallback) {
-  const lc = REPORT_LANGS[lang] ? lang : 'en';
-  return REPORT_LANGS[lc][key] || fallback || key;
-}
-
-function payloadLabel(lang, key, fallback) {
-  const lc = REPORT_LANGS[lang] ? lang : 'en';
-  const map = PAYLOAD_LABELS[key];
-  if (!map) return fallback || key;
-  return map[lc] || map.en || fallback || key;
 }
 
 function formatDate(ts) {
   if (!ts) return '';
-  try {
-    return new Date(ts).toLocaleString('de-DE');
-  } catch {
-    return '';
+  try { return new Date(ts).toLocaleString('de-DE'); }
+  catch { return ''; }
+}
+
+function safe(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value.trim();
+  return String(value);
+}
+
+function resolveLang(lang) {
+  const normalized = normalizeLangValue(lang) || 'de';
+  return (normalized === 'en') ? 'en' : 'de';
+}
+
+function resolveCustomerLang(complaint, preferred) {
+  const candidates = [preferred, complaint?.reportLang, complaint?.lang, complaint?.language, complaint?.customer?.language, complaint?.account?.language];
+  for (const c of candidates) {
+    const norm = normalizeLangValue(c);
+    if (norm === 'de' || norm === 'en') return norm;
   }
-}
-
-function textForEvaluation(complaint, lang) {
-  const translations = normalizeEvaluationTranslations(complaint.internalEvaluationTranslations);
-  if (lang && lang !== 'de' && translations[lang]) return translations[lang];
-  return normalizeEvaluationText(complaint.internalEvaluationText_de) || '';
-}
-
-function statusLabelFor(complaint) {
-  if (complaint?.statusLabel) return complaint.statusLabel;
-  const status = complaint?.status;
-  if (status == null) return '';
-  const numeric = Number(status);
-  return STATUS_LABELS[numeric] || '';
-}
-
-function qmSummaryForLang(complaint, lang) {
-  const map = normalizeEvaluationTranslations(complaint.qmCustomerSummaryTranslations || {});
-  if (lang && map[lang]) return map[lang];
-  const base = (complaint.qmCustomerSummary ?? complaint.qmCustomerSummary_de)
-    || complaint.qmCustomerSummary_en;
-  return normalizeEvaluationText(base) || '';
-}
-
-function plannedActions(complaint) {
-  const p = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
-  const actions = p.plannedActions || p.actions || p.measures || p.massnahmen || p.maßnahmen;
-  return (actions || '').toString();
+  return 'de';
 }
 
 async function describeProduct(complaint) {
-  const p = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
-  const articleNo = complaint.product?.articleNumber || p.articleNumber || p.article || p.item || '';
-
+  const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const article = complaint?.product?.articleNumber || payload.articleNumber || payload.article || '';
   let catalogProduct = null;
-  if (articleNo) {
-    catalogProduct = await getProductByArticle(articleNo).catch(() => null);
+  if (article) {
+    try { catalogProduct = await getProductByArticle(article); }
+    catch (err) { console.warn('[reporting] product lookup failed', err?.message || err); }
   }
-
-  const resolvedName = complaint.product?.productName
-    || p.product
-    || p.productName
-    || catalogProduct?.productName
-    || catalogProduct?.tdNumberAndName
-    || '';
-
-  const resolvedUdi = p.udi
-    || p.udiDi
-    || p.udidi
-    || complaint.product?.udiDi
-    || catalogProduct?.basicUdiDi
-    || catalogProduct?.udiSingleUnit
-    || catalogProduct?.udiVe
-    || '';
-
   return {
-    name: resolvedName,
-    articleNo,
-    batch: complaint.product?.batch || p.batch || p.lot || p.LOT || '',
-    udi: resolvedUdi,
+    name: complaint?.product?.productName || payload.product || payload.productName || catalogProduct?.productName || '',
+    article,
+    batch: complaint?.product?.batch || payload.batch || payload.lot || payload.LOT || '',
+    udi: payload.udi || payload.udiDi || complaint?.product?.udiDi || catalogProduct?.basicUdiDi || '',
+    quantity: payload.qty || payload.quantity || '',
+    segment: payload.segment || '',
+    productType: payload.productType || '',
   };
 }
 
 function describeCustomer(complaint) {
-  const p = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const customer = complaint?.customer || complaint?.account || {};
   return {
-    company: complaint.company
-      || complaint.customer?.company
-      || complaint.account?.company
-      || p.customerName
-      || p.company
-      || p.companyName
-      || p.customerCompany
-      || p.company_name
-      || p.firma
-      || complaint.customer?.name
-      || '',
-    contact: complaint.contact
-      || complaint.customer?.contact
-      || complaint.customer?.contactPerson
-      || complaint.account?.contact
-      || p.contactPerson
-      || p.contact
-      || p.customerPerson
-      || p.customerContactPerson
-      || p.ansprechpartner
-      || p.customerContact
-      || '',
-    country: complaint.country
-      || complaint.customer?.country
-      || complaint.customer?.address?.country
-      || complaint.account?.country
-      || p.country
-      || p.countryName
-      || '',
-    customerNo: complaint.customerNumber
-      || complaint.customer?.customerNumber
-      || complaint.account?.customerNumber
-      || p.customerNumber
-      || p.customerNo
-      || '',
+    company: complaint?.company || customer.company || payload.company || payload.customerName || payload.company_name || '',
+    contact: complaint?.contact || customer.contact || payload.contactPerson || payload.contact || '',
+    email: complaint?.email || payload.email || '',
+    country: complaint?.country || customer.country || payload.country || '',
+    customerNo: complaint?.customerNumber || customer.customerNumber || payload.customerNumber || payload.customerNo || '',
   };
 }
 
-function resolveReportLanguage(complaint, { preferredLang, fallback = 'de' } = {}) {
-  const candidates = [
-    preferredLang,
-    complaint.reportLang,
-    complaint.lang,
-    complaint.language,
-    complaint.account?.lang,
-    complaint.account?.language,
-    complaint.customer?.language,
-    complaint.customer?.lang,
-    complaint.payload?.lang,
-    complaint.payload?.language,
-  ];
-  for (const cand of candidates) {
-    const norm = normalizeLangValue(cand);
-    if (norm) return norm;
+function statusLabel(status) {
+  const numeric = Number(status);
+  switch (numeric) {
+    case 1: return 'Eingegangen';
+    case 2: return 'In Bearbeitung';
+    case 3: return 'Rückfrage erforderlich';
+    case 4: return 'In Nacharbeit';
+    case 5: return 'Abgeschlossen';
+    default: return '';
   }
-  return normalizeLangValue(fallback) || 'de';
 }
 
-async function buildPdf(complaint, { lang = 'de', variant = 'internal' } = {}) {
-  const labels = REPORT_LANGS[lang] || REPORT_LANGS.en;
-  const logoBuffer = loadLogo();
-  const doc = new PDFDocument({ size: 'A4', margin: variant === 'external' ? 40 : 50 });
-  const chunks = [];
-  doc.on('data', (chunk) => chunks.push(chunk));
-  const done = new Promise((resolve) => doc.on('end', resolve));
+function internalAnalysisEntries(complaint, lang) {
+  const entries = [];
+  const departments = normalizeDepartments(complaint?.internalDepartments);
+  if (departments.length) entries.push({ label: LABELS[lang].departments, value: departments.join(', ') });
+  if (complaint?.internalEvaluationText_de) entries.push({ label: LABELS[lang].internalEval, value: safe(complaint.internalEvaluationText_de) });
+  if (complaint?.internalEvaluationCause) entries.push({ label: LABELS[lang].internalCause, value: safe(complaint.internalEvaluationCause) });
+  if (complaint?.adminNotes) entries.push({ label: LABELS[lang].notes, value: safe(complaint.adminNotes) });
+  return entries;
+}
 
+function qmSummaryForLang(complaint, lang) {
+  const translations = complaint?.qmCustomerSummaryTranslations || {};
+  const preferred = lang && translations[lang];
+  if (preferred) return safe(preferred);
+  return safe(complaint?.qmCustomerSummary_de || complaint?.qmCustomerSummary || complaint?.qmCustomerSummary_en || '');
+}
+
+function plannedActions(complaint) {
+  const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const actions = payload.plannedActions || payload.actions || payload.measures || payload.massnahmen || payload['maßnahmen'];
+  return safe(actions);
+}
+
+function externalActionsBlock(complaint, lang) {
+  const labels = LABELS[lang];
+  const summary = qmSummaryForLang(complaint, lang) || '–';
+  const actions = plannedActions(complaint) || '–';
+  const decision = safe(complaint?.decision) || '–';
+  return [
+    { label: labels.decisionText, value: decision },
+    { label: labels.actionNote, value: summary },
+    { label: labels.actions, value: actions },
+  ];
+}
+
+function complaintDescriptionEntries(complaint, lang) {
+  const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const labels = LABELS[lang];
+  const map = [];
+  if (payload.desc || payload.description) map.push({ label: labels.description, value: safe(payload.desc || payload.description) });
+  if (payload.reason) map.push({ label: labels.reason, value: safe(payload.reason) });
+  if (payload.handling) map.push({ label: labels.handling, value: safe(payload.handling) });
+  return map;
+}
+
+async function buildReportBuffer({ complaint, variant, lang }) {
+  const language = resolveLang(lang);
+  const labels = LABELS[language];
+  const sections = SECTION_TITLES[variant][language] || SECTION_TITLES[variant].de;
+  const logo = resolveLogoBuffer();
   const customer = describeCustomer(complaint);
   const product = await describeProduct(complaint);
-  const payload = (complaint.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
-  const departments = normalizeDepartments(complaint.internalDepartments);
-  const title = variant === 'external' ? labels.externalTitle : labels.title;
-  const statusText = statusLabelFor(complaint) || complaint.status || '-';
+  const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
+  const statusText = statusLabel(complaint?.status);
+
+  const isExternal = variant === 'external';
+  const doc = new PDFDocument({ size: 'A4', margin: isExternal ? 36 : 52 });
+  const chunks = [];
+  doc.on('data', (c) => chunks.push(c));
+  const done = new Promise((resolve, reject) => { doc.on('end', resolve); doc.on('error', reject); });
 
   drawHeader(doc, {
-    title,
-    ticket: `${labelFor(lang, 'ticket')}: ${complaint.ticket || '-'}`,
-    dateLabel: `${labelFor(lang, 'created')}: ${formatDate(complaint.createdAt || complaint.updatedAt)}`,
+    title: sections.title,
+    ticket: `${labels.ticket}: ${safe(complaint?.ticket) || '–'}`,
+    created: `${labels.created}: ${formatDate(complaint?.createdAt || complaint?.updatedAt)}`,
     status: statusText,
-    logoBuffer,
+    logo,
+    compact: isExternal,
   });
 
-  const baseInfoEntries = [
-    { label: labelFor(lang, 'ticket'), value: complaint.ticket || '–' },
-    { label: labelFor(lang, 'status'), value: statusText || '–' },
-    { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
-    { label: 'Datum / Uhrzeit', value: formatDate(complaint.createdAt || complaint.updatedAt) || '–' },
-    { label: 'Sprache', value: (lang || '–').toUpperCase() },
-    { label: labelFor(lang, 'customer'), value: customer.company || '–' },
-    { label: 'Kontakt', value: customer.contact || '–' },
-    { label: labelFor(lang, 'email'), value: complaint.email || '–' },
-    { label: 'Kundennummer', value: customer.customerNo || '–' },
-    { label: 'Land', value: customer.country || '–' },
+  const baseEntries = [
+    { label: labels.ticket, value: safe(complaint?.ticket) || '–' },
+    { label: labels.status, value: statusText || '–' },
+    { label: labels.decision, value: safe(complaint?.decision) || '–' },
+    { label: labels.language, value: language.toUpperCase() },
+    { label: labels.customer, value: safe(customer.company) || '–' },
+    { label: labels.contact, value: safe(customer.contact) || '–' },
+    { label: labels.email, value: safe(customer.email) || '–' },
+    { label: labels.customerNo, value: safe(customer.customerNo) || '–' },
+    { label: labels.country, value: safe(customer.country) || '–' },
   ];
 
   const productEntries = [
-    { label: payloadLabel(lang, 'product', 'Produktname'), value: product.name || '–' },
-    { label: payloadLabel(lang, 'article', 'Artikelnummer'), value: product.articleNo || '–' },
-    { label: payloadLabel(lang, 'segment', 'Produktbereich'), value: payload.segment || '–' },
-    { label: payloadLabel(lang, 'productType', 'Produkttyp'), value: payload.productType || '–' },
-    { label: labels.batch, value: product.batch || payload.batch || payload.lot || '–' },
-    { label: payloadLabel(lang, 'qty', 'Menge'), value: payload.qty || payload.quantity || '–' },
-    { label: payloadLabel(lang, 'expiry', 'Ablaufdatum'), value: payload.expiry || payload.expiration || '–' },
-    { label: labels.udi, value: product.udi || payload.udi || payload.udiDi || '–' },
+    { label: labels.productName, value: safe(product.name) || '–' },
+    { label: labels.articleNo, value: safe(product.article) || '–' },
+    { label: labels.segment, value: safe(product.segment) || '–' },
+    { label: labels.productType, value: safe(product.productType) || '–' },
+    { label: labels.batch, value: safe(product.batch) || '–' },
+    { label: labels.quantity, value: safe(product.quantity) || '–' },
+    { label: labels.udi, value: safe(product.udi) || '–' },
   ];
 
-  const descriptionKeys = ['desc', 'reason', 'handling', 'error', 'fehlermeldung', 'applied', 'injury', 'injuryDesc', 'returned', 'privacy'];
-  const productKeys = ['product', 'productName', 'article', 'articleNumber', 'item', 'lot', 'batch', 'udi', 'udiDi', 'qty', 'quantity', 'expiry', 'expiration', 'segment', 'productType'];
-  const descriptionEntries = descriptionKeys
-    .filter((key) => payload[key])
-    .map((key) => ({ label: payloadLabel(lang, key, key), value: payload[key] }));
+  const complaintEntries = complaintDescriptionEntries(complaint, language);
+  if (!complaintEntries.length) complaintEntries.push({ label: labels.description, value: '–' });
 
-  const remainingPayload = Object.entries(payload)
-    .filter(([key]) => !productKeys.includes(key) && !descriptionKeys.includes(key))
-    .map(([key, value]) => ({ label: payloadLabel(lang, key, key), value: (value ?? '').toString() }));
+  // Externe Reports sollen auf eine Seite passen: kompaktere Boxen und Header.
+  const compactBox = isExternal ? { padding: 7, spacing: 8, valueFontSize: 10, labelFontSize: 9 } : {};
+
+  drawSectionTitle(doc, sections.base, 1, { compact: isExternal });
+  drawKeyValue(doc, baseEntries, compactBox);
+
+  drawSectionTitle(doc, sections.product, 2, { compact: isExternal });
+  drawKeyValue(doc, productEntries, compactBox);
+
+  drawSectionTitle(doc, sections.complaint, 3, { compact: isExternal });
+  drawKeyValue(doc, complaintEntries, isExternal ? { ...compactBox, columns: 1 } : { columns: 1 });
 
   if (variant === 'internal') {
-    drawSectionTitle(doc, 'Stammdaten', { index: 1 });
-    drawKeyValueTable(doc, baseInfoEntries);
+    drawSectionTitle(doc, sections.analysis, 4);
+    const analysisEntries = internalAnalysisEntries(complaint, language);
+    drawKeyValue(doc, analysisEntries.length ? analysisEntries : [{ label: labels.internalEval, value: '–' }], { columns: 1 });
 
-    drawSectionTitle(doc, 'Produktdaten', { index: 2 });
-    drawKeyValueTable(doc, productEntries);
+    drawSectionTitle(doc, sections.actions, 5);
+    const actions = plannedActions(complaint) || '–';
+    const summary = qmSummaryForLang(complaint, language) || '–';
+    drawKeyValue(doc, [
+      { label: labels.actions, value: actions },
+      { label: labels.qmSummary, value: summary },
+    ], { columns: 1 });
 
-    drawSectionTitle(doc, 'Reklamationsbeschreibung', { index: 3 });
-    const complaintEntries = descriptionEntries.concat(remainingPayload);
-    drawKeyValueTable(doc, complaintEntries.length > 0 ? complaintEntries : [{ label: labelFor(lang, 'payload'), value: '–' }], { columns: 1 });
-
-    drawSectionTitle(doc, 'Interne Analyse', { index: 4 });
-    const analysisEntries = [];
-    if (departments.length > 0) {
-      analysisEntries.push({ label: labelFor(lang, 'departments'), value: departments.join(', ') });
-    }
-    const evalText = textForEvaluation(complaint, lang);
-    if (evalText) {
-      analysisEntries.push({ label: labelFor(lang, 'internalEvaluation'), value: evalText });
-    }
-    if (complaint.internalEvaluationCause) {
-      analysisEntries.push({ label: labelFor(lang, 'internalCause'), value: complaint.internalEvaluationCause });
-    }
-    drawKeyValueTable(doc, analysisEntries.length > 0 ? analysisEntries : [{ label: labelFor(lang, 'internalEvaluation'), value: '–' }], { columns: 1 });
-
-    drawSectionTitle(doc, 'Maßnahmen', { index: 5 });
-    const measuresEntries = [];
-    const actionText = plannedActions(complaint);
-    measuresEntries.push({ label: labels.actions, value: actionText || '–' });
-    const summaryText = qmSummaryForLang(complaint, lang);
-    if (summaryText) {
-      measuresEntries.push({ label: labels.qmSummary, value: summaryText });
-    }
-    drawKeyValueTable(doc, measuresEntries, { columns: 1 });
-
-    const uploads = Array.isArray(complaint.uploads) ? complaint.uploads : [];
-    if (uploads.length > 0) {
-      drawKeyValueTable(doc, [{ label: labelFor(lang, 'uploads'), value: uploads.map((u) => u.name || u.url || u.downloadUrl || 'Attachment').join('\n') }], { columns: 1 });
+    const uploads = Array.isArray(complaint?.uploads) ? complaint.uploads : [];
+    if (uploads.length) {
+      drawSectionTitle(doc, sections.attachments);
+      drawKeyValue(doc, [{ label: labels.uploads, value: uploads.map((u) => safe(u.name || u.url || u.downloadUrl || 'Attachment')).join('\n') }], { columns: 1 });
     }
 
-    drawSectionTitle(doc, 'Abschluss / Status', { index: 6 });
-    drawKeyValueTable(doc, [
-      { label: labelFor(lang, 'status'), value: statusText || '–' },
-      { label: labelFor(lang, 'decision'), value: complaint.decision || '–' },
-      { label: labelFor(lang, 'notes'), value: complaint.adminNotes || '–' },
+    drawSectionTitle(doc, sections.closure, 6);
+    drawKeyValue(doc, [
+      { label: labels.status, value: statusText || '–' },
+      { label: labels.decision, value: safe(complaint?.decision) || '–' },
+      { label: labels.notes, value: safe(complaint?.adminNotes) || '–' },
     ], { columns: 1 });
   } else {
-    drawSectionTitle(doc, 'Stammdaten', { index: 1 });
-    drawKeyValueTable(doc, baseInfoEntries);
-
-    drawSectionTitle(doc, 'Produktdaten', { index: 2 });
-    drawKeyValueTable(doc, productEntries);
-
-    drawSectionTitle(doc, 'Reklamationsbeschreibung', { index: 3 });
-    const complaintEntries = descriptionEntries.concat(remainingPayload);
-    drawKeyValueTable(doc, complaintEntries.length > 0 ? complaintEntries : [{ label: labelFor(lang, 'payload'), value: '–' }], { columns: 1 });
-
-    const summary = qmSummaryForLang(complaint, lang)
-      || 'Zusammenfassung wird bereitgestellt / Summary will be provided soon';
-    const actionText = plannedActions(complaint);
-
-    drawSectionTitle(doc, labels.measures, { index: 4 });
-    const measuresEntries = [
-      { label: labels.qmSummary, value: summary },
-      { label: labels.measures, value: actionText || '–' },
-    ];
-    drawKeyValueTable(doc, measuresEntries, { columns: 1 });
+    drawSectionTitle(doc, sections.actions, 4, { compact: true });
+    const actions = externalActionsBlock(complaint, language);
+    drawKeyValue(doc, actions, { ...compactBox, columns: 1 });
   }
 
   doc.end();
   await done;
-  const buffer = Buffer.concat(chunks);
-  const filename = `${variant}_report_${complaint.ticket || 'report'}_${lang}.pdf`;
+  return Buffer.concat(chunks);
+}
+
+function buildFilename(variant, lang, ticket) {
+  const safeTicket = safe(ticket) || 'report';
+  const langSuffix = (lang || 'de').toUpperCase();
+  const variantLabel = variant === 'internal' ? 'Internal' : 'External';
+  return `ComplaintReport_${variantLabel}_${safeTicket}_${langSuffix}.pdf`;
+}
+
+async function storeReport(buffer, { complaint, variant, lang }) {
+  const filename = buildFilename(variant, lang, complaint?.ticket);
   const stored = await storeGeneratedFile(buffer, {
-    ticket: complaint.ticket,
+    ticket: complaint?.ticket,
     filename,
     mime: 'application/pdf',
   });
-
-  return stored ? { ...stored, lang, variant } : null;
+  if (!stored?.downloadUrl) return null;
+  return { downloadUrl: stored.downloadUrl, filename, lang: resolveLang(lang), variant };
 }
 
-export async function generateComplaintReport(complaint, { lang = 'de' } = {}) {
-  return buildPdf(complaint, { lang, variant: 'internal' });
+async function generateSingleReport(complaint, variant, lang) {
+  const buffer = await buildReportBuffer({ complaint, variant, lang });
+  return storeReport(buffer, { complaint, variant, lang });
 }
 
-export async function generateInternalReport(complaint, { lang = 'de' } = {}) {
-  return buildPdf(complaint, { lang, variant: 'internal' });
-}
+export async function generateComplaintReports(complaint, { preferredLang } = {}) {
+  if (!complaint || Number(complaint.status) !== STATUS_CLOSED) return null;
 
-export async function generateExternalReport(complaint, { lang = 'de' } = {}) {
-  return buildPdf(complaint, { lang, variant: 'external' });
-}
+  const targetCustomerLang = resolveCustomerLang(complaint, preferredLang);
+  const requiredExternal = new Set(EXTERNAL_LANGUAGES);
+  requiredExternal.add(targetCustomerLang); // falls preferredLang en/de, Set sichert Mindestumfang
 
-export async function generateReportsForComplaint(complaint, { targetLangs = [] } = {}) {
-  const langs = (Array.isArray(targetLangs) && targetLangs.length > 0)
-    ? targetLangs
-    : ['de'];
-  const links = {};
-  for (const lang of langs) {
-    const normalized = normalizeLangValue(lang) || 'de';
-    const res = await generateComplaintReport(complaint, { lang: normalized });
-    if (res?.downloadUrl) links[normalized] = res.downloadUrl;
-  }
-  return links;
-}
+  const existingInternal = normalizeReportLinksMap(complaint.internalReportLinks || {});
+  const existingExternal = normalizeReportLinksMap(complaint.externalReportLinks || {});
 
-export async function generateDualReportsForComplaint(
-  complaint,
-  { preferredLang, includeFallbacks = true } = {},
-) {
-  const lang = resolveReportLanguage(complaint, { preferredLang, fallback: 'de' });
-  const targets = new Set([lang]);
-  if (includeFallbacks) {
-    if (lang !== 'en') targets.add('en');
-    if (lang !== 'de') targets.add('de');
+  const internalLinks = { ...existingInternal };
+  const externalLinks = { ...existingExternal };
+
+  // Intern: nur Deutsch, idempotent
+  if (!internalLinks[INTERNAL_LANGUAGE]) {
+    try {
+      const internal = await generateSingleReport(complaint, 'internal', INTERNAL_LANGUAGE);
+      if (internal?.downloadUrl) internalLinks[INTERNAL_LANGUAGE] = internal.downloadUrl;
+    } catch (err) {
+      console.error('[reporting] internal report failed', err?.message || err);
+    }
   }
 
-  const internalLinks = {};
-  const externalLinks = {};
-  for (const target of targets) {
+  // Extern: Deutsch & Englisch (mindestens)
+  for (const lang of requiredExternal) {
+    const resolved = resolveLang(lang);
+    if (externalLinks[resolved]) continue;
     try {
-      const internal = await generateInternalReport(complaint, { lang: target });
-      if (internal?.downloadUrl) internalLinks[target] = internal.downloadUrl;
+      const external = await generateSingleReport(complaint, 'external', resolved);
+      if (external?.downloadUrl) externalLinks[resolved] = external.downloadUrl;
     } catch (err) {
-      console.error('[reporting] internal report generation failed', target, err?.message || err);
-    }
-
-    try {
-      const external = await generateExternalReport(complaint, { lang: target });
-      if (external?.downloadUrl) externalLinks[target] = external.downloadUrl;
-    } catch (err) {
-      console.error('[reporting] external report generation failed', target, err?.message || err);
-    }
-
-    const needsFallback = !internalLinks[target] && !externalLinks[target];
-    if (needsFallback) {
-      const fallback = await buildFallbackReport(complaint, target);
-      if (fallback) internalLinks[target] = fallback;
+      console.error('[reporting] external report failed', resolved, err?.message || err);
     }
   }
 
   const normalizedInternal = normalizeReportLinksMap(internalLinks);
   const normalizedExternal = normalizeReportLinksMap(externalLinks);
-  const hasLinks = Object.keys(normalizedInternal).length > 0 || Object.keys(normalizedExternal).length > 0;
-
+  const hasLinks = Object.keys(normalizedInternal).length || Object.keys(normalizedExternal).length;
   if (!hasLinks) return null;
 
+  const defaultExternal = normalizedExternal[targetCustomerLang]
+    || normalizedExternal.de
+    || normalizedExternal.en
+    || Object.values(normalizedExternal)[0]
+    || null;
+
   return {
-    lang,
+    lang: targetCustomerLang,
     internalLinks: normalizedInternal,
     externalLinks: normalizedExternal,
+    defaultExternalLink: defaultExternal,
   };
 }
 
-async function buildFallbackReport(complaint, lang = 'de') {
-  const doc = new PDFDocument({ margin: 36 });
-  const chunks = [];
-  const done = new Promise((resolve, reject) => {
-    doc.on('data', (c) => chunks.push(c));
-    doc.on('end', () => resolve());
-    doc.on('error', reject);
-  });
-
-  doc.fontSize(16).text('Report konnte nicht erzeugt werden', { underline: true });
-  doc.moveDown();
-  doc.fontSize(12).text('Es gab einen Fehler beim Generieren des PDF-Reports. Dieser Platzhalter wurde automatisch erstellt, damit dennoch ein Download-Link verfügbar ist.');
-  if (complaint?.ticket) {
-    doc.moveDown();
-    doc.fontSize(12).text(`Ticket: ${complaint.ticket}`);
-  }
-
-  doc.end();
-  await done;
-
-  const buffer = Buffer.concat(chunks);
-  const stored = await storeGeneratedFile(buffer, {
-    ticket: complaint?.ticket,
-    filename: `fallback_report_${complaint?.ticket || 'report'}_${lang}.pdf`,
-    mime: 'application/pdf',
-    preferDataUrlFallback: true,
-  });
-
-  return stored?.downloadUrl || null;
+export function shouldGenerateReports(previousStatus, nextStatus) {
+  const prev = Number(previousStatus);
+  const next = Number(nextStatus);
+  return next === STATUS_CLOSED && prev !== STATUS_CLOSED;
 }

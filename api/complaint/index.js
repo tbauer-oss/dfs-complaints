@@ -11,7 +11,7 @@ import {
   complaintsOpen,      // () => []  (alle offenen)
   Status,              // enum/const mit SENT.., CLOSED (hier 6)
 } from '../../_lib/store.js';
-import { generateDualReportsForComplaint } from '../../_lib/reporting.js';
+import { generateComplaintReports, shouldGenerateReports } from '../../_lib/reporting.js';
 import { normalizeReportLinksMap } from '../../_lib/departments.js';
 
 function normBody(req) {
@@ -79,6 +79,7 @@ export default async function handler(req, res) {
 
     const c = await complaintGet(ticket);
     if (!c) return bad(res, 'not found', 404);
+    const previousStatus = c.status;
 
     // status optional, muss Zahl sein
     if (b.status !== undefined && b.status !== null && b.status !== '') {
@@ -99,14 +100,15 @@ export default async function handler(req, res) {
       c.reportLink = rl ?? null;
     }
 
-    if (c.status === Status.CLOSED) {
+    if (shouldGenerateReports(previousStatus, c.status)) {
       try {
-        const generated = await generateDualReportsForComplaint(c, { preferredLang: b.reportLang || b.reportLanguage });
+        const generated = await generateComplaintReports(c, { preferredLang: b.reportLang || b.reportLanguage });
         if (generated) {
           const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
           const mergedInternal = normalizeReportLinksMap({ ...(c.internalReportLinks || {}), ...(generated.internalLinks || {}) });
           const mergedReportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
-          const defaultLink = mergedExternal[generated.lang]
+          const defaultLink = generated.defaultExternalLink
+            || mergedExternal[generated.lang]
             || mergedExternal.de
             || mergedExternal.en
             || Object.values(mergedExternal)[0]
