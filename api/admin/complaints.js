@@ -940,36 +940,45 @@ export default async function handler(req, res) {
       }
 
       const shouldGenerateReports = generateReportsFlag || ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED);
+      const requireReportSuccess = generateReportsFlag;
 
       if (shouldGenerateReports) {
         const preferredLang = preferredReportLang || detectCustomerLang(account, c) || 'de';
         try {
           const generated = await generateDualReportsForComplaint(c, { preferredLang });
-          if (generated) {
-            const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
-            const mergedInternal = normalizeReportLinksMap({ ...(c.internalReportLinks || {}), ...(generated.internalLinks || {}) });
-            if (Object.keys(mergedExternal).length > 0) {
-              c.externalReportLinks = mergedExternal;
-              reportChanged = true;
-            }
-            if (Object.keys(mergedInternal).length > 0) {
-              c.internalReportLinks = mergedInternal;
-              reportChanged = true;
-            }
+          if (!generated) throw new Error('no reports returned');
 
-            const defaultLink = mergedExternal[preferredLang]
-              || mergedExternal.de
-              || mergedExternal.en
-              || Object.values(mergedExternal)[0]
-              || mergedInternal[preferredLang]
-              || mergedInternal.de
-              || mergedInternal.en
-              || Object.values(mergedInternal)[0];
-            if (defaultLink) c.reportLink = defaultLink;
-            c.reportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
+          const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
+          const mergedInternal = normalizeReportLinksMap({ ...(c.internalReportLinks || {}), ...(generated.internalLinks || {}) });
+          const hasExternal = Object.keys(mergedExternal).length > 0;
+          const hasInternal = Object.keys(mergedInternal).length > 0;
+
+          if (hasExternal) {
+            c.externalReportLinks = mergedExternal;
+            reportChanged = true;
+          }
+          if (hasInternal) {
+            c.internalReportLinks = mergedInternal;
+            reportChanged = true;
+          }
+
+          const defaultLink = mergedExternal[preferredLang]
+            || mergedExternal.de
+            || mergedExternal.en
+            || Object.values(mergedExternal)[0]
+            || mergedInternal[preferredLang]
+            || mergedInternal.de
+            || mergedInternal.en
+            || Object.values(mergedInternal)[0];
+          if (defaultLink) c.reportLink = defaultLink;
+          c.reportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
+
+          if (!defaultLink && !hasExternal && !hasInternal && requireReportSuccess) {
+            throw new Error('report generation returned no links');
           }
         } catch (err) {
           console.error('admin/complaints report generation failed', err?.message || err);
+          if (requireReportSuccess) return bad(res, 'report generation failed', 500);
         }
       }
 
