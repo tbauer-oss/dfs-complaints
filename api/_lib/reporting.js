@@ -722,9 +722,15 @@ export async function generateDualReportsForComplaint(
     }
   }
 
+  const normalizedInternal = normalizeReportLinksMap(internalLinks);
+  const normalizedExternal = normalizeReportLinksMap(externalLinks);
+  const hasLinks = Object.keys(normalizedInternal).length > 0 || Object.keys(normalizedExternal).length > 0;
+
+  if (!hasLinks) return null;
+
   return {
     lang,
-    internalLinks: normalizeReportLinksMap(internalLinks),
-    externalLinks: normalizeReportLinksMap(externalLinks),
+    internalLinks: normalizedInternal,
+    externalLinks: normalizedExternal,
   };
 }
