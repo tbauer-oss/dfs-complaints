@@ -12,6 +12,7 @@ class Complaint {
   final Map<String, String>? internalReportLinks;
   final bool isGoodwill;
   final String? qmCustomerSummary;
+  final String? qmMeasures;
   final List<String> internalDepartments; // betroffene interne Abteilungen
   final String? internalEvaluationTextDe; // interne Bewertung (Deutsch)
   final String? internalEvaluationCause; // vermutete Ursache
@@ -43,6 +44,7 @@ class Complaint {
     this.internalReportLinks,
     this.isGoodwill = false,
     this.qmCustomerSummary,
+    this.qmMeasures,
     List<String>? internalDepartments,
     this.internalEvaluationTextDe,
     this.internalEvaluationCause,
@@ -192,6 +194,7 @@ class Complaint {
           : null,
       isGoodwill: _parseBool(j['isGoodwill'] ?? j['goodwill'] ?? j['isKulanz']),
       qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
+      qmMeasures: (j['qmMeasures'] ?? j['qmMeasures_de'])?.toString(),
       internalDepartments: _parseStringList(j['internalDepartments']),
       internalEvaluationTextDe: (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'])
               ?.toString()
