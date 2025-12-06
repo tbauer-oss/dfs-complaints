@@ -11303,9 +11303,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-
-  }
-
   Future<void> _editRep(Rep r) async {
     _repFirstCtrl.text = r.firstName;
     _repLastCtrl.text  = r.lastName;
