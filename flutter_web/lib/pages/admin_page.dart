@@ -9566,12 +9566,6 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
   Widget _buildAllComplaintsPanel() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
