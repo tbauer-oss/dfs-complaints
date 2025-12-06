@@ -14611,6 +14611,18 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
         ticket: widget.c.ticket,
         generateReports: true,
       );
+
+
+      final generatedLinksPresent =
+          (updated.reportLink?.trim().isNotEmpty ?? false) ||
+              ((updated.reportLinks?.isNotEmpty ?? false)) ||
+              ((updated.externalReportLinks?.isNotEmpty ?? false)) ||
+              ((updated.internalReportLinks?.isNotEmpty ?? false));
+
+      if (!generatedLinksPresent) {
+        throw 'Keine Report-Links wurden erzeugt.';
+      }
+
       setState(() {
         widget.c.reportLink = updated.reportLink;
         widget.c.reportLinks = updated.reportLinks;
