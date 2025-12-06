@@ -14456,6 +14456,40 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
   }
 
+  Future<void> _generateReports() async {
+    if (_isPortalUser || _isPortalReadonly) return;
+
+    setState(() => _busy = true);
+    try {
+      final updated = await widget.api.adminComplaintUpdate(
+        ticket: widget.c.ticket,
+        generateReports: true,
+      );
+      setState(() {
+        widget.c.reportLink = updated.reportLink;
+        widget.c.reportLinks = updated.reportLinks;
+        widget.c.externalReportLinks = updated.externalReportLinks;
+        widget.c.internalReportLinks = updated.internalReportLinks;
+        widget.c.status = updated.status;
+        widget.c.decision = updated.decision;
+        widget.c.history = updated.history;
+        _reportCtrl.text = updated.reportLink ?? '';
+      });
+
+      _notifyChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reports generiert.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _deleteReports() async {
     if (_isPortalUser || _isPortalReadonly) return;
 
@@ -16406,6 +16440,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         buildFieldWithAction(field: internalField, action: internalAction),
                         const SizedBox(height: 16),
                         buildFieldWithAction(field: reportField, action: reportAction),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: (_busy || !canEditMeta) ? null : _generateReports,
+                            icon: const Icon(Icons.picture_as_pdf_outlined),
+                            label: const Text('Reports generieren'),
+                          ),
+                        ),
                         const SizedBox(height: 10),
                         if ((widget.c.externalReportLinks?.isNotEmpty ?? false) ||
                             (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
@@ -17700,6 +17743,7 @@ class AdminApi {
     String? decision,
     String? reportLink,
     bool? deleteReports,
+    bool? generateReports,
     String? internalNo,
     String? notes,
     bool? sendPush,
@@ -17716,6 +17760,7 @@ class AdminApi {
     if (decision != null) body['decision'] = decision;
     if (reportLink != null) body['reportLink'] = reportLink;
     if (deleteReports == true) body['deleteReports'] = true;
+    if (generateReports == true) body['generateReports'] = true;
     if (internalNo != null) body['internalNo'] = internalNo;
     if (notes != null) body['notes'] = notes;
     if (sendPush != null) body['sendPush'] = sendPush;
