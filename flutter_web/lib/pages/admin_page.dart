@@ -4652,6 +4652,8 @@ class _AdminPageState extends State<AdminPage> {
     switch (view) {
       case _AdminView.menu:
         return null;
+      case _AdminView.complaintList:
+        return 'complaintList';
       case _AdminView.open:
         return 'open';
       case _AdminView.all:
@@ -4698,6 +4700,7 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.menu,
         _AdminView.open,
         _AdminView.all,
+        _AdminView.complaintList,
         _AdminView.pending,
         _AdminView.activity,
         _AdminView.systemHealth,
@@ -4707,6 +4710,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.menu,
       _AdminView.open,
       _AdminView.all,
+      _AdminView.complaintList,
       _AdminView.pending,
       _AdminView.users,
       _AdminView.reps,
