@@ -1191,6 +1191,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     required String optHandlingCredit,
     required String optHandlingRework,
   }) {
+    final theme = Theme.of(context);
     Widget wrap(String id, Widget child) => anchored ? _wizardAnchor(id, child) : child;
 
     final sections = <({String id, Widget widget})>[];
@@ -1402,7 +1403,17 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Checkbox(value: privacy, onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; })),
+              Checkbox(
+                value: privacy,
+                onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; }),
+                visualDensity: VisualDensity.compact,
+                checkColor: theme.colorScheme.onPrimary,
+                fillColor: MaterialStateProperty.resolveWith((states) {
+                  if (states.contains(MaterialState.selected)) return theme.colorScheme.primary;
+                  if (states.contains(MaterialState.hovered)) return theme.colorScheme.primaryContainer;
+                  return theme.colorScheme.surfaceVariant;
+                }),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -2239,26 +2250,38 @@ class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
     final isIntro = step.id == 'intro';
     final isLast = _active == widget.steps.length - 1;
     final realSteps = widget.steps.where((s) => s.id != 'intro').toList(growable: false);
+    final compactStepper = MediaQuery.sizeOf(context).width < 720;
 
     Widget buildStepper() {
       if (realSteps.isEmpty) return const SizedBox.shrink();
+      final pills = <Widget>[
+        for (var i = 0; i < realSteps.length; i++) ...[
+          _WizardStepPill(
+            step: realSteps[i],
+            stepIndex: widget.steps.indexOf(realSteps[i]),
+            active: _active == widget.steps.indexOf(realSteps[i]),
+            compact: compactStepper,
+            theme: theme,
+          ),
+          if (i != realSteps.length - 1) SizedBox(width: compactStepper ? 8 : 10),
+        ]
+      ];
+
+      if (compactStepper) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 2),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: pills,
+          ),
+        );
+      }
+
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.only(top: 10, bottom: 2),
-        child: Row(
-          children: [
-            for (var i = 0; i < realSteps.length; i++) ...[
-              _WizardStepPill(
-                step: realSteps[i],
-                stepIndex: widget.steps.indexOf(realSteps[i]),
-                active: _active == widget.steps.indexOf(realSteps[i]),
-                compact: false,
-                theme: theme,
-              ),
-              if (i != realSteps.length - 1) const SizedBox(width: 10),
-            ],
-          ],
-        ),
+        child: Row(children: pills),
       );
     }
 
