@@ -720,6 +720,12 @@ export async function generateDualReportsForComplaint(
     } catch (err) {
       console.error('[reporting] external report generation failed', target, err?.message || err);
     }
+
+    const needsFallback = !internalLinks[target] && !externalLinks[target];
+    if (needsFallback) {
+      const fallback = await buildFallbackReport(complaint, target);
+      if (fallback) internalLinks[target] = fallback;
+    }
   }
 
   const normalizedInternal = normalizeReportLinksMap(internalLinks);
@@ -733,4 +739,35 @@ export async function generateDualReportsForComplaint(
     internalLinks: normalizedInternal,
     externalLinks: normalizedExternal,
   };
+}
+
+async function buildFallbackReport(complaint, lang = 'de') {
+  const doc = new PDFDocument({ margin: 36 });
+  const chunks = [];
+  const done = new Promise((resolve, reject) => {
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('end', () => resolve());
+    doc.on('error', reject);
+  });
+
+  doc.fontSize(16).text('Report konnte nicht erzeugt werden', { underline: true });
+  doc.moveDown();
+  doc.fontSize(12).text('Es gab einen Fehler beim Generieren des PDF-Reports. Dieser Platzhalter wurde automatisch erstellt, damit dennoch ein Download-Link verfügbar ist.');
+  if (complaint?.ticket) {
+    doc.moveDown();
+    doc.fontSize(12).text(`Ticket: ${complaint.ticket}`);
+  }
+
+  doc.end();
+  await done;
+
+  const buffer = Buffer.concat(chunks);
+  const stored = await storeGeneratedFile(buffer, {
+    ticket: complaint?.ticket,
+    filename: `fallback_report_${complaint?.ticket || 'report'}_${lang}.pdf`,
+    mime: 'application/pdf',
+    preferDataUrlFallback: true,
+  });
+
+  return stored?.downloadUrl || null;
 }
