@@ -24,7 +24,7 @@ import {
   normalizeReportLinksMap,
 } from '../_lib/departments.js';
 import { translateTexts } from '../_lib/translate.js';
-import { generateDualReportsForComplaint } from '../_lib/reporting.js';
+import { generateComplaintReports, shouldGenerateReports } from '../_lib/reporting.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -939,13 +939,13 @@ export default async function handler(req, res) {
         });
       }
 
-      const shouldGenerateReports = generateReportsFlag || ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED);
+      const triggerReportGeneration = generateReportsFlag || shouldGenerateReports(prevStatus, c.status);
       const requireReportSuccess = generateReportsFlag;
 
-      if (shouldGenerateReports) {
+      if (triggerReportGeneration) {
         const preferredLang = preferredReportLang || detectCustomerLang(account, c) || 'de';
         try {
-          const generated = await generateDualReportsForComplaint(c, { preferredLang });
+          const generated = await generateComplaintReports(c, { preferredLang });
           if (!generated) throw new Error('no reports returned');
 
           const mergedExternal = normalizeReportLinksMap({ ...(c.externalReportLinks || {}), ...(generated.externalLinks || {}) });
@@ -962,7 +962,8 @@ export default async function handler(req, res) {
             reportChanged = true;
           }
 
-          const defaultLink = mergedExternal[preferredLang]
+          const defaultLink = generated.defaultExternalLink
+            || mergedExternal[preferredLang]
             || mergedExternal.de
             || mergedExternal.en
             || Object.values(mergedExternal)[0]

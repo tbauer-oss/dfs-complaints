@@ -26,7 +26,7 @@ import {
 import { sendMail } from "../_lib/mailer.js";
 import { blobUploadsEnabled, processIncomingFiles } from "../_lib/uploads.js";
 import { sendComplaintStatusPush } from '../_lib/push.js';
-import { generateDualReportsForComplaint } from '../_lib/reporting.js';
+import { generateComplaintReports, shouldGenerateReports } from '../_lib/reporting.js';
 import { normalizeReportLinksMap } from '../_lib/departments.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
@@ -221,9 +221,9 @@ export default async function handler(req, res) {
 
     const preferredLang = body?.reportLang || body?.reportLanguage;
 
-    if (newStatus === Status.CLOSED) {
+    if (shouldGenerateReports(oldStatus, newStatus)) {
       try {
-        const generated = await generateDualReportsForComplaint(updated, { preferredLang });
+        const generated = await generateComplaintReports(updated, { preferredLang });
         if (generated) {
           const mergedExternal = normalizeReportLinksMap({
             ...(updated.externalReportLinks || {}),
@@ -237,7 +237,8 @@ export default async function handler(req, res) {
             ...(updated.reportLinks || {}),
             ...(generated.externalLinks || {}),
           });
-          const defaultLink = mergedExternal[generated.lang]
+          const defaultLink = generated.defaultExternalLink
+            || mergedExternal[generated.lang]
             || mergedExternal.de
             || mergedExternal.en
             || Object.values(mergedExternal)[0]
