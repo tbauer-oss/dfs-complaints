@@ -188,6 +188,7 @@ export async function storeGeneratedFile(buffer, {
   filename,
   mime = 'application/octet-stream',
   allowDataUrlFallback = true,
+  preferDataUrlFallback = false,
 } = {}) {
   if (!buffer || !buffer.length) return null;
 
@@ -198,17 +199,19 @@ export async function storeGeneratedFile(buffer, {
     uploadedAt: Date.now(),
   };
 
-  try {
-    const blob = await uploadBuffer(buffer, { ticket, filename, mime });
-    if (blob?.url) entry.url = blob.url;
-    if (blob?.downloadUrl) entry.downloadUrl = blob.downloadUrl;
-    if (blob?.blobPath) entry.blobPath = blob.blobPath;
-    if (blob?.size != null) entry.size = blob.size;
-    if (blob?.uploadedAt != null) entry.uploadedAt = blob.uploadedAt;
-    if (entry.downloadUrl) return entry;
-  } catch (err) {
-    console.error('[uploads] storeGeneratedFile blob upload failed', err?.message || err);
-    if (!allowDataUrlFallback) return null;
+  if (!preferDataUrlFallback) {
+    try {
+      const blob = await uploadBuffer(buffer, { ticket, filename, mime });
+      if (blob?.url) entry.url = blob.url;
+      if (blob?.downloadUrl) entry.downloadUrl = blob.downloadUrl;
+      if (blob?.blobPath) entry.blobPath = blob.blobPath;
+      if (blob?.size != null) entry.size = blob.size;
+      if (blob?.uploadedAt != null) entry.uploadedAt = blob.uploadedAt;
+      if (entry.downloadUrl) return entry;
+    } catch (err) {
+      console.error('[uploads] storeGeneratedFile blob upload failed', err?.message || err);
+      if (!allowDataUrlFallback) return null;
+    }
   }
 
   if (allowDataUrlFallback) {

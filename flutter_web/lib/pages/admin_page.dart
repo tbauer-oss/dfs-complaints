@@ -14612,7 +14612,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
         generateReports: true,
       );
 
-
       final generatedLinksPresent =
           (updated.reportLink?.trim().isNotEmpty ?? false) ||
               ((updated.reportLinks?.isNotEmpty ?? false)) ||
