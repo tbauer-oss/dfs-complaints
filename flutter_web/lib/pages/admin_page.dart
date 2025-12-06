@@ -445,6 +445,15 @@ class _AdminPageState extends State<AdminPage> {
     return result;
   }
 
+  bool _hasSalesTilePermission(Map<String, String> permissions) {
+    return permissions.entries.any((entry) {
+      final key = entry.key.toLowerCase();
+      if (!key.contains('sales')) return false;
+      final perm = _normalizeTilePermission(entry.value);
+      return perm == 'write';
+    });
+  }
+
   bool _tileVisibleForActor(String tileId) {
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
@@ -700,12 +709,8 @@ class _AdminPageState extends State<AdminPage> {
       widget.api.portalProfile?['canEditSales'],
       widget.api.portalProfile?['salesAllowed'],
     ];
-    _portalIsSales = profileSalesFlags.any(_isTruthy);
-    final profileTilePermissions =
-        widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
-    _portalTilePermissions
-      ..clear()
-      ..addAll(_sanitizeTilePermissionMap(profileTilePermissions));
+    final hasSalesTilePermission = _hasSalesTilePermission(_portalTilePermissions);
+    _portalIsSales = profileSalesFlags.any(_isTruthy) || hasSalesTilePermission;
     _custCountry = _defaultCountry;
     _bulkInternalAllCtrl.text = _internalNumberPrefix();
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
