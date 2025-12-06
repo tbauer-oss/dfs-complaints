@@ -960,7 +960,11 @@ export default async function handler(req, res) {
             const defaultLink = mergedExternal[preferredLang]
               || mergedExternal.de
               || mergedExternal.en
-              || Object.values(mergedExternal)[0];
+              || Object.values(mergedExternal)[0]
+              || mergedInternal[preferredLang]
+              || mergedInternal.de
+              || mergedInternal.en
+              || Object.values(mergedInternal)[0];
             if (defaultLink) c.reportLink = defaultLink;
             c.reportLinks = normalizeReportLinksMap({ ...(c.reportLinks || {}), ...(generated.externalLinks || {}) });
           }
