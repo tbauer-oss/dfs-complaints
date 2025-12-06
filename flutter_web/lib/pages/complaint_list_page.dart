@@ -142,6 +142,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   ComplaintFilterModel _filters = const ComplaintFilterModel();
   String _sortColumn = 'receivedAt';
   bool _sortAscending = false;
+  bool _filtersExpanded = false;
   Uint8List? _logoBytes;
 
   static const List<(String, String)> _columnDefs = [
@@ -286,16 +287,27 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           child: Card(
             elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
-                  CircleAvatar(backgroundColor: color.withOpacity(.12), foregroundColor: color, child: Icon(icon)),
-                  const SizedBox(width: 12),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(title, style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
-                    const SizedBox(height: 4),
-                    Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  ]),
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: color.withOpacity(.12),
+                    foregroundColor: color,
+                    child: Icon(icon, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(value, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -309,8 +321,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         value: e.value.toDouble(),
         color: colors[i % colors.length],
         title: e.key,
-        radius: 34,
-        titleStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        radius: 28,
+        titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
       );
     }).toList();
 
@@ -324,15 +336,30 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           child: Card(
             elevation: 0,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Durchschnittliche Bearbeitungszeit', style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+                  Text(
+                    'Durchschnittliche Bearbeitungszeit',
+                    style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${avg.toStringAsFixed(1)} Tage',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                  ),
                   const SizedBox(height: 6),
-                  Text('${avg.toStringAsFixed(1)} Tage', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 6),
-                  SizedBox(height: 90, child: PieChart(PieChartData(sections: sections, centerSpaceRadius: 22, sectionsSpace: 2))),
+                  SizedBox(
+                    height: 78,
+                    child: PieChart(
+                      PieChartData(
+                        sections: sections,
+                        centerSpaceRadius: 18,
+                        sectionsSpace: 2,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -365,100 +392,181 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         .toList()
       ..sort();
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+    const denseDecoration = InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10));
+
+    Widget summaryChip(String label) {
+      return Chip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
+    }
+
+    final summary = <Widget>[];
+    if (_filters.statuses.isNotEmpty) {
+      summary.add(summaryChip('Status: ${_filters.statuses.join(', ')}'));
+    }
+    if (_filters.productGroup.isNotEmpty) {
+      summary.add(summaryChip('Produktgruppe: ${_filters.productGroup}'));
+    }
+    if (_filters.customer.isNotEmpty) {
+      summary.add(summaryChip('Kunde: ${_filters.customer}'));
+    }
+    if (_filters.department.isNotEmpty) {
+      summary.add(summaryChip('Abteilung: ${_filters.department}'));
+    }
+    if (_filters.goodwill != null) {
+      summary.add(summaryChip('Kulanz: ${_filters.goodwill! ? 'Ja' : 'Nein'}'));
+    }
+    if (_filters.dateRange != null) {
+      summary.add(summaryChip(
+          'Datum: ${DateFormat.yMd().format(_filters.dateRange!.start)} – ${DateFormat.yMd().format(_filters.dateRange!.end)}'));
+    }
+
+    final buttonStyle = OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      minimumSize: const Size(0, 38),
+      visualDensity: VisualDensity.compact,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 280,
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              labelText: 'Globale Suche',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() => _searchCtrl.clear())),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Globale Suche',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => setState(() => _searchCtrl.clear()),
+                      tooltip: 'Suche zurücksetzen',
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
             ),
-            onChanged: (_) => setState(() {}),
-          ),
-        ),
-        SizedBox(
-          width: 220,
-          child: InputDecorator(
-            decoration: const InputDecoration(labelText: 'Status (Mehrfachauswahl)'),
-            child: Wrap(
-              spacing: 6,
-              children: statuses
-                  .map((s) => FilterChip(
-                        label: Text(s),
-                        selected: _filters.statuses.contains(s),
-                        onSelected: (sel) {
-                          final set = {..._filters.statuses};
-                          sel ? set.add(s) : set.remove(s);
-                          setState(() => _filters = _filters.copyWith(statuses: set));
-                        },
-                      ))
-                  .toList(),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
+              icon: Icon(_filtersExpanded ? Icons.expand_less : Icons.filter_list),
+              label: Text(_filtersExpanded ? 'Filter ausblenden' : 'Filter anzeigen'),
             ),
-          ),
+          ],
         ),
-        SizedBox(
-          width: 200,
-          child: DropdownButtonFormField<String>(
-            value: _filters.productGroup.isEmpty ? null : _filters.productGroup,
-            items: [const DropdownMenuItem(value: '', child: Text('Alle Produktgruppen')),
-              ...productGroups.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+        const SizedBox(height: 6),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 200),
+          crossFadeState: _filtersExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          firstChild: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              SizedBox(
+                width: 220,
+                child: InputDecorator(
+                  decoration: denseDecoration.copyWith(labelText: 'Status (Mehrfachauswahl)'),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: statuses
+                        .map((s) => FilterChip(
+                              label: Text(s),
+                              visualDensity: VisualDensity.compact,
+                              labelStyle: const TextStyle(fontSize: 12),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              selected: _filters.statuses.contains(s),
+                              onSelected: (sel) {
+                                final set = {..._filters.statuses};
+                                sel ? set.add(s) : set.remove(s);
+                                setState(() => _filters = _filters.copyWith(statuses: set));
+                              },
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: DropdownButtonFormField<String>(
+                  value: _filters.productGroup.isEmpty ? null : _filters.productGroup,
+                  items: [const DropdownMenuItem(value: '', child: Text('Alle Produktgruppen')),
+                    ...productGroups.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+                  ],
+                  onChanged: (v) => setState(() => _filters = _filters.copyWith(productGroup: v ?? '')),
+                  decoration: denseDecoration.copyWith(labelText: 'Produktgruppe'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: DropdownButtonFormField<String>(
+                  value: _filters.customer.isEmpty ? null : _filters.customer,
+                  items: [const DropdownMenuItem(value: '', child: Text('Alle Kunden')),
+                    ...customers.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                  ],
+                  onChanged: (v) => setState(() => _filters = _filters.copyWith(customer: v ?? '')),
+                  decoration: denseDecoration.copyWith(labelText: 'Kunde'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: DropdownButtonFormField<String>(
+                  value: _filters.department.isEmpty ? null : _filters.department,
+                  items: [const DropdownMenuItem(value: '', child: Text('Alle Abteilungen')),
+                    ...departments.map((d) => DropdownMenuItem(value: d, child: Text(d))),
+                  ],
+                  onChanged: (v) => setState(() => _filters = _filters.copyWith(department: v ?? '')),
+                  decoration: denseDecoration.copyWith(labelText: 'Betroffene Abteilung'),
+                ),
+              ),
+              SizedBox(
+                width: 150,
+                child: DropdownButtonFormField<bool>(
+                  value: _filters.goodwill,
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('Kulanz: alle')),
+                    DropdownMenuItem(value: true, child: Text('Kulanz: Ja')),
+                    DropdownMenuItem(value: false, child: Text('Kulanz: Nein')),
+                  ],
+                  onChanged: (v) => setState(() => _filters = _filters.copyWith(goodwill: v, goodwillSet: true)),
+                  decoration: denseDecoration.copyWith(labelText: 'Kulanz'),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _pickDateRange,
+                icon: const Icon(Icons.date_range_outlined),
+                style: buttonStyle,
+                label: Text(_filters.dateRange == null
+                    ? 'Datum Von–Bis'
+                    : '${DateFormat.yMd().format(_filters.dateRange!.start)} – ${DateFormat.yMd().format(_filters.dateRange!.end)}'),
+              ),
+              if (_filters.dateRange != null)
+                TextButton(
+                  onPressed: () => setState(() => _filters = _filters.copyWith(clearDate: true)),
+                  child: const Text('Datumsfilter entfernen'),
+                ),
             ],
-            onChanged: (v) => setState(() => _filters = _filters.copyWith(productGroup: v ?? '')),
-            decoration: const InputDecoration(labelText: 'Produktgruppe'),
+          ),
+          secondChild: Align(
+            alignment: Alignment.centerLeft,
+            child: summary.isEmpty
+                ? const Text('Keine weiteren Filter aktiv')
+                : Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: summary,
+                  ),
           ),
         ),
-        SizedBox(
-          width: 200,
-          child: DropdownButtonFormField<String>(
-            value: _filters.customer.isEmpty ? null : _filters.customer,
-            items: [const DropdownMenuItem(value: '', child: Text('Alle Kunden')),
-              ...customers.map((c) => DropdownMenuItem(value: c, child: Text(c))),
-            ],
-            onChanged: (v) => setState(() => _filters = _filters.copyWith(customer: v ?? '')),
-            decoration: const InputDecoration(labelText: 'Kunde'),
-          ),
-        ),
-        SizedBox(
-          width: 200,
-          child: DropdownButtonFormField<String>(
-            value: _filters.department.isEmpty ? null : _filters.department,
-            items: [const DropdownMenuItem(value: '', child: Text('Alle Abteilungen')),
-              ...departments.map((d) => DropdownMenuItem(value: d, child: Text(d))),
-            ],
-            onChanged: (v) => setState(() => _filters = _filters.copyWith(department: v ?? '')),
-            decoration: const InputDecoration(labelText: 'Betroffene Abteilung'),
-          ),
-        ),
-        SizedBox(
-          width: 160,
-          child: DropdownButtonFormField<bool>(
-            value: _filters.goodwill,
-            items: const [
-              DropdownMenuItem(value: null, child: Text('Kulanz: alle')),
-              DropdownMenuItem(value: true, child: Text('Kulanz: Ja')),
-              DropdownMenuItem(value: false, child: Text('Kulanz: Nein')),
-            ],
-            onChanged: (v) => setState(() => _filters = _filters.copyWith(goodwill: v, goodwillSet: true)),
-            decoration: const InputDecoration(labelText: 'Kulanz'),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: _pickDateRange,
-          icon: const Icon(Icons.date_range_outlined),
-          label: Text(_filters.dateRange == null
-              ? 'Datum Von–Bis'
-              : '${DateFormat.yMd().format(_filters.dateRange!.start)} – ${DateFormat.yMd().format(_filters.dateRange!.end)}'),
-        ),
-        if (_filters.dateRange != null)
-          TextButton(
-            onPressed: () => setState(() => _filters = _filters.copyWith(clearDate: true)),
-            child: const Text('Datumsfilter entfernen'),
-          ),
       ],
     );
   }
