@@ -406,6 +406,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   Widget _buildFilters(List<ComplaintListItem> items) {
+    final theme = Theme.of(context);
     final statuses = items.map((e) => e.status).toSet().toList()..sort();
     final productGroups = items.map((e) => e.productGroup).where((e) => e.isNotEmpty).toSet().toList()..sort();
     final customers = items.map((e) => e.customer).where((e) => e.isNotEmpty).toSet().toList()..sort();
@@ -505,9 +506,16 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
                   )
                   .toList(),
               onSelected: _toggleColumnVisibility,
-              child: TextButton.icon(
-                icon: const Icon(Icons.view_column_outlined),
-                label: const Text('Spalten'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.view_column_outlined, color: theme.colorScheme.primary),
+                    const SizedBox(width: 6),
+                    const Text('Spalten'),
+                  ],
+                ),
               ),
             ),
           ],
