@@ -235,21 +235,73 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     return _columnDefs.firstWhere((c) => visible.contains(c.$2)).$2;
   }
 
+  void _setColumnVisibility(String columnKey, bool visible) {
+    final next = {..._visibleColumns};
+    if (!visible && next.length == 1) return;
+
+    if (visible) {
+      next.add(columnKey);
+    } else {
+      next.remove(columnKey);
+    }
+
+    _visibleColumns = next;
+    if (!_visibleColumns.contains(_sortColumn)) {
+      _sortColumn = _firstVisibleColumn(_visibleColumns);
+      _sortAscending = false;
+    }
+  }
+
   void _toggleColumnVisibility(String columnKey) {
-    setState(() {
-      final next = {..._visibleColumns};
-      if (next.contains(columnKey)) {
-        if (next.length == 1) return;
-        next.remove(columnKey);
-      } else {
-        next.add(columnKey);
-      }
-      _visibleColumns = next;
-      if (!_visibleColumns.contains(_sortColumn)) {
-        _sortColumn = _firstVisibleColumn(_visibleColumns);
-        _sortAscending = false;
-      }
-    });
+    setState(() => _setColumnVisibility(columnKey, !_visibleColumns.contains(columnKey)));
+  }
+
+  Future<void> _openColumnPicker() async {
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Spalten auswählen'),
+          content: SizedBox(
+            width: 360,
+            height: 420,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
+              child: StatefulBuilder(
+                builder: (context, setInnerState) {
+                  return ListView(
+                    children: _columnDefs
+                        .map(
+                          (c) => CheckboxListTile(
+                            value: _visibleColumns.contains(c.$2),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() => _setColumnVisibility(c.$2, value));
+                              setInnerState(() {});
+                            },
+                            dense: true,
+                            title: Text(
+                              c.$1,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Fertig'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   List<ComplaintListItem> get _filteredItems {
@@ -521,33 +573,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               label: Text(_filtersExpanded ? 'Filter ausblenden' : 'Filter anzeigen'),
             ),
             const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              tooltip: 'Spalten ein- oder ausblenden',
-              position: PopupMenuPosition.under,
-              itemBuilder: (context) => _columnDefs
-                  .map(
-                    (c) => CheckedPopupMenuItem<String>(
-                      value: c.$2,
-                      checked: _visibleColumns.contains(c.$2),
-                      child: SizedBox(
-                        width: 240,
-                        child: Text(c.$1, overflow: TextOverflow.ellipsis),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onSelected: _toggleColumnVisibility,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.view_column_outlined, color: theme.colorScheme.primary),
-                    const SizedBox(width: 6),
-                    const Text('Spalten'),
-                  ],
-                ),
-              ),
+            TextButton.icon(
+              onPressed: _openColumnPicker,
+              icon: Icon(Icons.view_column_outlined, color: theme.colorScheme.primary),
+              label: const Text('Spalten'),
+              style: buttonStyle,
             ),
           ],
         ),
