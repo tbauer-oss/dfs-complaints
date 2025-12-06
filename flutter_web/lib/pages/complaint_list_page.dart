@@ -415,7 +415,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         .toList()
       ..sort();
 
-    const denseDecoration = InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10));
+    const denseDecoration = InputDecoration(
+      isDense: true,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    );
 
     Widget summaryChip(String label) {
       return Chip(
