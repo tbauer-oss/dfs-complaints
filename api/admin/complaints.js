@@ -518,11 +518,17 @@ export default async function handler(req, res) {
         body?.sendPush === 'true' ||
         body?.sendPush === 1 ||
         body?.sendPush === '1';
+      const generateReportsFlag =
+        body?.generateReports === true ||
+        body?.generateReports === 'true' ||
+        body?.generateReports === 1 ||
+        body?.generateReports === '1';
       const deleteReportsFlag =
         body?.deleteReports === true ||
         body?.deleteReports === 'true' ||
         body?.deleteReports === 1 ||
         body?.deleteReports === '1';
+      const preferredReportLang = normalizeLangValue(body?.reportLang || body?.reportLanguage);
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
@@ -933,8 +939,10 @@ export default async function handler(req, res) {
         });
       }
 
-      if ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED) {
-        const preferredLang = detectCustomerLang(account, c) || 'de';
+      const shouldGenerateReports = generateReportsFlag || ((statusChanged || c.status === Status.CLOSED) && c.status === Status.CLOSED);
+
+      if (shouldGenerateReports) {
+        const preferredLang = preferredReportLang || detectCustomerLang(account, c) || 'de';
         try {
           const generated = await generateDualReportsForComplaint(c, { preferredLang });
           if (generated) {
