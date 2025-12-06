@@ -707,10 +707,19 @@ export async function generateDualReportsForComplaint(
   const internalLinks = {};
   const externalLinks = {};
   for (const target of targets) {
-    const internal = await generateInternalReport(complaint, { lang: target });
-    if (internal?.downloadUrl) internalLinks[target] = internal.downloadUrl;
-    const external = await generateExternalReport(complaint, { lang: target });
-    if (external?.downloadUrl) externalLinks[target] = external.downloadUrl;
+    try {
+      const internal = await generateInternalReport(complaint, { lang: target });
+      if (internal?.downloadUrl) internalLinks[target] = internal.downloadUrl;
+    } catch (err) {
+      console.error('[reporting] internal report generation failed', target, err?.message || err);
+    }
+
+    try {
+      const external = await generateExternalReport(complaint, { lang: target });
+      if (external?.downloadUrl) externalLinks[target] = external.downloadUrl;
+    } catch (err) {
+      console.error('[reporting] external report generation failed', target, err?.message || err);
+    }
   }
 
   return {

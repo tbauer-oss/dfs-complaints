@@ -240,7 +240,11 @@ export default async function handler(req, res) {
           const defaultLink = mergedExternal[generated.lang]
             || mergedExternal.de
             || mergedExternal.en
-            || Object.values(mergedExternal)[0];
+            || Object.values(mergedExternal)[0]
+            || mergedInternal[generated.lang]
+            || mergedInternal.de
+            || mergedInternal.en
+            || Object.values(mergedInternal)[0];
 
           updated = await complaintUpdate(ticket, {
             externalReportLinks: mergedExternal,
