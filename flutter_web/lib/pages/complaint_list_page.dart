@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -797,19 +799,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     await Printing.sharePdf(bytes: await doc.save(), filename: 'reklamationsliste.pdf');
   }
 
-  void _handleDrag(DragUpdateDetails details) {
-    if (_verticalController.hasClients) {
-      final pos = _verticalController.position;
-      final target = (pos.pixels - details.delta.dy).clamp(pos.minScrollExtent, pos.maxScrollExtent);
-      _verticalController.jumpTo(target);
-    }
-    if (_horizontalController.hasClients) {
-      final pos = _horizontalController.position;
-      final target = (pos.pixels - details.delta.dx).clamp(pos.minScrollExtent, pos.maxScrollExtent);
-      _horizontalController.jumpTo(target);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -836,8 +825,15 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
             _buildKpiCards(theme, items),
             const SizedBox(height: 12),
             Expanded(
-              child: GestureDetector(
-                onPanUpdate: _handleDrag,
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: const {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                    PointerDeviceKind.stylus,
+                  },
+                ),
                 child: Column(
                   children: [
                     _buildDataTableHeader(theme),
