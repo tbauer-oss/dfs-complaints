@@ -707,15 +707,30 @@ export async function generateDualReportsForComplaint(
   const internalLinks = {};
   const externalLinks = {};
   for (const target of targets) {
-    const internal = await generateInternalReport(complaint, { lang: target });
-    if (internal?.downloadUrl) internalLinks[target] = internal.downloadUrl;
-    const external = await generateExternalReport(complaint, { lang: target });
-    if (external?.downloadUrl) externalLinks[target] = external.downloadUrl;
+    try {
+      const internal = await generateInternalReport(complaint, { lang: target });
+      if (internal?.downloadUrl) internalLinks[target] = internal.downloadUrl;
+    } catch (err) {
+      console.error('[reporting] internal report generation failed', target, err?.message || err);
+    }
+
+    try {
+      const external = await generateExternalReport(complaint, { lang: target });
+      if (external?.downloadUrl) externalLinks[target] = external.downloadUrl;
+    } catch (err) {
+      console.error('[reporting] external report generation failed', target, err?.message || err);
+    }
   }
+
+  const normalizedInternal = normalizeReportLinksMap(internalLinks);
+  const normalizedExternal = normalizeReportLinksMap(externalLinks);
+  const hasLinks = Object.keys(normalizedInternal).length > 0 || Object.keys(normalizedExternal).length > 0;
+
+  if (!hasLinks) return null;
 
   return {
     lang,
-    internalLinks: normalizeReportLinksMap(internalLinks),
-    externalLinks: normalizeReportLinksMap(externalLinks),
+    internalLinks: normalizedInternal,
+    externalLinks: normalizedExternal,
   };
 }

@@ -109,7 +109,11 @@ export default async function handler(req, res) {
           const defaultLink = mergedExternal[generated.lang]
             || mergedExternal.de
             || mergedExternal.en
-            || Object.values(mergedExternal)[0];
+            || Object.values(mergedExternal)[0]
+            || mergedInternal[generated.lang]
+            || mergedInternal.de
+            || mergedInternal.en
+            || Object.values(mergedInternal)[0];
           if (Object.keys(mergedExternal).length > 0) c.externalReportLinks = mergedExternal;
           if (Object.keys(mergedInternal).length > 0) c.internalReportLinks = mergedInternal;
           if (Object.keys(mergedReportLinks).length > 0) c.reportLinks = mergedReportLinks;
