@@ -4711,17 +4711,19 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   String? _viewToTileId(_AdminView view) {
-    switch (view) {
-      case _AdminView.menu:
-        return null;
-      case _AdminView.open:
-        return 'open';
-      case _AdminView.all:
-        return 'all';
-      case _AdminView.pending:
-        return 'pending';
-      case _AdminView.portalUsers:
-        return 'portalUsers';
+      switch (view) {
+        case _AdminView.menu:
+          return null;
+        case _AdminView.open:
+          return 'open';
+        case _AdminView.all:
+          return 'all';
+        case _AdminView.complaintsList:
+          return 'complaintsList';
+        case _AdminView.pending:
+          return 'pending';
+        case _AdminView.portalUsers:
+          return 'portalUsers';
       case _AdminView.users:
         return 'users';
       case _AdminView.reps:
@@ -10696,12 +10698,14 @@ class _AdminPageState extends State<AdminPage> {
                           width: 200,
                           child: DropdownButtonFormField<int?>(
                             value: _allStatusFilter,
-                            items: const [
-                              DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
-                              ...kStatusItems.map((s) => DropdownMenuItem<int?>(
-                                    value: s['value'] as int,
-                                    child: Text(s['label'] as String),
-                                  )),
+                            items: [
+                              const DropdownMenuItem<int?>(value: null, child: Text('Alle Stati')),
+                              ...kStatusItems
+                                  .map((s) => DropdownMenuItem<int?>(
+                                        value: s['value'] as int,
+                                        child: Text(s['label'] as String),
+                                      ))
+                                  .toList(),
                             ],
                             onChanged: (v) => setState(() => _allStatusFilter = v),
                             decoration: const InputDecoration(
@@ -11178,6 +11182,9 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (mounted) setState(() => _repBusy = false);
     }
+
+    return success;
+  }
 
   Future<void> _exportComplaintsAsPdf(
     List<AdminComplaint> data, {
