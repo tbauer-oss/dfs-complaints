@@ -5075,11 +5075,11 @@ class _AdminPageState extends State<AdminPage> {
       if (remoteTiles is Map<String, dynamic>) {
         var updatedVisibility = false;
         setState(() => updatedVisibility = _loadRoleTileVisibility(stored: remoteTiles));
-        _filterMenuSectionsForRole();
-        _ensureMenuTilePresent('complaintList');
         if (updatedVisibility) {
           _persistRoleTileVisibility(syncRemote: true);
         }
+        _filterMenuSectionsForRole();
+        _ensureMenuTilePresent('complaintList');
       }
 
       final remoteLayout = config['menuLayout'];
