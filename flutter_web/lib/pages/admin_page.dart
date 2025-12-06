@@ -29,6 +29,7 @@ import 'admin_wiki_categories_page.dart';
 import 'admin_wiki_articles_page.dart';
 import 'rep_wiki_list_page.dart';
 import 'admin_downloads_page.dart';
+import 'complaint_list_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -62,6 +63,7 @@ class AdminPage extends StatefulWidget {
 enum _AdminView {
   menu,
   all,
+  complaintList,
   pending,
   portalUsers,
   users,
@@ -132,6 +134,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
   'superuser': [
     'open',
     'all',
+    'complaintList',
     'stats',
     'pending',
     'users',
@@ -155,6 +158,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
   'user': [
     'open',
     'all',
+    'complaintList',
     'stats',
     'pending',
     'users',
@@ -177,6 +181,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
   'readonly': [
     'open',
     'all',
+    'complaintList',
     'stats',
     'pending',
     'appMeta',
@@ -419,6 +424,17 @@ class _AdminPageState extends State<AdminPage> {
         }
       });
     }
+
+    _DEFAULT_ROLE_TILES.forEach((role, defaults) {
+      final tiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
+      var changed = false;
+      for (final tile in defaults) {
+        if (tiles.add(tile)) changed = true;
+      }
+      if (changed) {
+        _persistRoleTileVisibility(syncRemote: false);
+      }
+    });
   }
 
   String? _normalizeTilePermission(Object? raw) {
@@ -4009,6 +4025,7 @@ class _AdminPageState extends State<AdminPage> {
     final title = switch (_view) {
       _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
+      _AdminView.complaintList  => 'Reklamationsliste',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.portalUsers    => 'User-Datenbank',
       _AdminView.users          => 'Kundendatenbank',
@@ -4646,6 +4663,8 @@ class _AdminPageState extends State<AdminPage> {
     switch (view) {
       case _AdminView.menu:
         return null;
+      case _AdminView.complaintList:
+        return 'complaintList';
       case _AdminView.open:
         return 'open';
       case _AdminView.all:
@@ -4692,6 +4711,7 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.menu,
         _AdminView.open,
         _AdminView.all,
+        _AdminView.complaintList,
         _AdminView.pending,
         _AdminView.activity,
         _AdminView.systemHealth,
@@ -4701,6 +4721,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.menu,
       _AdminView.open,
       _AdminView.all,
+      _AdminView.complaintList,
       _AdminView.pending,
       _AdminView.users,
       _AdminView.reps,
@@ -4756,6 +4777,11 @@ class _AdminPageState extends State<AdminPage> {
             icon: Icons.dashboard_customize_outlined,
             view: _AdminView.all,
             badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
+          ),
+          _AdminNavItem(
+            label: 'Reklamationsliste',
+            icon: Icons.table_view_outlined,
+            view: _AdminView.complaintList,
           ),
         ],
       ),
@@ -4940,6 +4966,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.open;
         case 'all':
           return _AdminView.all;
+        case 'complaintList':
+          return _AdminView.complaintList;
         case 'pending':
           return _AdminView.pending;
         case 'portalUsers':
@@ -4986,7 +5014,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tileIds: ['open', 'all', 'stats'],
+        tileIds: ['open', 'all', 'complaintList', 'stats'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5032,6 +5060,7 @@ class _AdminPageState extends State<AdminPage> {
     // layout is stored without them.
     _ensureMenuTilePresent('downloads');
     _ensureMenuTilePresent('portalUsers');
+    _ensureMenuTilePresent('complaintList');
   }
 
   Future<void> _loadAdminUiConfigFromServer() async {
@@ -5053,6 +5082,7 @@ class _AdminPageState extends State<AdminPage> {
         setState(() => _menuSections = sections);
         _ensureMenuTilePresent('downloads');
         _ensureMenuTilePresent('portalUsers');
+        _ensureMenuTilePresent('complaintList');
       }
 
       final navOrder = config['navOrder'];
@@ -5292,6 +5322,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'Offene Reklamationen';
       case 'all':
         return 'Alle Reklamationen';
+      case 'complaintList':
+        return 'Reklamationsliste';
       case 'stats':
         return 'Statistik & KPIs';
       case 'pending':
@@ -6476,12 +6508,106 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
   }
-  
+
+  List<ComplaintListItem> _complaintListItems() {
+    String payloadValue(AdminComplaint c, List<String> keys) {
+      final payload = c.payload ?? const <String, dynamic>{};
+      for (final key in keys) {
+        final value = payload[key];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          return value.toString().trim();
+        }
+      }
+      return '';
+    }
+
+    bool payloadBool(AdminComplaint c, List<String> keys) {
+      final payload = c.payload ?? const <String, dynamic>{};
+      for (final key in keys) {
+        final value = payload[key];
+        if (value is bool) return value;
+        if (value is String && value.isNotEmpty) {
+          return value == 'true' || value == '1' || value.toLowerCase() == 'ja';
+        }
+      }
+      return false;
+    }
+
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
+      if (value is String && value.trim().isNotEmpty) {
+        final n = int.tryParse(value.trim());
+        if (n != null) return DateTime.fromMillisecondsSinceEpoch(n, isUtc: true).toLocal();
+        try {
+          return DateTime.parse(value).toLocal();
+        } catch (_) {}
+      }
+      if (value is DateTime) return value.toLocal();
+      return null;
+    }
+
+    String formatDate(DateTime? value) => value == null ? '—' : DateFormat('dd.MM.yyyy').format(value.toLocal());
+
+    return _allComplaints.map((c) {
+      final receivedDate = c.createdAt.toLocal();
+      final dueDate = parseDate(c.payload?['dueDate'] ?? c.payload?['due_at']);
+      final closedDate = parseDate(c.salesCompletedAt ?? c.payload?['closedAt']) ?? c.updatedAt.toLocal();
+      final dept = c.internalDepartments.join(', ');
+      final customerName = _companyByEmail(c.email) ?? c.email;
+
+      final mainReason = payloadValue(c, ['reasonMain', 'complaintReason', 'mainReason']);
+      final detailReason = payloadValue(c, ['reasonDetail', 'complaintReasonDetail', 'detailReason']);
+      final combinedReason = [mainReason, detailReason].where((e) => e.trim().isNotEmpty).join(' – ');
+
+      return ComplaintListItem(
+        internalNumber: (c.internalNo ?? '').trim().isEmpty ? '—' : (c.internalNo ?? ''),
+        systemId: c.ticket,
+        customer: customerName,
+        customerNumber: payloadValue(c, ['customerNumber', 'customer_no', 'kunde_nr']),
+        region: payloadValue(c, ['country', 'region', 'land']),
+        productGroup: payloadValue(c, ['productGroup', 'productFile', 'product', 'Produkt']),
+        articleNumber: payloadValue(c, ['articleNumber', 'article_no', 'Artikelnummer', 'article']),
+        articleName: payloadValue(c, ['articleName', 'Artikelbezeichnung', 'article_label']),
+        lotNumber: payloadValue(c, ['lot', 'charge', 'batch']),
+        complaintType: payloadValue(c, ['complaintType', 'type']),
+        complaintReason: combinedReason,
+        receivedAt: formatDate(receivedDate),
+        dueAt: formatDate(dueDate),
+        closedAt: formatDate(closedDate),
+        status: _labelForStatus(c.status),
+        goodwill: payloadBool(c, ['isGoodwill', 'kulanz', 'goodwill']),
+        departments: dept.isEmpty ? '—' : dept,
+        assignee: payloadValue(c, ['assignee', 'bearbeiter', 'responsible']),
+        salesCode: c.salesAgentCode ?? '',
+        orderNumber: c.orderNumber ?? payloadValue(c, ['orderNumber', 'auftragsnummer']),
+        invoiceNumber: c.invoiceNumber ?? payloadValue(c, ['invoiceNumber', 'rechnungsnummer']),
+        internalAssessment: c.internalEvaluationTextDe ?? payloadValue(c, ['internalAssessment', 'bewertung']),
+        suspectedCause: c.internalEvaluationCause ?? payloadValue(c, ['suspectedCause', 'ursache']),
+        immediateActions: payloadValue(c, ['immediateActions', 'soforthandlung', 'soforthandlungen']),
+        correctiveActions: payloadValue(c, ['correctiveActions', 'capa', 'korrekturmassnahmen']),
+        recurrence: payloadBool(c, ['recurrence', 'wiederauftreten']),
+        severity: payloadValue(c, ['severity', 'kritikalitaet', 'schweregrad']),
+        channel: payloadValue(c, ['channel', 'kanal']),
+        notes: (c.adminNotes ?? payloadValue(c, ['notes', 'bemerkungen'])),
+        receivedDate: receivedDate,
+        dueDate: dueDate,
+        closedDate: closedDate,
+      );
+    }).toList();
+  }
+
   // ------------------ Panel-Ansichten ------------------
   Widget _buildView() {
     switch (_view) {
       case _AdminView.all:
         return _buildAllComplaintsPanel();
+      case _AdminView.complaintList:
+        return ComplaintListPage(
+          api: widget.api,
+          complaints: _complaintListItems(),
+          customerLookup: _companyByEmail,
+        );
       case _AdminView.pending:
         return _buildPendingPanel();
       case _AdminView.portalUsers:
