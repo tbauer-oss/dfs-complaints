@@ -17440,58 +17440,57 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         )
                       : null;
 
-                  List<Widget> spacedColumn(List<Widget> children) {
-                    return [
-                      for (int i = 0; i < children.length; i++) ...[
-                        children[i],
-                        if (i != children.length - 1) const SizedBox(height: 20),
+                  Widget buildSideBySide({
+                    required Widget left,
+                    Widget? right,
+                  }) {
+                    if (!isWide) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          left,
+                          if (right != null) ...[
+                            const SizedBox(height: 20),
+                            right,
+                          ],
+                        ],
+                      );
+                    }
+
+                    if (right == null) {
+                      return left;
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: left),
+                        const SizedBox(width: 20),
+                        Expanded(child: right),
                       ],
-                    ];
+                    );
                   }
-
-                  final leftColumn = [
-                    evalSection,
-                    qmSection,
-                  ];
-
-                  final rightColumn = [
-                    metaSection,
-                    if (internalTranslationSection != null) internalTranslationSection,
-                    qmTranslationsSection,
-                  ];
 
                   final editor = Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       statusSection,
                       const SizedBox(height: 20),
-                      if (isWide)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: spacedColumn(leftColumn),
-                              ),
-                            ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: spacedColumn(rightColumn),
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: spacedColumn([
-                            ...leftColumn,
-                            ...rightColumn,
-                          ]),
-                        ),
+                      metaSection,
+                      const SizedBox(height: 16),
+                      Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                      const SizedBox(height: 16),
+                      buildSideBySide(
+                        left: evalSection,
+                        right: internalTranslationSection,
+                      ),
+                      const SizedBox(height: 16),
+                      Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                      const SizedBox(height: 16),
+                      buildSideBySide(
+                        left: qmSection,
+                        right: qmTranslationsSection,
+                      ),
                     ],
                   );
 
