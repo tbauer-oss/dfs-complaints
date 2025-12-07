@@ -13316,6 +13316,8 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     final bg = color ?? scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5);
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 44),
+      alignment: Alignment.centerLeft,
       padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: bg,
@@ -13548,75 +13550,78 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                     : c.handlingLabel;
                 final scheme = Theme.of(context).colorScheme;
 
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 8,
-                  children: [
-                    _metaPill(
-                      context,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.event_available_outlined, size: 18),
-                          const SizedBox(width: 6),
-                          Text('Eingang: ${_formatDate(c.createdAt)}'),
-                        ],
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _metaPill(
+                        context,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.event_available_outlined, size: 18),
+                            const SizedBox(width: 6),
+                            Text('Eingang: ${_formatDate(c.createdAt)}'),
+                          ],
+                        ),
                       ),
-                    ),
-                    _metaPill(
-                      context,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.gavel_outlined, size: 18, color: decColor),
-                          const SizedBox(width: 8),
-                          Text('Entscheidung',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: scheme.onSurface.withOpacity(0.75),
-                              )),
-                          const SizedBox(width: 8),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: decColor.withOpacity(scheme.brightness == Brightness.dark ? 0.25 : 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              child: Text(
-                                _labelForDecision(c.decision),
-                                style: TextStyle(color: decColor, fontWeight: FontWeight.w700),
+                      const SizedBox(width: 16),
+                      _metaPill(
+                        context,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.gavel_outlined, size: 18, color: decColor),
+                            const SizedBox(width: 8),
+                            Text('Entscheidung',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface.withOpacity(0.75),
+                                )),
+                            const SizedBox(width: 8),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: decColor.withOpacity(scheme.brightness == Brightness.dark ? 0.25 : 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                child: Text(
+                                  _labelForDecision(c.decision),
+                                  style: TextStyle(color: decColor, fontWeight: FontWeight.w700),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    _metaPill(
-                      context,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.volunteer_activism_outlined,
-                              size: 18, color: scheme.primary),
-                          const SizedBox(width: 8),
-                          Text('Wunsch',
+                      const SizedBox(width: 16),
+                      _metaPill(
+                        context,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.volunteer_activism_outlined,
+                                size: 18, color: scheme.primary),
+                            const SizedBox(width: 8),
+                            Text('Wunsch',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface.withOpacity(0.75),
+                                )),
+                            const SizedBox(width: 8),
+                            Text(
+                              wish,
                               style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: scheme.onSurface.withOpacity(0.75),
-                              )),
-                          const SizedBox(width: 8),
-                          Text(
-                            wish,
-                            style: TextStyle(
-                              fontStyle: FontStyle.italic,
-                              color: scheme.onSurface.withOpacity(0.9),
+                                fontStyle: FontStyle.italic,
+                                color: scheme.onSurface.withOpacity(0.9),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               }),
             ),
@@ -15396,6 +15401,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     final bg = color ?? scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5);
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 44),
+      alignment: Alignment.centerLeft,
       padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: bg,
