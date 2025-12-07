@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { randomUUID } from 'node:crypto';
 
 const MAX_PREVIEW_CHARS = 200000;
@@ -75,6 +75,42 @@ function buildBlobPath(ticket, filename) {
   const stamp = Date.now();
   const suffix = randomUUID().replace(/-/g, '');
   return `${prefix}/${stamp}-${suffix}-${filename}`;
+}
+
+function blobPathFromUrl(input) {
+  const raw = (input ?? '').toString().trim();
+  if (!raw) return null;
+  try {
+    const { pathname } = new URL(raw);
+    const cleaned = (pathname || '').replace(/^\/+/, '').trim();
+    return cleaned || null;
+  } catch {
+    return null;
+  }
+}
+
+function collectBlobPaths(uploads = []) {
+  const paths = [];
+  for (const entry of uploads) {
+    if (!entry) continue;
+    if (typeof entry === 'string') {
+      const urlPath = blobPathFromUrl(entry);
+      if (urlPath) paths.push(urlPath);
+      continue;
+    }
+
+    const raw = entry?.blobPath || entry?.blobpath || '';
+    const normalized = (raw || '').toString().trim();
+    if (normalized) {
+      paths.push(normalized);
+      continue;
+    }
+
+    const urlPath = blobPathFromUrl(entry?.downloadUrl || entry?.url);
+    if (urlPath) paths.push(urlPath);
+  }
+
+  return Array.from(new Set(paths.filter(Boolean)));
 }
 
 async function resolveTicket(ticket) {
@@ -221,6 +257,19 @@ export async function storeGeneratedFile(buffer, {
   }
 
   return null;
+}
+
+export async function deleteUploadsFromBlob(uploads = []) {
+  if (!blobUploadsEnabled) return false;
+  const paths = collectBlobPaths(uploads);
+  if (!paths.length) return false;
+  try {
+    await del(paths);
+    return true;
+  } catch (err) {
+    console.error('[uploads] failed to delete blob files', err?.message || err);
+    return false;
+  }
 }
 
 export function normalizeProvidedUploads(input) {

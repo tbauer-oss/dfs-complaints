@@ -25,6 +25,7 @@ import {
 } from '../_lib/departments.js';
 import { translateTexts } from '../_lib/translate.js';
 import { generateComplaintReports, shouldGenerateReports } from '../_lib/reporting.js';
+import { deleteUploadsFromBlob } from '../_lib/uploads.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -898,12 +899,26 @@ export default async function handler(req, res) {
       }
 
       if (deleteReportsFlag) {
+        const reportUrls = [
+          c.reportLink,
+          ...(Object.values(c.reportLinks || {})),
+          ...(Object.values(c.externalReportLinks || {})),
+          ...(Object.values(c.internalReportLinks || {})),
+        ];
         const hadAny = hasReports(c);
         delete c.reportLink;
         delete c.reportLinks;
         delete c.externalReportLinks;
         delete c.internalReportLinks;
         if (hadAny) reportChanged = true;
+
+        if (reportUrls.some(Boolean)) {
+          try {
+            await deleteUploadsFromBlob(reportUrls);
+          } catch (err) {
+            console.warn('admin/complaints report cleanup failed', err?.message || err);
+          }
+        }
       }
 
       // Interne Nummer (optional; "" => löschen)
@@ -1202,6 +1217,12 @@ export default async function handler(req, res) {
 
       const c = await complaintByTicket(ticket);
       if (!c) return bad(res, 'not found', 404);
+
+      try {
+        await deleteUploadsFromBlob(c.uploads || []);
+      } catch (err) {
+        console.warn('admin/complaints delete: blob cleanup failed', err?.message || err);
+      }
 
       await complaintDelete(ticket);
       return noContent(res);
