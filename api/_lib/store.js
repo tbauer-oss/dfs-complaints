@@ -1763,6 +1763,11 @@ function normalizeComplaintRecord(c = {}) {
   const qmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
   if (Object.keys(qmTranslations).length > 0) normalized.qmCustomerSummaryTranslations = qmTranslations; else delete normalized.qmCustomerSummaryTranslations;
 
+  const qmMeasures = normalizeEvaluationText(c.qmMeasures);
+  if (qmMeasures) normalized.qmMeasures = qmMeasures; else delete normalized.qmMeasures;
+  const qmMeasuresTranslations = normalizeEvaluationTranslations(c.qmMeasuresTranslations);
+  if (Object.keys(qmMeasuresTranslations).length > 0) normalized.qmMeasuresTranslations = qmMeasuresTranslations; else delete normalized.qmMeasuresTranslations;
+
   const internalReportLinks = normalizeReportLinksMap(c.internalReportLinks);
   if (Object.keys(internalReportLinks).length > 0) normalized.internalReportLinks = internalReportLinks; else delete normalized.internalReportLinks;
 
