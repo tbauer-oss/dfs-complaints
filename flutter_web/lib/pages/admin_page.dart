@@ -16659,6 +16659,59 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     );
                   }
 
+                  Widget buildSectionCard({
+                    required IconData icon,
+                    Color? iconColor,
+                    required String title,
+                    String? subtitle,
+                    required List<Widget> children,
+                  }) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceVariant.withOpacity(0.32),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: (iconColor ?? scheme.primary).withOpacity(0.15),
+                                child: Icon(icon, color: iconColor ?? scheme.primary),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                    if (subtitle != null) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        subtitle,
+                                        style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          ...children,
+                        ],
+                      ),
+                    );
+                  }
+
                   Widget buildMetaSection() {
                     final canEditMeta = !_isPortalUser && !_isPortalReadonly;
                     final canEditDepartments = _isPortalSuperuser;
@@ -16722,7 +16775,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.only(bottom: 4),
                             child: Text(
                               title,
                               style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -16746,8 +16799,76 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 )
                                 .toList(),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                         ],
+                      );
+                    }
+
+                    Widget _buildReportDownloads() {
+                      final hasExternalReports = externalLinks?.isNotEmpty ?? false;
+                      final hasInternalReports = widget.c.internalReportLinks?.isNotEmpty ?? false;
+                      if (!hasExternalReports && !hasInternalReports) return const SizedBox.shrink();
+
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: scheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.download_done_outlined, color: scheme.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Reports herunterladen',
+                                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                                const Spacer(),
+                                if (hasExternalReports && hasInternalReports)
+                                  Chip(
+                                    label: const Text('Extern & Intern'),
+                                    avatar: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+                                  )
+                                else if (hasExternalReports)
+                                  Chip(
+                                    label: const Text('Externe Reports'),
+                                    avatar: const Icon(Icons.open_in_new, size: 18),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+                                  )
+                                else
+                                  Chip(
+                                    label: const Text('Interne Reports'),
+                                    avatar: const Icon(Icons.shield_outlined, size: 18),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Direktzugriff auf generierte PDFs. Links öffnen in einem neuen Tab.',
+                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                            ),
+                            const SizedBox(height: 10),
+                            if (hasExternalReports)
+                              _linkBadges('Externe Reports', externalLinks, highlight: true),
+                            if (hasInternalReports)
+                              _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                          ],
+                        ),
                       );
                     }
 
@@ -16782,7 +16903,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                     setState(() => _selectedDepartments.add(value));
                                   },
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
@@ -16799,7 +16920,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                           if (canEditDepartments)
                             Padding(
-                              padding: const EdgeInsets.only(top: 8),
+                              padding: const EdgeInsets.only(top: 6),
                               child: Align(
                                 alignment: Alignment.centerRight,
                                 child: OutlinedButton.icon(
@@ -16813,64 +16934,60 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       );
                     }
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    return buildSectionCard(
+                      icon: Icons.assignment_outlined,
+                      title: 'Meta & Aktionen',
+                      subtitle: 'Interne Nummern, Reports und beteiligte Abteilungen im Blick behalten.',
                       children: [
-                        const SizedBox(height: 20),
                         Text(
                           'Betroffene interne Abteilungen',
                           style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
                         buildDepartmentSelector(),
-                        const SizedBox(height: 20),
-                        Text(
-                          'Meta & Aktionen',
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                        ),
                         const SizedBox(height: 12),
                         buildFieldWithAction(field: internalField, action: internalAction),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         buildFieldWithAction(field: reportField, action: reportAction),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
+                        const SizedBox(height: 12),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 10,
+                          runSpacing: 8,
+                          children: [
+                            TextButton.icon(
+                              onPressed: (_busy || !canEditMeta || !hasReports) ? null : _deleteReports,
+                              style: TextButton.styleFrom(
+                                foregroundColor: scheme.error,
+                                overlayColor: scheme.error.withOpacity(0.1),
+                              ),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Reports löschen'),
+                          ),
+                          FilledButton.icon(
                             onPressed: (_busy || !canEditMeta) ? null : _generateReports,
                             icon: const Icon(Icons.picture_as_pdf_outlined),
                             label: const Text('Reports generieren'),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        if ((externalLinks?.isNotEmpty ?? false) ||
-                            (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
-                          _linkBadges('Externe Reports', externalLinks, highlight: true),
-                          _linkBadges('Interne Reports', widget.c.internalReportLinks),
                         ],
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: (_busy || !canEditMeta || !hasReports) ? null : _deleteReports,
-                            style: TextButton.styleFrom(
-                              foregroundColor: scheme.error,
-                              overlayColor: scheme.error.withOpacity(0.1),
-                            ),
-                            icon: const Icon(Icons.delete_outline),
-                            label: const Text('Reports löschen'),
-                          ),
-                        ),
+                      ),
+                        const SizedBox(height: 10),
+                        _buildReportDownloads(),
                       ],
                     );
                   }
 
-                  Widget buildInternalEvaluationSection() {
-                    final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
-                    final translations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
+                  Widget buildInternalEvaluationTranslationSection(
+                    Map<String, String> translations,
+                  ) {
+                    final currentTranslation =
+                        translations[_internalEvalTargetLang]?.trim() ?? translations[_internalEvalTargetLang.toLowerCase()]?.trim() ?? '';
+
                     return Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: scheme.surfaceVariant.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(16),
+                        color: scheme.surface,
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
                       ),
                       child: Column(
@@ -16878,172 +16995,89 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         children: [
                           Row(
                             children: [
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: scheme.primary.withOpacity(0.15),
-                                child: Icon(Icons.fact_check_outlined, color: scheme.primary),
+                              Icon(Icons.translate_outlined, color: scheme.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Übersetzung interne Bewertung',
+                                style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Originaltext bleibt auf Deutsch gespeichert. Übersetzungen werden zusätzlich abgelegt.',
+                            style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _internalEvalTargetLang,
+                                  decoration: const InputDecoration(
+                                    border: OutlineInputBorder(),
+                                    labelText: 'Zielsprache',
+                                  ),
+                                  items: kInternalEvaluationTranslationLangs
+                                      .map((lang) => DropdownMenuItem(
+                                            value: lang,
+                                            child: Text('${lang.toUpperCase()} — ${deeplLangLabel(lang)}'),
+                                          ))
+                                      .toList(),
+                                  onChanged: _translatingInternalEval
+                                      ? null
+                                      : (v) => setState(() => _internalEvalTargetLang = v ?? 'en'),
+                                ),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Interne Bewertung',
-                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Kompakt bewerten und die vermutete Ursache dokumentieren. Nur intern sichtbar.',
-                                      style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                                    ),
-                                  ],
-                                ),
+                              FilledButton.icon(
+                                onPressed: (_busy || _translatingInternalEval)
+                                    ? null
+                                    : _translateInternalEvaluation,
+                                icon: _translatingInternalEval
+                                    ? SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          color: scheme.onPrimary,
+                                        ),
+                                      )
+                                    : const Icon(Icons.g_translate),
+                                label: Text(_translatingInternalEval ? 'Übersetze…' : 'Übersetzen mit DeepL'),
                               ),
-                              if (_isPortalReadonly)
-                                Chip(
-                                  label: const Text('Nur Lesen'),
-                                  avatar: const Icon(Icons.visibility_off_outlined, size: 18),
-                                  backgroundColor: scheme.surface,
-                                )
-                              else if (_isPortalUser)
-                                Chip(
-                                  label: const Text('Nur Bewertung'),
-                                  avatar: const Icon(Icons.lock_clock_outlined, size: 18),
-                                  backgroundColor: scheme.surface,
-                                ),
                             ],
                           ),
-                          const SizedBox(height: 14),
-                          TextField(
-                            controller: _internalEvalCtrl,
-                            minLines: 3,
-                            maxLines: 8,
-                            readOnly: !canEditEvaluation,
-                            decoration: InputDecoration(
-                              border: const OutlineInputBorder(),
-                              labelText: 'Interne Bewertung (DE)',
-                              alignLabelWithHint: true,
-                              helperText: 'Beschreibe kurz die interne Einschätzung und geplante Maßnahmen.',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              labelText: 'Vermutete Ursache',
-                            ),
-                            items: kInternalEvaluationCauses
-                                .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
-                                .toList(),
-                            onChanged:
-                                canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
-                          ),
-                          if (_isPortalSuperuser) ...[
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: scheme.surface,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.translate_outlined, color: scheme.primary),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Übersetzung interne Bewertung',
-                                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Originaltext bleibt auf Deutsch gespeichert. Übersetzungen werden zusätzlich abgelegt.',
-                                    style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: DropdownButtonFormField<String>(
-                                          value: _internalEvalTargetLang,
-                                          decoration: const InputDecoration(
-                                            border: OutlineInputBorder(),
-                                            labelText: 'Zielsprache',
-                                          ),
-                                          items: kInternalEvaluationTranslationLangs
-                                              .map((lang) => DropdownMenuItem(
-                                                    value: lang,
-                                                    child: Text('${lang.toUpperCase()} — ${deeplLangLabel(lang)}'),
-                                                  ))
-                                              .toList(),
-                                          onChanged: _translatingInternalEval
-                                              ? null
-                                              : (v) => setState(() => _internalEvalTargetLang = v ?? 'en'),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      FilledButton.icon(
-                                        onPressed: (_busy || _translatingInternalEval)
-                                            ? null
-                                            : _translateInternalEvaluation,
-                                        icon: _translatingInternalEval
-                                            ? SizedBox(
-                                                width: 18,
-                                                height: 18,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2.2,
-                                                  color: scheme.onPrimary,
-                                                ),
-                                              )
-                                            : const Icon(Icons.g_translate),
-                                        label: Text(_translatingInternalEval ? 'Übersetze…' : 'Übersetzen mit DeepL'),
-                                      ),
-                                    ],
-                                  ),
-                                  if (_internalEvalTranslationError != null) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _internalEvalTranslationError!,
-                                      style: textTheme.bodySmall?.copyWith(color: scheme.error),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                          if (_internalEvalTranslationError != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              _internalEvalTranslationError!,
+                              style: textTheme.bodySmall?.copyWith(color: scheme.error),
                             ),
                           ],
-                          const SizedBox(height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                canEditEvaluation
-                                    ? 'Nur dieser Bereich ist für dich freigeschaltet.'
-                                    : 'Keine Änderungen möglich – nur Ansicht.',
-                                style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                              ),
-                              FilledButton.icon(
-                                onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
-                                icon: const Icon(Icons.save_outlined),
-                                label: const Text('Bewertung sichern'),
-                              ),
-                            ],
+                          const SizedBox(height: 10),
+                          InputDecorator(
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Übersetzung',
+                              alignLabelWithHint: true,
+                            ),
+                            child: Text(
+                              currentTranslation.isEmpty
+                                  ? 'Noch keine Übersetzung für diese Sprache vorhanden.'
+                                  : currentTranslation,
+                              style: textTheme.bodyMedium,
+                            ),
                           ),
                           if (translations.isNotEmpty) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             Divider(color: scheme.outlineVariant.withOpacity(0.7)),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               'Gespeicherte Übersetzungen',
                               style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -17057,201 +17091,263 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     );
                   }
 
+                  Widget buildInternalEvaluationSection() {
+                    final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
+                    return buildSectionCard(
+                      icon: Icons.fact_check_outlined,
+                      title: 'Interne Bewertung',
+                      subtitle:
+                          'Kompakt bewerten und die vermutete Ursache dokumentieren. Nur intern sichtbar.',
+                      children: [
+                        LayoutBuilder(builder: (context, constraints) {
+                          final horizontal = constraints.maxWidth > 780;
+                          final input = TextField(
+                            controller: _internalEvalCtrl,
+                            minLines: 3,
+                            maxLines: 8,
+                            readOnly: !canEditEvaluation,
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
+                              labelText: 'Interne Bewertung (DE)',
+                              alignLabelWithHint: true,
+                              helperText:
+                                  'Beschreibe kurz die interne Einschätzung und geplante Maßnahmen.',
+                            ),
+                          );
+                          final cause = DropdownButtonFormField<String>(
+                            value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Vermutete Ursache',
+                            ),
+                            items: kInternalEvaluationCauses
+                                .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
+                                .toList(),
+                            onChanged:
+                                canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
+                          );
+                          if (!horizontal) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                input,
+                                const SizedBox(height: 10),
+                                cause,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(flex: 3, child: input),
+                              const SizedBox(width: 12),
+                              SizedBox(width: 280, child: cause),
+                            ],
+                          );
+                        }),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              canEditEvaluation
+                                  ? 'Nur dieser Bereich ist für dich freigeschaltet.'
+                                  : 'Keine Änderungen möglich – nur Ansicht.',
+                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                            ),
+                            Wrap(
+                              spacing: 8,
+                              children: [
+                                if (_isPortalReadonly)
+                                  Chip(
+                                    label: const Text('Nur Lesen'),
+                                    avatar: const Icon(Icons.visibility_off_outlined, size: 18),
+                                    backgroundColor: scheme.surface,
+                                  )
+                                else if (_isPortalUser)
+                                  Chip(
+                                    label: const Text('Nur Bewertung'),
+                                    avatar: const Icon(Icons.lock_clock_outlined, size: 18),
+                                    backgroundColor: scheme.surface,
+                                  ),
+                                FilledButton.icon(
+                                  onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: const Text('Bewertung sichern'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        if (_isPortalSuperuser)
+                          const SizedBox(height: 4),
+                      ],
+                    );
+                  }
+
                   Widget buildQmSummarySection() {
+                    return buildSectionCard(
+                      icon: Icons.verified_user_outlined,
+                      iconColor: scheme.primary,
+                      title: 'QM / Kunden-Zusammenfassung',
+                      subtitle:
+                          'Freigegebene Zusammenfassung, die im externen Kundenreport landet. Kann mehrsprachig gepflegt werden.',
+                      children: [
+                        Text('Standard (DE/EN Fallback)', style: textTheme.labelLarge),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _qmSummaryCtrl,
+                          maxLines: 4,
+                          minLines: 3,
+                          enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                          decoration: const InputDecoration(
+                            hintText: 'Kundenfertige Kurzfassung für den Report …',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _qmMeasuresCtrl,
+                          maxLines: 4,
+                          minLines: 3,
+                          enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                          decoration: const InputDecoration(
+                            labelText: 'Maßnahmen',
+                            hintText: 'Geplante oder umgesetzte Maßnahmen für den Kundenreport …',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                ? null
+                                : _saveQmSummary,
+                            icon: const Icon(Icons.save_outlined),
+                            label: const Text('Zusammenfassung sichern'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  Widget buildQmTranslationsSection() {
                     final summaryTranslations =
                         widget.c.qmCustomerSummaryTranslations ?? const <String, String>{};
                     final measuresTranslations =
                         widget.c.qmMeasuresTranslations ?? const <String, String>{};
 
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceVariant.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: scheme.primaryContainer.withOpacity(0.35),
-                                child: Icon(Icons.verified_user_outlined, color: scheme.primary),
+                    return buildSectionCard(
+                      icon: Icons.translate_outlined,
+                      title: 'QM-Übersetzungen',
+                      subtitle: 'Zusammenfassung und Maßnahmen zielsprachig bereitstellen.',
+                      children: [
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 230,
+                              child: DropdownButtonFormField<String>(
+                                value: _qmSummaryTargetLang,
+                                decoration: const InputDecoration(labelText: 'Zielsprache'),
+                                items: const [
+                                  DropdownMenuItem(value: 'de', child: Text('Deutsch (DE)')),
+                                  DropdownMenuItem(value: 'en', child: Text('Englisch (EN)')),
+                                  DropdownMenuItem(value: 'fr', child: Text('Französisch (FR)')),
+                                  DropdownMenuItem(value: 'it', child: Text('Italienisch (IT)')),
+                                  DropdownMenuItem(value: 'es', child: Text('Spanisch (ES)')),
+                                ],
+                                onChanged: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                    ? null
+                                    : (val) {
+                                        if (val == null) return;
+                                        setState(() {
+                                          _qmSummaryTargetLang = val;
+                                          _qmSummaryTranslationCtrl.text = summaryTranslations[val] ??
+                                              summaryTranslations[val.toLowerCase()] ??
+                                              '';
+                                          _qmMeasuresTranslationCtrl.text = measuresTranslations[val] ??
+                                              measuresTranslations[val.toLowerCase()] ??
+                                              '';
+                                        });
+                                      },
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'QM / Kunden-Zusammenfassung',
-                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Freigegebene Zusammenfassung, die im externen Kundenreport landet. Kann mehrsprachig gepflegt werden.',
-                                      style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Text('Standard (DE/EN Fallback)', style: textTheme.labelLarge),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _qmSummaryCtrl,
-                            maxLines: 4,
-                            minLines: 3,
-                            enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
-                            decoration: const InputDecoration(
-                              hintText: 'Kundenfertige Kurzfassung für den Report …',
-                              border: OutlineInputBorder(),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: _qmMeasuresCtrl,
-                            maxLines: 4,
-                            minLines: 3,
-                            enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
-                            decoration: const InputDecoration(
-                              labelText: 'Maßnahmen',
-                              hintText: 'Geplante oder umgesetzte Maßnahmen für den Kundenreport …',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: FilledButton.icon(
+                            OutlinedButton.icon(
                               onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
                                   ? null
-                                  : _saveQmSummary,
-                              icon: const Icon(Icons.save_outlined),
-                              label: const Text('Zusammenfassung sichern'),
+                                  : _translateQmSummaryAndMeasures,
+                              icon: const Icon(Icons.g_translate_outlined),
+                              label: const Text('Standard & Maßnahmen übersetzen'),
                             ),
+                            FilledButton.icon(
+                              onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                  ? null
+                                  : _saveQmSummaryTranslation,
+                              icon: const Icon(Icons.save_alt_outlined),
+                              label: const Text('Übersetzung speichern'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _qmSummaryTranslationCtrl,
+                          maxLines: 3,
+                          minLines: 2,
+                          enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                          decoration: const InputDecoration(
+                            labelText: 'Zusammenfassung (Übersetzung)',
+                            border: OutlineInputBorder(),
                           ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  value: _qmSummaryTargetLang,
-                                  decoration: const InputDecoration(labelText: 'Zielsprache'),
-                                  items: const [
-                                    DropdownMenuItem(value: 'de', child: Text('Deutsch (DE)')),
-                                    DropdownMenuItem(value: 'en', child: Text('Englisch (EN)')),
-                                    DropdownMenuItem(value: 'fr', child: Text('Französisch (FR)')),
-                                    DropdownMenuItem(value: 'it', child: Text('Italienisch (IT)')),
-                                    DropdownMenuItem(value: 'es', child: Text('Spanisch (ES)')),
-                                  ],
-                                  onChanged: (_busy || _isPortalReadonly || !_isPortalSuperuser)
-                                      ? null
-                                      : (val) {
-                                          if (val == null) return;
-                                          setState(() {
-                                            _qmSummaryTargetLang = val;
-                                            _qmSummaryTranslationCtrl.text = summaryTranslations[val] ??
-                                                summaryTranslations[val.toLowerCase()] ??
-                                                '';
-                                            _qmMeasuresTranslationCtrl.text = measuresTranslations[val] ??
-                                                measuresTranslations[val.toLowerCase()] ??
-                                                '';
-                                          });
-                                        },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  children: [
-                                    TextField(
-                                      controller: _qmSummaryTranslationCtrl,
-                                      maxLines: 3,
-                                      minLines: 2,
-                                      enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Zusammenfassung (Übersetzung)',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      controller: _qmMeasuresTranslationCtrl,
-                                      maxLines: 3,
-                                      minLines: 2,
-                                      enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Maßnahmen (Übersetzung)',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _qmMeasuresTranslationCtrl,
+                          maxLines: 3,
+                          minLines: 2,
+                          enabled: !_busy && !_isPortalReadonly && _isPortalSuperuser,
+                          decoration: const InputDecoration(
+                            labelText: 'Maßnahmen (Übersetzung)',
+                            border: OutlineInputBorder(),
                           ),
+                        ),
+                        if (summaryTranslations.isNotEmpty || measuresTranslations.isNotEmpty) ...[
                           const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 8,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
-                                    ? null
-                                    : _translateQmSummaryAndMeasures,
-                                icon: const Icon(Icons.translate_outlined),
-                                label: const Text('Standard & Maßnahmen übersetzen'),
-                              ),
-                              FilledButton.icon(
-                                onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
-                                    ? null
-                                    : _saveQmSummaryTranslation,
-                                icon: const Icon(Icons.save_alt_outlined),
-                                label: const Text('Übersetzung speichern'),
-                              ),
-                            ],
+                          Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Gespeicherte QM-Übersetzungen',
+                            style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
                           ),
-                          if (summaryTranslations.isNotEmpty || measuresTranslations.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Divider(color: scheme.outlineVariant.withOpacity(0.7)),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Gespeicherte QM-Übersetzungen',
-                              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                          const SizedBox(height: 4),
+                          if (summaryTranslations.isNotEmpty) ...[
+                            Text('Zusammenfassung', style: textTheme.labelMedium),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: summaryTranslations.entries
+                                  .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
+                                  .toList(),
                             ),
-                            const SizedBox(height: 6),
-                            if (summaryTranslations.isNotEmpty) ...[
-                              Text('Zusammenfassung', style: textTheme.labelMedium),
-                              const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: summaryTranslations.entries
-                                    .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
-                                    .toList(),
-                              ),
-                              const SizedBox(height: 10),
-                            ],
-                            if (measuresTranslations.isNotEmpty) ...[
-                              Text('Maßnahmen', style: textTheme.labelMedium),
-                              const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: measuresTranslations.entries
-                                    .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
-                                    .toList(),
-                              ),
-                            ],
+                            const SizedBox(height: 8),
+                          ],
+                          if (measuresTranslations.isNotEmpty) ...[
+                            Text('Maßnahmen', style: textTheme.labelMedium),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: measuresTranslations.entries
+                                  .map((e) => InputChip(label: Text('${e.key.toUpperCase()}: ${e.value}')))
+                                  .toList(),
+                            ),
                           ],
                         ],
-                      ),
+                      ],
                     );
                   }
 
@@ -17398,72 +17494,69 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   final evalSection =
                       _lockForPortal(buildInternalEvaluationSection(), allowPortalUser: true);
                   final qmSection = _lockForPortal(buildQmSummarySection());
-
-                  final preferColumnLayout =
-                      _isPortalUser && !_isPortalSuperuser && !_isPortalReadonly;
-
-                  final editor = (isWide && _isPortalSuperuser)
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      statusSection,
-                                      const SizedBox(height: 24),
-                                      evalSection,
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 28),
-                                Expanded(child: metaSection),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            qmSection,
-                          ],
+                  final qmTranslationsSection = _lockForPortal(buildQmTranslationsSection());
+                  final internalTranslationSection = _isPortalSuperuser
+                      ? _lockForPortal(
+                          buildInternalEvaluationTranslationSection(
+                            widget.c.internalEvaluationTranslations ?? const <String, String>{},
+                          ),
+                          allowPortalUser: true,
                         )
-                      : (isWide && !preferColumnLayout)
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(child: statusSection),
-                                    const SizedBox(width: 28),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          metaSection,
-                                          const SizedBox(height: 24),
-                                          evalSection,
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                                qmSection,
-                              ],
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                statusSection,
-                                const SizedBox(height: 24),
-                                metaSection,
-                                const SizedBox(height: 24),
-                                evalSection,
-                                const SizedBox(height: 24),
-                                qmSection,
-                              ],
-                            );
+                      : null;
+
+                  Widget buildSideBySide({
+                    required Widget left,
+                    Widget? right,
+                  }) {
+                    if (!isWide) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          left,
+                          if (right != null) ...[
+                            const SizedBox(height: 20),
+                            right,
+                          ],
+                        ],
+                      );
+                    }
+
+                    if (right == null) {
+                      return left;
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: left),
+                        const SizedBox(width: 20),
+                        Expanded(child: right),
+                      ],
+                    );
+                  }
+
+                  final editor = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      statusSection,
+                      const SizedBox(height: 20),
+                      metaSection,
+                      const SizedBox(height: 16),
+                      Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                      const SizedBox(height: 16),
+                      buildSideBySide(
+                        left: evalSection,
+                        right: internalTranslationSection,
+                      ),
+                      const SizedBox(height: 16),
+                      Divider(color: scheme.outlineVariant.withOpacity(0.7)),
+                      const SizedBox(height: 16),
+                      buildSideBySide(
+                        left: qmSection,
+                        right: qmTranslationsSection,
+                      ),
+                    ],
+                  );
 
                   final baseColor = scheme.surface;
                   final overlay = theme.brightness == Brightness.dark
