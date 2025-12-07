@@ -13499,11 +13499,26 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    FilledButton.icon(
-                      onPressed: () => _openDialog(context),
-                      icon: const Icon(Icons.open_in_new),
-                      label: const Text('Reklamation öffnen'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        statusChip,
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: () => _openDialog(context),
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Reklamation öffnen'),
+                        ),
+                      ],
                     ),
+                    if (hasRep)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: _RepTrafficLight(
+                          opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                          compact: true,
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -13515,7 +13530,16 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                 spacing: 16,
                 runSpacing: 6,
                 children: [
-                  ...meta,
+                  _metaPill(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.event_available_outlined, size: 18),
+                        const SizedBox(width: 6),
+                        Text('Eingang: ${_formatDate(c.createdAt)}'),
+                      ],
+                    ),
+                  ),
                   Text('Entscheidung: ${_labelForDecision(c.decision)}',
                       style: TextStyle(color: _decisionColor(c.decision), fontWeight: FontWeight.w600)),
                   Text('Wunsch: ${c.handlingLabel}', style: const TextStyle(fontWeight: FontWeight.w600)),
