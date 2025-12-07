@@ -899,12 +899,26 @@ export default async function handler(req, res) {
       }
 
       if (deleteReportsFlag) {
+        const reportUrls = [
+          c.reportLink,
+          ...(Object.values(c.reportLinks || {})),
+          ...(Object.values(c.externalReportLinks || {})),
+          ...(Object.values(c.internalReportLinks || {})),
+        ];
         const hadAny = hasReports(c);
         delete c.reportLink;
         delete c.reportLinks;
         delete c.externalReportLinks;
         delete c.internalReportLinks;
         if (hadAny) reportChanged = true;
+
+        if (reportUrls.some(Boolean)) {
+          try {
+            await deleteUploadsFromBlob(reportUrls);
+          } catch (err) {
+            console.warn('admin/complaints report cleanup failed', err?.message || err);
+          }
+        }
       }
 
       // Interne Nummer (optional; "" => löschen)

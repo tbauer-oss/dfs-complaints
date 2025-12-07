@@ -77,14 +77,40 @@ function buildBlobPath(ticket, filename) {
   return `${prefix}/${stamp}-${suffix}-${filename}`;
 }
 
+function blobPathFromUrl(input) {
+  const raw = (input ?? '').toString().trim();
+  if (!raw) return null;
+  try {
+    const { pathname } = new URL(raw);
+    const cleaned = (pathname || '').replace(/^\/+/, '').trim();
+    return cleaned || null;
+  } catch {
+    return null;
+  }
+}
+
 function collectBlobPaths(uploads = []) {
-  return uploads
-    .flatMap((u) => {
-      const raw = u?.blobPath || u?.blobpath || '';
-      const normalized = (raw || '').toString().trim();
-      return normalized ? [normalized] : [];
-    })
-    .filter(Boolean);
+  const paths = [];
+  for (const entry of uploads) {
+    if (!entry) continue;
+    if (typeof entry === 'string') {
+      const urlPath = blobPathFromUrl(entry);
+      if (urlPath) paths.push(urlPath);
+      continue;
+    }
+
+    const raw = entry?.blobPath || entry?.blobpath || '';
+    const normalized = (raw || '').toString().trim();
+    if (normalized) {
+      paths.push(normalized);
+      continue;
+    }
+
+    const urlPath = blobPathFromUrl(entry?.downloadUrl || entry?.url);
+    if (urlPath) paths.push(urlPath);
+  }
+
+  return Array.from(new Set(paths.filter(Boolean)));
 }
 
 async function resolveTicket(ticket) {
