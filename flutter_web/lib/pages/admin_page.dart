@@ -16808,6 +16808,74 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       );
                     }
 
+                    Widget _buildReportDownloads() {
+                      final hasExternalReports = externalLinks?.isNotEmpty ?? false;
+                      final hasInternalReports = widget.c.internalReportLinks?.isNotEmpty ?? false;
+                      if (!hasExternalReports && !hasInternalReports) return const SizedBox.shrink();
+
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: scheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: scheme.outlineVariant.withOpacity(0.8)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.download_done_outlined, color: scheme.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Reports herunterladen',
+                                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                                const Spacer(),
+                                if (hasExternalReports && hasInternalReports)
+                                  Chip(
+                                    label: const Text('Extern & Intern'),
+                                    avatar: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+                                  )
+                                else if (hasExternalReports)
+                                  Chip(
+                                    label: const Text('Externe Reports'),
+                                    avatar: const Icon(Icons.open_in_new, size: 18),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+                                  )
+                                else
+                                  Chip(
+                                    label: const Text('Interne Reports'),
+                                    avatar: const Icon(Icons.shield_outlined, size: 18),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    backgroundColor: scheme.surfaceVariant.withOpacity(0.4),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Direktzugriff auf generierte PDFs. Links öffnen in einem neuen Tab.',
+                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                            ),
+                            const SizedBox(height: 10),
+                            if (hasExternalReports)
+                              _linkBadges('Externe Reports', externalLinks, highlight: true),
+                            if (hasInternalReports)
+                              _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                          ],
+                        ),
+                      );
+                    }
+
                     Widget buildDepartmentSelector() {
                       final availableDepartments = kInternalDepartments
                           .where((dep) => !_selectedDepartments.contains(dep))
@@ -16899,20 +16967,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               ),
                               icon: const Icon(Icons.delete_outline),
                               label: const Text('Reports löschen'),
-                            ),
-                            FilledButton.icon(
-                              onPressed: (_busy || !canEditMeta) ? null : _generateReports,
-                              icon: const Icon(Icons.picture_as_pdf_outlined),
-                              label: const Text('Reports generieren'),
-                            ),
-                          ],
-                        ),
-                        if ((externalLinks?.isNotEmpty ?? false) ||
-                            (widget.c.internalReportLinks?.isNotEmpty ?? false)) ...[
-                          const SizedBox(height: 10),
-                          _linkBadges('Externe Reports', externalLinks, highlight: true),
-                          _linkBadges('Interne Reports', widget.c.internalReportLinks),
+                          ),
+                          FilledButton.icon(
+                            onPressed: (_busy || !canEditMeta) ? null : _generateReports,
+                            icon: const Icon(Icons.picture_as_pdf_outlined),
+                            label: const Text('Reports generieren'),
+                          ),
                         ],
+                      ),
+                        const SizedBox(height: 10),
+                        _buildReportDownloads(),
                       ],
                     );
                   }
