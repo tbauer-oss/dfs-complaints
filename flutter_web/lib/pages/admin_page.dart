@@ -17029,7 +17029,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
 
                   Widget buildInternalEvaluationSection() {
                     final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
-                    final translations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
                     return buildSectionCard(
                       icon: Icons.fact_check_outlined,
                       title: 'Interne Bewertung',
@@ -17117,10 +17116,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ],
                         ),
                         if (_isPortalSuperuser)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: buildInternalEvaluationTranslationSection(translations),
-                          ),
+                          const SizedBox(height: 4),
                       ],
                     );
                   }
@@ -17435,28 +17431,67 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       _lockForPortal(buildInternalEvaluationSection(), allowPortalUser: true);
                   final qmSection = _lockForPortal(buildQmSummarySection());
                   final qmTranslationsSection = _lockForPortal(buildQmTranslationsSection());
-
-                  final cardWidth = isWide ? (constraints.maxWidth - 40) / 2 : double.infinity;
-
-                  final editor = Wrap(
-                    spacing: 20,
-                    runSpacing: 20,
-                    children: [
-                      SizedBox(width: double.infinity, child: statusSection),
-                      SizedBox(width: cardWidth, child: evalSection),
-                      SizedBox(width: cardWidth, child: metaSection),
-                      if (_isPortalSuperuser)
-                        SizedBox(
-                          width: cardWidth,
-                          child: _lockForPortal(
-                            buildInternalEvaluationTranslationSection(
-                              widget.c.internalEvaluationTranslations ?? const <String, String>{},
-                            ),
-                            allowPortalUser: true,
+                  final internalTranslationSection = _isPortalSuperuser
+                      ? _lockForPortal(
+                          buildInternalEvaluationTranslationSection(
+                            widget.c.internalEvaluationTranslations ?? const <String, String>{},
                           ),
+                          allowPortalUser: true,
+                        )
+                      : null;
+
+                  List<Widget> spacedColumn(List<Widget> children) {
+                    return [
+                      for (int i = 0; i < children.length; i++) ...[
+                        children[i],
+                        if (i != children.length - 1) const SizedBox(height: 20),
+                      ],
+                    ];
+                  }
+
+                  final leftColumn = [
+                    evalSection,
+                    qmSection,
+                  ];
+
+                  final rightColumn = [
+                    metaSection,
+                    if (internalTranslationSection != null) internalTranslationSection,
+                    qmTranslationsSection,
+                  ];
+
+                  final editor = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      statusSection,
+                      const SizedBox(height: 20),
+                      if (isWide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: spacedColumn(leftColumn),
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: spacedColumn(rightColumn),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: spacedColumn([
+                            ...leftColumn,
+                            ...rightColumn,
+                          ]),
                         ),
-                      SizedBox(width: cardWidth, child: qmSection),
-                      SizedBox(width: cardWidth, child: qmTranslationsSection),
                     ],
                   );
 
