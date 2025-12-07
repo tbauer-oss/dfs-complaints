@@ -13458,6 +13458,27 @@ class _ComplaintDialogLauncher extends StatelessWidget {
       ],
     );
 
+    final meta = [
+      _metaPill(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.event_available_outlined, size: 18),
+            const SizedBox(width: 6),
+            Text('Eingang: ${_formatDate(c.createdAt)}'),
+          ],
+        ),
+      ),
+      _metaPill(child: statusChip),
+      if (hasRep)
+        _metaPill(
+          child: _RepTrafficLight(
+            opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+            compact: true,
+          ),
+        ),
+    ];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -13465,7 +13486,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (selectable)
                   Padding(
@@ -13473,37 +13494,6 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                     child: Checkbox(value: selected, onChanged: onSelected),
                   ),
                 Expanded(child: header),
-                const SizedBox(width: 12),
-                Flexible(
-                  flex: 2,
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    runAlignment: WrapAlignment.center,
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _metaPill(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.event_available_outlined, size: 18),
-                            const SizedBox(width: 6),
-                            Text('Eingang: ${_formatDate(c.createdAt)}'),
-                          ],
-                        ),
-                      ),
-                      _metaPill(child: statusChip),
-                      if (hasRep)
-                        _metaPill(
-                          child: _RepTrafficLight(
-                            opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
-                            compact: true,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
                 const SizedBox(width: 12),
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -13525,6 +13515,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                 spacing: 16,
                 runSpacing: 6,
                 children: [
+                  ...meta,
                   Text('Entscheidung: ${_labelForDecision(c.decision)}',
                       style: TextStyle(color: _decisionColor(c.decision), fontWeight: FontWeight.w600)),
                   Text('Wunsch: ${c.handlingLabel}', style: const TextStyle(fontWeight: FontWeight.w600)),
