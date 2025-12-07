@@ -9894,6 +9894,7 @@ class _AdminPageState extends State<AdminPage> {
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
+                          repName: _repNameForEmail(c.email),
                           hasNewCustomerMessage: _hasNewCustomerMessage(c),
                           selectable: _portalRole == 'superuser',
                           selected: _selectedAllTickets.contains(c.ticket),
@@ -10030,6 +10031,7 @@ class _AdminPageState extends State<AdminPage> {
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
+                          repName: _repNameForEmail(c.email),
                           hasNewCustomerMessage: _hasNewCustomerMessage(c),
                           selectable: _portalRole == 'superuser',
                           selected: _selectedOpenTickets.contains(c.ticket),
@@ -12084,6 +12086,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                     hasRep: (c.email.isNotEmpty)
                         ? (parent?._customerHasRep(c.email) ?? false)
                         : false,
+                    repName: parent?._repNameForEmail(c.email),
                     hasNewCustomerMessage:
                         parent == null ? false : parent._hasNewCustomerMessage(c),
                     onCustomerMessageSeen: parent == null
@@ -13228,6 +13231,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
   final DfsProduct? Function(String articleNumber)? productLookup;
   final String? companyHint;
   final bool hasRep;
+  final String? repName;
   final bool selectable;
   final bool selected;
   final ValueChanged<bool?>? onSelected;
@@ -13247,6 +13251,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
+    this.repName,
     this.selectable = false,
     this.selected = false,
     this.onSelected,
@@ -13327,14 +13332,23 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Reklamation ${c.ticket}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700)),
-                          if ((c.internalNo ?? '').trim().isNotEmpty)
-                            Text('Intern: ${c.internalNo}',
-                                style: Theme.of(context).textTheme.bodySmall),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 4,
+                            children: [
+                              Text('Reklamation ${c.ticket}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700)),
+                              if ((c.internalNo ?? '').trim().isNotEmpty)
+                                Text('Reklamations-Nr. (DFS): ${c.internalNo}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700)),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -13360,6 +13374,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       productLookup: productLookup,
                       companyHint: companyHint,
                       hasRep: hasRep,
+                      repName: repName,
                       selectable: selectable,
                       selected: selected,
                       onSelected: onSelected,
@@ -13396,21 +13411,26 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-        if ((c.internalNo ?? '').trim().isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text('Intern: ${c.internalNo}', style: Theme.of(context).textTheme.bodySmall),
-          ),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Text('Ticket ${c.ticket}',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            if ((c.internalNo ?? '').trim().isNotEmpty)
+              Text('Reklamations-Nr. (DFS): ${c.internalNo}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          ],
+        ),
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(companyHint?.trim().isNotEmpty == true ? companyHint!.trim() : c.email,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
         ),
-        if (hasRep)
+        if ((repName ?? '').trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text('Kunde hat Vertreter', style: Theme.of(context).textTheme.bodySmall),
+            child: Text('Vertreter: ${repName!.trim()}', style: Theme.of(context).textTheme.bodySmall),
           ),
       ],
     );
@@ -13514,6 +13534,7 @@ class _ComplaintEditor extends StatefulWidget {
   final DfsProduct? Function(String articleNumber)? productLookup;
   final String? companyHint;
   final bool hasRep;
+  final String? repName;
   final bool selectable;
   final bool selected;
   final ValueChanged<bool?>? onSelected;
@@ -13535,6 +13556,7 @@ class _ComplaintEditor extends StatefulWidget {
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
+    this.repName,
     this.selectable = false,
     this.selected = false,
     this.onSelected,
