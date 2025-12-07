@@ -25,6 +25,7 @@ import {
 } from '../_lib/departments.js';
 import { translateTexts } from '../_lib/translate.js';
 import { generateComplaintReports, shouldGenerateReports } from '../_lib/reporting.js';
+import { deleteUploadsFromBlob } from '../_lib/uploads.js';
 
 // -------- Status-Mapping ----------
 const STATUS_LABEL = {
@@ -1202,6 +1203,12 @@ export default async function handler(req, res) {
 
       const c = await complaintByTicket(ticket);
       if (!c) return bad(res, 'not found', 404);
+
+      try {
+        await deleteUploadsFromBlob(c.uploads || []);
+      } catch (err) {
+        console.warn('admin/complaints delete: blob cleanup failed', err?.message || err);
+      }
 
       await complaintDelete(ticket);
       return noContent(res);
