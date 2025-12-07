@@ -249,33 +249,37 @@ class _MyAppState extends State<MyApp> {
     var remember = _rememberPortal;
     final wantOpen = await showDialog<bool>(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: Text(t.admin_area),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'E-Mail',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              PasswordField(
-                controller: pwCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Passwort',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              CheckboxListTile(
-                value: remember,
-                onChanged: (v) => setS(() => remember = v ?? false),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
+          builder: (_) => StatefulBuilder(
+            builder: (ctx, setS) => AlertDialog(
+              title: Text(t.admin_area),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'E-Mail',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => FocusScope.of(ctx).nextFocus(),
+                  ),
+                  const SizedBox(height: 12),
+                  PasswordField(
+                    controller: pwCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Passwort',
+                      border: OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => Navigator.pop(ctx, true),
+                  ),
+                  CheckboxListTile(
+                    value: remember,
+                    onChanged: (v) => setS(() => remember = v ?? false),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(t.stay_signed_in),
               ),
