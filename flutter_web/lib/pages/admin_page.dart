@@ -16689,6 +16689,26 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const SizedBox(height: 16),
+                        Text(
+                          'Betroffene interne Abteilungen',
+                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        buildDepartmentSelector(),
+                        const SizedBox(height: 20),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _deleteComplaint,
+                            style: TextButton.styleFrom(
+                              foregroundColor: scheme.error,
+                              overlayColor: scheme.error.withOpacity(0.1),
+                            ),
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Ticket löschen'),
+                          ),
+                        ),
                         Text(
                           'Meta & Aktionen',
                           style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -16722,26 +16742,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             ),
                             icon: const Icon(Icons.delete_outline),
                             label: const Text('Reports löschen'),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Betroffene interne Abteilungen',
-                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        buildDepartmentSelector(),
-                        const SizedBox(height: 20),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _deleteComplaint,
-                            style: TextButton.styleFrom(
-                              foregroundColor: scheme.error,
-                              overlayColor: scheme.error.withOpacity(0.1),
-                            ),
-                            icon: const Icon(Icons.delete_outline),
-                            label: const Text('Ticket löschen'),
                           ),
                         ),
                       ],
