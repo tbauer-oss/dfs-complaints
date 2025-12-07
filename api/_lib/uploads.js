@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { randomUUID } from 'node:crypto';
 
 const MAX_PREVIEW_CHARS = 200000;
@@ -75,6 +75,16 @@ function buildBlobPath(ticket, filename) {
   const stamp = Date.now();
   const suffix = randomUUID().replace(/-/g, '');
   return `${prefix}/${stamp}-${suffix}-${filename}`;
+}
+
+function collectBlobPaths(uploads = []) {
+  return uploads
+    .flatMap((u) => {
+      const raw = u?.blobPath || u?.blobpath || '';
+      const normalized = (raw || '').toString().trim();
+      return normalized ? [normalized] : [];
+    })
+    .filter(Boolean);
 }
 
 async function resolveTicket(ticket) {
@@ -221,6 +231,19 @@ export async function storeGeneratedFile(buffer, {
   }
 
   return null;
+}
+
+export async function deleteUploadsFromBlob(uploads = []) {
+  if (!blobUploadsEnabled) return false;
+  const paths = collectBlobPaths(uploads);
+  if (!paths.length) return false;
+  try {
+    await del(paths);
+    return true;
+  } catch (err) {
+    console.error('[uploads] failed to delete blob files', err?.message || err);
+    return false;
+  }
 }
 
 export function normalizeProvidedUploads(input) {
