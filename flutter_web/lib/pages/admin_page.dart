@@ -16816,7 +16816,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                         Text(
                           'Betroffene interne Abteilungen',
                           style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
