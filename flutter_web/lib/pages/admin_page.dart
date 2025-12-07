@@ -13458,6 +13458,27 @@ class _ComplaintDialogLauncher extends StatelessWidget {
       ],
     );
 
+    final meta = [
+      _metaPill(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.event_available_outlined, size: 18),
+            const SizedBox(width: 6),
+            Text('Eingang: ${_formatDate(c.createdAt)}'),
+          ],
+        ),
+      ),
+      _metaPill(child: statusChip),
+      if (hasRep)
+        _metaPill(
+          child: _RepTrafficLight(
+            opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+            compact: true,
+          ),
+        ),
+    ];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
