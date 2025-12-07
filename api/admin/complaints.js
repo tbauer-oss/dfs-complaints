@@ -502,10 +502,12 @@ export default async function handler(req, res) {
       const internalEvalCause = body?.internalEvaluationCause;
       const translateEval = body?.translateInternalEvaluation;
       const qmSummaryInput = body?.qmCustomerSummary;
+      const qmMeasuresInput = body?.qmMeasures;
       const qmSummaryTranslationsInput = body?.qmCustomerSummaryTranslations;
       const qmCopyInternalTranslationLang = body?.qmCopyInternalEvaluationLang
         || body?.qmCopyInternalTranslationLang
         || body?.qmCopyInternalTranslation;
+      const translateQmSummary = body?.translateQmSummary || body?.translateQmSummaryLang;
       const payloadInput = normalizePayloadInput(body?.payload);
       const hasGoodwill = ['isGoodwill', 'goodwill', 'isKulanz'].some((key) =>
         Object.prototype.hasOwnProperty.call(body || {}, key),
@@ -594,7 +596,9 @@ export default async function handler(req, res) {
       const prevEvalCause = normalizeInternalEvaluationCause(c.internalEvaluationCause);
       const prevTranslations = normalizeEvaluationTranslations(c.internalEvaluationTranslations);
       const prevQmSummary = normalizeEvaluationText(c.qmCustomerSummary);
+      const prevQmMeasures = normalizeEvaluationText(c.qmMeasures);
       const prevQmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
+      const prevQmMeasuresTranslations = normalizeEvaluationTranslations(c.qmMeasuresTranslations);
       const prevGoodwill = c.isGoodwill === true;
       const hasReports = (complaint) => {
         if (!complaint) return false;
@@ -620,6 +624,7 @@ export default async function handler(req, res) {
       let evalTranslationChanged = false;
       let qmSummaryChanged = false;
       let qmSummaryTranslationChanged = false;
+      let qmMeasuresTranslationChanged = false;
       let goodwillChanged = false;
 
       c.history = normalizeHistory(c.history);
@@ -697,6 +702,13 @@ export default async function handler(req, res) {
         }
       }
 
+      if (qmMeasuresInput !== undefined) {
+        const nextMeasures = normalizeEvaluationText(qmMeasuresInput);
+        if (nextMeasures !== prevQmMeasures) {
+          if (nextMeasures) c.qmMeasures = nextMeasures; else delete c.qmMeasures;
+        }
+      }
+
       if (qmSummaryTranslationsInput !== undefined && typeof qmSummaryTranslationsInput === 'object') {
         const normalizedTranslations = normalizeEvaluationTranslations(qmSummaryTranslationsInput);
         const merged = normalizeEvaluationTranslations({ ...prevQmTranslations, ...normalizedTranslations });
@@ -704,6 +716,16 @@ export default async function handler(req, res) {
         if (!same) {
           if (Object.keys(merged).length > 0) c.qmCustomerSummaryTranslations = merged; else delete c.qmCustomerSummaryTranslations;
           qmSummaryTranslationChanged = true;
+        }
+      }
+
+      if (body?.qmMeasuresTranslations !== undefined && typeof body.qmMeasuresTranslations === 'object') {
+        const normalizedTranslations = normalizeEvaluationTranslations(body.qmMeasuresTranslations);
+        const merged = normalizeEvaluationTranslations({ ...prevQmMeasuresTranslations, ...normalizedTranslations });
+        const same = JSON.stringify(merged) === JSON.stringify(prevQmMeasuresTranslations);
+        if (!same) {
+          if (Object.keys(merged).length > 0) c.qmMeasuresTranslations = merged; else delete c.qmMeasuresTranslations;
+          qmMeasuresTranslationChanged = true;
         }
       }
 
@@ -730,6 +752,75 @@ export default async function handler(req, res) {
             c.qmCustomerSummaryTranslations = merged;
             qmSummaryTranslationChanged = true;
           }
+        }
+      }
+
+      if (translateQmSummary) {
+        const requested = normalizeLangValue(
+          translateQmSummary?.targetLang || translateQmSummary?.lang || translateQmSummary,
+        ) || 'en';
+        if (!ALLOWED_EVALUATION_TRANSLATION_LANGS.has(requested)) {
+          return bad(res, 'unsupported translation target', 400);
+        }
+
+        const sourceSummary = normalizeEvaluationText(
+          qmSummaryInput !== undefined ? qmSummaryInput : c.qmCustomerSummary,
+        );
+        const sourceMeasures = normalizeEvaluationText(
+          qmMeasuresInput !== undefined ? qmMeasuresInput : c.qmMeasures,
+        );
+
+        if (!sourceSummary && !sourceMeasures) {
+          return bad(res, 'no qm summary or measures to translate', 400);
+        }
+
+        const textByKey = {};
+        if (sourceSummary) textByKey.summary = sourceSummary;
+        if (sourceMeasures) textByKey.measures = sourceMeasures;
+
+        try {
+          const result = await translateTexts({
+            textByKey,
+            sourceLang: 'de',
+            targetLangs: [requested],
+          });
+          const translatedSummary = normalizeEvaluationText(result?.translations?.[requested]?.summary);
+          const translatedMeasures = normalizeEvaluationText(result?.translations?.[requested]?.measures);
+
+          if (!translatedSummary && !translatedMeasures) return bad(res, 'translation empty', 400);
+
+          const currentSummaryTranslations = normalizeEvaluationTranslations(
+            c.qmCustomerSummaryTranslations || prevQmTranslations,
+          );
+          const currentMeasuresTranslations = normalizeEvaluationTranslations(
+            c.qmMeasuresTranslations || prevQmMeasuresTranslations,
+          );
+
+          if (translatedSummary) {
+            const mergedSummary = normalizeEvaluationTranslations({
+              ...currentSummaryTranslations,
+              [requested]: translatedSummary,
+            });
+            const sameSummary = JSON.stringify(mergedSummary) === JSON.stringify(currentSummaryTranslations);
+            if (!sameSummary) {
+              c.qmCustomerSummaryTranslations = mergedSummary;
+              qmSummaryTranslationChanged = true;
+            }
+          }
+
+          if (translatedMeasures) {
+            const mergedMeasures = normalizeEvaluationTranslations({
+              ...currentMeasuresTranslations,
+              [requested]: translatedMeasures,
+            });
+            const sameMeasures = JSON.stringify(mergedMeasures) === JSON.stringify(currentMeasuresTranslations);
+            if (!sameMeasures) {
+              c.qmMeasuresTranslations = mergedMeasures;
+              qmMeasuresTranslationChanged = true;
+            }
+          }
+        } catch (err) {
+          return bad(res, err?.message || 'translation failed', 400);
         }
       }
 
@@ -930,12 +1021,15 @@ export default async function handler(req, res) {
         });
       }
 
-      if (qmSummaryTranslationChanged) {
+      if (qmSummaryTranslationChanged || qmMeasuresTranslationChanged) {
         pushHistory(c, {
           actor: 'admin',
           type: 'qm-summary-translation',
-          message: 'QM-Zusammenfassung übersetzt/angepasst',
-          data: { translations: c.qmCustomerSummaryTranslations || {} },
+          message: 'QM-Zusammenfassung/Maßnahmen übersetzt/angepasst',
+          data: {
+            summaryTranslations: c.qmCustomerSummaryTranslations || {},
+            measuresTranslations: c.qmMeasuresTranslations || {},
+          },
         });
       }
 

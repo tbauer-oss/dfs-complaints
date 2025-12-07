@@ -344,6 +344,13 @@ function qmSummaryForLang(complaint, lang) {
   return safe(complaint?.qmCustomerSummary_de || complaint?.qmCustomerSummary || complaint?.qmCustomerSummary_en || '');
 }
 
+function qmMeasuresForLang(complaint, lang) {
+  const translations = complaint?.qmMeasuresTranslations || {};
+  const preferred = lang && translations[lang];
+  if (preferred) return safe(preferred);
+  return safe(complaint?.qmMeasures_de || complaint?.qmMeasures || plannedActions(complaint));
+}
+
 function plannedActions(complaint) {
   const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   const actions = payload.plannedActions || payload.actions || payload.measures || payload.massnahmen || payload['maßnahmen'];
@@ -353,7 +360,7 @@ function plannedActions(complaint) {
 function externalActionsBlock(complaint, lang) {
   const labels = LABELS[lang];
   const summary = qmSummaryForLang(complaint, lang) || '–';
-  const actions = plannedActions(complaint) || '–';
+  const actions = qmMeasuresForLang(complaint, lang) || '–';
   const decision = safe(complaint?.decision) || '–';
   return [
     { label: labels.decisionText, value: decision },
