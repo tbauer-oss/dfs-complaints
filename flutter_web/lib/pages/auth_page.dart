@@ -124,6 +124,11 @@ class _AuthPageState extends State<AuthPage> {
                 labelText: t.password,
                 border: const OutlineInputBorder(),
               ),
+              onSubmitted: (_) {
+                if (isLogin && !_busy) {
+                  _handlePress(context);
+                }
+              },
             ),
 
             if (isLogin)
