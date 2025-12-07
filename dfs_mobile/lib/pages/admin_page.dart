@@ -5016,9 +5016,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
 
   Color _decisionColor(String? d) {
     final v = (d ?? '').trim();
-    if (v == 'accepted') return const Color(0xFF1B5E20); // grün
-    if (v == 'rejected') return const Color(0xFFB71C1C); // rot
-    return Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black54;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
+
+    if (v == 'accepted') return isDark ? const Color(0xFF66BB6A) : const Color(0xFF1B5E20); // grün
+    if (v == 'rejected') return isDark ? const Color(0xFFFF8A80) : const Color(0xFFB71C1C); // rot
+
+    return scheme.onSurface.withOpacity(isDark ? 0.75 : 0.6);
   }
 
   String _fmtDate(DateTime d) {
@@ -5481,46 +5485,80 @@ class _ComplaintEditorState extends State<_ComplaintEditor> {
                 // ===================== Entscheidung + Wunsch (gemeinsame Meta-Zeile) =====================
                 Builder(
               builder: (_) {
-                final decText = _labelForDecision(c.decision);
                 final decCol  = _decisionColor(c.decision);
-                final wish    = c.handlingLabel; // kommt aus payload['handling'] / 'Wunsch'
+                final wish    = (c.handlingLabel.trim().isEmpty || c.handlingLabel == '—') ? '—' : c.handlingLabel;
+                final scheme  = Theme.of(context).colorScheme;
+                final isDark  = scheme.brightness == Brightness.dark;
+
+                Widget pill(Widget child) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
+                      ),
+                      child: child,
+                    );
 
                 // Linker Teil: Entscheidung (farbig) + Wunsch (neutral)
                 final left = Wrap(
                   spacing: 12,
-                  runSpacing: 6,
+                  runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Entscheidung: '),
-                        Text(
-                          decText,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: decCol,
+                    pill(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.gavel_outlined, size: 18, color: decCol),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Entscheidung',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface.withOpacity(0.75),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: decCol.withOpacity(isDark ? 0.25 : 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              child: Text(
+                                _labelForDecision(c.decision),
+                                style: TextStyle(color: decCol, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    // Trenner-Punkt
-                    const Text('•'),
-                    // Wunsch des Kunden (immer anzeigen, Strich wenn leer)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Wunsch: ',
-                          style: TextStyle(fontWeight: FontWeight.w400),
-                        ),
-                        Text(
-                          (wish.trim().isEmpty || wish == '—') ? '—' : wish,
-                          style: TextStyle(
-                            fontStyle: FontStyle.italic,
-                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                    pill(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.volunteer_activism_outlined, size: 18, color: scheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Wunsch',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface.withOpacity(0.75),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Text(
+                            wish,
+                            style: TextStyle(
+                              fontStyle: FontStyle.italic,
+                              color: scheme.onSurface.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 );
