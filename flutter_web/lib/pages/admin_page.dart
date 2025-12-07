@@ -16913,104 +16913,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                     );
                   }
 
-                  Widget buildInternalEvaluationSection() {
-                    final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
-                    final translations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
-                    return buildSectionCard(
-                      icon: Icons.fact_check_outlined,
-                      title: 'Interne Bewertung',
-                      subtitle:
-                          'Kompakt bewerten und die vermutete Ursache dokumentieren. Nur intern sichtbar.',
-                      children: [
-                        LayoutBuilder(builder: (context, constraints) {
-                          final horizontal = constraints.maxWidth > 780;
-                          final input = TextField(
-                            controller: _internalEvalCtrl,
-                            minLines: 3,
-                            maxLines: 8,
-                            readOnly: !canEditEvaluation,
-                            decoration: InputDecoration(
-                              border: const OutlineInputBorder(),
-                              labelText: 'Interne Bewertung (DE)',
-                              alignLabelWithHint: true,
-                              helperText:
-                                  'Beschreibe kurz die interne Einschätzung und geplante Maßnahmen.',
-                            ),
-                          );
-                          final cause = DropdownButtonFormField<String>(
-                            value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              labelText: 'Vermutete Ursache',
-                            ),
-                            items: kInternalEvaluationCauses
-                                .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
-                                .toList(),
-                            onChanged:
-                                canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
-                          );
-                          if (!horizontal) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                input,
-                                const SizedBox(height: 10),
-                                cause,
-                              ],
-                            );
-                          }
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(flex: 3, child: input),
-                              const SizedBox(width: 12),
-                              SizedBox(width: 280, child: cause),
-                            ],
-                          );
-                        }),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              canEditEvaluation
-                                  ? 'Nur dieser Bereich ist für dich freigeschaltet.'
-                                  : 'Keine Änderungen möglich – nur Ansicht.',
-                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
-                            ),
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                if (_isPortalReadonly)
-                                  Chip(
-                                    label: const Text('Nur Lesen'),
-                                    avatar: const Icon(Icons.visibility_off_outlined, size: 18),
-                                    backgroundColor: scheme.surface,
-                                  )
-                                else if (_isPortalUser)
-                                  Chip(
-                                    label: const Text('Nur Bewertung'),
-                                    avatar: const Icon(Icons.lock_clock_outlined, size: 18),
-                                    backgroundColor: scheme.surface,
-                                  ),
-                                FilledButton.icon(
-                                  onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
-                                  icon: const Icon(Icons.save_outlined),
-                                  label: const Text('Bewertung sichern'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        if (_isPortalSuperuser)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: buildInternalEvaluationTranslationSection(translations),
-                          ),
-                      ],
-                    );
-                  }
-
                   Widget buildInternalEvaluationTranslationSection(
                     Map<String, String> translations,
                   ) {
@@ -17122,6 +17024,104 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ],
                         ],
                       ),
+                    );
+                  }
+
+                  Widget buildInternalEvaluationSection() {
+                    final canEditEvaluation = !_isPortalReadonly && (_isPortalUser || _isPortalSuperuser);
+                    final translations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
+                    return buildSectionCard(
+                      icon: Icons.fact_check_outlined,
+                      title: 'Interne Bewertung',
+                      subtitle:
+                          'Kompakt bewerten und die vermutete Ursache dokumentieren. Nur intern sichtbar.',
+                      children: [
+                        LayoutBuilder(builder: (context, constraints) {
+                          final horizontal = constraints.maxWidth > 780;
+                          final input = TextField(
+                            controller: _internalEvalCtrl,
+                            minLines: 3,
+                            maxLines: 8,
+                            readOnly: !canEditEvaluation,
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
+                              labelText: 'Interne Bewertung (DE)',
+                              alignLabelWithHint: true,
+                              helperText:
+                                  'Beschreibe kurz die interne Einschätzung und geplante Maßnahmen.',
+                            ),
+                          );
+                          final cause = DropdownButtonFormField<String>(
+                            value: (_internalEvalCause ?? '').isEmpty ? null : _internalEvalCause,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Vermutete Ursache',
+                            ),
+                            items: kInternalEvaluationCauses
+                                .map((cause) => DropdownMenuItem(value: cause, child: Text(cause)))
+                                .toList(),
+                            onChanged:
+                                canEditEvaluation ? (v) => setState(() => _internalEvalCause = v) : null,
+                          );
+                          if (!horizontal) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                input,
+                                const SizedBox(height: 10),
+                                cause,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(flex: 3, child: input),
+                              const SizedBox(width: 12),
+                              SizedBox(width: 280, child: cause),
+                            ],
+                          );
+                        }),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              canEditEvaluation
+                                  ? 'Nur dieser Bereich ist für dich freigeschaltet.'
+                                  : 'Keine Änderungen möglich – nur Ansicht.',
+                              style: textTheme.bodySmall?.copyWith(color: secondaryTextColor),
+                            ),
+                            Wrap(
+                              spacing: 8,
+                              children: [
+                                if (_isPortalReadonly)
+                                  Chip(
+                                    label: const Text('Nur Lesen'),
+                                    avatar: const Icon(Icons.visibility_off_outlined, size: 18),
+                                    backgroundColor: scheme.surface,
+                                  )
+                                else if (_isPortalUser)
+                                  Chip(
+                                    label: const Text('Nur Bewertung'),
+                                    avatar: const Icon(Icons.lock_clock_outlined, size: 18),
+                                    backgroundColor: scheme.surface,
+                                  ),
+                                FilledButton.icon(
+                                  onPressed: (!canEditEvaluation || _busy) ? null : _saveInternalEvaluation,
+                                  icon: const Icon(Icons.save_outlined),
+                                  label: const Text('Bewertung sichern'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        if (_isPortalSuperuser)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: buildInternalEvaluationTranslationSection(translations),
+                          ),
+                      ],
                     );
                   }
 
