@@ -15759,6 +15759,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                         ),
                         const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _deleteComplaint,
+                          style: TextButton.styleFrom(
+                            foregroundColor: scheme.error,
+                            overlayColor: scheme.error.withOpacity(0.1),
+                          ),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Ticket löschen'),
+                        ),
+                        const SizedBox(width: 8),
                         IconButton(
                           tooltip: 'E-Mail an Kunden verfassen',
                           icon: const Icon(Icons.email_outlined),
@@ -16697,18 +16707,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                         const SizedBox(height: 8),
                         buildDepartmentSelector(),
                         const SizedBox(height: 20),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _deleteComplaint,
-                            style: TextButton.styleFrom(
-                              foregroundColor: scheme.error,
-                              overlayColor: scheme.error.withOpacity(0.1),
-                            ),
-                            icon: const Icon(Icons.delete_outline),
-                            label: const Text('Ticket löschen'),
-                          ),
-                        ),
                         Text(
                           'Meta & Aktionen',
                           style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
