@@ -13523,9 +13523,9 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(top: 2),
               child: Wrap(
                 spacing: 16,
                 runSpacing: 6,
