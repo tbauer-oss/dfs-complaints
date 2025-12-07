@@ -1153,7 +1153,7 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Color _decisionColor(String? d) {
+  Color _decisionColor(BuildContext context, String? d) {
     final v = (d ?? '').trim();
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
@@ -13299,7 +13299,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     }
   }
 
-  Color _decisionColor(String? d) {
+  Color _decisionColor(BuildContext context, String? d) {
     final v = (d ?? '').trim();
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
@@ -13310,7 +13310,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     return scheme.onSurface.withOpacity(isDark ? 0.75 : 0.6);
   }
 
-  Widget _metaPill({required Widget child, Color? color, EdgeInsets? padding}) {
+  Widget _metaPill(BuildContext context, {required Widget child, Color? color, EdgeInsets? padding}) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
     final bg = color ?? scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5);
@@ -13473,6 +13473,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
 
     final meta = [
       _metaPill(
+        context,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -13482,9 +13483,10 @@ class _ComplaintDialogLauncher extends StatelessWidget {
           ],
         ),
       ),
-      _metaPill(child: statusChip),
+      _metaPill(context, child: statusChip),
       if (hasRep)
         _metaPill(
+          context,
           child: _RepTrafficLight(
             opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
             compact: true,
@@ -13540,7 +13542,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Builder(builder: (context) {
-                final decColor = _decisionColor(c.decision);
+                final decColor = _decisionColor(context, c.decision);
                 final wish = (c.handlingLabel.trim().isEmpty || c.handlingLabel == '—')
                     ? '—'
                     : c.handlingLabel;
@@ -13551,6 +13553,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     _metaPill(
+                      context,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -13561,6 +13564,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       ),
                     ),
                     _metaPill(
+                      context,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -13589,6 +13593,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       ),
                     ),
                     _metaPill(
+                      context,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -15383,6 +15388,22 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     if (v == 'rejected') return isDark ? const Color(0xFFFF8A80) : const Color(0xFFB71C1C); // rot
 
     return scheme.onSurface.withOpacity(isDark ? 0.75 : 0.6);
+  }
+
+  Widget _metaPill({required Widget child, Color? color, EdgeInsets? padding}) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
+    final bg = color ?? scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5);
+
+    return Container(
+      padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: child,
+    );
   }
 
   String _fmtDate(DateTime d) {
