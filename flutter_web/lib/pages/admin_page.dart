@@ -13332,22 +13332,33 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 4,
-                            children: [
-                              Text('Reklamation ${c.ticket}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700)),
-                              if ((c.internalNo ?? '').trim().isNotEmpty)
-                                Text('Reklamations-Nr. (DFS): ${c.internalNo}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w700)),
-                            ],
+                          Builder(
+                            builder: (context) {
+                              final baseStyle = Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700);
+                              final dfsStyle = baseStyle?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              );
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  Text('Reklamation ${c.ticket}', style: baseStyle),
+                                  if ((c.internalNo ?? '').trim().isNotEmpty) ...[
+                                    const SizedBox(width: 12),
+                                    Flexible(
+                                      child: Text(
+                                        'Reklamations-Nr. (DFS): ${c.internalNo}',
+                                        style: dfsStyle,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -13411,16 +13422,28 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            Text('Ticket ${c.ticket}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            if ((c.internalNo ?? '').trim().isNotEmpty)
-              Text('Reklamations-Nr. (DFS): ${c.internalNo}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          ],
+        Builder(
+          builder: (context) {
+            final baseStyle = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+            final dfsStyle = baseStyle?.copyWith(color: scheme.primary);
+
+            return Row(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Text('Ticket ${c.ticket}', style: baseStyle),
+                if ((c.internalNo ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      'Reklamations-Nr. (DFS): ${c.internalNo}',
+                      style: dfsStyle,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
         Padding(
           padding: const EdgeInsets.only(top: 4),
