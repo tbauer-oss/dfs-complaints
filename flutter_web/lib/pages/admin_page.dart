@@ -9894,6 +9894,7 @@ class _AdminPageState extends State<AdminPage> {
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
+                          repName: _repNameForEmail(c.email),
                           hasNewCustomerMessage: _hasNewCustomerMessage(c),
                           selectable: _portalRole == 'superuser',
                           selected: _selectedAllTickets.contains(c.ticket),
@@ -10030,6 +10031,7 @@ class _AdminPageState extends State<AdminPage> {
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
+                          repName: _repNameForEmail(c.email),
                           hasNewCustomerMessage: _hasNewCustomerMessage(c),
                           selectable: _portalRole == 'superuser',
                           selected: _selectedOpenTickets.contains(c.ticket),
@@ -12084,6 +12086,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                     hasRep: (c.email.isNotEmpty)
                         ? (parent?._customerHasRep(c.email) ?? false)
                         : false,
+                    repName: parent?._repNameForEmail(c.email),
                     hasNewCustomerMessage:
                         parent == null ? false : parent._hasNewCustomerMessage(c),
                     onCustomerMessageSeen: parent == null
@@ -13228,6 +13231,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
   final DfsProduct? Function(String articleNumber)? productLookup;
   final String? companyHint;
   final bool hasRep;
+  final String? repName;
   final bool selectable;
   final bool selected;
   final ValueChanged<bool?>? onSelected;
@@ -13247,6 +13251,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
+    this.repName,
     this.selectable = false,
     this.selected = false,
     this.onSelected,
@@ -13327,14 +13332,34 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Reklamation ${c.ticket}',
-                              style: Theme.of(context)
+                          Builder(
+                            builder: (context) {
+                              final baseStyle = Theme.of(context)
                                   .textTheme
                                   .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700)),
-                          if ((c.internalNo ?? '').trim().isNotEmpty)
-                            Text('Intern: ${c.internalNo}',
-                                style: Theme.of(context).textTheme.bodySmall),
+                                  ?.copyWith(fontWeight: FontWeight.w700);
+                              final dfsStyle = baseStyle?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              );
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.max,
+                                children: [
+                                  Text('Reklamation ${c.ticket}', style: baseStyle),
+                                  if ((c.internalNo ?? '').trim().isNotEmpty) ...[
+                                    const SizedBox(width: 12),
+                                    Flexible(
+                                      child: Text(
+                                        'Reklamations-Nr. (DFS): ${c.internalNo}',
+                                        style: dfsStyle,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -13360,6 +13385,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       productLookup: productLookup,
                       companyHint: companyHint,
                       hasRep: hasRep,
+                      repName: repName,
                       selectable: selectable,
                       selected: selected,
                       onSelected: onSelected,
@@ -13396,24 +13422,62 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-        if ((c.internalNo ?? '').trim().isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text('Intern: ${c.internalNo}', style: Theme.of(context).textTheme.bodySmall),
-          ),
+        Builder(
+          builder: (context) {
+            final baseStyle = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+            final dfsStyle = baseStyle?.copyWith(color: scheme.primary);
+
+            return Row(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Text('Ticket ${c.ticket}', style: baseStyle),
+                if ((c.internalNo ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      'Reklamations-Nr. (DFS): ${c.internalNo}',
+                      style: dfsStyle,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(companyHint?.trim().isNotEmpty == true ? companyHint!.trim() : c.email,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
         ),
-        if (hasRep)
+        if ((repName ?? '').trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text('Kunde hat Vertreter', style: Theme.of(context).textTheme.bodySmall),
+            child: Text('Vertreter: ${repName!.trim()}', style: Theme.of(context).textTheme.bodySmall),
           ),
       ],
     );
+
+    final meta = [
+      _metaPill(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.event_available_outlined, size: 18),
+            const SizedBox(width: 6),
+            Text('Eingang: ${_formatDate(c.createdAt)}'),
+          ],
+        ),
+      ),
+      _metaPill(child: statusChip),
+      if (hasRep)
+        _metaPill(
+          child: _RepTrafficLight(
+            opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+            compact: true,
+          ),
+        ),
+    ];
 
     return Card(
       child: Padding(
@@ -13422,7 +13486,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (selectable)
                   Padding(
@@ -13431,46 +13495,30 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                   ),
                 Expanded(child: header),
                 const SizedBox(width: 12),
-                Flexible(
-                  flex: 2,
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    runAlignment: WrapAlignment.center,
-                    spacing: 8,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _metaPill(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.event_available_outlined, size: 18),
-                            const SizedBox(width: 6),
-                            Text('Eingang: ${_formatDate(c.createdAt)}'),
-                          ],
-                        ),
-                      ),
-                      _metaPill(child: statusChip),
-                      if (hasRep)
-                        _metaPill(
-                          child: _RepTrafficLight(
-                            opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
-                            compact: true,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    FilledButton.icon(
-                      onPressed: () => _openDialog(context),
-                      icon: const Icon(Icons.open_in_new),
-                      label: const Text('Reklamation öffnen'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        statusChip,
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: () => _openDialog(context),
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Reklamation öffnen'),
+                        ),
+                      ],
                     ),
+                    if (hasRep)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: _RepTrafficLight(
+                          opinion: ((c.repOpinion ?? '').trim().isEmpty) ? 'pending' : c.repOpinion,
+                          compact: true,
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -13482,6 +13530,16 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                 spacing: 16,
                 runSpacing: 6,
                 children: [
+                  _metaPill(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.event_available_outlined, size: 18),
+                        const SizedBox(width: 6),
+                        Text('Eingang: ${_formatDate(c.createdAt)}'),
+                      ],
+                    ),
+                  ),
                   Text('Entscheidung: ${_labelForDecision(c.decision)}',
                       style: TextStyle(color: _decisionColor(c.decision), fontWeight: FontWeight.w600)),
                   Text('Wunsch: ${c.handlingLabel}', style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -13514,6 +13572,7 @@ class _ComplaintEditor extends StatefulWidget {
   final DfsProduct? Function(String articleNumber)? productLookup;
   final String? companyHint;
   final bool hasRep;
+  final String? repName;
   final bool selectable;
   final bool selected;
   final ValueChanged<bool?>? onSelected;
@@ -13535,6 +13594,7 @@ class _ComplaintEditor extends StatefulWidget {
     this.productLookup,
     this.companyHint,
     this.hasRep = false,
+    this.repName,
     this.selectable = false,
     this.selected = false,
     this.onSelected,
