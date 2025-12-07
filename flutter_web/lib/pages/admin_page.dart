@@ -15759,6 +15759,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                         ),
                         const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'E-Mail an Kunden verfassen',
+                          icon: const Icon(Icons.email_outlined),
+                          onPressed: (_busy || _isPortalUser || _isPortalReadonly)
+                              ? null
+                              : _composeMailToCustomer,
+                        ),
+                        const SizedBox(width: 8),
                         TextButton.icon(
                           onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _deleteComplaint,
                           style: TextButton.styleFrom(
@@ -15767,14 +15775,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                           icon: const Icon(Icons.delete_outline),
                           label: const Text('Ticket löschen'),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'E-Mail an Kunden verfassen',
-                          icon: const Icon(Icons.email_outlined),
-                          onPressed: (_busy || _isPortalUser || _isPortalReadonly)
-                              ? null
-                              : _composeMailToCustomer,
                         ),
                       ],
                     );
