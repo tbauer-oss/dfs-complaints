@@ -14191,7 +14191,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
   }
 
-  Future<void> _copyInternalTranslationToQm() async {
+  Future<void> _translateQmSummaryAndMeasures() async {
     final lang = _qmSummaryTargetLang.trim();
     if (lang.isEmpty) return;
     if (_busy || _isPortalReadonly) return;
@@ -14199,7 +14199,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     try {
       final updated = await widget.api.adminComplaintUpdate(
         ticket: widget.c.ticket,
-        qmCopyInternalEvaluationLang: lang,
+        qmCustomerSummary: _qmSummaryCtrl.text.trim(),
+        qmMeasures: _qmMeasuresCtrl.text.trim(),
+        translateQmSummaryLang: lang,
       );
       setState(() {
         widget.c.qmCustomerSummary = updated.qmCustomerSummary;
@@ -14213,7 +14215,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       _notifyChanged();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Übersetzung aus interner Bewertung übernommen (${lang.toUpperCase()}).')));
+            SnackBar(content: Text('Standard & Maßnahmen übersetzt (${lang.toUpperCase()}).')));
       }
     } catch (e) {
       if (mounted) {
@@ -16860,11 +16862,6 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
 
                   Widget buildQmSummarySection() {
                     final translations = widget.c.qmCustomerSummaryTranslations ?? const <String, String>{};
-                    final internalTranslations = widget.c.internalEvaluationTranslations ?? const <String, String>{};
-                    final copyableLangs = <String>{...internalTranslations.keys};
-                    if ((widget.c.internalEvaluationTextDe ?? '').trim().isNotEmpty) {
-                      copyableLangs.add('de');
-                    }
 
                     return Container(
                       padding: const EdgeInsets.all(16),
@@ -16985,23 +16982,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                             spacing: 12,
                             runSpacing: 8,
                             children: [
-                              if (copyableLangs.contains(_qmSummaryTargetLang))
-                                OutlinedButton.icon(
-                                  onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
-                                      ? null
-                                      : _copyInternalTranslationToQm,
-                                  icon: const Icon(Icons.copy_outlined),
-                                  label: const Text('Aus interner Übersetzung übernehmen'),
-                                )
-                              else
-                                Tooltip(
-                                  message: 'Keine gespeicherte interne Übersetzung für ${_qmSummaryTargetLang.toUpperCase()}',
-                                  child: OutlinedButton.icon(
-                                    onPressed: null,
-                                    icon: const Icon(Icons.copy_outlined),
-                                    label: const Text('Keine interne Übersetzung verfügbar'),
-                                  ),
-                                ),
+                              OutlinedButton.icon(
+                                onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                    ? null
+                                    : _translateQmSummaryAndMeasures,
+                                icon: const Icon(Icons.translate_outlined),
+                                label: const Text('Standard & Maßnahmen übersetzen'),
+                              ),
                               FilledButton.icon(
                                 onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
                                     ? null
@@ -17941,6 +17928,7 @@ class AdminApi {
     String? qmMeasures,
     Map<String, String>? qmCustomerSummaryTranslations,
     String? qmCopyInternalEvaluationLang,
+    String? translateQmSummaryLang,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
@@ -17964,6 +17952,9 @@ class AdminApi {
     }
     if (qmCopyInternalEvaluationLang != null) {
       body['qmCopyInternalEvaluationLang'] = qmCopyInternalEvaluationLang;
+    }
+    if (translateQmSummaryLang != null) {
+      body['translateQmSummary'] = {'targetLang': translateQmSummaryLang};
     }
 
     final res = await _request('POST', '/api/admin/complaints', body: body);
