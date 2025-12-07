@@ -13316,6 +13316,8 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     final bg = color ?? scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5);
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 44),
+      alignment: Alignment.centerLeft,
       padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: bg,
@@ -15396,6 +15398,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     final bg = color ?? scheme.surfaceVariant.withOpacity(isDark ? 0.6 : 0.5);
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 44),
+      alignment: Alignment.centerLeft,
       padding: padding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: bg,
