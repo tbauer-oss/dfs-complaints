@@ -17403,43 +17403,53 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                       _isPortalUser && !_isPortalSuperuser && !_isPortalReadonly;
 
                   final editor = (isWide && _isPortalSuperuser)
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                          child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  statusSection,
-                                  const SizedBox(height: 24),
-                                  evalSection,
-                                  const SizedBox(height: 24),
-                                  qmSection,
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 28),
-                            Expanded(child: metaSection),
-                          ],
-                        )
-                      : (isWide && !preferColumnLayout)
-                          ? Row(
+                            Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(child: statusSection),
-                                const SizedBox(width: 28),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      metaSection,
+                                      statusSection,
                                       const SizedBox(height: 24),
                                       evalSection,
-                                      const SizedBox(height: 24),
-                                      qmSection,
                                     ],
                                   ),
                                 ),
+                                const SizedBox(width: 28),
+                                Expanded(child: metaSection),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            qmSection,
+                          ],
+                        )
+                      : (isWide && !preferColumnLayout)
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: statusSection),
+                                    const SizedBox(width: 28),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          metaSection,
+                                          const SizedBox(height: 24),
+                                          evalSection,
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 24),
+                                qmSection,
                               ],
                             )
                           : Column(
