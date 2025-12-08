@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import { storeGeneratedFile } from './uploads.js';
-import { normalizeLangValue } from './store.js';
+import { normalizeLangValue, userByEmail } from './store.js';
 import { normalizeReportLinksMap, normalizeDepartments } from './departments.js';
 import { getProductByArticle } from './products.js';
 
@@ -299,19 +299,63 @@ async function describeProduct(complaint) {
     udi: payload.udi || payload.udiDi || complaint?.product?.udiDi || catalogProduct?.basicUdiDi || '',
     quantity: payload.qty || payload.quantity || '',
     segment: payload.segment || '',
-    productType: payload.productType || '',
+    productType: payload.productType || catalogProduct?.tdNumberAndName || '',
   };
 }
 
-function describeCustomer(complaint) {
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue;
+    const str = String(value).trim();
+    if (str) return str;
+  }
+  return '';
+}
+
+async function describeCustomer(complaint) {
   const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   const customer = complaint?.customer || complaint?.account || {};
+  const primaryEmail = firstNonEmpty(complaint?.email, customer?.email, payload.email, payload.customerEmail);
+
+  let account = complaint?.account || null;
+  if (!account && primaryEmail) {
+    try { account = await userByEmail(primaryEmail); }
+    catch (err) { console.warn('[reporting] customer lookup failed', err?.message || err); }
+  }
+
+  const accountName = firstNonEmpty(
+    account?.contact,
+    account?.contactName,
+    account?.name,
+    `${account?.firstName || ''} ${account?.lastName || ''}`,
+  );
+
   return {
-    company: complaint?.company || customer.company || payload.company || payload.customerName || payload.company_name || '',
-    contact: complaint?.contact || customer.contact || payload.contactPerson || payload.contact || '',
-    email: complaint?.email || payload.email || '',
-    country: complaint?.country || customer.country || payload.country || '',
-    customerNo: complaint?.customerNumber || customer.customerNumber || payload.customerNumber || payload.customerNo || '',
+    company: firstNonEmpty(
+      complaint?.company,
+      account?.company,
+      customer.company,
+      payload.company,
+      payload.customerName,
+      payload.company_name,
+      payload.companyName,
+    ),
+    contact: firstNonEmpty(
+      complaint?.contact,
+      customer.contact,
+      payload.contactPerson,
+      payload.contact,
+      accountName,
+    ),
+    email: firstNonEmpty(complaint?.email, customer.email, account?.email, payload.email),
+    country: firstNonEmpty(complaint?.country, customer.country, account?.country, payload.country),
+    customerNo: firstNonEmpty(
+      complaint?.customerNumber,
+      customer.customerNumber,
+      account?.customerNumber,
+      payload.customerNumber,
+      payload.customerNo,
+    ),
   };
 }
 
@@ -384,7 +428,7 @@ async function buildReportBuffer({ complaint, variant, lang }) {
   const labels = LABELS[language];
   const sections = SECTION_TITLES[variant][language] || SECTION_TITLES[variant].de;
   const logo = resolveLogoBuffer();
-  const customer = describeCustomer(complaint);
+  const customer = await describeCustomer(complaint);
   const product = await describeProduct(complaint);
   const payload = (complaint?.payload && typeof complaint.payload === 'object') ? complaint.payload : {};
   const statusText = statusLabel(complaint?.status);
