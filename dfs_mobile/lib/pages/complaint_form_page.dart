@@ -22,6 +22,7 @@ import '../services/product_lookup.dart';
 import '../utils/attachment_preview.dart';
 import '../utils/charge_input_formatter.dart';
 import '../utils/gs1_data_matrix_parser.dart';
+import '../widgets/attachment_editor_page.dart';
 import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
 
@@ -257,6 +258,45 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     setState(() {
       final next = List.of(files)..removeAt(index);
       files = next;
+      _dirty = true;
+    });
+  }
+
+  Future<void> _editAttachmentAt(int index) async {
+    final file = files[index];
+    if (!file.mime.toLowerCase().startsWith('image/')) return;
+
+    final edited = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AttachmentEditorPage(
+          initialBytes: Uint8List.fromList(file.bytes),
+          title: file.name,
+        ),
+      ),
+    );
+
+    if (edited == null) return;
+
+    final t = context.t;
+    var nextBytes = edited.toList();
+    final compressed = await _compressImage(nextBytes, file.mime);
+    nextBytes = compressed.bytes;
+    final mime = compressed.mime;
+
+    final totalBytes = files.fold<int>(0, (sum, f) => sum + f.bytes.length) - file.bytes.length + nextBytes.length;
+    if (totalBytes > _uploadLimit) {
+      if (mounted) setState(() => err = t.images_too_large);
+      return;
+    }
+
+    final preview = createAttachmentPreview(nextBytes, mime);
+    if (!mounted) return;
+    setState(() {
+      final next = List.of(files);
+      next[index] = (name: file.name, bytes: nextBytes, mime: mime, preview: preview);
+      files = next;
+      err = null;
       _dirty = true;
     });
   }
@@ -1422,6 +1462,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                               Expanded(
                                 child: Text(files[i].name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
                               ),
+                              if (files[i].mime.toLowerCase().startsWith('image/'))
+                                IconButton(
+                                  onPressed: () => _editAttachmentAt(i),
+                                  tooltip: t.edit_attachment_tooltip,
+                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                ),
                               IconButton(onPressed: () => _removeAttachmentAt(i), icon: const Icon(Icons.close, size: 18)),
                             ],
                           ),
