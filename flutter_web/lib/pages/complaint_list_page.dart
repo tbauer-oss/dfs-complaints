@@ -279,6 +279,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               child: StatefulBuilder(
                 builder: (context, setInnerState) {
                   return ReorderableListView(
+                    buildDefaultDragHandles: false,
                     onReorder: (oldIndex, newIndex) {
                       if (newIndex > oldIndex) newIndex -= 1;
                       setState(() {
@@ -288,23 +289,29 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
                       setInnerState(() {});
                     },
                     children: [
-                      for (final key in _columnOrder)
+                      for (final entry in _columnOrder.indexed)
                         ListTile(
-                          key: ValueKey(key),
+                          key: ValueKey(entry.$2),
                           dense: true,
                           leading: Checkbox(
-                            value: _visibleColumns.contains(key),
+                            value: _visibleColumns.contains(entry.$2),
                             onChanged: (value) {
                               if (value == null) return;
-                              setState(() => _setColumnVisibility(key, value));
+                              setState(() => _setColumnVisibility(entry.$2, value));
                               setInnerState(() {});
                             },
                           ),
-                          title: Text(
-                            _labelForColumn(key),
-                            style: const TextStyle(fontSize: 14),
+                          title: ReorderableDelayedDragStartListener(
+                            index: entry.$1,
+                            child: Text(
+                              _labelForColumn(entry.$2),
+                              style: const TextStyle(fontSize: 14),
+                            ),
                           ),
-                          trailing: const Icon(Icons.drag_indicator),
+                          trailing: ReorderableDragStartListener(
+                            index: entry.$1,
+                            child: const Icon(Icons.drag_indicator),
+                          ),
                         ),
                     ],
                   );

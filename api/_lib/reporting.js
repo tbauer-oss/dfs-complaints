@@ -431,20 +431,22 @@ async function buildReportBuffer({ complaint, variant, lang }) {
 
   // Externe Reports sollen auf eine Seite passen: kompaktere Boxen und Header.
   const compactBox = isExternal ? { padding: 5, spacing: 5, gap: 9, extraContentGap: 5, valueFontSize: 9.8, labelFontSize: 8.8 } : {};
+  // Interne Reports sollen sich stärker an die externen anlehnen: kleinere Abstände & Schriftgrößen.
+  const internalCompactBox = !isExternal ? { padding: 7, spacing: 8, gap: 12, extraContentGap: 6, valueFontSize: 10.2, labelFontSize: 9.4 } : {};
 
   drawSectionTitle(doc, sections.base, 1, { compact: isExternal });
-  drawKeyValue(doc, baseEntries, isExternal ? { ...compactBox, columns: 3 } : compactBox);
+  drawKeyValue(doc, baseEntries, isExternal ? { ...compactBox, columns: 3 } : { ...internalCompactBox });
 
   drawSectionTitle(doc, sections.product, 2, { compact: isExternal });
-  drawKeyValue(doc, productEntries, isExternal ? { ...compactBox, columns: 3 } : compactBox);
+  drawKeyValue(doc, productEntries, isExternal ? { ...compactBox, columns: 3 } : { ...internalCompactBox });
 
   drawSectionTitle(doc, sections.complaint, 3, { compact: isExternal });
-  drawKeyValue(doc, complaintEntries, isExternal ? { ...compactBox, columns: 1 } : { columns: 1 });
+  drawKeyValue(doc, complaintEntries, isExternal ? { ...compactBox, columns: 1 } : { ...internalCompactBox, columns: 1 });
 
   if (variant === 'internal') {
     drawSectionTitle(doc, sections.analysis, 4);
     const analysisEntries = internalAnalysisEntries(complaint, language);
-    drawKeyValue(doc, analysisEntries.length ? analysisEntries : [{ label: labels.internalEval, value: '–' }], { columns: 1 });
+    drawKeyValue(doc, analysisEntries.length ? analysisEntries : [{ label: labels.internalEval, value: '–' }], { ...internalCompactBox, columns: 1 });
 
     drawSectionTitle(doc, sections.actions, 5);
     const actions = plannedActions(complaint) || '–';
@@ -452,12 +454,12 @@ async function buildReportBuffer({ complaint, variant, lang }) {
     drawKeyValue(doc, [
       { label: labels.actions, value: actions },
       { label: labels.qmSummary, value: summary },
-    ], { columns: 1 });
+    ], { ...internalCompactBox, columns: 1 });
 
     const uploads = Array.isArray(complaint?.uploads) ? complaint.uploads : [];
     if (uploads.length) {
       drawSectionTitle(doc, sections.attachments);
-      drawKeyValue(doc, [{ label: labels.uploads, value: uploads.map((u) => safe(u.name || u.url || u.downloadUrl || 'Attachment')).join('\n') }], { columns: 1 });
+      drawKeyValue(doc, [{ label: labels.uploads, value: uploads.map((u) => safe(u.name || u.url || u.downloadUrl || 'Attachment')).join('\n') }], { ...internalCompactBox, columns: 1 });
     }
 
     drawSectionTitle(doc, sections.closure, 6);
@@ -465,7 +467,7 @@ async function buildReportBuffer({ complaint, variant, lang }) {
       { label: labels.status, value: statusText || '–' },
       { label: labels.decision, value: safe(complaint?.decision) || '–' },
       { label: labels.notes, value: safe(complaint?.adminNotes) || '–' },
-    ], { columns: 1 });
+    ], { ...internalCompactBox, columns: 1 });
   } else {
     drawSectionTitle(doc, sections.actions, 4, { compact: true });
     const actions = externalActionsBlock(complaint, language);
