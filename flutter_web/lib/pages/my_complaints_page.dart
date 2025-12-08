@@ -767,272 +767,267 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                       final internalNo = (c.internalNo ?? '').trim();
                       final hasInternalNo = internalNo.isNotEmpty;
 
-                      // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
                       final attachmentsButton = _ActionButton(
                         icon: Icons.attach_file_outlined,
                         label: t.attachments_add,
                         onPressed: _busy ? null : () => _addAttachments(c),
                       );
 
-                                final contactButton = _ActionButton(
-                                  icon: Icons.mail_outline,
-                                  label: t.complaint_contact_button,
-                                  onPressed:
-                                      _busy ? null : () => _openComplaintContactForm(c),
-                                );
+                      final contactButton = _ActionButton(
+                        icon: Icons.mail_outline,
+                        label: t.complaint_contact_button,
+                        onPressed: _busy ? null : () => _openComplaintContactForm(c),
+                      );
 
-                                final statusWrap = Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    _StatusPill(text: decisionText, color: decisionColor),
-                                    _StatusPill(text: statusText, color: statusColor),
-                                  ],
-                                );
+                      final statusWrap = Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _StatusPill(text: decisionText, color: decisionColor),
+                          _StatusPill(text: statusText, color: statusColor),
+                        ],
+                      );
 
-                                final metaWrap = Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    if (articleNo.isNotEmpty && !hasInternalNo)
-                                      _KeyValuePill(
-                                        icon: Icons.handyman_outlined,
-                                        label: (t.articleNo ?? t.article),
-                                        value: articleNo,
-                                      ),
-                                    if (productType.isNotEmpty)
-                                      _KeyValuePill(
-                                        icon: Icons.category_outlined,
-                                        label: t.product_type ?? 'Produkttyp',
-                                        value: productType,
-                                      ),
-                                  ],
-                                );
+                      final metaWrap = Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (articleNo.isNotEmpty && !hasInternalNo)
+                            _KeyValuePill(
+                              icon: Icons.handyman_outlined,
+                              label: (t.articleNo ?? t.article),
+                              value: articleNo,
+                            ),
+                          if (productType.isNotEmpty)
+                            _KeyValuePill(
+                              icon: Icons.category_outlined,
+                              label: t.product_type ?? 'Produkttyp',
+                              value: productType,
+                            ),
+                        ],
+                      );
 
-                                final headerInfo = Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    statusWrap,
-                                    if (metaWrap.children.isNotEmpty) ...[
-                                      const SizedBox(height: 10),
-                                      metaWrap,
-                                    ],
-                                  ],
-                                );
+                      final headerInfo = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          statusWrap,
+                          if (metaWrap.children.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            metaWrap,
+                          ],
+                        ],
+                      );
 
-                                final headerLine = LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final isCompact = constraints.maxWidth < 620;
-                                    final actionRow = SizedBox(
-                                      width: math.min(constraints.maxWidth, 380),
-                                      child: Row(
-                                        children: [
-                                          Expanded(child: attachmentsButton),
-                                          const SizedBox(width: 10),
-                                          Expanded(child: contactButton),
-                                        ],
-                                      ),
-                                    );
+                      final headerLine = LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isCompact = constraints.maxWidth < 620;
+                          final actionRow = SizedBox(
+                            width: math.min(constraints.maxWidth, 380),
+                            child: Row(
+                              children: [
+                                Expanded(child: attachmentsButton),
+                                const SizedBox(width: 10),
+                                Expanded(child: contactButton),
+                              ],
+                            ),
+                          );
 
-                                    if (isCompact) {
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          headerInfo,
-                                          const SizedBox(height: 12),
-                                          actionRow,
-                                        ],
-                                      );
-                                    }
+                          if (isCompact) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                headerInfo,
+                                const SizedBox(height: 12),
+                                actionRow,
+                              ],
+                            );
+                          }
 
-                                    return Row(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        Expanded(child: headerInfo),
-                                        const SizedBox(width: 12),
-                                        actionRow,
-                                      ],
-                                    );
-                                  },
-                                );
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(child: headerInfo),
+                              const SizedBox(width: 12),
+                              actionRow,
+                            ],
+                          );
+                        },
+                      );
 
-                                // EXPANSION: alle Details
-                                return Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom: i == _items.length - 1 ? 0 : 8,
-                                  ),
-                                  child: Card(
-                                    elevation: 2,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    child: Theme(
-                                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                      child: ExpansionTile(
-                                        tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                                        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                                        title: Row(
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: i == _items.length - 1 ? 0 : 8,
+                        ),
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              title: Row(
+                                children: [
+                                  const Icon(Icons.description_outlined, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final ticketText = ConstrainedBox(
+                                          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                          child: Text(
+                                            ticket.isEmpty ? '—' : ticket,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700, fontSize: 15),
+                                          ),
+                                        );
+
+                                        if (!hasInternalNo) return ticketText;
+
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            const Icon(Icons.description_outlined, size: 20),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: LayoutBuilder(
-                                                builder: (context, constraints) {
-                                                  final ticketText = ConstrainedBox(
-                                                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                                    child: Text(
-                                                      ticket.isEmpty ? '—' : ticket,
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                          fontWeight: FontWeight.w700, fontSize: 15),
-                                                    ),
-                                                  );
-
-                                                  if (!hasInternalNo) return ticketText;
-
-                                                  return Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Wrap(
-                                                        spacing: 8,
-                                                        runSpacing: 6,
-                                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                                        children: [
-                                                          ticketText,
-                                                          _internalNoPill(t, internalNo),
-                                                        ],
-                                                      ),
-                                                      if (articleNo.isNotEmpty) ...[
-                                                        const SizedBox(height: 6),
-                                                        Align(
-                                                          alignment: Alignment.centerLeft,
-                                                          child: _KeyValuePill(
-                                                            icon: Icons.handyman_outlined,
-                                                            label: (t.articleNo ?? t.article),
-                                                            value: articleNo,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ],
-                                                  );
-                                                },
-                                              ),
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 6,
+                                              crossAxisAlignment: WrapCrossAlignment.center,
+                                              children: [
+                                                ticketText,
+                                                _internalNoPill(t, internalNo),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                        subtitle: Padding(
-                                          padding: const EdgeInsets.only(top: 6),
-                                          child: headerLine,
-                                        ),
-                                        children: [
-                                          const SizedBox(height: 8),
-                                          // Sektion: Basisdaten
-                                          _DetailGroup(
-                                            title: t.details,
-                                            children: [
-                                              _kv(t.segment, seg.isEmpty ? '—' : seg),
-                                              _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
-                                              if (productType.isNotEmpty)
-                                                _kv(t.product_type ?? 'Produkttyp', productType),
-                                              if ((p['batch'] ?? '').toString().isNotEmpty)
-                                                _kv(t.batch, (p['batch']).toString()),
-                                              if ((p['qty'] ?? '').toString().isNotEmpty)
-                                                _kv(t.quantity, (p['qty']).toString()),
-                                              if ((p['expiry'] ?? '').toString().isNotEmpty)
-                                                _kv(t.expiry, (p['expiry']).toString()),
-                                              if ((p['desc'] ?? '').toString().isNotEmpty)
-                                              _kv(t.description, (p['desc']).toString()),
-                                          ],
-                                        ),
-
-                                        // Sektion: Rücksendung / Wunsch
-                                        if ((p['returned'] ?? '').toString().isNotEmpty || (p['handling'] ?? '').toString().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.handling,
-                                            children: [
-                                              if ((p['returned'] ?? '').toString().isNotEmpty)
-                                                _kv(t.returned ?? t.returned_question, (p['returned']).toString()),
-                                              if ((p['handling'] ?? '').toString().isNotEmpty)
-                                                _kv(t.handling, (p['handling']).toString()),
-                                            ],
-                                          ),
-
-                                        // Sektion: Patientenbezug
-                                        if ((p['applied'] ?? '').toString().isNotEmpty ||
-                                            (p['injury'] ?? '').toString().isNotEmpty ||
-                                            (p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.applied_to_patient,
-                                            children: [
-                                              if ((p['applied'] ?? '').toString().isNotEmpty)
-                                                _kv(t.applied, (p['applied']).toString()),
-                                              if ((p['injury'] ?? '').toString().isNotEmpty)
-                                                _kv(t.injury, (p['injury']).toString()),
-                                              if ((p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                                                _kv(t.injury_desc, (p['injuryDesc']).toString()),
-                                            ],
-                                          ),
-
-                                        // Sektion: Kunde / Land
-                                        if ((p['customerName'] ?? '').toString().isNotEmpty ||
-                                            (p['country'] ?? '').toString().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.customer_label,
-                                            children: [
-                                              if ((p['customerName'] ?? '').toString().isNotEmpty)
-                                                _kv(t.customer_label, (p['customerName']).toString()),
-                                              if ((p['country'] ?? '').toString().isNotEmpty)
-                                                _kv(t.country_label, (p['country']).toString()),
-                                            ],
-                                          ),
-
-                                        // Zeiten & interne Nr.
-                                        _DetailGroup(
-                                          title: t.timestamps ?? 'Zeitstempel',
-                                          children: [
-                                            _kv(t.created, _fmt(c.createdAt)),
-                                            if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                              _kv(t.updated, _fmt(c.updatedAt)),
-                                            if ((c.internalNo ?? '').toString().isNotEmpty)
-                                              _kv(t.internal_no_label, c.internalNo!),
-                                          ],
-                                        ),
-
-                                        if (c.uploads.isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.attachments_existing,
-                                            children: [
-                                              for (final upload in c.uploads)
-                                                _AttachmentPreviewTile(
-                                                  upload: upload,
-                                                  formatBytes: _formatBytes,
-                                                  formatDate: _fmt,
-                                                  fallbackName: t.attachments_file_unknown,
+                                            if (articleNo.isNotEmpty) ...[
+                                              const SizedBox(height: 6),
+                                              Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: _KeyValuePill(
+                                                  icon: Icons.handyman_outlined,
+                                                  label: (t.articleNo ?? t.article),
+                                                  value: articleNo,
                                                 ),
-                                            ],
-                                          ),
-
-                                        // Aktionen
-                                        if (canOpenReport)
-                                          Row(
-                                            children: [
-                                              TextButton.icon(
-                                                onPressed: () => html.window.open(reportLink, '_blank'),
-                                                icon: const Icon(Icons.open_in_new),
-                                                label: Text(t.report_open),
                                               ),
                                             ],
-                                          ),
-                                      ],
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ),
-                                );
-                              },
+                                ],
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: headerLine,
+                              ),
+                              children: [
+                                const SizedBox(height: 8),
+                                _DetailGroup(
+                                  title: t.details,
+                                  children: [
+                                    _kv(t.segment, seg.isEmpty ? '—' : seg),
+                                    _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
+                                    if (productType.isNotEmpty)
+                                      _kv(t.product_type ?? 'Produkttyp', productType),
+                                    if ((p['batch'] ?? '').toString().isNotEmpty)
+                                      _kv(t.batch, (p['batch']).toString()),
+                                    if ((p['qty'] ?? '').toString().isNotEmpty)
+                                      _kv(t.quantity, (p['qty']).toString()),
+                                    if ((p['expiry'] ?? '').toString().isNotEmpty)
+                                      _kv(t.expiry, (p['expiry']).toString()),
+                                    if ((p['desc'] ?? '').toString().isNotEmpty)
+                                      _kv(t.description, (p['desc']).toString()),
+                                  ],
+                                ),
+
+                                if ((p['returned'] ?? '').toString().isNotEmpty ||
+                                    (p['handling'] ?? '').toString().isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.handling,
+                                    children: [
+                                      if ((p['returned'] ?? '').toString().isNotEmpty)
+                                        _kv(t.returned ?? t.returned_question, (p['returned']).toString()),
+                                      if ((p['handling'] ?? '').toString().isNotEmpty)
+                                        _kv(t.handling, (p['handling']).toString()),
+                                    ],
+                                  ),
+
+                                if ((p['applied'] ?? '').toString().isNotEmpty ||
+                                    (p['injury'] ?? '').toString().isNotEmpty ||
+                                    (p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.applied_to_patient,
+                                    children: [
+                                      if ((p['applied'] ?? '').toString().isNotEmpty)
+                                        _kv(t.applied, (p['applied']).toString()),
+                                      if ((p['injury'] ?? '').toString().isNotEmpty)
+                                        _kv(t.injury, (p['injury']).toString()),
+                                      if ((p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                                        _kv(t.injury_desc, (p['injuryDesc']).toString()),
+                                    ],
+                                  ),
+
+                                if ((p['customerName'] ?? '').toString().isNotEmpty ||
+                                    (p['country'] ?? '').toString().isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.customer_label,
+                                    children: [
+                                      if ((p['customerName'] ?? '').toString().isNotEmpty)
+                                        _kv(t.customer_label, (p['customerName']).toString()),
+                                      if ((p['country'] ?? '').toString().isNotEmpty)
+                                        _kv(t.country_label, (p['country']).toString()),
+                                    ],
+                                  ),
+
+                                _DetailGroup(
+                                  title: t.timestamps ?? 'Zeitstempel',
+                                  children: [
+                                    _kv(t.created, _fmt(c.createdAt)),
+                                    if (c.updatedAt.millisecondsSinceEpoch > 0)
+                                      _kv(t.updated, _fmt(c.updatedAt)),
+                                    if ((c.internalNo ?? '').toString().isNotEmpty)
+                                      _kv(t.internal_no_label, c.internalNo!),
+                                  ],
+                                ),
+
+                                if (c.uploads.isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.attachments_existing,
+                                    children: [
+                                      for (final upload in c.uploads)
+                                        _AttachmentPreviewTile(
+                                          upload: upload,
+                                          formatBytes: _formatBytes,
+                                          formatDate: _fmt,
+                                          fallbackName: t.attachments_file_unknown,
+                                        ),
+                                    ],
+                                  ),
+
+                                if (canOpenReport)
+                                  Row(
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: () => html.window.open(reportLink, '_blank'),
+                                        icon: const Icon(Icons.open_in_new),
+                                        label: Text(t.report_open),
+                                      ),
+                                    ],
+                                  ),
+                              ],
                             ),
                           ),
-          ),
-        ],
+                        ),
+                      );
+                    },
+                    childCount: _items.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
     );
