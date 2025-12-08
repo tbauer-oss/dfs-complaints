@@ -267,7 +267,7 @@ function formatDate(ts) {
 function formatDateForFilename(ts) {
   if (!ts) return 'unbekanntes-datum';
   try {
-    return new Date(ts).toISOString().slice(0, 10);
+    return new Date(ts).toISOString().slice(0, 10).replace(/-/g, '');
   } catch {
     return 'unbekanntes-datum';
   }
@@ -284,7 +284,7 @@ function sanitizeFilenamePart(value, fallback = 'unbekannt') {
   const cleaned = normalized
     .normalize('NFKD')
     .replace(/[\p{M}]+/gu, '')
-    .replace(/[^\p{L}\p{N}]+/gu, '_')
+    .replace(/[^\p{L}\p{N}-]+/gu, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 80);
@@ -545,13 +545,18 @@ async function buildReportBuffer({ complaint, variant, lang }) {
 }
 
 async function buildFilename(variant, lang, complaint) {
-  const langSuffix = (lang || 'de').toUpperCase();
-  const variantLabel = variant === 'internal' ? 'Intern' : 'Extern';
+  const resolvedLang = resolveLang(lang);
+  const langSuffix = resolvedLang.toUpperCase();
   const customer = await describeCustomer(complaint);
   const datePart = formatDateForFilename(complaint?.createdAt || complaint?.updatedAt || Date.now());
   const ticketPart = sanitizeFilenamePart(complaint?.ticket, 'ohne-ticket');
   const customerPart = sanitizeFilenamePart(customer?.company, 'kunde');
-  return `Reklamationsbericht_${datePart}_Ticket-${ticketPart}_${customerPart}_${variantLabel}_${langSuffix}.pdf`;
+
+  const prefix = variant === 'internal' ? 'Rekl.-Bericht' : (resolvedLang === 'en' ? 'Complaint-report' : 'Rekl.-Bericht');
+  const ticketLabel = resolvedLang === 'en' ? 'ticket' : 'Ticket';
+  const variantSuffix = variant === 'internal' ? '_Intern' : '';
+
+  return `${prefix}_${datePart}_${ticketLabel}-${ticketPart}_${customerPart}${variantSuffix}_${langSuffix}.pdf`;
 }
 
 async function storeReport(buffer, { complaint, variant, lang }) {
