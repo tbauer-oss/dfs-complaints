@@ -5,6 +5,7 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:js_util' as js_util;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
@@ -13701,6 +13702,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   final _invoiceNumberCtrl = TextEditingController();
   final _salesAgentCtrl = TextEditingController();
   bool _busy = false;
+  bool _exportingArchive = false;
   bool _salesBusy = false;
   late bool _expanded;
   bool _historyExpanded = false;
@@ -15529,6 +15531,79 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       ..setAttribute('download', 'reklamation_${widget.c.ticket}_historie.csv');
     anchor.click();
     html.Url.revokeObjectUrl(url);
+  }
+
+  Future<bool> _trySaveArchiveWithPicker(Uint8List bytes) async {
+    if (!js_util.hasProperty(html.window, 'showSaveFilePicker')) return false;
+
+    try {
+      final options = js_util.jsify({
+        'suggestedName': 'reklamation_${widget.c.ticket}.zip',
+        'startIn': 'T:\\Reklamationen\\',
+        'types': [
+          {
+            'description': 'ZIP-Archiv',
+            'accept': {
+              'application/zip': ['.zip'],
+            },
+          }
+        ],
+      });
+
+      final fileHandle = await js_util.promiseToFuture(
+        js_util.callMethod(html.window, 'showSaveFilePicker', [options]),
+      );
+      final writable = await js_util.promiseToFuture(
+        js_util.callMethod(fileHandle, 'createWritable', const []),
+      );
+      await js_util.promiseToFuture(
+        js_util.callMethod(writable, 'write', [html.Blob([bytes], 'application/zip')]),
+      );
+      await js_util.promiseToFuture(js_util.callMethod(writable, 'close', const []));
+      return true;
+    } catch (e) {
+      debugPrint('Save picker failed, falling back to download: $e');
+      return false;
+    }
+  }
+
+  void _downloadArchive(Uint8List bytes) {
+    final blob = html.Blob([bytes], 'application/zip');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'reklamation_${widget.c.ticket}.zip');
+    anchor.click();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _exportComplaintArchive() async {
+    setState(() => _exportingArchive = true);
+    try {
+      final bytes = await widget.api.downloadComplaintArchive(widget.c.ticket);
+      if (!mounted) return;
+
+      if (bytes.isEmpty) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Export liefert keine Daten.')));
+        return;
+      }
+
+      final savedWithPicker = await _trySaveArchiveWithPicker(bytes);
+      if (!savedWithPicker) {
+        _downloadArchive(bytes);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speicherort-Auswahl nicht verfügbar – Datei wird direkt heruntergeladen.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Export fehlgeschlagen: $e')));
+    } finally {
+      if (mounted) setState(() => _exportingArchive = false);
+    }
   }
 
   void _composeMailToCustomer() {
@@ -17361,6 +17436,9 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                   Widget buildHistorySection() {
                     final history = List<ComplaintHistoryEntry>.from(c.history);
                     history.sort((a, b) => b.at.compareTo(a.at));
+                    final isClosedOrRejected =
+                        c.status >= 5 || (c.decision ?? '').toLowerCase() == 'rejected';
+                    final exportDisabled = _isPortalUser || _isPortalReadonly;
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -17407,12 +17485,35 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                 ),
                               ),
                             ),
-                            OutlinedButton.icon(
-                              onPressed: (history.isEmpty || _isPortalUser || _isPortalReadonly)
-                                  ? null
-                                  : _exportHistoryCsv,
-                              icon: const Icon(Icons.download_outlined),
-                              label: const Text('Exportieren'),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: (history.isEmpty || exportDisabled)
+                                      ? null
+                                      : _exportHistoryCsv,
+                                  icon: const Icon(Icons.download_outlined),
+                                  label: const Text('Historie exportieren'),
+                                ),
+                                FilledButton.icon(
+                                  onPressed: (exportDisabled || !isClosedOrRejected || _exportingArchive)
+                                      ? null
+                                      : _exportComplaintArchive,
+                                  icon: _exportingArchive
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.archive_outlined),
+                                  label: Text(
+                                    _exportingArchive
+                                        ? 'Export läuft...'
+                                        : 'Vorgang exportieren',
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -18013,6 +18114,37 @@ class AdminApi {
     }
   }
 
+  Future<html.HttpRequest> _requestBinary(
+    String method,
+    String path, {
+    Map<String, String>? q,
+  }) async {
+    try {
+      final res = await html.HttpRequest.request(
+        _u(path, q).toString(),
+        method: method,
+        requestHeaders: _headersJson(),
+        withCredentials: true,
+        responseType: 'arraybuffer',
+      );
+      return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          if (st == 403) {
+            throw 'Keine Berechtigung: Diese Aktion ist mit den aktuellen Kachel-Rechten nicht erlaubt.';
+          }
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
+    }
+  }
+
   Future<Map<String, dynamic>> fetchAdminUiConfig() async {
     final res = await _request('GET', '/api/admin/ui-config');
     if (res.status != 200) throw 'ui-config GET: HTTP ${res.status} ${res.responseText}';
@@ -18243,6 +18375,18 @@ class AdminApi {
     if (res.status != 200) throw 'open complaints GET: HTTP ${res.status} ${res.responseText}';
     final List data = jsonDecode(res.responseText ?? '[]');
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Uint8List> downloadComplaintArchive(String ticket) async {
+    final res = await _requestBinary('GET', '/api/admin/complaints_export', q: {'ticket': ticket});
+    if (res.status != 200) {
+      throw 'complaint export GET: HTTP ${res.status} ${res.responseText}';
+    }
+
+    final body = res.response;
+    if (body is ByteBuffer) return Uint8List.view(body);
+    if (body is Uint8List) return body;
+    throw 'Export konnte nicht gelesen werden';
   }
 
   Future<Map<String, dynamic>> fetchComplaintRawByTicket(String ticket) async {
