@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -508,6 +509,26 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     }
   }
 
+  Future<List<int>?> _cropImage(String path) async {
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: context.t.edit_attachment_tooltip,
+            hideBottomControls: true,
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(title: context.t.edit_attachment_tooltip),
+        ],
+      );
+      if (cropped == null) return null;
+      return await cropped.readAsBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _applySelection(List<({String name, List<int> bytes, String mime})> selected) async {
     if (selected.isEmpty) return;
     final t = context.t;
@@ -578,10 +599,27 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final photo = await picker.pickImage(source: ImageSource.camera, requestFullMetadata: false);
     if (photo == null) return;
 
-    final bytes = await photo.readAsBytes();
+    final originalBytes = await photo.readAsBytes();
+    final cropped = await _cropImage(photo.path);
+    final bytes = cropped ?? originalBytes;
     await _applySelection([
       (name: photo.name, bytes: bytes, mime: _guessMime(photo.name)),
     ]);
+  }
+
+  Widget _attachmentActionButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    String? tooltip,
+  }) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      icon: Icon(icon, size: 18),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+    );
   }
 
   // -----------------------------
@@ -1473,12 +1511,15 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                                 child: Text(files[i].name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
                               ),
                               if (files[i].mime.toLowerCase().startsWith('image/'))
-                                IconButton(
+                                _attachmentActionButton(
                                   onPressed: () => _editAttachmentAt(i),
                                   tooltip: t.edit_attachment_tooltip,
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  icon: Icons.edit_outlined,
                                 ),
-                              IconButton(onPressed: () => _removeAttachmentAt(i), icon: const Icon(Icons.close, size: 18)),
+                              _attachmentActionButton(
+                                onPressed: () => _removeAttachmentAt(i),
+                                icon: Icons.close,
+                              ),
                             ],
                           ),
                           if (files[i].preview != null) ...[
