@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
@@ -1348,10 +1349,22 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           ),
           const SizedBox(height: 10),
           if (isDentist)
-            TextField(controller: qty, decoration: _dec(context, '${t.qty} *', compact: compact))
+            TextField(
+              controller: qty,
+              decoration: _dec(context, '${t.qty} *', compact: compact),
+              keyboardType: TextInputType.number,
+              inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+            )
           else
             Row(children: [
-              Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty, compact: compact))),
+              Expanded(
+                child: TextField(
+                  controller: qty,
+                  decoration: _dec(context, t.qty, compact: compact),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+                ),
+              ),
               SizedBox(width: compact ? 8 : 10),
               Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry, compact: compact))),
             ]),
