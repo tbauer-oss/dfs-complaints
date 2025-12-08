@@ -1,5 +1,4 @@
 import { del, put } from '@vercel/blob';
-import { randomUUID } from 'node:crypto';
 
 const MAX_PREVIEW_CHARS = 200000;
 const DEFAULT_MAX_TOTAL_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 8 * 1024 * 1024);
@@ -72,9 +71,7 @@ function sanitizeFilename(name) {
 function buildBlobPath(ticket, filename) {
   const safeTicket = (ticket ?? '').toString().replace(/[^a-z0-9]/gi, '').slice(-10).toLowerCase();
   const prefix = safeTicket ? `complaints/${safeTicket}` : 'complaints/general';
-  const stamp = Date.now();
-  const suffix = randomUUID().replace(/-/g, '');
-  return `${prefix}/${stamp}-${suffix}-${filename}`;
+  return `${prefix}/${filename}`;
 }
 
 function blobPathFromUrl(input) {
