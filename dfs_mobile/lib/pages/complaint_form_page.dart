@@ -1327,7 +1327,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
               controller: qty,
               decoration: _dec(context, '${t.qty} *', compact: compact),
               keyboardType: TextInputType.number,
-              inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             )
           else
             Row(children: [
@@ -1336,7 +1336,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
                   controller: qty,
                   decoration: _dec(context, t.qty, compact: compact),
                   keyboardType: TextInputType.number,
-                  inputFormatters: const [FilteringTextInputFormatter.digitsOnly],
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 ),
               ),
               SizedBox(width: compact ? 8 : 10),
