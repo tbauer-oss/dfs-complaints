@@ -567,9 +567,16 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Vertreter-Banner
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _load(silent: false);
+          await _loadDrafts();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              // Vertreter-Banner
           if (repName.isNotEmpty || repEmail.isNotEmpty || repRegion.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -717,25 +724,30 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           if (_uploading)
             const LinearProgressIndicator(minHeight: 4),
 
-          // Liste der Reklamationen
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _err != null
-                    ? Center(child: Text(_err!))
-                    : _items.isEmpty
-                        ? Center(child: Text(t.none_complaints))
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              await _load(silent: false);
-                              await _loadDrafts();
-                            },
-                            child: ListView.separated(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
-                              itemBuilder: (_, i) {
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_err != null)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(child: Text(_err!)),
+            )
+          else if (_items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(child: Text(t.none_complaints)),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+              child: ListView.separated(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                itemCount: _items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
                                 final c = _items[i];
                                 final ticket = (c.ticket).toString();
                                 final statusText = _statusTextLocalized(t, c.status);
