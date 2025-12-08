@@ -146,30 +146,39 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
   Future<void> _addTextLabel(Offset pos, Rect rect) async {
     final t = AppLocalizations.of(context)!;
     final controller = TextEditingController();
+    final focusNode = FocusNode();
 
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(t.attachment_editor_add_text_title),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(hintText: t.attachment_editor_add_text_hint),
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+      builder: (context) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => focusNode.requestFocus());
+
+        return AlertDialog(
+          title: Text(t.attachment_editor_add_text_title),
+          content: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: InputDecoration(hintText: t.attachment_editor_add_text_hint),
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: Text(t.attachment_editor_save),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              child: Text(t.attachment_editor_save),
+            ),
+          ],
+        );
+      },
     );
+
+    controller.dispose();
+    focusNode.dispose();
 
     if (!mounted || result == null || result.isEmpty) return;
 
