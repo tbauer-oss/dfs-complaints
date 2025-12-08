@@ -147,6 +147,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   String _sortColumn = 'receivedAt';
   bool _sortAscending = false;
   bool _filtersExpanded = false;
+  late List<String> _columnOrder;
   late Set<String> _visibleColumns;
   Uint8List? _logoBytes;
 
@@ -185,6 +186,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   @override
   void initState() {
     super.initState();
+    _columnOrder = _columnDefs.map((c) => c.$2).toList();
     _visibleColumns = _columnDefs.map((c) => c.$2).toSet();
     _horizontalHeaderController.addListener(_syncHorizontalFromHeader);
     _horizontalBodyController.addListener(_syncHorizontalFromBody);
@@ -232,7 +234,14 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   String _firstVisibleColumn(Set<String> visible) {
-    return _columnDefs.firstWhere((c) => visible.contains(c.$2)).$2;
+    return _columnOrder.firstWhere(visible.contains);
+  }
+
+  List<String> get _orderedVisibleColumns =>
+      _columnOrder.where((key) => _visibleColumns.contains(key)).toList();
+
+  String _labelForColumn(String key) {
+    return _columnDefs.firstWhere((c) => c.$2 == key).$1;
   }
 
   void _setColumnVisibility(String columnKey, bool visible) {
@@ -269,25 +278,42 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
               child: StatefulBuilder(
                 builder: (context, setInnerState) {
-                  return ListView(
-                    children: _columnDefs
-                        .map(
-                          (c) => CheckboxListTile(
-                            value: _visibleColumns.contains(c.$2),
+                  return ReorderableListView(
+                    buildDefaultDragHandles: false,
+                    onReorder: (oldIndex, newIndex) {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      setState(() {
+                        final item = _columnOrder.removeAt(oldIndex);
+                        _columnOrder.insert(newIndex, item);
+                      });
+                      setInnerState(() {});
+                    },
+                    children: [
+                      for (final entry in _columnOrder.indexed)
+                        ListTile(
+                          key: ValueKey(entry.$2),
+                          dense: true,
+                          leading: Checkbox(
+                            value: _visibleColumns.contains(entry.$2),
                             onChanged: (value) {
                               if (value == null) return;
-                              setState(() => _setColumnVisibility(c.$2, value));
+                              setState(() => _setColumnVisibility(entry.$2, value));
                               setInnerState(() {});
                             },
-                            dense: true,
-                            title: Text(
-                              c.$1,
+                          ),
+                          title: ReorderableDelayedDragStartListener(
+                            index: entry.$1,
+                            child: Text(
+                              _labelForColumn(entry.$2),
                               style: const TextStyle(fontSize: 14),
                             ),
-                            controlAffinity: ListTileControlAffinity.leading,
                           ),
-                        )
-                        .toList(),
+                          trailing: ReorderableDragStartListener(
+                            index: entry.$1,
+                            child: const Icon(Icons.drag_indicator),
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -690,12 +716,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   List<DataColumn> _buildColumns() {
-    return _columnDefs
-        .where((c) => _visibleColumns.contains(c.$2))
-        .map((c) => DataColumn(
-              label: Text(c.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
+    return _orderedVisibleColumns
+        .map((key) => DataColumn(
+              label: Text(_labelForColumn(key), style: const TextStyle(fontWeight: FontWeight.w700)),
               onSort: (i, asc) => setState(() {
-                _sortColumn = c.$2;
+                _sortColumn = key;
                 _sortAscending = asc;
               }),
             ))
@@ -703,8 +728,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   int? get _sortColumnIndex {
-    final visible = _columnDefs.where((c) => _visibleColumns.contains(c.$2)).toList();
-    final idx = visible.indexWhere((c) => c.$2 == _sortColumn);
+    final visible = _orderedVisibleColumns;
+    final idx = visible.indexWhere((c) => c == _sortColumn);
     return idx >= 0 ? idx : null;
   }
 
@@ -752,7 +777,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'notes': _cell(c.notes, width: 240),
       };
       return DataRow.byIndex(index: i, cells: [
-        ..._visibleColumns.map((key) => cells[key]!),
+        ..._orderedVisibleColumns.map((key) => cells[key]!),
       ]);
     }).toList();
   }
