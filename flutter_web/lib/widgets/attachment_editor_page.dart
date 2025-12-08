@@ -51,6 +51,8 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
   _Stroke? _activeStroke;
   Color _activeColor = _colors.first;
   _EditorTool _tool = _EditorTool.pen;
+  int? _draggingLabelIndex;
+  Offset? _dragPointerOffset;
 
   @override
   void initState() {
@@ -156,6 +158,59 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 
   Offset _denormalize(Offset input, Size size) => Offset(input.dx * size.width, input.dy * size.height);
 
+  TextPainter _buildTextPainter(_TextLabel label, double maxWidth) => TextPainter(
+        text: TextSpan(
+          text: label.text,
+          style: TextStyle(color: label.color, fontSize: 22, fontWeight: FontWeight.w600),
+        ),
+        textDirection: TextDirection.ltr,
+      )
+        ..layout(maxWidth: maxWidth);
+
+  Rect _labelRect(_TextLabel label, Size size) {
+    final painter = _buildTextPainter(label, size.width);
+    final topLeft = _denormalize(label.position, size);
+    return topLeft & painter.size;
+  }
+
+  int? _hitTestTextLabel(Offset pos, Size size) {
+    for (int i = _elements.length - 1; i >= 0; i--) {
+      final element = _elements[i];
+      if (element is! _TextLabel) continue;
+      if (_labelRect(element, size).contains(pos)) return i;
+    }
+    return null;
+  }
+
+  void _startTextDrag(Offset pos, Size size) {
+    final index = _hitTestTextLabel(pos, size);
+    if (index == null) return;
+    final label = _elements[index] as _TextLabel;
+    setState(() {
+      _draggingLabelIndex = index;
+      _dragPointerOffset = _normalize(pos, size) - label.position;
+    });
+  }
+
+  void _updateTextDrag(Offset pos, Size size) {
+    final index = _draggingLabelIndex;
+    if (index == null) return;
+    final normalized = _normalize(pos, size) - (_dragPointerOffset ?? Offset.zero);
+    final clamped = Offset(normalized.dx.clamp(0.0, 1.0), normalized.dy.clamp(0.0, 1.0));
+    final current = _elements[index] as _TextLabel;
+    setState(() {
+      _elements[index] = _TextLabel(position: clamped, color: current.color, text: current.text);
+    });
+  }
+
+  void _endTextDrag() {
+    if (_draggingLabelIndex == null) return;
+    setState(() {
+      _draggingLabelIndex = null;
+      _dragPointerOffset = null;
+    });
+  }
+
   Path _arrowHead(Offset start, Offset end, double length) {
     final dir = (end - start);
     final norm = dir.distance == 0 ? Offset.zero : dir / dir.distance;
@@ -200,14 +255,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
     }
 
     void paintLabel(_TextLabel label) {
-      final painter = TextPainter(
-        text: TextSpan(
-          text: label.text,
-          style: TextStyle(color: label.color, fontSize: 22, fontWeight: FontWeight.w600),
-        ),
-        textDirection: TextDirection.ltr,
-      )
-        ..layout(maxWidth: image.width.toDouble());
+      final painter = _buildTextPainter(label, image.width.toDouble());
 
       final pos = _denormalize(label.position, Size(image.width.toDouble(), image.height.toDouble()));
       painter.paint(canvas, pos);
@@ -262,14 +310,16 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
                           builder: (context, constraints) {
                             final size = Size(constraints.maxWidth, constraints.maxHeight);
                             return GestureDetector(
-                              onPanStart: _tool == _EditorTool.text
-                                  ? null
-                                  : (d) => _startStroke(d.localPosition, size),
-                              onPanUpdate: _tool == _EditorTool.text
-                                  ? null
-                                  : (d) => _updateStroke(d.localPosition, size),
-                              onPanEnd: _tool == _EditorTool.text ? null : (_) => _endStroke(),
-                              onTapUp: _tool == _EditorTool.text ? (d) => _addTextLabel(d.localPosition, size) : null,
+                              onPanStart: (d) => _tool == _EditorTool.text
+                                  ? _startTextDrag(d.localPosition, size)
+                                  : _startStroke(d.localPosition, size),
+                              onPanUpdate: (d) => _tool == _EditorTool.text
+                                  ? _updateTextDrag(d.localPosition, size)
+                                  : _updateStroke(d.localPosition, size),
+                              onPanEnd: (_) => _tool == _EditorTool.text ? _endTextDrag() : _endStroke(),
+                              onTapUp: _tool == _EditorTool.text && _draggingLabelIndex == null
+                                  ? (d) => _addTextLabel(d.localPosition, size)
+                                  : null,
                               child: Container(
                                 decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
                                 child: CustomPaint(
