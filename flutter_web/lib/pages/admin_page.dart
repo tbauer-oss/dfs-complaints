@@ -8380,6 +8380,7 @@ class _AdminPageState extends State<AdminPage> {
                       TextFormField(
                         controller: _portalUserPasswordCtrl,
                         obscureText: true,
+                        enableInteractiveSelection: true,
                         decoration: InputDecoration(
                           labelText:
                               isNew ? 'Passwort festlegen' : 'Neues Passwort (optional)',
@@ -8392,6 +8393,7 @@ class _AdminPageState extends State<AdminPage> {
                       TextFormField(
                         controller: _portalUserPasswordRepeatCtrl,
                         obscureText: true,
+                        enableInteractiveSelection: true,
                         decoration: InputDecoration(
                           labelText: isNew
                               ? 'Passwort wiederholen'
