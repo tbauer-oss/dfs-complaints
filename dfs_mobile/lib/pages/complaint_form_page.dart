@@ -79,6 +79,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   Timer? _articleLookupDebounce;
   bool _productLoading = false;
   bool privacy = false;
+  bool _attachmentsMandatory = false;
   String? _draftId;
   final ComplaintDraftStore _draftStore = ComplaintDraftStore();
 
@@ -90,6 +91,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   bool busy = false;
   final ValueNotifier<bool> _busyNotifier = ValueNotifier(false);
   final ValueNotifier<String?> _wizardError = ValueNotifier(null);
+  final FocusNode _batchFocus = FocusNode();
 
   Map<String, dynamic>? _account;
   bool _helpCollapsed = true;
@@ -159,6 +161,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     _articleLookupDebounce?.cancel();
     desc.removeListener(_handleDescriptionChanged);
     _scrollCtrl.dispose();
+    _batchFocus.dispose();
     _busyNotifier.dispose();
     _wizardError.dispose();
     super.dispose();
@@ -565,6 +568,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       handling = optHandlingRep;
       privacy = false;
       files = [];
+      _attachmentsMandatory = false;
       err = null;
       info = null;
       _dirty = false;
@@ -880,18 +884,24 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     final optYes = t.yes;
     final isDentist = segment == optDentist;
     final needsInjuryDesc = isDentist && applied == optYes && injury == optYes;
+    final articleValue = article.text.trim();
+    final batchValue = batch.text.trim();
+    final qtyValue = qty.text.trim();
+    final descValue = desc.text.trim();
+    final attachmentsRequired = _attachmentsMandatory;
 
     switch (id) {
       case 'product':
-        if (article.text.trim().isEmpty || desc.text.trim().isEmpty) return t.required_fields;
-        if (isDentist) {
-          final batchValue = batch.text.trim();
-          if (batchValue.isEmpty) return t.required_fields;
-          if (!_isBatchValid(batchValue)) return t.batch_format_hint;
-        }
+        if (!isDentist && articleValue.isEmpty) return t.required_fields;
+        if (descValue.isEmpty) return t.required_fields;
+        if (isDentist && qtyValue.isEmpty) return t.required_fields;
+        if (batchValue.isNotEmpty && !_isBatchValid(batchValue)) return t.batch_format_hint;
         break;
       case 'patient':
         if (needsInjuryDesc && injuryDesc.text.trim().isEmpty) return t.required_fields;
+        break;
+      case 'attachments':
+        if (attachmentsRequired && files.isEmpty) return t.required_fields;
         break;
       case 'privacy':
         if (!privacy) return t.privacy_required;
@@ -1052,29 +1062,85 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     if (![optHandlingRep, optHandlingCredit, optHandlingRework].contains(handling)) handling = optHandlingRep;
 
     final isDentist = segment == optDentist;
+    final articleValue = article.text.trim();
+    final batchValue = batch.text.trim();
+    final qtyValue = qty.text.trim();
+    final descValue = desc.text.trim();
+    final missingIdentifiers = articleValue.isEmpty && batchValue.isEmpty;
 
     setState(() { busy = true; err = null; info = null; });
     _busyNotifier.value = true;
 
     if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); _busyNotifier.value = false; return; }
-    if (article.text.trim().isEmpty || desc.text.trim().isEmpty) {
+    if (!isDentist && articleValue.isEmpty) {
       setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
     }
-    final batchValue = batch.text.trim();
-    if (isDentist && batchValue.isEmpty) {
-      setState(() { err = t.batch; busy = false; }); _busyNotifier.value = false; return;
+    if (descValue.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
     }
-    if (isDentist && !_isBatchValid(batchValue)) {
+    if (isDentist && qtyValue.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (batchValue.isNotEmpty && !_isBatchValid(batchValue)) {
       setState(() { err = t.batch_format_hint; busy = false; }); _busyNotifier.value = false; return;
+    }
+
+    if (isDentist && batchValue.isEmpty) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Charge fehlt'),
+          content: const Text(
+            'Für die korrekte Bearbeitung einer Medizinproduktereklamation ist eine Charge erforderlich. '
+            'Ohne Charge kann eine Reklamation nur als Kulanzfall bearbeitet werden.\n\n'
+            'Möchten Sie die Charge später nachreichen?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Nein')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ja')),
+          ],
+        ),
+      );
+
+      if (proceed != true) {
+        setState(() { busy = false; });
+        _busyNotifier.value = false;
+        _batchFocus.requestFocus();
+        return;
+      }
+    }
+
+    if (missingIdentifiers) {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Artikelnummer & Charge fehlen'),
+          content: const Text(
+            'Ohne Artikelnummer und Charge ist die Bearbeitung Ihrer Reklamation stark erschwert. '
+            'In diesem Fall ist das Hochladen von Fotos/Videos verpflichtend.',
+          ),
+          actions: [
+            FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Verstanden')),
+          ],
+        ),
+      );
+      setState(() => _attachmentsMandatory = true);
+    }
+
+    final attachmentsRequired = _attachmentsMandatory;
+    if (attachmentsRequired && files.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; });
+      _busyNotifier.value = false;
+      return;
     }
 
     final payload = <String, dynamic>{
       'segment': segment == optDentist ? 'Zahnmedizin' : 'Dentallabor',
-      'article': article.text.trim(),
+      'article': articleValue,
       'batch': batchValue,
-      'qty': qty.text.trim(),
-      'expiry': expiry.text.trim(),
-      'desc': desc.text.trim(),
+      'qty': qtyValue,
+      'expiry': isDentist ? '' : expiry.text.trim(),
+      'desc': descValue,
       'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
       'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
       'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
@@ -1182,6 +1248,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     Widget wrap(String id, Widget child) => anchored ? _wizardAnchor(id, child) : child;
 
     final sections = <({String id, Widget widget})>[];
+    final attachmentsRequired = _attachmentsMandatory;
 
     sections.add(
       (id: 'segment', widget: wrap('segment', _section(
@@ -1205,10 +1272,10 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     sections.add(
       (id: 'product', widget: wrap('product', _section(
         icon: Icons.build_outlined,
-        title: t.article,
+        title: isDentist ? t.article : '${t.article} *',
         compact: compact,
         children: [
-          TextField(controller: article, decoration: _dec(context, t.article, compact: compact)),
+          TextField(controller: article, decoration: _dec(context, isDentist ? t.article : '${t.article} *', compact: compact)),
           if (_articleProduct != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -1232,23 +1299,27 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           const SizedBox(height: 10),
           TextField(
             controller: batch,
-            decoration: _dec(context, isDentist ? '${t.batch} *' : t.batch, hint: isDentist ? t.batch : null, compact: compact),
+            focusNode: _batchFocus,
+            decoration: _dec(context, t.batch, compact: compact),
             inputFormatters: isDentist ? [ChargeInputFormatter()] : null,
             keyboardType: TextInputType.text,
             textCapitalization: isDentist ? TextCapitalization.characters : TextCapitalization.none,
             maxLength: isDentist ? 11 : null,
           ),
           const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty, compact: compact))),
-            SizedBox(width: compact ? 8 : 10),
-            Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry, compact: compact))),
-          ]),
+          if (isDentist)
+            TextField(controller: qty, decoration: _dec(context, '${t.qty} *', compact: compact))
+          else
+            Row(children: [
+              Expanded(child: TextField(controller: qty, decoration: _dec(context, t.qty, compact: compact))),
+              SizedBox(width: compact ? 8 : 10),
+              Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry, compact: compact))),
+            ]),
           const SizedBox(height: 10),
           TextField(
             controller: desc,
             maxLines: 4,
-            decoration: _dec(context, t.problem_desc, compact: compact),
+            decoration: _dec(context, '${t.problem_desc} *', compact: compact),
           ),
           const SizedBox(height: 4),
           _buildAutoHelpCard(compact: compact),
@@ -1294,7 +1365,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     sections.add(
       (id: 'attachments', widget: wrap('attachments', _section(
         icon: Icons.photo_library_outlined,
-        title: t.attachments_title,
+        title: attachmentsRequired ? '${t.attachments_title} *' : t.attachments_title,
         compact: compact,
         children: [
           Text(t.attachments_too_large),
