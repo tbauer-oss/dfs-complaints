@@ -567,198 +567,212 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Vertreter-Banner
-          if (repName.isNotEmpty || repEmail.isNotEmpty || repRegion.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.08),
-                  border: Border.all(color: Colors.blue, width: 1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.handshake_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (repEmail.isNotEmpty)
-                      Tooltip(
-                        message: t.rep_email_tooltip,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            final subject = Uri.encodeComponent(t.mail_subject_rep);
-                            final mailto = 'mailto:$repEmail?subject=$subject';
-                            html.window.open(mailto, '_self');
-                          },
-                          icon: const Icon(Icons.email_outlined),
-                          label: Text(t.rep_email_button),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _load(silent: false);
+          await _loadDrafts();
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // Vertreter-Banner
+                  if (repName.isNotEmpty || repEmail.isNotEmpty || repRegion.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.08),
+                          border: Border.all(color: Colors.blue, width: 1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.handshake_outlined, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
+                                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 2),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (repEmail.isNotEmpty)
+                              Tooltip(
+                                message: t.rep_email_tooltip,
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    final subject = Uri.encodeComponent(t.mail_subject_rep);
+                                    final mailto = 'mailto:$repEmail?subject=$subject';
+                                    html.window.open(mailto, '_self');
+                                  },
+                                  icon: const Icon(Icons.email_outlined),
+                                  label: Text(t.rep_email_button),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                  ],
-                ),
+                    ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon: Icon(_draftsExpanded
+                                ? Icons.expand_less
+                                : Icons.expand_more),
+                            label: Text(_draftsExpanded
+                                ? '${t.draftSectionTitle} ausblenden'
+                                : '${t.draftSectionTitle} anzeigen'),
+                            onPressed: () => setState(() => _draftsExpanded = !_draftsExpanded),
+                          ),
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _buildDraftSection(t),
+                          ),
+                          crossFadeState: _draftsExpanded
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Filter
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon:
+                                Icon(_filtersExpanded ? Icons.filter_list_off : Icons.filter_list),
+                            label: Text(_filtersExpanded
+                                ? '${t.filter} ausblenden'
+                                : '${t.filter} anzeigen'),
+                            onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
+                          ),
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Card(
+                              elevation: 0,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceVariant
+                                  .withOpacity(.4),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                                child: _FilterBar(
+                                  tickets:
+                                      _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
+                                  internalNos: _optionsFrom(
+                                      _allItems.map((c) => (c.internalNo ?? '').trim())),
+                                  statuses: _statusOptions(_allItems),
+                                  decisions: _optionsFrom(
+                                      _allItems.map((c) => (c.decision ?? '').trim())),
+                                  selectedTicket: _filterTicket,
+                                  selectedInternal: _filterInternalNo,
+                                  selectedStatus: _filterStatus,
+                                  selectedDecision: _filterDecision,
+                                  statusLabel: (s) => _statusTextLocalized(t, s),
+                                  decisionLabel: (d) => _decisionText(t, d),
+                                  onChanged: ({String? ticket,
+                                      String? internal,
+                                      int? status,
+                                      String? decision}) {
+                                    setState(() {
+                                      _filterTicket = ticket;
+                                      _filterInternalNo = internal;
+                                      _filterStatus = status;
+                                      _filterDecision = decision;
+                                    });
+                                    _refreshFilteredItems();
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          crossFadeState: _filtersExpanded
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_uploading)
+                    const LinearProgressIndicator(minHeight: 4),
+                ],
               ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: Icon(_draftsExpanded
-                        ? Icons.expand_less
-                        : Icons.expand_more),
-                    label: Text(_draftsExpanded
-                        ? '${t.draftSectionTitle} ausblenden'
-                        : '${t.draftSectionTitle} anzeigen'),
-                    onPressed: () => setState(() => _draftsExpanded = !_draftsExpanded),
-                  ),
-                ),
-                AnimatedCrossFade(
-                  firstChild: const SizedBox.shrink(),
-                  secondChild: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _buildDraftSection(t),
-                  ),
-                  crossFadeState: _draftsExpanded
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-                  duration: const Duration(milliseconds: 200),
-                ),
-              ],
             ),
-          ),
 
-          // Filter
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon:
-                        Icon(_filtersExpanded ? Icons.filter_list_off : Icons.filter_list),
-                    label: Text(_filtersExpanded
-                        ? '${t.filter} ausblenden'
-                        : '${t.filter} anzeigen'),
-                    onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
-                  ),
-                ),
-                AnimatedCrossFade(
-                  firstChild: const SizedBox.shrink(),
-                  secondChild: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Card(
-                      elevation: 0,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceVariant
-                          .withOpacity(.4),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                        child: _FilterBar(
-                          tickets:
-                              _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
-                          internalNos: _optionsFrom(
-                              _allItems.map((c) => (c.internalNo ?? '').trim())),
-                          statuses: _statusOptions(_allItems),
-                          decisions: _optionsFrom(
-                              _allItems.map((c) => (c.decision ?? '').trim())),
-                          selectedTicket: _filterTicket,
-                          selectedInternal: _filterInternalNo,
-                          selectedStatus: _filterStatus,
-                          selectedDecision: _filterDecision,
-                          statusLabel: (s) => _statusTextLocalized(t, s),
-                          decisionLabel: (d) => _decisionText(t, d),
-                          onChanged: ({String? ticket,
-                              String? internal,
-                              int? status,
-                              String? decision}) {
-                            setState(() {
-                              _filterTicket = ticket;
-                              _filterInternalNo = internal;
-                              _filterStatus = status;
-                              _filterDecision = decision;
-                            });
-                            _refreshFilteredItems();
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  crossFadeState: _filtersExpanded
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-                  duration: const Duration(milliseconds: 200),
-                ),
-              ],
-            ),
-          ),
+            if (_loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_err != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text(_err!)),
+              )
+            else if (_items.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text(t.none_complaints)),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final c = _items[i];
+                      final ticket = (c.ticket).toString();
+                      final statusText = _statusTextLocalized(t, c.status);
+                      final statusColor = _statusColor(c.status);
+                      final decisionText = _decisionText(t, c.decision);
+                      final decisionColor = _decisionColor(c.decision);
+                      final reportLink = _preferredReportLink(t, c).trim();
+                      final canOpenReport = _canOpenReportLink(t, c);
 
-          if (_uploading)
-            const LinearProgressIndicator(minHeight: 4),
+                      final p = c.payload ?? const <String, dynamic>{};
+                      final segRaw = (p['segment'] ?? '').toString();
+                      final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
+                      final articleNo = (p['article'] ?? '').toString().trim();
+                      final productType = _productTypeFromPayload(p);
+                      final internalNo = (c.internalNo ?? '').trim();
+                      final hasInternalNo = internalNo.isNotEmpty;
 
-          // Liste der Reklamationen
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _err != null
-                    ? Center(child: Text(_err!))
-                    : _items.isEmpty
-                        ? Center(child: Text(t.none_complaints))
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              await _load(silent: false);
-                              await _loadDrafts();
-                            },
-                            child: ListView.separated(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
-                              itemBuilder: (_, i) {
-                                final c = _items[i];
-                                final ticket = (c.ticket).toString();
-                                final statusText = _statusTextLocalized(t, c.status);
-                                final statusColor = _statusColor(c.status);
-                                final decisionText = _decisionText(t, c.decision);
-                                final decisionColor = _decisionColor(c.decision);
-                                final reportLink = _preferredReportLink(t, c).trim();
-                                final canOpenReport = _canOpenReportLink(t, c);
-
-                                final p = c.payload ?? const <String, dynamic>{};
-                                final segRaw = (p['segment'] ?? '').toString();
-                                final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
-                                final articleNo = (p['article'] ?? '').toString().trim();
-                                final productType = _productTypeFromPayload(p);
-                                final internalNo = (c.internalNo ?? '').trim();
-                                final hasInternalNo = internalNo.isNotEmpty;
-
-                                // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final attachmentsButton = _ActionButton(
-                                  icon: Icons.attach_file_outlined,
-                                  label: t.attachments_add,
-                                  onPressed: _busy ? null : () => _addAttachments(c),
-                                );
+                      // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
+                      final attachmentsButton = _ActionButton(
+                        icon: Icons.attach_file_outlined,
+                        label: t.attachments_add,
+                        onPressed: _busy ? null : () => _addAttachments(c),
+                      );
 
                                 final contactButton = _ActionButton(
                                   icon: Icons.mail_outline,
@@ -845,85 +859,89 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                                 );
 
                                 // EXPANSION: alle Details
-                                return Card(
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  child: Theme(
-                                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                    child: ExpansionTile(
-                                      tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                                      title: Row(
-                                        children: [
-                                          const Icon(Icons.description_outlined, size: 20),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: LayoutBuilder(
-                                              builder: (context, constraints) {
-                                                final ticketText = ConstrainedBox(
-                                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                                  child: Text(
-                                                    ticket.isEmpty ? '—' : ticket,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style:
-                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                                                  ),
-                                                );
-
-                                                if (!hasInternalNo) return ticketText;
-
-                                                return Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Wrap(
-                                                      spacing: 8,
-                                                      runSpacing: 6,
-                                                      crossAxisAlignment: WrapCrossAlignment.center,
-                                                      children: [
-                                                        ticketText,
-                                                        _internalNoPill(t, internalNo),
-                                                      ],
-                                                    ),
-                                                    if (articleNo.isNotEmpty) ...[
-                                                      const SizedBox(height: 6),
-                                                      Align(
-                                                        alignment: Alignment.centerLeft,
-                                                        child: _KeyValuePill(
-                                                          icon: Icons.handyman_outlined,
-                                                          label: (t.articleNo ?? t.article),
-                                                          value: articleNo,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      subtitle: Padding(
-                                        padding: const EdgeInsets.only(top: 6),
-                                        child: headerLine,
-                                      ),
-                                      children: [
-                                        const SizedBox(height: 8),
-                                        // Sektion: Basisdaten
-                                        _DetailGroup(
-                                          title: t.details,
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: i == _items.length - 1 ? 0 : 8,
+                                  ),
+                                  child: Card(
+                                    elevation: 2,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    child: Theme(
+                                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                      child: ExpansionTile(
+                                        tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                                        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                        title: Row(
                                           children: [
-                                            _kv(t.segment, seg.isEmpty ? '—' : seg),
-                                            _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
-                                            if (productType.isNotEmpty)
-                                              _kv(t.product_type ?? 'Produkttyp', productType),
-                                            if ((p['batch'] ?? '').toString().isNotEmpty)
-                                              _kv(t.batch, (p['batch']).toString()),
-                                            if ((p['qty'] ?? '').toString().isNotEmpty)
-                                              _kv(t.quantity, (p['qty']).toString()),
-                                            if ((p['expiry'] ?? '').toString().isNotEmpty)
-                                              _kv(t.expiry, (p['expiry']).toString()),
-                                            if ((p['desc'] ?? '').toString().isNotEmpty)
+                                            const Icon(Icons.description_outlined, size: 20),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: LayoutBuilder(
+                                                builder: (context, constraints) {
+                                                  final ticketText = ConstrainedBox(
+                                                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                                    child: Text(
+                                                      ticket.isEmpty ? '—' : ticket,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                          fontWeight: FontWeight.w700, fontSize: 15),
+                                                    ),
+                                                  );
+
+                                                  if (!hasInternalNo) return ticketText;
+
+                                                  return Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Wrap(
+                                                        spacing: 8,
+                                                        runSpacing: 6,
+                                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                                        children: [
+                                                          ticketText,
+                                                          _internalNoPill(t, internalNo),
+                                                        ],
+                                                      ),
+                                                      if (articleNo.isNotEmpty) ...[
+                                                        const SizedBox(height: 6),
+                                                        Align(
+                                                          alignment: Alignment.centerLeft,
+                                                          child: _KeyValuePill(
+                                                            icon: Icons.handyman_outlined,
+                                                            label: (t.articleNo ?? t.article),
+                                                            value: articleNo,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        subtitle: Padding(
+                                          padding: const EdgeInsets.only(top: 6),
+                                          child: headerLine,
+                                        ),
+                                        children: [
+                                          const SizedBox(height: 8),
+                                          // Sektion: Basisdaten
+                                          _DetailGroup(
+                                            title: t.details,
+                                            children: [
+                                              _kv(t.segment, seg.isEmpty ? '—' : seg),
+                                              _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
+                                              if (productType.isNotEmpty)
+                                                _kv(t.product_type ?? 'Produkttyp', productType),
+                                              if ((p['batch'] ?? '').toString().isNotEmpty)
+                                                _kv(t.batch, (p['batch']).toString()),
+                                              if ((p['qty'] ?? '').toString().isNotEmpty)
+                                                _kv(t.quantity, (p['qty']).toString()),
+                                              if ((p['expiry'] ?? '').toString().isNotEmpty)
+                                                _kv(t.expiry, (p['expiry']).toString()),
+                                              if ((p['desc'] ?? '').toString().isNotEmpty)
                                               _kv(t.description, (p['desc']).toString()),
                                           ],
                                         ),
