@@ -12,10 +12,10 @@ abstract class _Drawable {
 }
 
 class _Stroke extends _Drawable {
-  _Stroke({required this.color, required this.width, required this.tool});
+  _Stroke({required this.color, required this.widthFactor, required this.tool});
 
   final Color color;
-  final double width;
+  final double widthFactor;
   final _EditorTool tool;
   final List<Offset> points = [];
   Offset? start;
@@ -25,11 +25,17 @@ class _Stroke extends _Drawable {
 }
 
 class _TextLabel extends _Drawable {
-  _TextLabel({required this.position, required this.color, required this.text});
+  _TextLabel({
+    required this.position,
+    required this.color,
+    required this.text,
+    required this.fontFactor,
+  });
 
   final Offset position;
   final Color color;
   final String text;
+  final double fontFactor;
 }
 
 class AttachmentEditorPage extends StatefulWidget {
@@ -43,6 +49,8 @@ class AttachmentEditorPage extends StatefulWidget {
 }
 
 class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
+  static const _defaultStrokeWidth = 4.0;
+  static const _baseFontSize = 22.0;
   static const _colors = [Colors.redAccent, Colors.amber, Colors.lightGreen];
 
   ui.Image? _image;
@@ -86,7 +94,11 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 
   void _startStroke(Offset pos, Rect rect) {
     if (_tool == _EditorTool.text) return;
-    final stroke = _Stroke(color: _activeColor, width: 4, tool: _tool);
+    final stroke = _Stroke(
+      color: _activeColor,
+      widthFactor: _defaultStrokeWidth / rect.shortestSide,
+      tool: _tool,
+    );
     if (_tool == _EditorTool.pen) {
       stroke.points.add(_normalize(pos, rect));
     } else {
@@ -162,7 +174,14 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
     if (!mounted || result == null || result.isEmpty) return;
 
     setState(() {
-      _elements.add(_TextLabel(position: _normalize(pos, rect), color: _activeColor, text: result));
+      _elements.add(
+        _TextLabel(
+          position: _normalize(pos, rect),
+          color: _activeColor,
+          text: result,
+          fontFactor: _baseFontSize / rect.shortestSide,
+        ),
+      );
     });
   }
 
@@ -176,17 +195,17 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
         rect.top + input.dy * rect.height,
       );
 
-  TextPainter _buildTextPainter(_TextLabel label, double maxWidth) => TextPainter(
+  TextPainter _buildTextPainter(_TextLabel label, double maxWidth, double fontSize) => TextPainter(
         text: TextSpan(
           text: label.text,
-          style: TextStyle(color: label.color, fontSize: 22, fontWeight: FontWeight.w600),
+          style: TextStyle(color: label.color, fontSize: fontSize, fontWeight: FontWeight.w600),
         ),
         textDirection: TextDirection.ltr,
       )
         ..layout(maxWidth: maxWidth);
 
   Rect _labelRect(_TextLabel label, Rect rect) {
-    final painter = _buildTextPainter(label, rect.width);
+    final painter = _buildTextPainter(label, rect.width, label.fontFactor * rect.shortestSide);
     final topLeft = _denormalize(label.position, rect);
     return topLeft & painter.size;
   }
@@ -217,7 +236,12 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
     final clamped = Offset(normalized.dx.clamp(0.0, 1.0), normalized.dy.clamp(0.0, 1.0));
     final current = _elements[index] as _TextLabel;
     setState(() {
-      _elements[index] = _TextLabel(position: clamped, color: current.color, text: current.text);
+      _elements[index] = _TextLabel(
+        position: clamped,
+        color: current.color,
+        text: current.text,
+        fontFactor: current.fontFactor,
+      );
     });
   }
 
@@ -251,41 +275,34 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 
     paintImage(canvas: canvas, image: image, rect: Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()));
 
+    final imageRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+
     void paintStroke(_Stroke stroke) {
+      final strokeWidth = stroke.widthFactor * imageRect.shortestSide;
       final paint = Paint()
         ..color = stroke.color
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = stroke.width;
+        ..strokeWidth = strokeWidth;
 
       if (stroke.tool == _EditorTool.pen) {
-        final points =
-            stroke.points.map((p) => _denormalize(p, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()))).toList();
+        final points = stroke.points.map((p) => _denormalize(p, imageRect)).toList();
         for (var i = 0; i < points.length - 1; i++) {
           canvas.drawLine(points[i], points[i + 1], paint);
         }
       } else {
-        final start = _denormalize(
-          stroke.start!,
-          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-        );
-        final end = _denormalize(
-          stroke.end!,
-          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-        );
+        final start = _denormalize(stroke.start!, imageRect);
+        final end = _denormalize(stroke.end!, imageRect);
         canvas.drawLine(start, end, paint);
-        final head = _arrowHead(start, end, stroke.width * 5);
+        final head = _arrowHead(start, end, strokeWidth * 5);
         canvas.drawPath(head, paint..style = PaintingStyle.fill);
       }
     }
 
     void paintLabel(_TextLabel label) {
-      final painter = _buildTextPainter(label, image.width.toDouble());
+      final painter = _buildTextPainter(label, image.width.toDouble(), label.fontFactor * imageRect.shortestSide);
 
-      final pos = _denormalize(
-        label.position,
-        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-      );
+      final pos = _denormalize(label.position, imageRect);
       painter.paint(canvas, pos);
     }
 
@@ -446,11 +463,12 @@ class _EditorPainter extends CustomPainter {
     for (final element in [...elements, if (active != null) active!]) {
       if (element is _Stroke) {
         final stroke = element;
+        final strokeWidth = stroke.widthFactor * imageRect.shortestSide;
         final paint = Paint()
           ..color = stroke.color
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
-          ..strokeWidth = stroke.width;
+          ..strokeWidth = strokeWidth;
 
         if (stroke.tool == _EditorTool.pen) {
           if (stroke.points.length < 2) continue;
@@ -471,14 +489,18 @@ class _EditorPainter extends CustomPainter {
             imageRect.top + stroke.end!.dy * imageRect.height,
           );
           canvas.drawLine(start, end, paint);
-          final head = _arrowHead(start, end, stroke.width * 5);
+          final head = _arrowHead(start, end, strokeWidth * 5);
           canvas.drawPath(head, paint..style = PaintingStyle.fill);
         }
       } else if (element is _TextLabel) {
         final painter = TextPainter(
           text: TextSpan(
             text: element.text,
-            style: TextStyle(color: element.color, fontSize: 22, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: element.color,
+              fontSize: element.fontFactor * imageRect.shortestSide,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           textDirection: TextDirection.ltr,
         )
