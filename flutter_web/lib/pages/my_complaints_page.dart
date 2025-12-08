@@ -567,454 +567,467 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Vertreter-Banner
-          if (repName.isNotEmpty || repEmail.isNotEmpty || repRegion.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.08),
-                  border: Border.all(color: Colors.blue, width: 1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.handshake_outlined, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (repEmail.isNotEmpty)
-                      Tooltip(
-                        message: t.rep_email_tooltip,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            final subject = Uri.encodeComponent(t.mail_subject_rep);
-                            final mailto = 'mailto:$repEmail?subject=$subject';
-                            html.window.open(mailto, '_self');
-                          },
-                          icon: const Icon(Icons.email_outlined),
-                          label: Text(t.rep_email_button),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _load(silent: false);
+          await _loadDrafts();
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // Vertreter-Banner
+                  if (repName.isNotEmpty || repEmail.isNotEmpty || repRegion.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.08),
+                          border: Border.all(color: Colors.blue, width: 1),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: Icon(_draftsExpanded
-                        ? Icons.expand_less
-                        : Icons.expand_more),
-                    label: Text(_draftsExpanded
-                        ? '${t.draftSectionTitle} ausblenden'
-                        : '${t.draftSectionTitle} anzeigen'),
-                    onPressed: () => setState(() => _draftsExpanded = !_draftsExpanded),
-                  ),
-                ),
-                AnimatedCrossFade(
-                  firstChild: const SizedBox.shrink(),
-                  secondChild: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _buildDraftSection(t),
-                  ),
-                  crossFadeState: _draftsExpanded
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-                  duration: const Duration(milliseconds: 200),
-                ),
-              ],
-            ),
-          ),
-
-          // Filter
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon:
-                        Icon(_filtersExpanded ? Icons.filter_list_off : Icons.filter_list),
-                    label: Text(_filtersExpanded
-                        ? '${t.filter} ausblenden'
-                        : '${t.filter} anzeigen'),
-                    onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
-                  ),
-                ),
-                AnimatedCrossFade(
-                  firstChild: const SizedBox.shrink(),
-                  secondChild: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Card(
-                      elevation: 0,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceVariant
-                          .withOpacity(.4),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                        child: _FilterBar(
-                          tickets:
-                              _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
-                          internalNos: _optionsFrom(
-                              _allItems.map((c) => (c.internalNo ?? '').trim())),
-                          statuses: _statusOptions(_allItems),
-                          decisions: _optionsFrom(
-                              _allItems.map((c) => (c.decision ?? '').trim())),
-                          selectedTicket: _filterTicket,
-                          selectedInternal: _filterInternalNo,
-                          selectedStatus: _filterStatus,
-                          selectedDecision: _filterDecision,
-                          statusLabel: (s) => _statusTextLocalized(t, s),
-                          decisionLabel: (d) => _decisionText(t, d),
-                          onChanged: ({String? ticket,
-                              String? internal,
-                              int? status,
-                              String? decision}) {
-                            setState(() {
-                              _filterTicket = ticket;
-                              _filterInternalNo = internal;
-                              _filterStatus = status;
-                              _filterDecision = decision;
-                            });
-                            _refreshFilteredItems();
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  crossFadeState: _filtersExpanded
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-                  duration: const Duration(milliseconds: 200),
-                ),
-              ],
-            ),
-          ),
-
-          if (_uploading)
-            const LinearProgressIndicator(minHeight: 4),
-
-          // Liste der Reklamationen
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _err != null
-                    ? Center(child: Text(_err!))
-                    : _items.isEmpty
-                        ? Center(child: Text(t.none_complaints))
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              await _load(silent: false);
-                              await _loadDrafts();
-                            },
-                            child: ListView.separated(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
-                              itemBuilder: (_, i) {
-                                final c = _items[i];
-                                final ticket = (c.ticket).toString();
-                                final statusText = _statusTextLocalized(t, c.status);
-                                final statusColor = _statusColor(c.status);
-                                final decisionText = _decisionText(t, c.decision);
-                                final decisionColor = _decisionColor(c.decision);
-                                final reportLink = _preferredReportLink(t, c).trim();
-                                final canOpenReport = _canOpenReportLink(t, c);
-
-                                final p = c.payload ?? const <String, dynamic>{};
-                                final segRaw = (p['segment'] ?? '').toString();
-                                final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
-                                final articleNo = (p['article'] ?? '').toString().trim();
-                                final productType = _productTypeFromPayload(p);
-                                final internalNo = (c.internalNo ?? '').trim();
-                                final hasInternalNo = internalNo.isNotEmpty;
-
-                                // HEADER: Status, Artikelnummer, Produkttyp sofort sichtbar
-                                final attachmentsButton = _ActionButton(
-                                  icon: Icons.attach_file_outlined,
-                                  label: t.attachments_add,
-                                  onPressed: _busy ? null : () => _addAttachments(c),
-                                );
-
-                                final contactButton = _ActionButton(
-                                  icon: Icons.mail_outline,
-                                  label: t.complaint_contact_button,
-                                  onPressed:
-                                      _busy ? null : () => _openComplaintContactForm(c),
-                                );
-
-                                final statusWrap = Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    _StatusPill(text: decisionText, color: decisionColor),
-                                    _StatusPill(text: statusText, color: statusColor),
-                                  ],
-                                );
-
-                                final metaWrap = Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    if (articleNo.isNotEmpty && !hasInternalNo)
-                                      _KeyValuePill(
-                                        icon: Icons.handyman_outlined,
-                                        label: (t.articleNo ?? t.article),
-                                        value: articleNo,
-                                      ),
-                                    if (productType.isNotEmpty)
-                                      _KeyValuePill(
-                                        icon: Icons.category_outlined,
-                                        label: t.product_type ?? 'Produkttyp',
-                                        value: productType,
-                                      ),
-                                  ],
-                                );
-
-                                final headerInfo = Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    statusWrap,
-                                    if (metaWrap.children.isNotEmpty) ...[
-                                      const SizedBox(height: 10),
-                                      metaWrap,
-                                    ],
-                                  ],
-                                );
-
-                                final headerLine = LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final isCompact = constraints.maxWidth < 620;
-                                    final actionRow = SizedBox(
-                                      width: math.min(constraints.maxWidth, 380),
-                                      child: Row(
-                                        children: [
-                                          Expanded(child: attachmentsButton),
-                                          const SizedBox(width: 10),
-                                          Expanded(child: contactButton),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (isCompact) {
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          headerInfo,
-                                          const SizedBox(height: 12),
-                                          actionRow,
-                                        ],
-                                      );
-                                    }
-
-                                    return Row(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        Expanded(child: headerInfo),
-                                        const SizedBox(width: 12),
-                                        actionRow,
-                                      ],
-                                    );
+                        child: Row(
+                          children: [
+                            const Icon(Icons.handshake_outlined, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(t.rep_banner_title(repName.isEmpty ? '—' : repName),
+                                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 2),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (repEmail.isNotEmpty)
+                              Tooltip(
+                                message: t.rep_email_tooltip,
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    final subject = Uri.encodeComponent(t.mail_subject_rep);
+                                    final mailto = 'mailto:$repEmail?subject=$subject';
+                                    html.window.open(mailto, '_self');
                                   },
-                                );
+                                  icon: const Icon(Icons.email_outlined),
+                                  label: Text(t.rep_email_button),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
 
-                                // EXPANSION: alle Details
-                                return Card(
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  child: Theme(
-                                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                                    child: ExpansionTile(
-                                      tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                                      title: Row(
-                                        children: [
-                                          const Icon(Icons.description_outlined, size: 20),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: LayoutBuilder(
-                                              builder: (context, constraints) {
-                                                final ticketText = ConstrainedBox(
-                                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                                  child: Text(
-                                                    ticket.isEmpty ? '—' : ticket,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style:
-                                                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                                                  ),
-                                                );
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon: Icon(_draftsExpanded
+                                ? Icons.expand_less
+                                : Icons.expand_more),
+                            label: Text(_draftsExpanded
+                                ? '${t.draftSectionTitle} ausblenden'
+                                : '${t.draftSectionTitle} anzeigen'),
+                            onPressed: () => setState(() => _draftsExpanded = !_draftsExpanded),
+                          ),
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _buildDraftSection(t),
+                          ),
+                          crossFadeState: _draftsExpanded
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
+                        ),
+                      ],
+                    ),
+                  ),
 
-                                                if (!hasInternalNo) return ticketText;
-
-                                                return Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Wrap(
-                                                      spacing: 8,
-                                                      runSpacing: 6,
-                                                      crossAxisAlignment: WrapCrossAlignment.center,
-                                                      children: [
-                                                        ticketText,
-                                                        _internalNoPill(t, internalNo),
-                                                      ],
-                                                    ),
-                                                    if (articleNo.isNotEmpty) ...[
-                                                      const SizedBox(height: 6),
-                                                      Align(
-                                                        alignment: Alignment.centerLeft,
-                                                        child: _KeyValuePill(
-                                                          icon: Icons.handyman_outlined,
-                                                          label: (t.articleNo ?? t.article),
-                                                          value: articleNo,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      subtitle: Padding(
-                                        padding: const EdgeInsets.only(top: 6),
-                                        child: headerLine,
-                                      ),
-                                      children: [
-                                        const SizedBox(height: 8),
-                                        // Sektion: Basisdaten
-                                        _DetailGroup(
-                                          title: t.details,
-                                          children: [
-                                            _kv(t.segment, seg.isEmpty ? '—' : seg),
-                                            _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
-                                            if (productType.isNotEmpty)
-                                              _kv(t.product_type ?? 'Produkttyp', productType),
-                                            if ((p['batch'] ?? '').toString().isNotEmpty)
-                                              _kv(t.batch, (p['batch']).toString()),
-                                            if ((p['qty'] ?? '').toString().isNotEmpty)
-                                              _kv(t.quantity, (p['qty']).toString()),
-                                            if ((p['expiry'] ?? '').toString().isNotEmpty)
-                                              _kv(t.expiry, (p['expiry']).toString()),
-                                            if ((p['desc'] ?? '').toString().isNotEmpty)
-                                              _kv(t.description, (p['desc']).toString()),
-                                          ],
-                                        ),
-
-                                        // Sektion: Rücksendung / Wunsch
-                                        if ((p['returned'] ?? '').toString().isNotEmpty || (p['handling'] ?? '').toString().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.handling,
-                                            children: [
-                                              if ((p['returned'] ?? '').toString().isNotEmpty)
-                                                _kv(t.returned ?? t.returned_question, (p['returned']).toString()),
-                                              if ((p['handling'] ?? '').toString().isNotEmpty)
-                                                _kv(t.handling, (p['handling']).toString()),
-                                            ],
-                                          ),
-
-                                        // Sektion: Patientenbezug
-                                        if ((p['applied'] ?? '').toString().isNotEmpty ||
-                                            (p['injury'] ?? '').toString().isNotEmpty ||
-                                            (p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.applied_to_patient,
-                                            children: [
-                                              if ((p['applied'] ?? '').toString().isNotEmpty)
-                                                _kv(t.applied, (p['applied']).toString()),
-                                              if ((p['injury'] ?? '').toString().isNotEmpty)
-                                                _kv(t.injury, (p['injury']).toString()),
-                                              if ((p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
-                                                _kv(t.injury_desc, (p['injuryDesc']).toString()),
-                                            ],
-                                          ),
-
-                                        // Sektion: Kunde / Land
-                                        if ((p['customerName'] ?? '').toString().isNotEmpty ||
-                                            (p['country'] ?? '').toString().isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.customer_label,
-                                            children: [
-                                              if ((p['customerName'] ?? '').toString().isNotEmpty)
-                                                _kv(t.customer_label, (p['customerName']).toString()),
-                                              if ((p['country'] ?? '').toString().isNotEmpty)
-                                                _kv(t.country_label, (p['country']).toString()),
-                                            ],
-                                          ),
-
-                                        // Zeiten & interne Nr.
-                                        _DetailGroup(
-                                          title: t.timestamps ?? 'Zeitstempel',
-                                          children: [
-                                            _kv(t.created, _fmt(c.createdAt)),
-                                            if (c.updatedAt.millisecondsSinceEpoch > 0)
-                                              _kv(t.updated, _fmt(c.updatedAt)),
-                                            if ((c.internalNo ?? '').toString().isNotEmpty)
-                                              _kv(t.internal_no_label, c.internalNo!),
-                                          ],
-                                        ),
-
-                                        if (c.uploads.isNotEmpty)
-                                          _DetailGroup(
-                                            title: t.attachments_existing,
-                                            children: [
-                                              for (final upload in c.uploads)
-                                                _AttachmentPreviewTile(
-                                                  upload: upload,
-                                                  formatBytes: _formatBytes,
-                                                  formatDate: _fmt,
-                                                  fallbackName: t.attachments_file_unknown,
-                                                ),
-                                            ],
-                                          ),
-
-                                        // Aktionen
-                                        if (canOpenReport)
-                                          Row(
-                                            children: [
-                                              TextButton.icon(
-                                                onPressed: () => html.window.open(reportLink, '_blank'),
-                                                icon: const Icon(Icons.open_in_new),
-                                                label: Text(t.report_open),
-                                              ),
-                                            ],
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
+                  // Filter
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon:
+                                Icon(_filtersExpanded ? Icons.filter_list_off : Icons.filter_list),
+                            label: Text(_filtersExpanded
+                                ? '${t.filter} ausblenden'
+                                : '${t.filter} anzeigen'),
+                            onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
+                          ),
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Card(
+                              elevation: 0,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceVariant
+                                  .withOpacity(.4),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                                child: _FilterBar(
+                                  tickets:
+                                      _optionsFrom(_allItems.map((c) => (c.ticket).trim())),
+                                  internalNos: _optionsFrom(
+                                      _allItems.map((c) => (c.internalNo ?? '').trim())),
+                                  statuses: _statusOptions(_allItems),
+                                  decisions: _optionsFrom(
+                                      _allItems.map((c) => (c.decision ?? '').trim())),
+                                  selectedTicket: _filterTicket,
+                                  selectedInternal: _filterInternalNo,
+                                  selectedStatus: _filterStatus,
+                                  selectedDecision: _filterDecision,
+                                  statusLabel: (s) => _statusTextLocalized(t, s),
+                                  decisionLabel: (d) => _decisionText(t, d),
+                                  onChanged: ({String? ticket,
+                                      String? internal,
+                                      int? status,
+                                      String? decision}) {
+                                    setState(() {
+                                      _filterTicket = ticket;
+                                      _filterInternalNo = internal;
+                                      _filterStatus = status;
+                                      _filterDecision = decision;
+                                    });
+                                    _refreshFilteredItems();
+                                  },
+                                ),
+                              ),
                             ),
                           ),
-          ),
-        ],
+                          crossFadeState: _filtersExpanded
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 200),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_uploading)
+                    const LinearProgressIndicator(minHeight: 4),
+                ],
+              ),
+            ),
+
+            if (_loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_err != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text(_err!)),
+              )
+            else if (_items.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text(t.none_complaints)),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final c = _items[i];
+                      final ticket = (c.ticket).toString();
+                      final statusText = _statusTextLocalized(t, c.status);
+                      final statusColor = _statusColor(c.status);
+                      final decisionText = _decisionText(t, c.decision);
+                      final decisionColor = _decisionColor(c.decision);
+                      final reportLink = _preferredReportLink(t, c).trim();
+                      final canOpenReport = _canOpenReportLink(t, c);
+
+                      final p = c.payload ?? const <String, dynamic>{};
+                      final segRaw = (p['segment'] ?? '').toString();
+                      final seg = segRaw.isNotEmpty ? _segmentLabel(t, segRaw) : '';
+                      final articleNo = (p['article'] ?? '').toString().trim();
+                      final productType = _productTypeFromPayload(p);
+                      final internalNo = (c.internalNo ?? '').trim();
+                      final hasInternalNo = internalNo.isNotEmpty;
+
+                      final attachmentsButton = _ActionButton(
+                        icon: Icons.attach_file_outlined,
+                        label: t.attachments_add,
+                        onPressed: _busy ? null : () => _addAttachments(c),
+                      );
+
+                      final contactButton = _ActionButton(
+                        icon: Icons.mail_outline,
+                        label: t.complaint_contact_button,
+                        onPressed: _busy ? null : () => _openComplaintContactForm(c),
+                      );
+
+                      final statusWrap = Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _StatusPill(text: decisionText, color: decisionColor),
+                          _StatusPill(text: statusText, color: statusColor),
+                        ],
+                      );
+
+                      final metaWrap = Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (articleNo.isNotEmpty && !hasInternalNo)
+                            _KeyValuePill(
+                              icon: Icons.handyman_outlined,
+                              label: (t.articleNo ?? t.article),
+                              value: articleNo,
+                            ),
+                          if (productType.isNotEmpty)
+                            _KeyValuePill(
+                              icon: Icons.category_outlined,
+                              label: t.product_type ?? 'Produkttyp',
+                              value: productType,
+                            ),
+                        ],
+                      );
+
+                      final headerInfo = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          statusWrap,
+                          if (metaWrap.children.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            metaWrap,
+                          ],
+                        ],
+                      );
+
+                      final headerLine = LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isCompact = constraints.maxWidth < 620;
+                          final actionRow = SizedBox(
+                            width: math.min(constraints.maxWidth, 380),
+                            child: Row(
+                              children: [
+                                Expanded(child: attachmentsButton),
+                                const SizedBox(width: 10),
+                                Expanded(child: contactButton),
+                              ],
+                            ),
+                          );
+
+                          if (isCompact) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                headerInfo,
+                                const SizedBox(height: 12),
+                                actionRow,
+                              ],
+                            );
+                          }
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(child: headerInfo),
+                              const SizedBox(width: 12),
+                              actionRow,
+                            ],
+                          );
+                        },
+                      );
+
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: i == _items.length - 1 ? 0 : 8,
+                        ),
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              tilePadding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              title: Row(
+                                children: [
+                                  const Icon(Icons.description_outlined, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final ticketText = ConstrainedBox(
+                                          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                          child: Text(
+                                            ticket.isEmpty ? '—' : ticket,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700, fontSize: 15),
+                                          ),
+                                        );
+
+                                        if (!hasInternalNo) return ticketText;
+
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 6,
+                                              crossAxisAlignment: WrapCrossAlignment.center,
+                                              children: [
+                                                ticketText,
+                                                _internalNoPill(t, internalNo),
+                                              ],
+                                            ),
+                                            if (articleNo.isNotEmpty) ...[
+                                              const SizedBox(height: 6),
+                                              Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: _KeyValuePill(
+                                                  icon: Icons.handyman_outlined,
+                                                  label: (t.articleNo ?? t.article),
+                                                  value: articleNo,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: headerLine,
+                              ),
+                              children: [
+                                const SizedBox(height: 8),
+                                _DetailGroup(
+                                  title: t.details,
+                                  children: [
+                                    _kv(t.segment, seg.isEmpty ? '—' : seg),
+                                    _kv(t.article, articleNo.isEmpty ? '—' : articleNo),
+                                    if (productType.isNotEmpty)
+                                      _kv(t.product_type ?? 'Produkttyp', productType),
+                                    if ((p['batch'] ?? '').toString().isNotEmpty)
+                                      _kv(t.batch, (p['batch']).toString()),
+                                    if ((p['qty'] ?? '').toString().isNotEmpty)
+                                      _kv(t.quantity, (p['qty']).toString()),
+                                    if ((p['expiry'] ?? '').toString().isNotEmpty)
+                                      _kv(t.expiry, (p['expiry']).toString()),
+                                    if ((p['desc'] ?? '').toString().isNotEmpty)
+                                      _kv(t.description, (p['desc']).toString()),
+                                  ],
+                                ),
+
+                                if ((p['returned'] ?? '').toString().isNotEmpty ||
+                                    (p['handling'] ?? '').toString().isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.handling,
+                                    children: [
+                                      if ((p['returned'] ?? '').toString().isNotEmpty)
+                                        _kv(t.returned ?? t.returned_question, (p['returned']).toString()),
+                                      if ((p['handling'] ?? '').toString().isNotEmpty)
+                                        _kv(t.handling, (p['handling']).toString()),
+                                    ],
+                                  ),
+
+                                if ((p['applied'] ?? '').toString().isNotEmpty ||
+                                    (p['injury'] ?? '').toString().isNotEmpty ||
+                                    (p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.applied_to_patient,
+                                    children: [
+                                      if ((p['applied'] ?? '').toString().isNotEmpty)
+                                        _kv(t.applied, (p['applied']).toString()),
+                                      if ((p['injury'] ?? '').toString().isNotEmpty)
+                                        _kv(t.injury, (p['injury']).toString()),
+                                      if ((p['injuryDesc'] ?? '').toString().trim().isNotEmpty)
+                                        _kv(t.injury_desc, (p['injuryDesc']).toString()),
+                                    ],
+                                  ),
+
+                                if ((p['customerName'] ?? '').toString().isNotEmpty ||
+                                    (p['country'] ?? '').toString().isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.customer_label,
+                                    children: [
+                                      if ((p['customerName'] ?? '').toString().isNotEmpty)
+                                        _kv(t.customer_label, (p['customerName']).toString()),
+                                      if ((p['country'] ?? '').toString().isNotEmpty)
+                                        _kv(t.country_label, (p['country']).toString()),
+                                    ],
+                                  ),
+
+                                _DetailGroup(
+                                  title: t.timestamps ?? 'Zeitstempel',
+                                  children: [
+                                    _kv(t.created, _fmt(c.createdAt)),
+                                    if (c.updatedAt.millisecondsSinceEpoch > 0)
+                                      _kv(t.updated, _fmt(c.updatedAt)),
+                                    if ((c.internalNo ?? '').toString().isNotEmpty)
+                                      _kv(t.internal_no_label, c.internalNo!),
+                                  ],
+                                ),
+
+                                if (c.uploads.isNotEmpty)
+                                  _DetailGroup(
+                                    title: t.attachments_existing,
+                                    children: [
+                                      for (final upload in c.uploads)
+                                        _AttachmentPreviewTile(
+                                          upload: upload,
+                                          formatBytes: _formatBytes,
+                                          formatDate: _fmt,
+                                          fallbackName: t.attachments_file_unknown,
+                                        ),
+                                    ],
+                                  ),
+
+                                if (canOpenReport)
+                                  Row(
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: () => html.window.open(reportLink, '_blank'),
+                                        icon: const Icon(Icons.open_in_new),
+                                        label: Text(t.report_open),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: _items.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
     );
@@ -1474,6 +1487,92 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
     setState(() => _expanded = !_expanded);
   }
 
+  Future<void> _showLargePreview() async {
+    if (!_hasPreview) return;
+    final upload = widget.upload;
+    final theme = Theme.of(context);
+    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+
+    final media = MediaQuery.of(context);
+    double dialogWidth = media.size.width * 0.9;
+    double dialogHeight = media.size.height * 0.9;
+    if (dialogWidth > 720) dialogWidth = 720;
+    if (dialogHeight > 760) dialogHeight = 760;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: dialogWidth,
+          height: dialogHeight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    if (meta.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(meta.join(' • '), style: theme.textTheme.bodySmall),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant,
+                        border: Border.all(color: theme.colorScheme.outlineVariant),
+                      ),
+                      child: InteractiveViewer(
+                        minScale: 0.5,
+                        maxScale: 5,
+                        child: Center(
+                          child: Image(
+                            image: _previewProvider!,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 16, 16),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Schließen'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final upload = widget.upload;
@@ -1524,22 +1623,37 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
               ],
             ),
           ),
-          if (_hasPreview && _expanded)
+          if (_hasPreview && _expanded) ...[
             Padding(
               padding: const EdgeInsets.only(left: 26, top: 6),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
-                    color: theme.colorScheme.surfaceVariant,
+              child: GestureDetector(
+                onTap: _showLargePreview,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                      color: theme.colorScheme.surfaceVariant,
+                    ),
+                    width: previewWidth,
+                    height: previewHeight,
+                    child: Image(image: _previewProvider!, fit: BoxFit.cover),
                   ),
-                  width: previewWidth,
-                  height: previewHeight,
-                  child: Image(image: _previewProvider!, fit: BoxFit.cover),
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _showLargePreview,
+                  icon: const Icon(Icons.open_in_full),
+                  label: const Text('Größere Ansicht'),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

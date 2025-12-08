@@ -74,7 +74,7 @@ function buildBlobPath(ticket, filename) {
   const prefix = safeTicket ? `complaints/${safeTicket}` : 'complaints/general';
   const stamp = Date.now();
   const suffix = randomUUID().replace(/-/g, '');
-  return `${prefix}/${stamp}-${suffix}-${filename}`;
+  return `${prefix}/${stamp}-${suffix}/${filename}`;
 }
 
 function blobPathFromUrl(input) {
