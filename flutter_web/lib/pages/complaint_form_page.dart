@@ -378,7 +378,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
     _loadAccount();
     _loadHelpPref();
     _ensureProductsLoaded();
-    _restoreDraft();
+    if (widget.draftId != null) _restoreDraft();
   }
 
   Future<void> pickFiles() async {
@@ -601,12 +601,13 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   // -----------------------------
   // Hilfsfunktionen für dein Flow
   // -----------------------------
-  void _resetForm() {
+  void _resetForm({bool removePersistedDraft = true}) {
     final t = context.t;
     final optDentist = t.segment_dentist;
     final optNo = t.no;
     final optReturnedNo = t.no;
     final optHandlingRep = t.handling_replacement;
+    final previousDraftId = _draftId;
 
     _suppressDirty = true;
     setState(() {
@@ -629,9 +630,12 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       _dirty = false;
       _autoHelpItem = null;
       _wizardStep = 0;
+      _draftId = null;
     });
     _suppressDirty = false;
-    unawaited(_clearDraft(silent: true));
+    if (removePersistedDraft) {
+      unawaited(_clearDraft(silent: true, id: previousDraftId));
+    }
   }
 
   void _setPrivacy(bool value, {bool markDirty = true}) {
@@ -751,16 +755,27 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       await _draftStore.save(ComplaintDraft(id: id, data: snapshot));
       if (!mounted) return;
       setState(() {
-        info = t.draftSaved;
         err = null;
-        _draftId = id;
         _dirty = false;
+        info = t.draftSaved;
+        _draftId = id;
       });
+      _resetForm(removePersistedDraft: false);
+      _leaveAfterDraftSave();
     } catch (e) {
       debugPrint('Draft could not be saved: $e');
       if (!mounted) return;
       setState(() => err = t.draftSaveFailed);
     }
+  }
+
+  void _leaveAfterDraftSave() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (!(ModalRoute.of(context)?.isCurrent ?? true) && navigator.canPop()) {
+      navigator.pop();
+    }
+    navigator.maybePop();
   }
 
   Future<void> _clearDraft({bool silent = false, String? id}) async {
@@ -783,14 +798,9 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }
 
   Future<void> _restoreDraft() async {
+    if (widget.draftId == null) return;
     try {
-      ComplaintDraft? draft;
-
-      if (widget.draftId != null) {
-        draft = await _draftStore.findById(widget.draftId!);
-      }
-      draft ??= await _draftStore.latest();
-      draft ??= await _draftStore.migrateLegacy();
+      final draft = await _draftStore.findById(widget.draftId!);
       if (draft == null) return;
 
       final map = <String, dynamic>{};

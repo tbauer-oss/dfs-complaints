@@ -41,6 +41,7 @@
   "attachment_editor_text": "Texte",
   "attachment_editor_add_text_title": "Ajouter du texte",
   "attachment_editor_add_text_hint": "Saisir un libellé…",
+  "attachment_editor_text_size": "Taille du texte",
   "attachment_editor_undo": "Annuler",
   "attachment_editor_clear": "Réinitialiser",
   "attachment_editor_save": "Enregistrer",

@@ -535,6 +535,7 @@
   "attachment_editor_text": "Text",
   "attachment_editor_add_text_title": "Text hinzufügen",
   "attachment_editor_add_text_hint": "Beschriftung eingeben…",
+  "attachment_editor_text_size": "Schriftgröße",
   "attachment_editor_undo": "Rückgängig",
   "attachment_editor_clear": "Zurücksetzen",
   "attachment_editor_save": "Speichern",
