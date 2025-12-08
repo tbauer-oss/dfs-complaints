@@ -5,6 +5,7 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:js_util' as js_util;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
@@ -15532,6 +15533,49 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     html.Url.revokeObjectUrl(url);
   }
 
+  Future<bool> _trySaveArchiveWithPicker(Uint8List bytes) async {
+    if (!js_util.hasProperty(html.window, 'showSaveFilePicker')) return false;
+
+    try {
+      final options = js_util.jsify({
+        'suggestedName': 'reklamation_${widget.c.ticket}.zip',
+        'startIn': 'T:\\Reklamationen\\',
+        'types': [
+          {
+            'description': 'ZIP-Archiv',
+            'accept': {
+              'application/zip': ['.zip'],
+            },
+          }
+        ],
+      });
+
+      final fileHandle = await js_util.promiseToFuture(
+        js_util.callMethod(html.window, 'showSaveFilePicker', [options]),
+      );
+      final writable = await js_util.promiseToFuture(
+        js_util.callMethod(fileHandle, 'createWritable', const []),
+      );
+      await js_util.promiseToFuture(
+        js_util.callMethod(writable, 'write', [html.Blob([bytes], 'application/zip')]),
+      );
+      await js_util.promiseToFuture(js_util.callMethod(writable, 'close', const []));
+      return true;
+    } catch (e) {
+      debugPrint('Save picker failed, falling back to download: $e');
+      return false;
+    }
+  }
+
+  void _downloadArchive(Uint8List bytes) {
+    final blob = html.Blob([bytes], 'application/zip');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)
+      ..setAttribute('download', 'reklamation_${widget.c.ticket}.zip');
+    anchor.click();
+    html.Url.revokeObjectUrl(url);
+  }
+
   Future<void> _exportComplaintArchive() async {
     setState(() => _exportingArchive = true);
     try {
@@ -15544,12 +15588,15 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
         return;
       }
 
-      final blob = html.Blob([bytes], 'application/zip');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'reklamation_${widget.c.ticket}.zip');
-      anchor.click();
-      html.Url.revokeObjectUrl(url);
+      final savedWithPicker = await _trySaveArchiveWithPicker(bytes);
+      if (!savedWithPicker) {
+        _downloadArchive(bytes);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speicherort-Auswahl nicht verfügbar – Datei wird direkt heruntergeladen.'),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
