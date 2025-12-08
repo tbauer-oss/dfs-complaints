@@ -5,9 +5,13 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 
-enum _EditorTool { pen, arrow }
+enum _EditorTool { pen, arrow, text }
 
-class _Stroke {
+abstract class _Drawable {
+  const _Drawable();
+}
+
+class _Stroke extends _Drawable {
   _Stroke({required this.color, required this.width, required this.tool});
 
   final Color color;
@@ -18,6 +22,14 @@ class _Stroke {
   Offset? end;
 
   bool get isEmpty => tool == _EditorTool.pen ? points.length < 2 : start == null || end == null;
+}
+
+class _TextLabel extends _Drawable {
+  _TextLabel({required this.position, required this.color, required this.text});
+
+  final Offset position;
+  final Color color;
+  final String text;
 }
 
 class AttachmentEditorPage extends StatefulWidget {
@@ -35,7 +47,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 
   ui.Image? _image;
   bool _loading = true;
-  final List<_Stroke> _strokes = [];
+  final List<_Drawable> _elements = [];
   _Stroke? _activeStroke;
   Color _activeColor = _colors.first;
   _EditorTool _tool = _EditorTool.pen;
@@ -56,6 +68,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
   }
 
   void _startStroke(Offset pos, Size size) {
+    if (_tool == _EditorTool.text) return;
     final stroke = _Stroke(color: _activeColor, width: 4, tool: _tool);
     if (_tool == _EditorTool.pen) {
       stroke.points.add(_normalize(pos, size));
@@ -68,7 +81,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 
   void _updateStroke(Offset pos, Size size) {
     final stroke = _activeStroke;
-    if (stroke == null) return;
+    if (stroke == null || _tool == _EditorTool.text) return;
     if (stroke.tool == _EditorTool.pen) {
       stroke.points.add(_normalize(pos, size));
     } else {
@@ -79,25 +92,60 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 
   void _endStroke() {
     final stroke = _activeStroke;
-    if (stroke == null || stroke.isEmpty) {
+    if (stroke == null || stroke.isEmpty || _tool == _EditorTool.text) {
       setState(() => _activeStroke = null);
       return;
     }
     setState(() {
-      _strokes.add(stroke);
+      _elements.add(stroke);
       _activeStroke = null;
     });
   }
 
   void _undo() {
-    if (_strokes.isEmpty) return;
-    setState(() => _strokes.removeLast());
+    if (_elements.isEmpty) return;
+    setState(() => _elements.removeLast());
   }
 
   void _clear() {
     setState(() {
-      _strokes.clear();
+      _elements.clear();
       _activeStroke = null;
+    });
+  }
+
+  Future<void> _addTextLabel(Offset pos, Size size) async {
+    final t = AppLocalizations.of(context)!;
+    final controller = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.attachment_editor_add_text_title),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(hintText: t.attachment_editor_add_text_hint),
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: Text(t.attachment_editor_save),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || result == null || result.isEmpty) return;
+
+    setState(() {
+      _elements.add(_TextLabel(position: _normalize(pos, size), color: _activeColor, text: result));
     });
   }
 
@@ -151,8 +199,26 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
       }
     }
 
-    for (final stroke in _strokes) {
-      paintStroke(stroke);
+    void paintLabel(_TextLabel label) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: label.text,
+          style: TextStyle(color: label.color, fontSize: 22, fontWeight: FontWeight.w600),
+        ),
+        textDirection: TextDirection.ltr,
+      )
+        ..layout(maxWidth: image.width.toDouble());
+
+      final pos = _denormalize(label.position, Size(image.width.toDouble(), image.height.toDouble()));
+      painter.paint(canvas, pos);
+    }
+
+    for (final element in _elements) {
+      if (element is _Stroke) {
+        paintStroke(element);
+      } else if (element is _TextLabel) {
+        paintLabel(element);
+      }
     }
 
     final picture = recorder.endRecording();
@@ -196,15 +262,20 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
                           builder: (context, constraints) {
                             final size = Size(constraints.maxWidth, constraints.maxHeight);
                             return GestureDetector(
-                              onPanStart: (d) => _startStroke(d.localPosition, size),
-                              onPanUpdate: (d) => _updateStroke(d.localPosition, size),
-                              onPanEnd: (_) => _endStroke(),
+                              onPanStart: _tool == _EditorTool.text
+                                  ? null
+                                  : (d) => _startStroke(d.localPosition, size),
+                              onPanUpdate: _tool == _EditorTool.text
+                                  ? null
+                                  : (d) => _updateStroke(d.localPosition, size),
+                              onPanEnd: _tool == _EditorTool.text ? null : (_) => _endStroke(),
+                              onTapUp: _tool == _EditorTool.text ? (d) => _addTextLabel(d.localPosition, size) : null,
                               child: Container(
                                 decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
                                 child: CustomPaint(
                                   painter: _EditorPainter(
                                     image: _image!,
-                                    strokes: _strokes,
+                                    elements: _elements,
                                     active: _activeStroke,
                                   ),
                                 ),
@@ -230,6 +301,11 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
                             label: Text(t.attachment_editor_arrow),
                             selected: _tool == _EditorTool.arrow,
                             onSelected: (_) => setState(() => _tool = _EditorTool.arrow),
+                          ),
+                          ChoiceChip(
+                            label: Text(t.attachment_editor_text),
+                            selected: _tool == _EditorTool.text,
+                            onSelected: (_) => setState(() => _tool = _EditorTool.text),
                           ),
                         ],
                       ),
@@ -276,36 +352,51 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
 }
 
 class _EditorPainter extends CustomPainter {
-  _EditorPainter({required this.image, required this.strokes, required this.active});
+  _EditorPainter({required this.image, required this.elements, required this.active});
 
   final ui.Image image;
-  final List<_Stroke> strokes;
+  final List<_Drawable> elements;
   final _Stroke? active;
 
   @override
   void paint(Canvas canvas, Size size) {
     paintImage(canvas: canvas, image: image, rect: Offset.zero & size, fit: BoxFit.contain);
 
-    for (final stroke in [...strokes, if (active != null) active!]) {
-      final paint = Paint()
-        ..color = stroke.color
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = stroke.width;
+    for (final element in [...elements, if (active != null) active!]) {
+      if (element is _Stroke) {
+        final stroke = element;
+        final paint = Paint()
+          ..color = stroke.color
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = stroke.width;
 
-      if (stroke.tool == _EditorTool.pen) {
-        if (stroke.points.length < 2) continue;
-        final points = stroke.points.map((p) => Offset(p.dx * size.width, p.dy * size.height)).toList();
-        for (var i = 0; i < points.length - 1; i++) {
-          canvas.drawLine(points[i], points[i + 1], paint);
+        if (stroke.tool == _EditorTool.pen) {
+          if (stroke.points.length < 2) continue;
+          final points = stroke.points.map((p) => Offset(p.dx * size.width, p.dy * size.height)).toList();
+          for (var i = 0; i < points.length - 1; i++) {
+            canvas.drawLine(points[i], points[i + 1], paint);
+          }
+        } else {
+          if (stroke.start == null || stroke.end == null) continue;
+          final start = Offset(stroke.start!.dx * size.width, stroke.start!.dy * size.height);
+          final end = Offset(stroke.end!.dx * size.width, stroke.end!.dy * size.height);
+          canvas.drawLine(start, end, paint);
+          final head = _arrowHead(start, end, stroke.width * 5);
+          canvas.drawPath(head, paint..style = PaintingStyle.fill);
         }
-      } else {
-        if (stroke.start == null || stroke.end == null) continue;
-        final start = Offset(stroke.start!.dx * size.width, stroke.start!.dy * size.height);
-        final end = Offset(stroke.end!.dx * size.width, stroke.end!.dy * size.height);
-        canvas.drawLine(start, end, paint);
-        final head = _arrowHead(start, end, stroke.width * 5);
-        canvas.drawPath(head, paint..style = PaintingStyle.fill);
+      } else if (element is _TextLabel) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: element.text,
+            style: TextStyle(color: element.color, fontSize: 22, fontWeight: FontWeight.w600),
+          ),
+          textDirection: TextDirection.ltr,
+        )
+          ..layout(maxWidth: size.width);
+
+        final pos = Offset(element.position.dx * size.width, element.position.dy * size.height);
+        painter.paint(canvas, pos);
       }
     }
   }
@@ -325,5 +416,5 @@ class _EditorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EditorPainter oldDelegate) =>
-      oldDelegate.image != image || oldDelegate.strokes != strokes || oldDelegate.active != active;
+      oldDelegate.image != image || oldDelegate.elements != elements || oldDelegate.active != active;
 }
