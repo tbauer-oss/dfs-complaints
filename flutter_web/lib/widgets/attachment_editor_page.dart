@@ -236,7 +236,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
                       const Spacer(),
                       IconButton.filledTonal(
                         onPressed: _undo,
-                        tooltip: MaterialLocalizations.of(context).undoButtonTooltip,
+                        tooltip: t.attachment_editor_undo,
                         icon: const Icon(Icons.undo),
                       ),
                       IconButton(

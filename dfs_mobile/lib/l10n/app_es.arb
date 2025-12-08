@@ -64,6 +64,7 @@
   "attachment_editor_title": "Editar imagen",
   "attachment_editor_pen": "Lápiz",
   "attachment_editor_arrow": "Flecha",
+  "attachment_editor_undo": "Deshacer",
   "attachment_editor_clear": "Restablecer",
   "attachment_editor_save": "Guardar",
   "color": "Color",
