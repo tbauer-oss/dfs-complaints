@@ -264,10 +264,31 @@ function formatDate(ts) {
   catch { return ''; }
 }
 
+function formatDateForFilename(ts) {
+  if (!ts) return 'unbekanntes-datum';
+  try {
+    return new Date(ts).toISOString().slice(0, 10);
+  } catch {
+    return 'unbekanntes-datum';
+  }
+}
+
 function safe(value) {
   if (value === undefined || value === null) return '';
   if (typeof value === 'string') return value.trim();
   return String(value);
+}
+
+function sanitizeFilenamePart(value, fallback = 'unbekannt') {
+  const normalized = safe(value);
+  const cleaned = normalized
+    .normalize('NFKD')
+    .replace(/[\p{M}]+/gu, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+  return cleaned || fallback;
 }
 
 function resolveLang(lang) {
@@ -523,15 +544,18 @@ async function buildReportBuffer({ complaint, variant, lang }) {
   return Buffer.concat(chunks);
 }
 
-function buildFilename(variant, lang, ticket) {
-  const safeTicket = safe(ticket) || 'report';
+async function buildFilename(variant, lang, complaint) {
   const langSuffix = (lang || 'de').toUpperCase();
-  const variantLabel = variant === 'internal' ? 'Internal' : 'External';
-  return `ComplaintReport_${variantLabel}_${safeTicket}_${langSuffix}.pdf`;
+  const variantLabel = variant === 'internal' ? 'Intern' : 'Extern';
+  const customer = await describeCustomer(complaint);
+  const datePart = formatDateForFilename(complaint?.createdAt || complaint?.updatedAt || Date.now());
+  const ticketPart = sanitizeFilenamePart(complaint?.ticket, 'ohne-ticket');
+  const customerPart = sanitizeFilenamePart(customer?.company, 'kunde');
+  return `Reklamationsbericht_${datePart}_Ticket-${ticketPart}_${customerPart}_${variantLabel}_${langSuffix}.pdf`;
 }
 
 async function storeReport(buffer, { complaint, variant, lang }) {
-  const filename = buildFilename(variant, lang, complaint?.ticket);
+  const filename = await buildFilename(variant, lang, complaint);
   const stored = await storeGeneratedFile(buffer, {
     ticket: complaint?.ticket,
     filename,
