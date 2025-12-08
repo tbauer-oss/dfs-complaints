@@ -1089,7 +1089,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       final proceed = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Charge fehlt'),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+              SizedBox(width: 8),
+              Text('Charge fehlt'),
+            ],
+          ),
           content: const Text(
             'Für die korrekte Bearbeitung einer Medizinproduktereklamation ist eine Charge erforderlich. '
             'Ohne Charge kann eine Reklamation nur als Kulanzfall bearbeitet werden.\n\n'
@@ -1114,7 +1121,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Artikelnummer & Charge fehlen'),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+              SizedBox(width: 8),
+              Text('Artikelnummer & Charge fehlen'),
+            ],
+          ),
           content: const Text(
             'Ohne Artikelnummer und Charge ist die Bearbeitung Ihrer Reklamation stark erschwert. '
             'In diesem Fall ist das Hochladen von Fotos/Videos verpflichtend.',
