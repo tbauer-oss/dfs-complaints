@@ -1474,6 +1474,92 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
     setState(() => _expanded = !_expanded);
   }
 
+  Future<void> _showLargePreview() async {
+    if (!_hasPreview) return;
+    final upload = widget.upload;
+    final theme = Theme.of(context);
+    final name = upload.name.trim().isEmpty ? widget.fallbackName : upload.name.trim();
+    final meta = <String>[];
+    if (upload.size > 0) meta.add(widget.formatBytes(upload.size));
+    if (upload.uploadedAt != null) meta.add(widget.formatDate(upload.uploadedAt!.toLocal()));
+
+    final media = MediaQuery.of(context);
+    double dialogWidth = media.size.width * 0.9;
+    double dialogHeight = media.size.height * 0.9;
+    if (dialogWidth > 720) dialogWidth = 720;
+    if (dialogHeight > 760) dialogHeight = 760;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: dialogWidth,
+          height: dialogHeight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    if (meta.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(meta.join(' • '), style: theme.textTheme.bodySmall),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant,
+                        border: Border.all(color: theme.colorScheme.outlineVariant),
+                      ),
+                      child: InteractiveViewer(
+                        minScale: 0.5,
+                        maxScale: 5,
+                        child: Center(
+                          child: Image(
+                            image: _previewProvider!,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 16, 16),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Schließen'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final upload = widget.upload;
@@ -1524,22 +1610,37 @@ class _AttachmentPreviewTileState extends State<_AttachmentPreviewTile> {
               ],
             ),
           ),
-          if (_hasPreview && _expanded)
+          if (_hasPreview && _expanded) ...[
             Padding(
               padding: const EdgeInsets.only(left: 26, top: 6),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
-                    color: theme.colorScheme.surfaceVariant,
+              child: GestureDetector(
+                onTap: _showLargePreview,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                      color: theme.colorScheme.surfaceVariant,
+                    ),
+                    width: previewWidth,
+                    height: previewHeight,
+                    child: Image(image: _previewProvider!, fit: BoxFit.cover),
                   ),
-                  width: previewWidth,
-                  height: previewHeight,
-                  child: Image(image: _previewProvider!, fit: BoxFit.cover),
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _showLargePreview,
+                  icon: const Icon(Icons.open_in_full),
+                  label: const Text('Größere Ansicht'),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
