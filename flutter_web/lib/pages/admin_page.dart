@@ -428,13 +428,16 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     _DEFAULT_ROLE_TILES.forEach((role, defaults) {
-      final tiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
-      var changed = false;
-      for (final tile in defaults) {
-        if (tiles.add(tile)) changed = true;
-      }
-      if (changed) {
-        addedDefaults = true;
+      final tiles = _roleTileVisibility[role];
+      if (tiles == null || tiles.isEmpty) {
+        final newTiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
+        var changed = false;
+        for (final tile in defaults) {
+          if (newTiles.add(tile)) changed = true;
+        }
+        if (changed) {
+          addedDefaults = true;
+        }
       }
     });
 
@@ -513,9 +516,15 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  void _persistRoleTileVisibility({bool syncRemote = true}) {
+  Future<void> _persistRoleTileVisibility({bool syncRemote = true}) async {
     if (syncRemote) {
-      _syncAdminUiConfig(roleTileVisibility: _roleTileVisibility);
+      await _syncAdminUiConfig(roleTileVisibility: _roleTileVisibility);
+    }
+
+    if (mounted) {
+      setState(() => _roleTileVisibilityDirty = false);
+    } else {
+      _roleTileVisibilityDirty = false;
     }
   }
 
@@ -537,16 +546,29 @@ class _AdminPageState extends State<AdminPage> {
     bool visible,
   ) {
     final tiles = _visibleTilesForRole(role);
-    if (visible) {
-      if (tiles.add(tileId)) {
-        _persistRoleTileVisibility();
-        _ensureMenuTilePresent(tileId);
+    var changed = false;
+    var removed = false;
+
+    setState(() {
+      if (visible) {
+        if (tiles.add(tileId)) {
+          _ensureMenuTilePresent(tileId);
+          changed = true;
+        }
+      } else {
+        if (tiles.remove(tileId)) {
+          removed = true;
+          changed = true;
+        }
       }
-    } else {
-      if (tiles.remove(tileId)) {
-        _filterMenuSectionsForRole();
-        _persistRoleTileVisibility();
+
+      if (changed) {
+        _roleTileVisibilityDirty = true;
       }
+    });
+
+    if (removed) {
+      _filterMenuSectionsForRole();
     }
   }
 
@@ -570,6 +592,8 @@ class _AdminPageState extends State<AdminPage> {
   final Map<String, Set<String>> _roleTileVisibility = {
     for (final entry in _DEFAULT_ROLE_TILES.entries) entry.key: entry.value.toSet(),
   };
+  bool _roleTileVisibilityDirty = false;
+  bool _savingRoleTileVisibility = false;
 
   bool _navCollapsed = true;
   List<_AdminView> _navOrder = const [];
@@ -5078,10 +5102,9 @@ class _AdminPageState extends State<AdminPage> {
 
       final remoteTiles = config['roleTileVisibility'];
       if (remoteTiles is Map<String, dynamic>) {
-        var updatedVisibility = false;
-        setState(() => updatedVisibility = _loadRoleTileVisibility(stored: remoteTiles));
+        final updatedVisibility = _loadRoleTileVisibility(stored: remoteTiles);
         if (updatedVisibility) {
-          _persistRoleTileVisibility(syncRemote: true);
+          await _persistRoleTileVisibility(syncRemote: true);
         }
         _filterMenuSectionsForRole();
         _ensureMenuTilePresent('complaintList');
@@ -8873,11 +8896,89 @@ class _AdminPageState extends State<AdminPage> {
                   );
                 },
               ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (_roleTileVisibilityDirty) ...[
+                    Icon(Icons.info_outline, color: theme.colorScheme.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Änderungen werden erst nach dem Speichern übernommen.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                  if (_roleTileVisibilityDirty) const Spacer(),
+                  ElevatedButton.icon(
+                    icon: _savingRoleTileVisibility
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: const Text('Einstellungen speichern'),
+                    onPressed: _roleTileVisibilityDirty && !_savingRoleTileVisibility
+                        ? _confirmAndSaveRoleTileVisibility
+                        : null,
+                  ),
+                ],
+              ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmAndSaveRoleTileVisibility() async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Anzeige-Einstellungen speichern?'),
+            content: const Text(
+              'Die aktuelle Kachelauswahl für normale und Read-only Nutzer wird als Rollen-Standard gespeichert.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton.icon(
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Speichern'),
+                onPressed: () => Navigator.of(ctx).pop(true),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    setState(() => _savingRoleTileVisibility = true);
+
+    try {
+      await _persistRoleTileVisibility();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rollen-Layout gespeichert.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingRoleTileVisibility = false);
+      } else {
+        _savingRoleTileVisibility = false;
+      }
+    }
   }
 
   Widget _buildPortalUsersPanel() {
