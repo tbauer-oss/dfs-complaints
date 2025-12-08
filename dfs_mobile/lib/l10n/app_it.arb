@@ -41,6 +41,7 @@
   "attachment_editor_text": "Testo",
   "attachment_editor_add_text_title": "Aggiungi testo",
   "attachment_editor_add_text_hint": "Digita un’etichetta…",
+  "attachment_editor_text_size": "Dimensione del testo",
   "attachment_editor_undo": "Annulla",
   "attachment_editor_clear": "Reimposta",
   "attachment_editor_save": "Salva",

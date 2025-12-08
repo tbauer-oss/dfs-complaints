@@ -59,6 +59,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
   _Stroke? _activeStroke;
   Color _activeColor = _colors.first;
   _EditorTool _tool = _EditorTool.pen;
+  double _textScale = 1.0;
   int? _draggingLabelIndex;
   Offset? _dragPointerOffset;
 
@@ -188,7 +189,7 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
           position: _normalize(pos, rect),
           color: _activeColor,
           text: result,
-          fontFactor: _baseFontSize / rect.shortestSide,
+          fontFactor: (_baseFontSize * _textScale) / rect.shortestSide,
         ),
       );
     });
@@ -428,6 +429,25 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
                       ),
                     ],
                   ),
+                  if (_tool == _EditorTool.text) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(t.attachment_editor_text_size,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Expanded(
+                          child: Slider(
+                            value: _textScale,
+                            onChanged: (value) => setState(() => _textScale = value),
+                            min: 0.6,
+                            max: 2.2,
+                            divisions: 8,
+                            label: '${(_textScale * 100).round()}%',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     children: [

@@ -68,6 +68,7 @@
   "attachment_editor_text": "Text",
   "attachment_editor_add_text_title": "Add text",
   "attachment_editor_add_text_hint": "Type a label…",
+  "attachment_editor_text_size": "Text size",
   "attachment_editor_undo": "Undo",
   "attachment_editor_clear": "Reset",
   "attachment_editor_save": "Save",
