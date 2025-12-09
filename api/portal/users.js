@@ -36,6 +36,7 @@ function sanitizeUser(u) {
     isSales,
     canEditSales: isSales,
     salesAllowed: isSales,
+    isPRRC: isTruthy(u.isPRRC),
     assignedDepartments: normalizeDepartments(u.assignedDepartments || []),
     createdAt: u.createdAt || null,
     tilePermissions,
@@ -65,6 +66,7 @@ export default async function handler(req, res) {
       const displayName = String(body.displayName || '').trim();
       const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
       const isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
+      const isPRRC = isTruthy(body.isPRRC);
       const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
       const tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (!email || !password) return bad(res, 'missing email or password', 400);
@@ -77,6 +79,7 @@ export default async function handler(req, res) {
         portalStatus: 'active',
         displayName,
         isSales,
+        isPRRC,
         assignedDepartments,
         createdAt: Date.now(),
         tilePermissions,
@@ -100,6 +103,7 @@ export default async function handler(req, res) {
       const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
       if (salesFlag !== undefined)
         patch.isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
+      if (body.isPRRC !== undefined) patch.isPRRC = isTruthy(body.isPRRC);
       if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
       if (body.tilePermissions !== undefined) patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);

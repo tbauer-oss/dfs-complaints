@@ -52,6 +52,7 @@ export default async function handler(req, res) {
     const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
     if (portalStatus !== 'active') return bad(res, 'inactive', 403);
     const tilePermissions = sanitizeTilePermissions(u.tilePermissions);
+    const isPRRC = u.isPRRC === true;
 
     const token = jwt.sign({
       sub: u.email,
@@ -59,6 +60,7 @@ export default async function handler(req, res) {
       role,
       portalStatus,
       isSales: u.isSales === true,
+      prrc: isPRRC,
     }, JWT_SECRET, { expiresIn: '12h' });
 
     return ok(res, {
@@ -71,6 +73,7 @@ export default async function handler(req, res) {
         portalStatus,
         tilePermissions,
         isSales: u.isSales === true,
+        isPRRC,
       },
     });
   } catch (err) {
