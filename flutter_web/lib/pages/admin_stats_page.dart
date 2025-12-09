@@ -125,7 +125,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final audit = _parseAuditEntries();
     final enriched = audit.map((entry) {
       final product = _matchProduct(entry.article);
-      final mdrGroup = _deriveMdrGroup(product);
+      final mdrGroup = _deriveMdrGroup(product, entry.article);
       final productGroup = _deriveProductGroup(product);
       final articleNumber = _extractArticleNumber(entry.article);
       final articleLabel = _deriveArticleLabel(entry, product, articleNumber);
@@ -170,9 +170,27 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     });
   }
 
-  String _deriveMdrGroup(DfsProduct? product) {
+  String _deriveMdrGroup(DfsProduct? product, String? rawArticle) {
     const fallback = 'unbekannt (ggf. Dentallabor)';
-    if (product == null) return fallback;
+
+    String? fromArticle(String? article) {
+      if (article == null || article.trim().isEmpty) return null;
+      final upper = article.toUpperCase();
+      final match = RegExp(r'MDR-TD\s*\d+').firstMatch(upper);
+      if (match != null) {
+        final label = article.substring(match.start).trim();
+        if (label.isNotEmpty) return label;
+        final code = match.group(0)!.replaceAll(RegExp(r'\s+'), '-');
+        return code;
+      }
+      if (upper.contains('DENTAL')) return 'Dental Lab';
+      return null;
+    }
+
+    if (product == null) {
+      return fromArticle(rawArticle) ?? fallback;
+    }
+
     final label = product.tdNumberAndName.trim();
     if (label.toUpperCase().startsWith('MDR-TD')) return label;
 
@@ -2776,17 +2794,35 @@ class _AuditEntry {
 
     final batch = _optional(json['batch']) ??
         _optional(json['batchNumber']) ??
+        _optional(json['batch_number']) ??
+        _optional(json['batch_no']) ??
+        _optional(json['batchNo']) ??
         _optional(json['lot']) ??
         _optional(json['lotNumber']) ??
         _optional(json['lot_no']) ??
         _optional(json['lotNo']) ??
-        _optional(json['charge']);
+        _optional(json['lotId']) ??
+        _optional(json['lot_id']) ??
+        _optional(json['charge']) ??
+        _optional(json['chargeNumber']) ??
+        _optional(json['charge_number']) ??
+        _optional(json['chargeNo']) ??
+        _optional(json['charge_no']);
 
     final article = _optional(json['article']) ??
         _optional(json['articleNumber']) ??
         _optional(json['article_no']) ??
         _optional(json['articleNo']) ??
-        _optional(json['productNumber']);
+        _optional(json['articleNr']) ??
+        _optional(json['article_nr']) ??
+        _optional(json['itemNumber']) ??
+        _optional(json['item_no']) ??
+        _optional(json['itemNo']) ??
+        _optional(json['item_nr']) ??
+        _optional(json['productNumber']) ??
+        _optional(json['product_no']) ??
+        _optional(json['productNo']) ??
+        _optional(json['article_id']);
 
     return _AuditEntry(
       ticket: (json['ticket'] ?? '').toString(),
