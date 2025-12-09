@@ -1349,13 +1349,15 @@ class _AdminPageState extends State<AdminPage> {
     String? immediateActions,
     String? correctiveActions,
   ) async {
-    final updated = await widget.api.updateComplaintDetails(
+    final updatedMap = await widget.api.updateComplaintDetails(
       ticket: ticket,
       payload: {
         if (immediateActions != null) 'immediateActions': immediateActions,
         if (correctiveActions != null) 'correctiveActions': correctiveActions,
       },
     );
+
+    final updated = AdminComplaint.fromJson(updatedMap);
 
     _syncComplaint(updated);
     return _complaintListItems().firstWhereOrNull((c) => c.systemId == ticket);
@@ -15637,13 +15639,13 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
 
     setState(() => _busy = true);
-    try {
-      final updated = await widget.api.updateComplaintDetails(
-        ticket: widget.c.ticket,
-        payload: updatedPayload,
-      );
+      try {
+        final updated = AdminComplaint.fromJson(await widget.api.updateComplaintDetails(
+          ticket: widget.c.ticket,
+          payload: updatedPayload,
+        ));
 
-      final newPayload = updated.payload ?? <String, dynamic>{};
+        final newPayload = updated.payload ?? <String, dynamic>{};
       widget.c.payload ??= <String, dynamic>{};
       widget.c.payload!
         ..clear()

@@ -228,37 +228,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     'notes': 240,
   };
 
-  static const Map<String, double> _columnWidths = {
-    'internalNumber': 140,
-    'systemId': 140,
-    'customer': 180,
-    'customerNumber': 140,
-    'region': 140,
-    'productFile': 180,
-    'productGroup': 160,
-    'articleNumber': 150,
-    'articleName': 200,
-    'lotNumber': 140,
-    'complaintType': 180,
-    'complaintReason': 220,
-    'receivedAt': 140,
-    'closedAt': 140,
-    'status': 140,
-    'goodwill': 120,
-    'departments': 220,
-    'assignee': 180,
-    'salesCode': 140,
-    'orderNumber': 150,
-    'invoiceNumber': 150,
-    'internalAssessment': 220,
-    'suspectedCause': 220,
-    'immediateActions': 200,
-    'correctiveActions': 220,
-    'recurrence': 140,
-    'severity': 160,
-    'notes': 240,
-  };
-
   static const List<(String, String)> _columnDefs = [
     ('Interne Reklamationsnummer', 'internalNumber'),
     ('Interne System-ID', 'systemId'),
