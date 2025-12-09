@@ -19,6 +19,7 @@ class ComplaintListItem {
   final String customer;
   final String customerNumber;
   final String region;
+  final String productFile;
   final String productGroup;
   final String articleNumber;
   final String articleName;
@@ -26,7 +27,6 @@ class ComplaintListItem {
   final String complaintType;
   final String complaintReason;
   final String receivedAt;
-  final String dueAt;
   final String closedAt;
   final String status;
   final bool goodwill;
@@ -41,10 +41,8 @@ class ComplaintListItem {
   final String correctiveActions;
   final bool recurrence;
   final String severity;
-  final String channel;
   final String notes;
   final DateTime? receivedDate;
-  final DateTime? dueDate;
   final DateTime? closedDate;
 
   ComplaintListItem({
@@ -53,6 +51,7 @@ class ComplaintListItem {
     required this.customer,
     required this.customerNumber,
     required this.region,
+    required this.productFile,
     required this.productGroup,
     required this.articleNumber,
     required this.articleName,
@@ -60,7 +59,6 @@ class ComplaintListItem {
     required this.complaintType,
     required this.complaintReason,
     required this.receivedAt,
-    required this.dueAt,
     required this.closedAt,
     required this.status,
     required this.goodwill,
@@ -75,10 +73,8 @@ class ComplaintListItem {
     required this.correctiveActions,
     required this.recurrence,
     required this.severity,
-    required this.channel,
     required this.notes,
     this.receivedDate,
-    this.dueDate,
     this.closedDate,
   });
 }
@@ -157,14 +153,14 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ('Kunde', 'customer'),
     ('Kundennummer', 'customerNumber'),
     ('Land / Region', 'region'),
-    ('Produktgruppe / Produktakte', 'productGroup'),
+    ('Produktakte (MDR-TD)', 'productFile'),
+    ('Produktgruppe', 'productGroup'),
     ('Artikelnummer', 'articleNumber'),
     ('Artikelbezeichnung', 'articleName'),
     ('Charge / LOT', 'lotNumber'),
     ('Reklamationsart', 'complaintType'),
     ('Reklamationsgrund', 'complaintReason'),
     ('Eingangsdatum', 'receivedAt'),
-    ('Fälligkeitsdatum', 'dueAt'),
     ('Abschlussdatum', 'closedAt'),
     ('Status', 'status'),
     ('Kulanz-Flag', 'goodwill'),
@@ -179,7 +175,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ('Korrekturmaßnahmen / CAPA', 'correctiveActions'),
     ('Wiederauftreten', 'recurrence'),
     ('Kritikalität / Schweregrad', 'severity'),
-    ('Reklamationskanal', 'channel'),
     ('Notizen / Bemerkungen', 'notes'),
   ];
 
@@ -341,6 +336,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           c.customer,
           c.customerNumber,
           c.productGroup,
+          c.productFile,
           c.articleNumber,
           c.articleName,
           c.lotNumber,
@@ -355,7 +351,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           c.suspectedCause,
           c.immediateActions,
           c.correctiveActions,
-          c.channel,
           c.notes,
         ].any((field) => field.toLowerCase().contains(query));
       }
@@ -385,10 +380,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       case 'receivedAt':
         final aDate = a.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bDate = b.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return _sortAscending ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
-      case 'dueAt':
-        final aDate = a.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         return _sortAscending ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
       default:
         return compare(a.systemId, b.systemId);
@@ -758,7 +749,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'complaintType': _cell(c.complaintType),
         'complaintReason': _cell(c.complaintReason, width: 220),
         'receivedAt': _cell(c.receivedAt),
-        'dueAt': _cell(c.dueAt),
         'closedAt': _cell(c.closedAt),
         'status': _cell(c.status),
         'goodwill': _cell(c.goodwill ? 'Ja' : 'Nein'),
@@ -773,7 +763,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'correctiveActions': _cell(c.correctiveActions, width: 220),
         'recurrence': _cell(c.recurrence ? 'Ja' : 'Nein'),
         'severity': _cell(c.severity),
-        'channel': _cell(c.channel),
         'notes': _cell(c.notes, width: 240),
       };
       return DataRow.byIndex(index: i, cells: [
@@ -830,10 +819,10 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       'System-ID',
       'Kunde',
       'Status',
-      'Produkt',
+      'Produktakte',
+      'Produktgruppe',
       'Artikel',
       'Eingang',
-      'Fälligkeit',
       'Abschluss',
       'Kulanz',
     ];
@@ -844,10 +833,10 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               c.systemId,
               c.customer,
               c.status,
+              c.productFile,
               c.productGroup,
               c.articleNumber,
               c.receivedAt,
-              c.dueAt,
               c.closedAt,
               c.goodwill ? 'Ja' : 'Nein',
             ])
