@@ -2756,14 +2756,92 @@ class _AuditEntry {
     }
 
     String? _scalarOrFirst(dynamic value) {
-      if (value is List) {
-        for (final item in value) {
-          final extracted = _optional(item);
+      final decoded = _decodeJsonIfNeeded(value);
+      if (decoded is Iterable) {
+        for (final item in decoded) {
+          final extracted = _scalarOrFirst(item);
           if (extracted != null) return extracted;
         }
         return null;
       }
-      return _optional(value);
+
+      if (decoded is Map) {
+        for (final candidateKey in ['value', 'val', 'content', 'answer', 'values', 'text']) {
+          final extracted = _scalarOrFirst(decoded[candidateKey]);
+          if (extracted != null) return extracted;
+        }
+        return null;
+      }
+
+      return _optional(decoded);
+    }
+
+    dynamic _decodeJsonIfNeeded(dynamic value) {
+      if (value is String) {
+        final trimmed = value.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            return jsonDecode(trimmed);
+          } catch (_) {
+            // ignore decoding errors and fall back to raw string traversal
+          }
+        }
+      }
+      return value;
+    }
+
+    String? _findByLabeledValue(dynamic value, List<String> keys) {
+      String? extractLabeledMatch(Map candidate) {
+        for (final labelKey in ['label', 'name', 'title', 'field', 'fieldName', 'key']) {
+          final label = candidate[labelKey];
+          if (label is String && keys.any((needle) => label.toLowerCase().contains(needle))) {
+            return _scalarOrFirst(candidate['value']) ??
+                _scalarOrFirst(candidate['val']) ??
+                _scalarOrFirst(candidate['content']) ??
+                _scalarOrFirst(candidate['answer']);
+          }
+        }
+        return null;
+      }
+
+      if (value is Map) {
+        final direct = extractLabeledMatch(value);
+        if (direct != null) return direct;
+
+        for (final entry in value.entries) {
+          final nested = _findByLabeledValue(_decodeJsonIfNeeded(entry.value), keys);
+          if (nested != null) return nested;
+        }
+      } else if (value is Iterable) {
+        for (final item in value) {
+          final nested = _findByLabeledValue(_decodeJsonIfNeeded(item), keys);
+          if (nested != null) return nested;
+        }
+      }
+
+      return null;
+    }
+
+    String? _findByKeySubstrings(dynamic value, List<String> keys) {
+      if (value is Map) {
+        for (final entry in value.entries) {
+          final key = entry.key.toString().toLowerCase().trim();
+          if (keys.any((needle) => key.contains(needle))) {
+            final match = _scalarOrFirst(_decodeJsonIfNeeded(entry.value));
+            if (match != null) return match;
+          }
+
+          final nested = _findByKeySubstrings(_decodeJsonIfNeeded(entry.value), keys);
+          if (nested != null) return nested;
+        }
+      } else if (value is Iterable) {
+        for (final item in value) {
+          final nested = _findByKeySubstrings(_decodeJsonIfNeeded(item), keys);
+          if (nested != null) return nested;
+        }
+      }
+
+      return null;
     }
 
     dynamic _decodeJsonIfNeeded(dynamic value) {
