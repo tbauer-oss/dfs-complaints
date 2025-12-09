@@ -4112,6 +4112,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.complaintList  => 'Reklamationsliste',
+      _AdminView.prrc           => 'PRRC-Einstufungen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.portalUsers    => 'User-Datenbank',
       _AdminView.users          => 'Kundendatenbank',
