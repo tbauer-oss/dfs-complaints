@@ -35,6 +35,7 @@ class ComplaintListItem {
   final String salesCode;
   final String orderNumber;
   final String invoiceNumber;
+  final String prrcClassification;
   final String internalAssessment;
   final String suspectedCause;
   final String immediateActions;
@@ -67,6 +68,7 @@ class ComplaintListItem {
     required this.salesCode,
     required this.orderNumber,
     required this.invoiceNumber,
+    required this.prrcClassification,
     required this.internalAssessment,
     required this.suspectedCause,
     required this.immediateActions,
@@ -81,6 +83,7 @@ class ComplaintListItem {
   ComplaintListItem copyWith({
     String? immediateActions,
     String? correctiveActions,
+    String? prrcClassification,
   }) {
     return ComplaintListItem(
       internalNumber: internalNumber,
@@ -104,6 +107,7 @@ class ComplaintListItem {
       salesCode: salesCode,
       orderNumber: orderNumber,
       invoiceNumber: invoiceNumber,
+      prrcClassification: prrcClassification ?? this.prrcClassification,
       internalAssessment: internalAssessment,
       suspectedCause: suspectedCause,
       immediateActions: immediateActions ?? this.immediateActions,
@@ -165,6 +169,10 @@ class ComplaintListPage extends StatefulWidget {
   final Future<ComplaintListItem?> Function(
           String ticket, String? immediateActions, String? correctiveActions)?
       onInlineUpdateActions;
+  final Future<ComplaintListItem?> Function(String ticket, String classification, {String? comment})?
+      onUpdatePrrcClassification;
+  final bool showPrrcColumn;
+  final bool prrcReadOnly;
 
   const ComplaintListPage({
     super.key,
@@ -175,6 +183,9 @@ class ComplaintListPage extends StatefulWidget {
     this.isLoading = false,
     this.onReload,
     this.onInlineUpdateActions,
+    this.onUpdatePrrcClassification,
+    this.showPrrcColumn = false,
+    this.prrcReadOnly = false,
   });
 
   @override
@@ -196,6 +207,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   Uint8List? _logoBytes;
   late List<ComplaintListItem> _items;
   final Set<String> _savingTickets = {};
+  final Set<String> _savingPrrcTickets = {};
 
   static const Map<String, double> _columnWidths = {
     'internalNumber': 140,
@@ -219,6 +231,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     'salesCode': 140,
     'orderNumber': 150,
     'invoiceNumber': 150,
+    'prrcClassification': 140,
     'internalAssessment': 220,
     'suspectedCause': 220,
     'immediateActions': 200,
@@ -228,7 +241,9 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     'notes': 240,
   };
 
-  static const List<(String, String)> _columnDefs = [
+  static const List<String> _prrcOptions = ['N/A', 'Sub', 'A', 'B', 'C', 'D'];
+
+  static const List<(String, String)> _baseColumnDefs = [
     ('Interne Reklamationsnummer', 'internalNumber'),
     ('Interne System-ID', 'systemId'),
     ('Kunde', 'customer'),
@@ -250,6 +265,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ('Vertrieb / Sales-Kürzel', 'salesCode'),
     ('Auftragsnummer', 'orderNumber'),
     ('Rechnungsnummer', 'invoiceNumber'),
+    ('PRRC-Bewertung', 'prrcClassification'),
     ('Interne Bewertung', 'internalAssessment'),
     ('Vermutete Ursache', 'suspectedCause'),
     ('Sofortmaßnahmen', 'immediateActions'),
@@ -258,6 +274,10 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ('Kritikalität / Schweregrad', 'severity'),
     ('Notizen / Bemerkungen', 'notes'),
   ];
+
+  List<(String, String)> get _columnDefs => widget.showPrrcColumn
+      ? _baseColumnDefs
+      : _baseColumnDefs.where((c) => c.$2 != 'prrcClassification').toList();
 
   @override
   void initState() {
@@ -434,6 +454,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           c.lotNumber,
           c.complaintType,
           c.complaintReason,
+          c.prrcClassification,
           c.status,
           c.assignee,
           c.salesCode,
@@ -469,6 +490,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         return compare(a.customer, b.customer);
       case 'status':
         return compare(a.status, b.status);
+      case 'prrcClassification':
+        return compare(a.prrcClassification, b.prrcClassification);
       case 'receivedAt':
         final aDate = a.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bDate = b.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -865,6 +888,50 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ));
   }
 
+  DataCell _prrcCell(ComplaintListItem item) {
+    final width = _columnWidth('prrcClassification');
+    final display = item.prrcClassification.isEmpty ? '—' : item.prrcClassification;
+    if (widget.onUpdatePrrcClassification == null || widget.prrcReadOnly) {
+      return _cellFor('prrcClassification', display);
+    }
+
+    final isSaving = _savingPrrcTickets.contains(item.systemId);
+    return DataCell(
+      ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: width),
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: display == '—' ? 'N/A' : display,
+                items: _prrcOptions
+                    .map((opt) => DropdownMenuItem<String>(
+                          value: opt,
+                          child: Text(opt),
+                        ))
+                    .toList(),
+                onChanged: isSaving ? null : (value) {
+                  if (value != null) _handlePrrcChange(item, value);
+                },
+              ),
+            ),
+            if (isSaving)
+              const Positioned(
+                right: 0,
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<DataRow> _buildRows(List<ComplaintListItem> items) {
     return items.mapIndexed((i, c) {
       final cells = <String, DataCell>{
@@ -889,6 +956,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'salesCode': _cellFor('salesCode', c.salesCode),
         'orderNumber': _cellFor('orderNumber', c.orderNumber),
         'invoiceNumber': _cellFor('invoiceNumber', c.invoiceNumber),
+        'prrcClassification': _prrcCell(c),
         'internalAssessment': _cellFor('internalAssessment', c.internalAssessment),
         'suspectedCause': _cellFor('suspectedCause', c.suspectedCause),
         'immediateActions': _editableActionCell(c, 'immediateActions', c.immediateActions),
@@ -968,6 +1036,34 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     }
   }
 
+  Future<void> _handlePrrcChange(ComplaintListItem item, String classification) async {
+    if (widget.onUpdatePrrcClassification == null) return;
+    setState(() => _savingPrrcTickets.add(item.systemId));
+    try {
+      final updated =
+          await widget.onUpdatePrrcClassification!(item.systemId, classification.trim());
+      setState(() {
+        final idx = _items.indexWhere((c) => c.systemId == item.systemId);
+        if (idx != -1) {
+          _items[idx] = item.copyWith(prrcClassification: classification);
+        }
+      });
+      if (updated != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PRRC-Bewertung gespeichert.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler bei PRRC-Update: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingPrrcTickets.remove(item.systemId));
+    }
+  }
+
   DataCell _editableActionCell(ComplaintListItem item, String key, String value) {
     if (widget.onInlineUpdateActions == null) return _cellFor(key, value);
     final width = _columnWidth(key);
@@ -1038,6 +1134,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       'Produktakte',
       'Produktgruppe',
       'Artikel',
+      if (widget.showPrrcColumn) 'PRRC',      
       'Eingang',
       'Abschluss',
       'Kulanz',
@@ -1052,6 +1149,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               c.productFile,
               c.productGroup,
               c.articleNumber,
+              if (widget.showPrrcColumn) c.prrcClassification,
               c.receivedAt,
               c.closedAt,
               c.goodwill ? 'Ja' : 'Nein',
