@@ -103,6 +103,7 @@ const Map<String, String> PORTAL_ROLES = {
   'superuser': 'superuser',
   'user': 'user',
   'readonly': 'readonly',
+  'prrc': 'prrc',
 };
 
 const List<String> kInternalDepartments = [
@@ -354,6 +355,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalUserRole = PORTAL_ROLES['superuser']!;
   String _portalUserStatus = 'active';
   bool _portalUserCanEditSales = false;
+  bool _portalUserIsPrrc = false;
   final List<String> _portalUserDepartments = [];
   final Map<String, String> _portalUserTilePermissions = {};
   PortalUser? _editingPortalUser;
@@ -898,6 +900,7 @@ class _AdminPageState extends State<AdminPage> {
         return matches(u.displayName) ||
             matches(u.email) ||
             matches(u.role) ||
+            (u.isPrrc && q.contains('prrc')) ||
             departments.any((d) => d.contains(q));
       });
     }
@@ -5111,7 +5114,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tileIds: ['open', 'all', 'complaintList', 'stats'],
+        tileIds: ['open', 'all', 'complaintList', 'prrc', 'stats'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5156,6 +5159,7 @@ class _AdminPageState extends State<AdminPage> {
     // Ensure newly added tiles (e.g. Downloads) appear even if an older
     // layout is stored without them.
     _ensureMenuTilePresent('downloads');
+    _ensureMenuTilePresent('prrc');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
   }
@@ -6958,6 +6962,11 @@ class _AdminPageState extends State<AdminPage> {
           isLoading: _loadAllComplaints,
           onReload: _refreshAllComplaints,
           onInlineUpdateActions: _updateComplaintActions,
+          showPrrcColumn: _portalIsPrrc || _isSuperuser,
+          onUpdatePrrcClassification: (_portalIsPrrc || _isSuperuser)
+              ? _updatePrrcClassification
+              : null,
+          prrcReadOnly: !_portalIsPrrc && !_isSuperuser,
         );
       case _AdminView.prrc:
         return _buildPrrcPanel();
@@ -8511,6 +8520,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserRole = PORTAL_ROLES['superuser']!;
       _portalUserStatus = 'active';
       _portalUserCanEditSales = false;
+      _portalUserIsPrrc = false;
       _portalUserDepartments
         ..clear();
       _portalUserTilePermissions.clear();
@@ -8529,6 +8539,7 @@ class _AdminPageState extends State<AdminPage> {
       _portalUserRole = user?.role ?? PORTAL_ROLES['superuser']!;
       _portalUserStatus = user?.portalStatus ?? 'active';
       _portalUserCanEditSales = user?.canEditSales ?? user?.salesAllowed ?? false;
+      _portalUserIsPrrc = user?.isPrrc ?? false;
       _portalUserDepartments
         ..clear()
         ..addAll(_canonicalizeDepartments(user?.assignedDepartments ?? const <String>[]));
@@ -8558,6 +8569,7 @@ class _AdminPageState extends State<AdminPage> {
               assignedDepartments: _portalUserDepartments,
               tilePermissions: _portalUserTilePermissions,
               canEditSales: _portalUserCanEditSales,
+              isPrrc: _portalUserIsPrrc,
             )
           : await _api.updatePortalUser(
               email: _editingPortalUser!.email,
@@ -8567,6 +8579,7 @@ class _AdminPageState extends State<AdminPage> {
               assignedDepartments: _portalUserDepartments,
               tilePermissions: _portalUserTilePermissions,
               canEditSales: _portalUserCanEditSales,
+              isPrrc: _portalUserIsPrrc,
               password: _portalUserPasswordCtrl.text.isEmpty
                   ? null
                   : _portalUserPasswordCtrl.text,
@@ -8724,6 +8737,28 @@ class _AdminPageState extends State<AdminPage> {
                           labelText: 'Rolle',
                           prefixIcon: Icon(Icons.security_outlined),
                         ),
+                      ),
+                      const SizedBox(height: 6),
+                      SwitchListTile.adaptive(
+                        contentPadding: const EdgeInsets.only(left: 8),
+                        title: const Text('PRRC-Berechtigung'),
+                        subtitle: Text(
+                          _portalUserIsPrrc
+                              ? 'Darf PRRC-Kachel sehen und Einstufungen bearbeiten'
+                              : 'Kein Zugriff auf PRRC-Bereich und -Einstufungen',
+                        ),
+                        value: _portalUserIsPrrc,
+                        activeColor: theme.colorScheme.onPrimary,
+                        activeTrackColor: theme.colorScheme.primary,
+                        inactiveThumbColor: theme.colorScheme.onSurfaceVariant,
+                        inactiveTrackColor: theme.colorScheme.surfaceVariant,
+                        thumbIcon: MaterialStateProperty.resolveWith((states) {
+                          final selected = states.contains(MaterialState.selected);
+                          return Icon(selected ? Icons.check : Icons.close, size: 18);
+                        }),
+                        onChanged: _portalUserBusy
+                            ? null
+                            : (v) => updateForm(() => _portalUserIsPrrc = v),
                       ),
                       const SizedBox(height: 6),
                       if (_canShowSalesToggle)
@@ -9545,6 +9580,13 @@ class _AdminPageState extends State<AdminPage> {
                                               color: theme.colorScheme.primaryContainer,
                                               foreground: theme.colorScheme.onPrimaryContainer,
                                             ),
+                                            if (u.isPrrc)
+                                              _PortalBadge(
+                                                icon: Icons.health_and_safety_outlined,
+                                                label: 'PRRC',
+                                                color: theme.colorScheme.secondaryContainer,
+                                                foreground: theme.colorScheme.onSecondaryContainer,
+                                              ),
                                             _PortalBadge(
                                               icon: isActive
                                                   ? Icons.verified_user_outlined
@@ -12594,6 +12636,7 @@ class PortalUser {
   final Map<String, String> tilePermissions;
   final bool canEditSales;
   final bool salesAllowed;
+  final bool isPrrc;
 
   const PortalUser({
     required this.email,
@@ -12605,6 +12648,7 @@ class PortalUser {
     this.tilePermissions = const <String, String>{},
     this.canEditSales = false,
     this.salesAllowed = false,
+    this.isPrrc = false,
   });
 
   factory PortalUser.fromJson(Map<String, dynamic> j) => PortalUser(
@@ -12623,6 +12667,7 @@ class PortalUser {
             : const <String, String>{},
         canEditSales: (j['canEditSales'] ?? j['salesAllowed'] ?? j['isSales']) == true,
         salesAllowed: (j['salesAllowed'] ?? j['canEditSales'] ?? j['isSales']) == true,
+        isPrrc: (j['isPRRC'] ?? j['isPrrc'] ?? j['prrc']) == true,
       );
 }
 
@@ -18745,6 +18790,7 @@ class AdminApi {
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
     bool canEditSales = false,
+    bool isPrrc = false,
   }) async {
     final body = {
       'email': email,
@@ -18754,6 +18800,7 @@ class AdminApi {
       'canEditSales': canEditSales,
       'salesAllowed': canEditSales,
       'isSales': canEditSales,
+      'isPRRC': isPrrc,
       if (displayName != null) 'displayName': displayName,
       if (assignedDepartments != null) 'assignedDepartments': assignedDepartments,
       if (tilePermissions != null) 'tilePermissions': tilePermissions,
@@ -18773,6 +18820,7 @@ class AdminApi {
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
     bool? canEditSales,
+    bool? isPrrc,
   }) async {
     final body = <String, dynamic>{
       'email': email,
@@ -18787,6 +18835,7 @@ class AdminApi {
         'salesAllowed': canEditSales,
         'isSales': canEditSales,
       },
+      if (isPrrc != null) 'isPRRC': isPrrc,
     };
     final res = await _request('PATCH', '/api/portal/users', body: body);
     if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';

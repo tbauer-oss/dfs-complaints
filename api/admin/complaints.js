@@ -202,6 +202,15 @@ const sortDescByDate = (a, b) => {
   return (tb || 0) - (ta || 0);
 };
 const parseBool = (v) => v === true || v === 'true' || v === 1 || v === '1';
+const PRRC_VALUES = new Set(['N/A', 'SUB', 'A', 'B', 'C', 'D']);
+
+function normalizePrrcClassification(value) {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  if (PRRC_VALUES.has(upper)) return upper === 'SUB' ? 'Sub' : upper;
+  return null;
+}
 function normalizeHistoryEntry(entry = {}) {
   const at = Number(entry?.at);
   const actor = (entry?.actor || 'system').toString().trim() || 'system';
@@ -238,6 +247,18 @@ const decorateForAdmin = (c) => ({
   internalDepartmentOptions: DEFAULT_INTERNAL_DEPARTMENTS,
   internalEvaluationCauseOptions: INTERNAL_EVALUATION_CAUSES,
 });
+
+function canSeePrrc(actor) {
+  const role = normalizeRoleSafe(actor);
+  return actor?.isPRRC === true || role === PORTAL_ROLES.prrc || role === PORTAL_ROLES.superuser;
+}
+
+const decorateForActor = (c, actor) => {
+  const base = decorateForAdmin(c);
+  if (canSeePrrc(actor)) return base;
+  const { prrcComment, prrcUserId, prrcTimestamp, ...rest } = base;
+  return rest;
+};
 
 const EDITABLE_PAYLOAD_FIELDS = {
   segment: { label: 'Produktbereich', keys: ['segment', 'customer_segment', 'segment_code'] },
@@ -418,12 +439,14 @@ export default async function handler(req, res) {
 
   // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
   const tile = req.query?.open ? 'open' : 'all';
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile });
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile, allowPrrc: true });
   if (!actor) return;
   const role = normalizeRoleSafe(actor);
   const deps = actorDepartments(actor);
   const isSuperuser = role === PORTAL_ROLES.superuser;
   const isNormalUser = role === PORTAL_ROLES.user;
+  const isPrrc = actor?.isPRRC === true || role === PORTAL_ROLES.prrc;
+  const isPrrcOnly = isPrrc && !isSuperuser && !isNormalUser;
 
   // 4) Schwere Imports NACH Preflight/Admin laden (verhindert 500 bei OPTIONS)
   const {
@@ -459,24 +482,24 @@ export default async function handler(req, res) {
         }
         if (isSuperuser && c.internalEvaluationNewForAdmin) {
           const cleared = await complaintSave({ ...c, internalEvaluationNewForAdmin: false });
-          return ok(res, decorateForAdmin(cleared));
+          return ok(res, decorateForActor(cleared, actor));
         }
-        return ok(res, decorateForAdmin(c));
+        return ok(res, decorateForActor(c, actor));
       }
 
       if (email) {
         const list = filterByDepartments(await complaintsByEmail(email), actor);
         list.sort(sortDescByDate);
-        return ok(res, details === '1' ? list.map(decorateForAdmin) : list.map((c) => c.ticket));
+        return ok(res, details === '1' ? list.map((item) => decorateForActor(item, actor)) : list.map((c) => c.ticket));
       }
 
       if (open === '1') {
         const list = filterByDepartments(await complaintsOpen(), actor);
-        return ok(res, list.map(decorateForAdmin));
+        return ok(res, list.map((item) => decorateForActor(item, actor)));
       }
 
       const all = filterByDepartments(await complaintsAll(), actor);
-      const out = (Array.isArray(all) ? all : []).sort(sortDescByDate).map(decorateForAdmin);
+      const out = (Array.isArray(all) ? all : []).sort(sortDescByDate).map((item) => decorateForActor(item, actor));
       return ok(res, out);
     }
 
@@ -532,6 +555,38 @@ export default async function handler(req, res) {
         body?.deleteReports === 1 ||
         body?.deleteReports === '1';
       const preferredReportLang = normalizeLangValue(body?.reportLang || body?.reportLanguage);
+      const hasPrrcClassification = Object.prototype.hasOwnProperty.call(body || {}, 'prrcClassification');
+      const prrcClassificationInput = hasPrrcClassification ? body.prrcClassification : undefined;
+      const hasPrrcComment = Object.prototype.hasOwnProperty.call(body || {}, 'prrcComment');
+      const prrcCommentInput = hasPrrcComment ? body.prrcComment : undefined;
+      const wantsPrrcUpdate = hasPrrcClassification || hasPrrcComment;
+
+      if (wantsPrrcUpdate && !isPrrc && !isSuperuser) return bad(res, 'forbidden for role', 403);
+
+      const hasNonPrrcChanges = [
+        statusIn !== undefined,
+        hasDecision,
+        reportLink !== undefined,
+        hasInternal,
+        hasNotes,
+        internalDepartmentsInput !== undefined,
+        internalEvalText !== undefined,
+        internalEvalCause !== undefined,
+        translateEval !== undefined,
+        qmSummaryInput !== undefined,
+        qmMeasuresInput !== undefined,
+        qmSummaryTranslationsInput !== undefined,
+        qmCopyInternalTranslationLang !== undefined,
+        translateQmSummary !== undefined,
+        payloadInput !== null,
+        hasGoodwill,
+        sendPushFlag,
+        generateReportsFlag,
+        deleteReportsFlag,
+        preferredReportLang,
+      ].some(Boolean);
+
+      if (isPrrcOnly && hasNonPrrcChanges) return bad(res, 'forbidden for role', 403);
 
       if (!ticket) return bad(res, 'missing ticket', 400);
 
@@ -577,7 +632,7 @@ export default async function handler(req, res) {
           await complaintSave(c);
         }
 
-        return ok(res, decorateForAdmin(c));
+        return ok(res, decorateForActor(c, actor));
       }
 
       let account = null;
@@ -601,6 +656,8 @@ export default async function handler(req, res) {
       const prevQmTranslations = normalizeEvaluationTranslations(c.qmCustomerSummaryTranslations);
       const prevQmMeasuresTranslations = normalizeEvaluationTranslations(c.qmMeasuresTranslations);
       const prevGoodwill = c.isGoodwill === true;
+      const prevPrrcClass = normalizePrrcClassification(c.prrcClassification) || '';
+      const prevPrrcComment = (c.prrcComment ?? '').toString().trim();
       const hasReports = (complaint) => {
         if (!complaint) return false;
         const link = (complaint.reportLink ?? '').toString().trim();
@@ -627,8 +684,43 @@ export default async function handler(req, res) {
       let qmSummaryTranslationChanged = false;
       let qmMeasuresTranslationChanged = false;
       let goodwillChanged = false;
+      let prrcChanged = false;
 
       c.history = normalizeHistory(c.history);
+
+      if (wantsPrrcUpdate) {
+        if (hasPrrcClassification) {
+          const normalized = normalizePrrcClassification(prrcClassificationInput);
+          if (!normalized) return bad(res, 'invalid prrc classification', 400);
+          if (normalized !== prevPrrcClass) {
+            c.prrcClassification = normalized;
+            prrcChanged = true;
+          }
+        }
+
+        if (hasPrrcComment) {
+          const comment = (prrcCommentInput ?? '').toString().trim();
+          if (comment) c.prrcComment = comment; else delete c.prrcComment;
+          if (comment !== prevPrrcComment) prrcChanged = true;
+        }
+
+        if (prrcChanged || hasPrrcComment || hasPrrcClassification) {
+          c.prrcUserId = actor.email || actor.sub || actor.id || c.prrcUserId;
+          c.prrcTimestamp = Date.now();
+        }
+      }
+
+      if (prrcChanged) {
+        pushHistory(c, {
+          actor: 'prrc',
+          type: 'prrc',
+          message: 'PRRC-Bewertung aktualisiert',
+          data: {
+            classification: c.prrcClassification || null,
+            comment: c.prrcComment || null,
+          },
+        });
+      }
 
       if (internalDepartmentsInput !== undefined) {
         const normalizedDeps = normalizeDepartments(internalDepartmentsInput);
@@ -1199,7 +1291,7 @@ export default async function handler(req, res) {
         }
       }
 
-      return ok(res, decorateForAdmin(c));
+      return ok(res, decorateForActor(c, actor));
     }
 
     // ----------------------------
