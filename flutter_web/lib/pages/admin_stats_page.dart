@@ -477,14 +477,14 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640, maxHeight: 520),
             child: details.isEmpty
-                ? const Text('Für diese Gruppe liegen keine Reklamationen mit Artikel/Charge vor.')
+                ? const Text('Für diese Gruppe liegen keine Reklamationen mit Produktgruppe/Charge vor.')
                 : SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Alle Reklamationen, die eindeutig anhand der Artikelliste dieser MDR-TD-Gruppe zugeordnet werden konnten.',
+                          'Alle Reklamationen, die eindeutig anhand der Artikelliste dieser Gruppe zugeordnet werden konnten.',
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -499,15 +499,30 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                           itemBuilder: (context, index) {
                             if (index >= details.length) return const SizedBox.shrink();
                             final detail = details[index];
-                            final batch = detail.batch?.isNotEmpty == true ? detail.batch : '—';
                             return ListTile(
                               dense: true,
                               contentPadding: EdgeInsets.zero,
-                              title: Text(detail.articleLabel),
-                              subtitle: Text('Charge: $batch · Produktbereich: ${detail.productGroup}'),
-                              trailing: detail.count > 1
+                              title: Text(detail.productGroup),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: detail.batchCounts.entries.map((entry) {
+                                      final label = entry.key.isEmpty ? 'Charge unbekannt' : 'Charge: ${entry.key}';
+                                      return Chip(
+                                        label: Text('$label · ${entry.value}×'),
+                                        visualDensity: VisualDensity.compact,
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ),
+                              trailing: detail.totalCount > 1
                                   ? Chip(
-                                      label: Text('${detail.count}×'),
+                                      label: Text('${detail.totalCount}×'),
                                       visualDensity: VisualDensity.compact,
                                     )
                                   : null,
@@ -644,7 +659,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             children: [
               Expanded(
                 child: _TopListSection(
-                  title: 'MDR-TD-Gruppen',
+                  title: 'MDR-TD & Bereiche',
                   icon: Icons.balance_outlined,
                   buckets: mdrGroups,
                   total: total,
@@ -666,7 +681,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           ),
         ] else ...[
           _TopListSection(
-            title: 'MDR-TD-Gruppen',
+            title: 'MDR-TD & Bereiche',
             icon: Icons.balance_outlined,
             buckets: mdrGroups,
             total: total,
@@ -1035,31 +1050,32 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final map = <String, _MdrComplaintBucket>{};
     for (final complaint in complaints) {
       if (complaint.mdrGroup != mdrGroup) continue;
-      final article = complaint.articleLabel.trim().isEmpty
-          ? 'Unbekannter Artikel'
-          : complaint.articleLabel.trim();
-      final batch = complaint.batch?.trim();
       final productGroup = complaint.productGroup.trim().isEmpty
           ? 'Sonstige Produkte'
           : complaint.productGroup.trim();
-      final key = '$article|${batch ?? ''}';
-      final existing = map[key];
+      final batch = (complaint.batch ?? '').trim();
+      final existing = map[productGroup];
       if (existing == null) {
-        map[key] = _MdrComplaintBucket(
-          articleLabel: article,
-          batch: batch,
+        map[productGroup] = _MdrComplaintBucket(
           productGroup: productGroup,
-          count: 1,
+          batchCounts: {batch: 1},
+          totalCount: 1,
         );
       } else {
-        map[key] = existing.copyWith(count: existing.count + 1);
+        final batches = Map<String, int>.from(existing.batchCounts);
+        batches[batch] = (batches[batch] ?? 0) + 1;
+        map[productGroup] = _MdrComplaintBucket(
+          productGroup: productGroup,
+          batchCounts: batches,
+          totalCount: existing.totalCount + 1,
+        );
       }
     }
     return map.values.toList()
       ..sort((a, b) {
-        final primary = b.count.compareTo(a.count);
+        final primary = b.totalCount.compareTo(a.totalCount);
         if (primary != 0) return primary;
-        return a.articleLabel.compareTo(b.articleLabel);
+        return a.productGroup.compareTo(b.productGroup);
       });
   }
 
@@ -2581,26 +2597,15 @@ class _TopBucket {
 }
 
 class _MdrComplaintBucket {
-  final String articleLabel;
-  final String? batch;
   final String productGroup;
-  final int count;
+  final Map<String, int> batchCounts;
+  final int totalCount;
 
   const _MdrComplaintBucket({
-    required this.articleLabel,
-    required this.batch,
     required this.productGroup,
-    required this.count,
+    required this.batchCounts,
+    required this.totalCount,
   });
-
-  _MdrComplaintBucket copyWith({int? count}) {
-    return _MdrComplaintBucket(
-      articleLabel: articleLabel,
-      batch: batch,
-      productGroup: productGroup,
-      count: count ?? this.count,
-    );
-  }
 }
 
 class _CountryBucket {
