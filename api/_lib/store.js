@@ -1202,6 +1202,7 @@ function normalizePortalUser(u) {
   normalized.assignedDepartments = normalizeDepartments(normalized.assignedDepartments);
   normalized.lang = normLang(normalized.lang || '');
   normalized.isSales = normalized.isSales === true || normalized.isSales === 'true' || normalized.isSales === 1 || normalized.isSales === '1';
+  normalized.isPRRC = normalized.isPRRC === true || normalized.isPRRC === 'true' || normalized.isPRRC === 1 || normalized.isPRRC === '1';
   const tilePermissions = sanitizeTilePermissions(normalized.tilePermissions);
   if (Object.keys(tilePermissions).length > 0) normalized.tilePermissions = tilePermissions; else delete normalized.tilePermissions;
   return normalized;
@@ -1799,6 +1800,14 @@ function normalizeComplaintRecord(c = {}) {
   normalized.orderNumber = trim(c.orderNumber);
   normalized.invoiceNumber = trim(c.invoiceNumber);
   normalized.salesAgentCode = trim(c.salesAgentCode);
+  const prrcClass = trim(c.prrcClassification);
+  if (prrcClass) normalized.prrcClassification = prrcClass; else delete normalized.prrcClassification;
+  const prrcComment = trim(c.prrcComment);
+  if (prrcComment) normalized.prrcComment = prrcComment; else delete normalized.prrcComment;
+  const prrcUserId = trim(c.prrcUserId);
+  if (prrcUserId) normalized.prrcUserId = prrcUserId; else delete normalized.prrcUserId;
+  const prrcTs = parseDate(c.prrcTimestamp);
+  if (prrcTs) normalized.prrcTimestamp = prrcTs; else delete normalized.prrcTimestamp;
   normalized.salesCompleted = c.salesCompleted === true || c.salesCompleted === 'true' || c.salesCompleted === 1 || c.salesCompleted === '1';
   const completedAt = parseDate(c.salesCompletedAt);
   if (completedAt) normalized.salesCompletedAt = completedAt; else delete normalized.salesCompletedAt;
