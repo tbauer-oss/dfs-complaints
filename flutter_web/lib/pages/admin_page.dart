@@ -65,6 +65,7 @@ enum _AdminView {
   menu,
   all,
   complaintList,
+  prrc,
   pending,
   portalUsers,
   users,
@@ -136,6 +137,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'prrc',
     'stats',
     'pending',
     'users',
@@ -160,6 +162,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'prrc',
     'stats',
     'pending',
     'users',
@@ -249,6 +252,7 @@ class _AdminPageState extends State<AdminPage> {
   late final AdminApi _api;
   String _portalRole = 'superuser';
   bool _portalIsSales = false;
+  bool _portalIsPrrc = false;
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
@@ -466,6 +470,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   bool _tileVisibleForActor(String tileId) {
+    if (tileId == 'prrc' && !_portalIsPrrc && !_isSuperuser) return false;
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
     return true;
@@ -723,6 +728,11 @@ class _AdminPageState extends State<AdminPage> {
     }
     final profileIsSales = widget.portalProfile?['isSales'] ?? widget.api.portalProfile?['isSales'];
     _portalIsSales = profileIsSales == true;
+    final profileIsPrrc = widget.portalProfile?['isPRRC'] ??
+        widget.portalProfile?['prrc'] ??
+        widget.api.portalProfile?['isPRRC'] ??
+        widget.api.portalProfile?['prrc'];
+    _portalIsPrrc = profileIsPrrc == true || (_portalRole.toLowerCase() == 'prrc');
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
@@ -1361,6 +1371,25 @@ class _AdminPageState extends State<AdminPage> {
 
     _syncComplaint(updated);
     return _complaintListItems().firstWhereOrNull((c) => c.systemId == ticket);
+  }
+
+  Future<ComplaintListItem?> _updatePrrcClassification(
+    String ticket,
+    String classification, {
+    String? comment,
+  }) async {
+    try {
+      final updated = await _api.adminComplaintUpdate(
+        ticket: ticket,
+        prrcClassification: classification,
+        prrcComment: comment,
+      );
+      _syncComplaint(updated);
+      return _complaintListItems().firstWhereOrNull((c) => c.systemId == ticket);
+    } catch (e) {
+      setState(() => _complaintListErr = '$e');
+      rethrow;
+    }
   }
 
   void _toggleTicketSelection(String ticket, bool selected, {required bool isOpenList}) {
@@ -4722,6 +4751,8 @@ class _AdminPageState extends State<AdminPage> {
         return null;
       case _AdminView.complaintList:
         return 'complaintList';
+      case _AdminView.prrc:
+        return 'prrc';
       case _AdminView.open:
         return 'open';
       case _AdminView.all:
@@ -4774,13 +4805,14 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.systemHealth,
       };
     }
-    return const {
-      _AdminView.menu,
-      _AdminView.open,
-      _AdminView.all,
-      _AdminView.complaintList,
-      _AdminView.pending,
-      _AdminView.users,
+      return const {
+        _AdminView.menu,
+        _AdminView.open,
+        _AdminView.all,
+        _AdminView.complaintList,
+        _AdminView.prrc,
+        _AdminView.pending,
+        _AdminView.users,
       _AdminView.reps,
       _AdminView.news,
       _AdminView.downloads,
@@ -4839,6 +4871,11 @@ class _AdminPageState extends State<AdminPage> {
             label: 'Reklamationsliste',
             icon: Icons.table_view_outlined,
             view: _AdminView.complaintList,
+          ),
+          _AdminNavItem(
+            label: 'PRRC-Einstufungen',
+            icon: Icons.health_and_safety_outlined,
+            view: _AdminView.prrc,
           ),
         ],
       ),
@@ -5025,6 +5062,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.all;
         case 'complaintList':
           return _AdminView.complaintList;
+        case 'prrc':
+          return _AdminView.prrc;
         case 'pending':
           return _AdminView.pending;
         case 'portalUsers':
@@ -5384,6 +5423,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'Alle Reklamationen';
       case 'complaintList':
         return 'Reklamationsliste';
+      case 'prrc':
+        return 'PRRC-Bewertung';
       case 'stats':
         return 'Statistik & KPIs';
       case 'pending':
@@ -6864,6 +6905,7 @@ class _AdminPageState extends State<AdminPage> {
       final c = entry.complaint;
       final customer = entry.customer;
       final recurrence = hasRecurrence(entry);
+      final prrc = (c.prrcClassification ?? '').trim();
 
       return ComplaintListItem(
         internalNumber: (c.internalNo ?? '').trim().isEmpty ? '—' : (c.internalNo ?? ''),
@@ -6887,6 +6929,7 @@ class _AdminPageState extends State<AdminPage> {
         salesCode: c.salesAgentCode ?? '',
         orderNumber: c.orderNumber ?? payloadValue(c, ['orderNumber', 'auftragsnummer']),
         invoiceNumber: c.invoiceNumber ?? payloadValue(c, ['invoiceNumber', 'rechnungsnummer']),
+        prrcClassification: prrc.isEmpty ? 'N/A' : prrc,
         internalAssessment: c.internalEvaluationTextDe ?? payloadValue(c, ['internalAssessment', 'bewertung']),
         suspectedCause: c.internalEvaluationCause ?? payloadValue(c, ['suspectedCause', 'ursache']),
         immediateActions: fallbackDash(payloadValue(c, ['immediateActions', 'soforthandlung', 'soforthandlungen'])),
@@ -6915,6 +6958,8 @@ class _AdminPageState extends State<AdminPage> {
           onReload: _refreshAllComplaints,
           onInlineUpdateActions: _updateComplaintActions,
         );
+      case _AdminView.prrc:
+        return _buildPrrcPanel();
       case _AdminView.pending:
         return _buildPendingPanel();
       case _AdminView.portalUsers:
@@ -10294,6 +10339,21 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildPrrcPanel() {
+    final canEdit = _portalIsPrrc || _isSuperuser;
+    return ComplaintListPage(
+      api: widget.api,
+      complaints: _complaintListItems(),
+      customerLookup: _companyByEmail,
+      errorMessage: _complaintListErr,
+      isLoading: _loadAllComplaints,
+      onReload: _refreshAllComplaints,
+      onUpdatePrrcClassification: canEdit ? _updatePrrcClassification : null,
+      showPrrcColumn: true,
+      prrcReadOnly: !canEdit,
+    );
+  }
+
   Widget _buildProductsPanel() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
@@ -12651,6 +12711,10 @@ class AdminComplaint {
   Map<String, String>? qmMeasuresTranslations;
   String? internalNo;
   String? adminNotes;
+  String? prrcClassification;
+  String? prrcComment;
+  String? prrcUserId;
+  DateTime? prrcTimestamp;
   Map<String, dynamic>? payload;
   final List<ComplaintUpload> uploads;
   List<ComplaintHistoryEntry> history;
@@ -12713,6 +12777,10 @@ class AdminComplaint {
     this.qmMeasuresTranslations,
     this.internalNo,
     this.adminNotes,
+    this.prrcClassification,
+    this.prrcComment,
+    this.prrcUserId,
+    this.prrcTimestamp,
     this.payload,
     this.internalDepartments = const <String>[],
     this.internalEvaluationTextDe,
@@ -12866,6 +12934,10 @@ class AdminComplaint {
       adminNotes: (j['adminNotes'] ?? j['notes']) == null
           ? null
           : j['adminNotes']?.toString() ?? j['notes']?.toString(),
+      prrcClassification: (j['prrcClassification'] ?? j['prrc_classification'])?.toString(),
+      prrcComment: j['prrcComment']?.toString(),
+      prrcUserId: j['prrcUserId']?.toString(),
+      prrcTimestamp: j['prrcTimestamp'] != null ? _dt(j['prrcTimestamp']) : null,
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
@@ -12930,6 +13002,10 @@ class AdminComplaint {
         if (salesCompletedBy != null) 'salesCompletedBy': salesCompletedBy,
         'internalNo': internalNo,
         'adminNotes': adminNotes,
+        if (prrcClassification != null) 'prrcClassification': prrcClassification,
+        if (prrcComment != null) 'prrcComment': prrcComment,
+        if (prrcUserId != null) 'prrcUserId': prrcUserId,
+        if (prrcTimestamp != null) 'prrcTimestamp': prrcTimestamp!.toIso8601String(),
         'payload': payload,
         'history': history.map((e) => e.toJson()).toList(),
         if (repOpinion != null) 'repOpinion': repOpinion,
@@ -18781,6 +18857,8 @@ class AdminApi {
     Map<String, String>? qmMeasuresTranslations,
     String? qmCopyInternalEvaluationLang,
     String? translateQmSummaryLang,
+    String? prrcClassification,
+    String? prrcComment,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
@@ -18811,7 +18889,11 @@ class AdminApi {
     if (translateQmSummaryLang != null) {
       body['translateQmSummary'] = {'targetLang': translateQmSummaryLang};
     }
-
+    if (prrcClassification != null) body['prrcClassification'] = prrcClassification;
+    if (prrcComment != null && prrcComment.trim().isNotEmpty) {
+      body['prrcComment'] = prrcComment.trim();
+    }
+    
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
       throw 'HTTP ${res.status} ${res.statusText} — ${res.responseText ?? ''}';
