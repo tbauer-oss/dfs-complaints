@@ -19486,6 +19486,8 @@ class AdminPalette {
   static const indigoB = Color(0xFF3949AB);
   static const purpleA = Color(0xFFF1E8FF);
   static const purpleB = Color(0xFF7E57C2);
+  static const pinkA = Color(0xFFFFE5F1);
+  static const pinkB = Color(0xFFD81B60);
 }
 
 class AdminTilePro extends StatefulWidget {
