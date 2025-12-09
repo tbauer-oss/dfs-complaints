@@ -664,6 +664,10 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             countries: countries,
             onViewDetails: () => _showCountryDetails(countries, total),
           ),
+        ] else ...[
+          _CustomerRankingSection(customers: customers, total: total),
+          const SizedBox(height: 24),
+          _RepSection(reps: reps),
         ],
         const SizedBox(height: 24),
         if (isWide) ...[
