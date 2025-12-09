@@ -1,4 +1,5 @@
 // lib/pages/admin_stats_page.dart
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -2765,6 +2766,20 @@ class _AuditEntry {
       return _optional(value);
     }
 
+    dynamic _decodeJsonIfNeeded(dynamic value) {
+      if (value is String) {
+        final trimmed = value.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            return jsonDecode(trimmed);
+          } catch (_) {
+            // ignore decoding errors and fall back to raw string traversal
+          }
+        }
+      }
+      return value;
+    }
+
     String? _findByLabeledValue(dynamic value, List<String> keys) {
       String? extractLabeledMatch(Map candidate) {
         for (final labelKey in ['label', 'name', 'title', 'field', 'fieldName', 'key']) {
@@ -2784,12 +2799,12 @@ class _AuditEntry {
         if (direct != null) return direct;
 
         for (final entry in value.entries) {
-          final nested = _findByLabeledValue(entry.value, keys);
+          final nested = _findByLabeledValue(_decodeJsonIfNeeded(entry.value), keys);
           if (nested != null) return nested;
         }
       } else if (value is Iterable) {
         for (final item in value) {
-          final nested = _findByLabeledValue(item, keys);
+          final nested = _findByLabeledValue(_decodeJsonIfNeeded(item), keys);
           if (nested != null) return nested;
         }
       }
@@ -2806,12 +2821,12 @@ class _AuditEntry {
             if (match != null) return match;
           }
 
-          final nested = _findByKeySubstrings(entry.value, keys);
+          final nested = _findByKeySubstrings(_decodeJsonIfNeeded(entry.value), keys);
           if (nested != null) return nested;
         }
       } else if (value is Iterable) {
         for (final item in value) {
-          final nested = _findByKeySubstrings(item, keys);
+          final nested = _findByKeySubstrings(_decodeJsonIfNeeded(item), keys);
           if (nested != null) return nested;
         }
       }
