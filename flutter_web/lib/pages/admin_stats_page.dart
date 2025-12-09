@@ -138,6 +138,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         articleNumber: articleNumber,
         articleLabel: articleLabel,
         country: effectiveCountry,
+        batch: entry.batch,
       );
     }).toList();
 
@@ -418,6 +419,57 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     );
   }
 
+  void _showMdrLotDetails(String mdrGroup) {
+    final lots = _buildLotsForMdrGroup(mdrGroup, _visibleComplaints);
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Häufig betroffene Chargen'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
+            child: lots.isEmpty
+                ? const Text('Für diese MDR-TD-Gruppe liegen keine Chargenangaben vor.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('MDR-TD-Gruppe: $mdrGroup'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Top-Chargen inklusive zugeordneter Produktgruppe gemäß Artikelliste.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: math.min(lots.length * 56.0 + 12, 320),
+                        child: ListView.separated(
+                          itemCount: math.min(lots.length, 12),
+                          separatorBuilder: (_, __) => const Divider(height: 12),
+                          itemBuilder: (context, index) {
+                            if (index >= lots.length) return const SizedBox.shrink();
+                            final lot = lots[index];
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text('Charge ${lot.batch}'),
+                              subtitle: Text('Produktgruppe: ${lot.productGroup}'),
+                              trailing: Text('${lot.count}×'),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -541,6 +593,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                   buckets: mdrGroups,
                   total: total,
                   emptyMessage: 'Keine MDR-TD-Zuordnung verfügbar',
+                  onTapBucket: (bucket) => _showMdrLotDetails(bucket.label),
                 ),
               ),
               const SizedBox(width: 24),
@@ -562,6 +615,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             buckets: mdrGroups,
             total: total,
             emptyMessage: 'Keine MDR-TD-Zuordnung verfügbar',
+            onTapBucket: (bucket) => _showMdrLotDetails(bucket.label),
           ),
           const SizedBox(height: 24),
           _TopListSection(
@@ -913,6 +967,25 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       map[key] = (map[key] ?? 0) + 1;
     }
     return _mapToTopBuckets(map);
+  }
+
+  List<_LotBucket> _buildLotsForMdrGroup(String mdrGroup, List<_EnrichedComplaint> complaints) {
+    final map = <String, _LotAggregation>{};
+    for (final c in complaints) {
+      if (c.mdrGroup != mdrGroup) continue;
+      final batch = c.batch?.trim();
+      if (batch == null || batch.isEmpty) continue;
+      final productGroup = c.productGroup.trim().isEmpty ? 'Sonstige Produkte' : c.productGroup.trim();
+      final agg = map.putIfAbsent(batch, () => _LotAggregation());
+      agg.count++;
+      agg.productGroups[productGroup] = (agg.productGroups[productGroup] ?? 0) + 1;
+    }
+
+    return map.entries.map((entry) {
+      final topProductGroup = entry.value.productGroups.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+      return _LotBucket(batch: entry.key, count: entry.value.count, productGroup: topProductGroup);
+    }).toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
   }
 
   List<_TopBucket> _mapToTopBuckets(Map<String, int> map) {
@@ -1749,6 +1822,7 @@ class _TopListSection extends StatelessWidget {
   final String title;
   final IconData icon;
   final String emptyMessage;
+  final ValueChanged<_TopBucket>? onTapBucket;
 
   const _TopListSection({
     required this.buckets,
@@ -1756,6 +1830,7 @@ class _TopListSection extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.emptyMessage,
+    this.onTapBucket,
   });
 
   @override
@@ -1774,7 +1849,17 @@ class _TopListSection extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < top.length; i++) ...[
-            _TopRankTile(rank: i + 1, bucket: top[i], total: total),
+            if (onTapBucket != null)
+              InkWell(
+                onTap: () => onTapBucket!(top[i]),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: _TopRankTile(rank: i + 1, bucket: top[i], total: total),
+                ),
+              )
+            else
+              _TopRankTile(rank: i + 1, bucket: top[i], total: total),
             if (i != top.length - 1) const SizedBox(height: 12),
           ],
         ],
@@ -2293,6 +2378,7 @@ class _EnrichedComplaint {
   final String? articleNumber;
   final String articleLabel;
   final String country;
+  final String? batch;
 
   _EnrichedComplaint({
     required this.entry,
@@ -2302,6 +2388,7 @@ class _EnrichedComplaint {
     required this.articleNumber,
     required this.articleLabel,
     required this.country,
+    required this.batch,
   });
 
   bool get isOpen {
@@ -2356,6 +2443,19 @@ class _TopBucket {
   final String label;
   final int count;
   const _TopBucket({required this.label, required this.count});
+}
+
+class _LotBucket {
+  final String batch;
+  final int count;
+  final String productGroup;
+
+  const _LotBucket({required this.batch, required this.count, required this.productGroup});
+}
+
+class _LotAggregation {
+  int count = 0;
+  final Map<String, int> productGroups = {};
 }
 
 class _CountryBucket {
@@ -2464,6 +2564,7 @@ class _AuditEntry {
   final String decisionLabel;
   final String? repName;
   final String? repEmail;
+  final String? batch;
 
   _AuditEntry({
     required this.ticket,
@@ -2478,6 +2579,7 @@ class _AuditEntry {
     required this.decisionLabel,
     required this.repName,
     required this.repEmail,
+    required this.batch,
   });
 
   factory _AuditEntry.fromJson(Map<String, dynamic> json) {
@@ -2502,6 +2604,13 @@ class _AuditEntry {
       return s.isEmpty ? null : s;
     }
 
+    final batch = _optional(json['batch']) ??
+        _optional(json['lot']) ??
+        _optional(json['lotNumber']) ??
+        _optional(json['lot_no']) ??
+        _optional(json['lotNo']) ??
+        _optional(json['charge']);
+
     return _AuditEntry(
       ticket: (json['ticket'] ?? '').toString(),
       createdAt: _ts(json['createdAt']),
@@ -2515,6 +2624,7 @@ class _AuditEntry {
       decisionLabel: (json['decisionLabel'] ?? '').toString(),
       repName: _optional(json['repName']),
       repEmail: _optional(json['repEmail']),
+      batch: batch,
     );
   }
 }
