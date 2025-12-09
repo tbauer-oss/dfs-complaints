@@ -103,6 +103,7 @@ const Map<String, String> PORTAL_ROLES = {
   'superuser': 'superuser',
   'user': 'user',
   'readonly': 'readonly',
+  'prrc': 'prrc',
 };
 
 const List<String> kInternalDepartments = [
@@ -6958,6 +6959,11 @@ class _AdminPageState extends State<AdminPage> {
           isLoading: _loadAllComplaints,
           onReload: _refreshAllComplaints,
           onInlineUpdateActions: _updateComplaintActions,
+          showPrrcColumn: _portalIsPrrc || _isSuperuser,
+          onUpdatePrrcClassification: (_portalIsPrrc || _isSuperuser)
+              ? _updatePrrcClassification
+              : null,
+          prrcReadOnly: !_portalIsPrrc && !_isSuperuser,
         );
       case _AdminView.prrc:
         return _buildPrrcPanel();
