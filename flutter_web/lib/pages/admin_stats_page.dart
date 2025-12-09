@@ -664,6 +664,10 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             countries: countries,
             onViewDetails: () => _showCountryDetails(countries, total),
           ),
+        ] else ...[
+          _CustomerRankingSection(customers: customers, total: total),
+          const SizedBox(height: 24),
+          _RepSection(reps: reps),
         ],
         const SizedBox(height: 24),
         if (isWide) ...[
@@ -1200,15 +1204,72 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   List<_AuditEntry> _parseAuditEntries() {
     final rawComplaints = (_stats?['complaints'] as List?) ?? const [];
     final rawAudit = (_stats?['audit'] as List?) ?? const [];
-    final source = rawComplaints.isNotEmpty ? rawComplaints : rawAudit;
 
     final out = <_AuditEntry>[];
-    for (final entry in source) {
-      if (entry is Map) {
-        out.add(_AuditEntry.fromJson(entry.cast<String, dynamic>()));
+    if (rawComplaints.isNotEmpty) {
+      final auditByTicket = <String, _AuditEntry>{};
+      for (final entry in rawAudit) {
+        if (entry is Map) {
+          final parsed = _AuditEntry.fromJson(entry.cast<String, dynamic>());
+          auditByTicket[parsed.ticket] = parsed;
+        }
+      }
+
+      final seenTickets = <String>{};
+      for (final entry in rawComplaints) {
+        if (entry is! Map) continue;
+        final parsed = _AuditEntry.fromJson(entry.cast<String, dynamic>());
+        final fallback = auditByTicket[parsed.ticket];
+        final merged = fallback == null ? parsed : _mergeAuditEntries(primary: parsed, secondary: fallback);
+        out.add(merged);
+        seenTickets.add(parsed.ticket);
+      }
+
+      for (final entry in auditByTicket.values) {
+        if (!seenTickets.contains(entry.ticket)) {
+          out.add(entry);
+        }
+      }
+    } else {
+      for (final entry in rawAudit) {
+        if (entry is Map) {
+          out.add(_AuditEntry.fromJson(entry.cast<String, dynamic>()));
+        }
       }
     }
     return out;
+  }
+
+  _AuditEntry _mergeAuditEntries({required _AuditEntry primary, required _AuditEntry secondary}) {
+    String chooseNonEmpty(String first, String fallback) {
+      return first.trim().isNotEmpty ? first : fallback;
+    }
+
+    String? chooseOptional(String? first, String? fallback) {
+      final cleaned = first?.trim();
+      if (cleaned != null && cleaned.isNotEmpty) return first;
+      final cleanedFallback = fallback?.trim();
+      if (cleanedFallback != null && cleanedFallback.isNotEmpty) return fallback;
+      return null;
+    }
+
+    return _AuditEntry(
+      ticket: primary.ticket.isNotEmpty ? primary.ticket : secondary.ticket,
+      createdAt: primary.createdAt != DateTime.fromMillisecondsSinceEpoch(0)
+          ? primary.createdAt
+          : secondary.createdAt,
+      customer: chooseNonEmpty(primary.customer, secondary.customer),
+      customerEmail: chooseOptional(primary.customerEmail, secondary.customerEmail),
+      customerNumber: chooseOptional(primary.customerNumber, secondary.customerNumber),
+      country: chooseNonEmpty(primary.country, secondary.country),
+      article: chooseOptional(primary.article, secondary.article),
+      segment: chooseOptional(primary.segment, secondary.segment),
+      statusLabel: chooseNonEmpty(primary.statusLabel, secondary.statusLabel),
+      decisionLabel: chooseNonEmpty(primary.decisionLabel, secondary.decisionLabel),
+      repName: chooseOptional(primary.repName, secondary.repName),
+      repEmail: chooseOptional(primary.repEmail, secondary.repEmail),
+      batch: chooseOptional(primary.batch, secondary.batch),
+    );
   }
 
   int _calcOpenFallback(List<_DecisionBucket> decisions, int total) {
