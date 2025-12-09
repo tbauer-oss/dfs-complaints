@@ -6129,7 +6129,9 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.pinkB,
           compact: compact,
           count: _allComplaints.length,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.prrc),
+          onTap: isPreview
+              ? () {}
+              : () => _openPrrcScreen(),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -10372,6 +10374,8 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           portalRole: _portalRole,
                           portalIsSales: _portalIsSales,
+                          canOpenPrrc: _portalIsPrrc || _isSuperuser,
+                          onOpenPrrc: _openPrrcScreen,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
@@ -10420,6 +10424,18 @@ class _AdminPageState extends State<AdminPage> {
       onUpdatePrrcClassification: canEdit ? _updatePrrcClassification : null,
       showPrrcColumn: true,
       prrcReadOnly: !canEdit,
+    );
+  }
+
+  void _openPrrcScreen([String? ticket]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PrrcDashboardPage(
+          api: widget.api,
+          portalProfile: widget.portalProfile ?? widget.api.portalProfile,
+          initialTicket: ticket,
+        ),
+      ),
     );
   }
 
@@ -10524,6 +10540,8 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           portalRole: _portalRole,
                           portalIsSales: _portalIsSales,
+                          canOpenPrrc: _portalIsPrrc || _isSuperuser,
+                          onOpenPrrc: _openPrrcScreen,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
@@ -12589,6 +12607,8 @@ class _ComplaintsDetailList extends StatelessWidget {
                         ? null
                         : () => parent._markCustomerMessageSeen(c),
                     portalRole: parent?._portalRole ?? PORTAL_ROLES['superuser']!,
+                    canOpenPrrc: (parent?._portalIsPrrc ?? false) || (parent?._isSuperuser ?? false),
+                    onOpenPrrc: parent?._openPrrcScreen,
                   ))
               .toList(),
         ],
@@ -13755,6 +13775,8 @@ class _ComplaintDialogLauncher extends StatelessWidget {
   final VoidCallback? onCustomerMessageSeen;
   final String portalRole;
   final bool portalIsSales;
+  final bool canOpenPrrc;
+  final void Function(String ticket)? onOpenPrrc;
 
   const _ComplaintDialogLauncher({
     super.key,
@@ -13773,6 +13795,8 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     this.onChanged,
     this.hasNewCustomerMessage = false,
     this.onCustomerMessageSeen,
+    this.canOpenPrrc = false,
+    this.onOpenPrrc,
   });
 
   String _statusLabel(int v) {
@@ -14037,6 +14061,14 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                           icon: const Icon(Icons.open_in_new),
                           label: const Text('Reklamation öffnen'),
                         ),
+                        if (canOpenPrrc) ...[
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => onOpenPrrc?.call(c.ticket),
+                            icon: const Icon(Icons.medical_information_outlined),
+                            label: const Text('PRRC-Screen'),
+                          ),
+                        ],
                       ],
                     ),
                     if (hasRep)
@@ -18535,6 +18567,841 @@ class _TextFormatChip extends StatelessWidget {
   }
 }
 // ===================================================================
+// PRRC Dashboard (eigenständiger Screen)
+// ===================================================================
+
+class PrrcDashboardStats {
+  final Map<String, int> counts;
+  final int unrated;
+  final int open;
+  final int incidents;
+  final int total;
+  final double incidentShare;
+
+  const PrrcDashboardStats({
+    required this.counts,
+    required this.unrated,
+    required this.open,
+    required this.incidents,
+    required this.total,
+    required this.incidentShare,
+  });
+
+  factory PrrcDashboardStats.fromJson(Map<String, dynamic> j) {
+    final raw = (j['counts'] is Map)
+        ? (j['counts'] as Map).map((key, value) => MapEntry('$key', int.tryParse('$value') ?? 0))
+        : <String, int>{};
+
+    return PrrcDashboardStats(
+      counts: {
+        'N/A': raw['N/A'] ?? 0,
+        'Sub': raw['Sub'] ?? raw['SUB'] ?? 0,
+        'A': raw['A'] ?? 0,
+        'B': raw['B'] ?? 0,
+        'C': raw['C'] ?? 0,
+        'D': raw['D'] ?? 0,
+      },
+      unrated: int.tryParse('${j['unrated'] ?? 0}') ?? 0,
+      open: int.tryParse('${j['open'] ?? 0}') ?? 0,
+      incidents: int.tryParse('${j['incidents'] ?? 0}') ?? 0,
+      total: int.tryParse('${j['total'] ?? 0}') ?? 0,
+      incidentShare: double.tryParse('${j['incidentShare'] ?? 0}') ?? 0,
+    );
+  }
+}
+
+class PrrcDashboardData {
+  final List<AdminComplaint> complaints;
+  final PrrcDashboardStats stats;
+
+  PrrcDashboardData({required this.complaints, required this.stats});
+
+  factory PrrcDashboardData.fromJson(Map<String, dynamic> j) {
+    final List data = j['complaints'] is List ? j['complaints'] as List : const [];
+    return PrrcDashboardData(
+      complaints: data.map((e) => AdminComplaint.fromJson((e as Map).cast<String, dynamic>())).toList(),
+      stats: PrrcDashboardStats.fromJson((j['stats'] as Map?)?.cast<String, dynamic>() ?? const {}),
+    );
+  }
+}
+
+class PrrcDashboardPage extends StatefulWidget {
+  final ApiClient api;
+  final Map<String, dynamic>? portalProfile;
+  final String? initialTicket;
+
+  const PrrcDashboardPage({
+    super.key,
+    required this.api,
+    this.portalProfile,
+    this.initialTicket,
+  });
+
+  @override
+  State<PrrcDashboardPage> createState() => _PrrcDashboardPageState();
+}
+
+class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
+  final _commentCtrl = TextEditingController();
+
+  late final AdminApi _api;
+  bool _loading = true;
+  String? _error;
+  List<AdminComplaint> _complaints = const <AdminComplaint>[];
+  PrrcDashboardStats _stats = const PrrcDashboardStats(
+    counts: {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0},
+    unrated: 0,
+    open: 0,
+    incidents: 0,
+    total: 0,
+    incidentShare: 0,
+  );
+  AdminComplaint? _selected;
+  String _portalRole = 'user';
+  bool _portalIsSales = false;
+  bool _isPrrc = false;
+  bool _isSuperuser = false;
+  bool _saving = false;
+
+  String _statusFilter = 'all';
+  String _categoryFilter = 'all';
+  String _productGroupFilter = 'all';
+  bool _onlyUnrated = false;
+  DateTimeRange? _dateRange;
+  String? _selectedClassification;
+
+  @override
+  void initState() {
+    super.initState();
+    _api = AdminApi();
+    _hydrateAuth();
+    _resolveRole();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  void _hydrateAuth() {
+    final portalTok = widget.api.portalToken ?? '';
+    if (portalTok.isNotEmpty) _api.setPortalToken(portalTok);
+
+    var secret = widget.api.adminSecret ?? '';
+    if (secret.isEmpty) secret = html.window.localStorage['dfs_admin'] ?? '';
+    _api.setSecret(secret);
+  }
+
+  void _resolveRole() {
+    bool _truthy(dynamic flag) {
+      if (flag == null) return false;
+      if (flag is bool) return flag;
+      final s = flag.toString().trim().toLowerCase();
+      return s == 'true' || s == '1' || s == 'yes';
+    }
+
+    final profile = widget.portalProfile ?? widget.api.portalProfile ?? const {};
+    final role = (profile['role'] ?? '').toString().trim().toLowerCase();
+    _portalRole = role.isEmpty ? 'user' : role;
+    if (_portalRole == 'user' && (widget.api.adminSecret ?? '').trim().isNotEmpty) {
+      _portalRole = 'superuser';
+    }
+    _portalIsSales = _truthy(profile['isSales']);
+    _isSuperuser = _portalRole == 'superuser';
+    _isPrrc = _truthy(profile['isPRRC'] ?? profile['isPrrc'] ?? profile['prrc']) || _portalRole == 'prrc' || _isSuperuser;
+  }
+
+  String _classification(AdminComplaint c) {
+    final raw = (c.prrcClassification ?? '').trim();
+    if (raw.isEmpty) return 'N/A';
+    final upper = raw.toUpperCase();
+    if (upper == 'SUB') return 'Sub';
+    return upper;
+  }
+
+  bool _isUnrated(AdminComplaint c) => (c.prrcClassification ?? '').trim().isEmpty;
+
+  String _productGroup(AdminComplaint c) {
+    return _payloadValue(c, const ['productGroup', 'product', 'Produkt', 'productFile']);
+  }
+
+  String _article(AdminComplaint c) {
+    final raw = _payloadValue(c, const ['articleNumber', 'article', 'Artikelnummer', 'artnr']);
+    if (raw.isNotEmpty) return raw;
+    return _payloadValue(c, const ['article_label', 'Artikelbezeichnung']);
+  }
+
+  String _customer(AdminComplaint c) {
+    final payloadCustomer = _payloadValue(c, const ['company', 'firma', 'customer', 'kunde', 'customer_name']);
+    if (payloadCustomer.isNotEmpty) return payloadCustomer;
+    return c.email;
+  }
+
+  String _statusLabel(int? value) {
+    final m = kStatusItems.firstWhere((e) => e['value'] == value, orElse: () => const {});
+    return (m['label'] ?? '—') as String;
+  }
+
+  String _payloadValue(AdminComplaint c, List<String> keys) {
+    final payload = c.payload ?? const <String, dynamic>{};
+    for (final key in keys) {
+      final v = payload[key];
+      if (v == null) continue;
+      final s = v.toString().trim();
+      if (s.isNotEmpty) return s;
+    }
+    return '';
+  }
+
+  String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
+
+  Future<void> _load() async {
+    if (!_isPrrc) {
+      setState(() {
+        _error = 'Kein Zugriff auf den PRRC-Bereich.';
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final res = await _api.fetchPrrcDashboard(
+        from: _dateRange?.start,
+        to: _dateRange?.end,
+      );
+      if (!mounted) return;
+      setState(() {
+        _complaints = res.complaints;
+        _stats = res.stats;
+        if (_complaints.isNotEmpty && _selected == null) {
+          if (widget.initialTicket != null) {
+            _selected = _complaints.firstWhere(
+              (c) => c.ticket == widget.initialTicket,
+              orElse: () => _complaints.first,
+            );
+          } else {
+            _selected = _complaints.first;
+          }
+          _selectedClassification = _selected != null ? _classification(_selected!) : null;
+          _commentCtrl.text = _selected?.prrcComment ?? '';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<AdminComplaint> get _filteredComplaints {
+    final from = _dateRange?.start;
+    final to = _dateRange?.end;
+    final statusFilter = _statusFilter == 'all' ? null : int.tryParse(_statusFilter);
+    final category = _categoryFilter;
+    final group = _productGroupFilter;
+
+    return _complaints.where((c) {
+      if (_onlyUnrated && !_isUnrated(c)) return false;
+      if (from != null && c.createdAt.isBefore(from)) return false;
+      if (to != null && c.createdAt.isAfter(to.add(const Duration(days: 1)))) return false;
+      if (statusFilter != null && c.status != statusFilter) return false;
+      if (category != 'all' && _classification(c) != category) return false;
+      if (group != 'all' && _productGroup(c) != group) return false;
+      return true;
+    }).toList();
+  }
+
+  List<String> get _productGroupOptions {
+    final set = <String>{};
+    for (final c in _complaints) {
+      final g = _productGroup(c).trim();
+      if (g.isNotEmpty) set.add(g);
+    }
+    return set.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  }
+
+  void _selectComplaint(AdminComplaint c) {
+    setState(() {
+      _selected = c;
+      _selectedClassification = _classification(c);
+      _commentCtrl.text = c.prrcComment ?? '';
+    });
+  }
+
+  PrrcDashboardStats _localStats(List<AdminComplaint> list) {
+    final counts = {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
+    var unrated = 0;
+    var open = 0;
+    var incidents = 0;
+
+    for (final c in list) {
+      final cls = _classification(c);
+      counts[cls] = (counts[cls] ?? 0) + 1;
+      if (_isUnrated(c)) unrated += 1;
+      if (c.status != 5) open += 1;
+      if (['A', 'B', 'C', 'D'].contains(cls)) incidents += 1;
+    }
+
+    final total = list.length;
+    final double share =
+        total == 0 ? 0.0 : double.parse(((incidents / total) * 100).toStringAsFixed(1));
+
+    return PrrcDashboardStats(
+      counts: counts,
+      unrated: unrated,
+      open: open,
+      incidents: incidents,
+      total: total,
+      incidentShare: share,
+    );
+  }
+
+  void _applyUpdate(AdminComplaint updated) {
+    final idx = _complaints.indexWhere((c) => c.ticket == updated.ticket);
+    if (idx >= 0) {
+      _complaints = List<AdminComplaint>.from(_complaints)..[idx] = updated;
+    }
+    _stats = _localStats(_complaints);
+    if (_selected?.ticket == updated.ticket) {
+      _selected = updated;
+      _selectedClassification = _classification(updated);
+      _commentCtrl.text = updated.prrcComment ?? '';
+    }
+  }
+
+  Future<void> _savePrrc() async {
+    if (_selected == null || _selectedClassification == null) return;
+    setState(() => _saving = true);
+    try {
+      final updated = await _api.adminComplaintUpdate(
+        ticket: _selected!.ticket,
+        prrcClassification: _selectedClassification,
+        prrcComment: _commentCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _applyUpdate(updated));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PRRC-Bewertung gespeichert.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _openComplaintDialog(AdminComplaint c) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200, maxHeight: 900),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Reklamation ${c.ticket}',
+                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: _ComplaintEditor(
+                      api: _api,
+                      c: c,
+                      portalRole: _portalRole,
+                      portalIsSales: _portalIsSales,
+                      hasNewCustomerMessage: false,
+                      onClosed: () {
+                        Navigator.of(ctx).pop();
+                        _load();
+                      },
+                      onChanged: (updated) => setState(() => _applyUpdate(updated)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiTile({required String label, required String value, IconData? icon, Color? color}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceVariant.withOpacity(scheme.brightness == Brightness.dark ? 0.4 : 0.6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 10, top: 4),
+              child: Icon(icon, color: color ?? scheme.primary),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKpis() {
+    final counts = _stats.counts;
+    final chips = ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((c) {
+      final val = counts[c] ?? 0;
+      return Chip(
+        label: Text('$c: $val'),
+        backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+      );
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: 200,
+              child: _kpiTile(
+                label: 'Offen / in Arbeit',
+                value: _stats.open.toString(),
+                icon: Icons.pending_actions_outlined,
+                color: Colors.orange,
+              ),
+            ),
+            SizedBox(
+              width: 200,
+              child: _kpiTile(
+                label: 'Unbewertet',
+                value: _stats.unrated.toString(),
+                icon: Icons.help_outline,
+                color: Colors.grey,
+              ),
+            ),
+            SizedBox(
+              width: 240,
+              child: _kpiTile(
+                label: 'Vorkommnis-Anteil',
+                value: '${_stats.incidentShare.toStringAsFixed(1)} %',
+                icon: Icons.health_and_safety_outlined,
+                color: Colors.redAccent,
+              ),
+            ),
+            SizedBox(
+              width: 240,
+              child: _kpiTile(
+                label: 'Bewertungen gesamt',
+                value: '${_stats.total}',
+                icon: Icons.analytics_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: chips),
+      ],
+    );
+  }
+
+  Widget _buildFilters() {
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 10,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ElevatedButton.icon(
+          onPressed: () async {
+            final now = DateTime.now();
+            final range = await showDateRangePicker(
+              context: context,
+              firstDate: DateTime(now.year - 3),
+              lastDate: DateTime(now.year + 1),
+              initialDateRange: _dateRange,
+            );
+            if (range != null) {
+              setState(() => _dateRange = range);
+              _load();
+            }
+          },
+          icon: const Icon(Icons.date_range_outlined),
+          label: Text(_dateRange == null
+              ? 'Zeitraum wählen'
+              : '${_formatDate(_dateRange!.start)} – ${_formatDate(_dateRange!.end)}'),
+        ),
+        DropdownButton<String>(
+          value: _statusFilter,
+          onChanged: (v) => setState(() => _statusFilter = v ?? 'all'),
+          items: [
+            const DropdownMenuItem(value: 'all', child: Text('Alle Status')),
+            ...kStatusItems
+                .map((s) => DropdownMenuItem<String>(value: '${s['value']}', child: Text('${s['label']}'))),
+          ],
+        ),
+        DropdownButton<String>(
+          value: _categoryFilter,
+          onChanged: (v) => setState(() => _categoryFilter = v ?? 'all'),
+          items: [
+            const DropdownMenuItem(value: 'all', child: Text('Alle PRRC-Kategorien')),
+            ...['N/A', 'Sub', 'A', 'B', 'C', 'D'].map(
+              (c) => DropdownMenuItem<String>(value: c, child: Text(c)),
+            ),
+          ],
+        ),
+        DropdownButton<String>(
+          value: _productGroupFilter,
+          onChanged: (v) => setState(() => _productGroupFilter = v ?? 'all'),
+          items: [
+            const DropdownMenuItem(value: 'all', child: Text('Alle Produktgruppen')),
+            ..._productGroupOptions.map(
+              (g) => DropdownMenuItem<String>(value: g, child: Text(g)),
+            ),
+          ],
+        ),
+        FilterChip(
+          selected: _onlyUnrated,
+          label: const Text('Nur unbewertete Reklamationen'),
+          onSelected: (v) => setState(() => _onlyUnrated = v),
+        ),
+        IconButton(
+          tooltip: 'Neu laden',
+          onPressed: _loading ? null : _load,
+          icon: _loading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+                )
+              : const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTable() {
+    final list = _filteredComplaints;
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('PRRC-Reklamationen', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                Text('${list.length} Einträge', style: TextStyle(color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (list.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Keine Reklamationen gefunden.'),
+            )
+          else
+            Expanded(
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Interne Nr.')),
+                      DataColumn(label: Text('Kunde')),
+                      DataColumn(label: Text('Artikel')),
+                      DataColumn(label: Text('Eingang')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('PRRC-Kategorie')),
+                      DataColumn(label: Text('Unbewertet')),
+                    ],
+                    rows: list.map((c) {
+                      final selected = _selected?.ticket == c.ticket;
+                      return DataRow(
+                        selected: selected,
+                        onSelectChanged: (_) => _selectComplaint(c),
+                        cells: [
+                          DataCell(Text((c.internalNo ?? '').trim().isEmpty ? '—' : c.internalNo!)),
+                          DataCell(Text(_customer(c))),
+                          DataCell(Text(_article(c).isEmpty ? '—' : _article(c))),
+                          DataCell(Text(_formatDate(c.createdAt))),
+                          DataCell(Text(_statusLabel(c.status))),
+                          DataCell(Row(
+                            children: [
+                              Icon(Icons.label, size: 16, color: scheme.primary),
+                              const SizedBox(width: 6),
+                              Text(_classification(c)),
+                            ],
+                          )),
+                          DataCell(
+                            Chip(
+                              label: Text(_isUnrated(c) ? 'Ja' : 'Nein'),
+                              backgroundColor: _isUnrated(c)
+                                  ? scheme.errorContainer.withOpacity(0.5)
+                                  : scheme.surfaceVariant,
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistory(AdminComplaint c) {
+    final entries = c.history
+        .where((h) => (h.type.toLowerCase() == 'prrc'))
+        .toList()
+      ..sort((a, b) => b.at.compareTo(a.at));
+
+    if (entries.isEmpty) {
+      return const Text('Noch keine PRRC-Historie vorhanden.');
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: entries.length,
+      separatorBuilder: (_, __) => const Divider(height: 12),
+      itemBuilder: (ctx, i) {
+        final e = entries[i];
+        final data = e.data ?? const <String, dynamic>{};
+        final cls = (data['classification'] ?? '').toString();
+        final comment = (data['comment'] ?? '').toString();
+        final when = DateFormat('dd.MM.yyyy – HH:mm').format(e.at);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(when, style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            Text(cls.isEmpty ? 'ohne Kategorie' : 'Kategorie: $cls', style: const TextStyle(fontWeight: FontWeight.w700)),
+            if (comment.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(comment)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDetail() {
+    if (!_isPrrc) {
+      return const Center(child: Text('PRRC-Bereich ist nur für PRRC-Accounts zugänglich.'));
+    }
+
+    if (_selected == null) {
+      return const Center(child: Text('Bitte eine Reklamation auswählen.'));
+    }
+
+    final c = _selected!;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PRRC-Details',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _openComplaintDialog(c),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Standard-Detailansicht'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                Chip(label: Text('Kunde: ${_customer(c)}')),
+                Chip(label: Text('Artikel: ${_article(c).isEmpty ? '—' : _article(c)}')),
+                Chip(label: Text('Eingang: ${_formatDate(c.createdAt)}')),
+                Chip(label: Text('Status: ${_statusLabel(c.status)}')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('Schnellauswahl', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((value) {
+                final selected = _selectedClassification == value;
+                return ChoiceChip(
+                  label: Text(value),
+                  selected: selected,
+                  onSelected: _saving ? null : (_) => setState(() => _selectedClassification = value),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _selectedClassification,
+              decoration: const InputDecoration(labelText: 'PRRC-Kategorie'),
+              onChanged: _saving ? null : (v) => setState(() => _selectedClassification = v),
+              items: ['N/A', 'Sub', 'A', 'B', 'C', 'D']
+                  .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _commentCtrl,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _saving ? null : _savePrrc,
+                  icon: _saving
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Speichern'),
+                ),
+                const SizedBox(width: 12),
+                if (c.prrcTimestamp != null)
+                  Text(
+                    'Zuletzt geändert: ${DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal())}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text('PRRC-Historie', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            _buildHistory(c),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('PRRC-Screen'),
+        actions: [
+          IconButton(
+            tooltip: 'Zurück zum Admin-Dashboard',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.dashboard_customize_outlined),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(child: Text(_error!))
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'PRRC-Bewertungen',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 6),
+                        Text('Spezialansicht für regulatorische Einstufungen und Dokumentation',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 14),
+                        _buildKpis(),
+                        const SizedBox(height: 12),
+                        _buildFilters(),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(flex: 3, child: _buildTable()),
+                              const SizedBox(width: 12),
+                              Expanded(flex: 2, child: _buildDetail()),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===================================================================
 // Admin API (Browser, dart:html)
 // ===================================================================
 class AdminApi {
@@ -18882,6 +19749,17 @@ class AdminApi {
     if (res.status != 200) throw 'all complaints GET: HTTP ${res.status} ${res.responseText}';
     final List data = jsonDecode(res.responseText ?? '[]');
     return data.map((e) => AdminComplaint.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<PrrcDashboardData> fetchPrrcDashboard({DateTime? from, DateTime? to}) async {
+    final q = <String, String>{};
+    if (from != null) q['from'] = from.toIso8601String();
+    if (to != null) q['to'] = to.toIso8601String();
+
+    final res = await _request('GET', '/api/admin/prrc', q: q.isEmpty ? null : q);
+    if (res.status != 200) throw 'prrc GET: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    return PrrcDashboardData.fromJson(j);
   }
 
   Future<List<AdminComplaint>> fetchOpenComplaints() async {
