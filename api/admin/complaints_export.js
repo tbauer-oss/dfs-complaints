@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import JSZip from 'jszip';
 import { setCors, noContent, bad, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
+import { normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
 import { hasDepartmentOverlap, normalizeDepartments } from '../_lib/departments.js';
 import { complaintByTicket, Status } from '../_lib/store.js';
 
@@ -130,12 +131,19 @@ export default async function handler(req, res) {
 
   const actor = await requirePortalAccess(req, res, { write: false, tile: 'all' });
   if (!actor) return;
+  const actorIsPrrc = actor?.isPRRC === true || normalizeRole(actor?.role) === PORTAL_ROLES.prrc;
 
   const ticket = (req.query?.ticket || '').toString().trim();
   if (!ticket) return bad(res, 'missing ticket', 400);
 
   const complaint = await complaintByTicket(ticket);
   if (!complaint) return bad(res, 'not found', 404);
+
+  if (!actorIsPrrc && normalizeRole(actor?.role) !== PORTAL_ROLES.superuser) {
+    delete complaint.prrcComment;
+    delete complaint.prrcUserId;
+    delete complaint.prrcTimestamp;
+  }
 
   const normalizedEmail = normEmail(complaint.email || '');
   if (!withinScope(actor, complaint) && normEmail(actor?.email) !== normalizedEmail) {
