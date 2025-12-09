@@ -15640,11 +15640,11 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
 
     setState(() => _busy = true);
       try {
-        final updated = AdminComplaint.fromJson(await widget.api.updateComplaintDetails(
+        final updated = await widget.api.updateComplaintDetails(
           ticket: widget.c.ticket,
           payload: updatedPayload,
-        ));
-
+        );
+        
         final newPayload = updated.payload ?? <String, dynamic>{};
       widget.c.payload ??= <String, dynamic>{};
       widget.c.payload!
