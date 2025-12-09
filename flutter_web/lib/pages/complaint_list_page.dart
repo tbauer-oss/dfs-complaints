@@ -396,6 +396,37 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   Widget _buildKpiCards(ThemeData theme, List<ComplaintListItem> items) {
     final cs = theme.colorScheme;
+
+    if (items.isEmpty) {
+      return Row(
+        children: [
+          Expanded(
+            child: Card(
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: cs.primary.withOpacity(.12),
+                      foregroundColor: cs.primary,
+                      child: const Icon(Icons.info_outline, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Keine Reklamationen gefunden',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final total = items.length;
     final open = items.where((c) => c.status.toLowerCase().contains('offen')).length;
     final closed = items.where((c) => c.status.toLowerCase().contains('abgeschlossen')).length;
