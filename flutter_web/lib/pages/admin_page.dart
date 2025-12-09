@@ -6885,6 +6885,8 @@ class _AdminPageState extends State<AdminPage> {
           api: widget.api,
           complaints: _complaintListItems(),
           customerLookup: _companyByEmail,
+          isLoading: _loadAllComplaints,
+          onReload: _refreshAllComplaints,
         );
       case _AdminView.pending:
         return _buildPendingPanel();

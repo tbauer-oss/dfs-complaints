@@ -121,12 +121,16 @@ class ComplaintListPage extends StatefulWidget {
   final ApiClient api;
   final List<ComplaintListItem> complaints;
   final String? Function(String email)? customerLookup;
+  final bool isLoading;
+  final VoidCallback? onReload;
 
   const ComplaintListPage({
     super.key,
     required this.api,
     required this.complaints,
     this.customerLookup,
+    this.isLoading = false,
+    this.onReload,
   });
 
   @override
@@ -907,6 +911,50 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final items = _filteredItems;
+
+    if (widget.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (widget.complaints.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Reklamationsliste'),
+          actions: [
+            if (widget.onReload != null)
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: widget.onReload,
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.inbox_outlined, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text('Keine Reklamationen gefunden', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text('Bitte Daten neu laden oder Filter anpassen.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              if (widget.onReload != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onReload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Neu laden'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
