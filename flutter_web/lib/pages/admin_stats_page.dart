@@ -173,6 +173,15 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   String _deriveMdrGroup(DfsProduct? product, String? rawArticle) {
     const fallback = 'unbekannt (ggf. Dentallabor)';
 
+    bool _isMdrLabel(String value) => value.toUpperCase().startsWith('MDR-TD');
+
+    String _classifyNonMdr(String? value) {
+      final lower = (value ?? '').toLowerCase();
+      if (lower.contains('dental') || lower.contains('labor')) return 'Dental Lab';
+      if (lower.isNotEmpty) return 'Sonstiges';
+      return fallback;
+    }
+
     String? fromArticle(String? article) {
       if (article == null || article.trim().isEmpty) return null;
       final upper = article.toUpperCase();
@@ -183,27 +192,28 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         final code = match.group(0)!.replaceAll(RegExp(r'\s+'), '-');
         return code;
       }
-      if (upper.contains('DENTAL')) return 'Dental Lab';
       return null;
     }
 
-    if (product == null) {
-      return fromArticle(rawArticle) ?? fallback;
+    if (product != null) {
+      final label = product.tdNumberAndName.trim();
+      if (_isMdrLabel(label)) return label;
+      return _classifyNonMdr(product.productGroup);
     }
 
-    final label = product.tdNumberAndName.trim();
-    if (label.toUpperCase().startsWith('MDR-TD')) return label;
+    final derived = fromArticle(rawArticle);
+    if (derived != null && _isMdrLabel(derived)) return derived;
 
-    final productGroup = product.productGroup.trim().toLowerCase();
-    if (productGroup.contains('dental')) return 'Dental Lab';
-    return 'Sonstiges';
+    return _classifyNonMdr(rawArticle);
   }
 
   String _deriveProductGroup(DfsProduct? product) {
-    final fallback = 'Sonstige Produkte';
-    if (product == null) return fallback;
-    final label = product.productGroup.trim();
-    return label.isEmpty ? fallback : label;
+    const fallback = 'Sonstige Produkte';
+    if (product != null) {
+      final label = product.productGroup.trim();
+      return label.isEmpty ? fallback : label;
+    }
+    return fallback;
   }
 
   String _deriveArticleLabel(_AuditEntry entry, DfsProduct? product, String? articleNumber) {
@@ -220,8 +230,8 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
 
   String? _extractArticleNumber(String? article) {
     if (article == null || article.trim().isEmpty) return null;
-    final match = RegExp(r'\d{4,}').firstMatch(article);
-    return match?.group(0);
+    final match = RegExp(r'(\d{4,})').firstMatch(article.replaceAll(RegExp(r'[^0-9]'), ' '));
+    return match?.group(1)?.trim();
   }
 
   DfsProduct? _matchProduct(String? article) {
@@ -2792,37 +2802,51 @@ class _AuditEntry {
       return s.isEmpty ? null : s;
     }
 
-    final batch = _optional(json['batch']) ??
-        _optional(json['batchNumber']) ??
-        _optional(json['batch_number']) ??
-        _optional(json['batch_no']) ??
-        _optional(json['batchNo']) ??
-        _optional(json['lot']) ??
-        _optional(json['lotNumber']) ??
-        _optional(json['lot_no']) ??
-        _optional(json['lotNo']) ??
-        _optional(json['lotId']) ??
-        _optional(json['lot_id']) ??
-        _optional(json['charge']) ??
-        _optional(json['chargeNumber']) ??
-        _optional(json['charge_number']) ??
-        _optional(json['chargeNo']) ??
-        _optional(json['charge_no']);
+    String? _scalarOrFirst(dynamic value) {
+      if (value is List) {
+        for (final item in value) {
+          final extracted = _optional(item);
+          if (extracted != null) return extracted;
+        }
+        return null;
+      }
+      return _optional(value);
+    }
 
-    final article = _optional(json['article']) ??
-        _optional(json['articleNumber']) ??
-        _optional(json['article_no']) ??
-        _optional(json['articleNo']) ??
-        _optional(json['articleNr']) ??
-        _optional(json['article_nr']) ??
-        _optional(json['itemNumber']) ??
-        _optional(json['item_no']) ??
-        _optional(json['itemNo']) ??
-        _optional(json['item_nr']) ??
-        _optional(json['productNumber']) ??
-        _optional(json['product_no']) ??
-        _optional(json['productNo']) ??
-        _optional(json['article_id']);
+    final batch = _scalarOrFirst(json['batch']) ??
+        _scalarOrFirst(json['batchNumber']) ??
+        _scalarOrFirst(json['batch_number']) ??
+        _scalarOrFirst(json['batch_no']) ??
+        _scalarOrFirst(json['batchNo']) ??
+        _scalarOrFirst(json['batches']) ??
+        _scalarOrFirst(json['lot']) ??
+        _scalarOrFirst(json['lotNumber']) ??
+        _scalarOrFirst(json['lot_no']) ??
+        _scalarOrFirst(json['lotNo']) ??
+        _scalarOrFirst(json['lotId']) ??
+        _scalarOrFirst(json['lot_id']) ??
+        _scalarOrFirst(json['lots']) ??
+        _scalarOrFirst(json['charge']) ??
+        _scalarOrFirst(json['chargeNumber']) ??
+        _scalarOrFirst(json['charge_number']) ??
+        _scalarOrFirst(json['chargeNo']) ??
+        _scalarOrFirst(json['charge_no']) ??
+        _scalarOrFirst(json['charges']);
+
+    final article = _scalarOrFirst(json['article']) ??
+        _scalarOrFirst(json['articleNumber']) ??
+        _scalarOrFirst(json['article_no']) ??
+        _scalarOrFirst(json['articleNo']) ??
+        _scalarOrFirst(json['articleNr']) ??
+        _scalarOrFirst(json['article_nr']) ??
+        _scalarOrFirst(json['itemNumber']) ??
+        _scalarOrFirst(json['item_no']) ??
+        _scalarOrFirst(json['itemNo']) ??
+        _scalarOrFirst(json['item_nr']) ??
+        _scalarOrFirst(json['productNumber']) ??
+        _scalarOrFirst(json['product_no']) ??
+        _scalarOrFirst(json['productNo']) ??
+        _scalarOrFirst(json['article_id']);
 
     return _AuditEntry(
       ticket: (json['ticket'] ?? '').toString(),
