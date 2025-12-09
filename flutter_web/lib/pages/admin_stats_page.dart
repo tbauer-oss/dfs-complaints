@@ -2765,6 +2765,38 @@ class _AuditEntry {
       return _optional(value);
     }
 
+    String? _findByLabeledValue(dynamic value, List<String> keys) {
+      String? extractLabeledMatch(Map candidate) {
+        for (final labelKey in ['label', 'name', 'title', 'field', 'fieldName', 'key']) {
+          final label = candidate[labelKey];
+          if (label is String && keys.any((needle) => label.toLowerCase().contains(needle))) {
+            return _scalarOrFirst(candidate['value']) ??
+                _scalarOrFirst(candidate['val']) ??
+                _scalarOrFirst(candidate['content']) ??
+                _scalarOrFirst(candidate['answer']);
+          }
+        }
+        return null;
+      }
+
+      if (value is Map) {
+        final direct = extractLabeledMatch(value);
+        if (direct != null) return direct;
+
+        for (final entry in value.entries) {
+          final nested = _findByLabeledValue(entry.value, keys);
+          if (nested != null) return nested;
+        }
+      } else if (value is Iterable) {
+        for (final item in value) {
+          final nested = _findByLabeledValue(item, keys);
+          if (nested != null) return nested;
+        }
+      }
+
+      return null;
+    }
+
     String? _findByKeySubstrings(dynamic value, List<String> keys) {
       if (value is Map) {
         for (final entry in value.entries) {
@@ -2806,6 +2838,7 @@ class _AuditEntry {
         _scalarOrFirst(json['chargeNo']) ??
         _scalarOrFirst(json['charge_no']) ??
         _scalarOrFirst(json['charges']) ??
+        _findByLabeledValue(json, const ['batch', 'lot', 'charge']) ??
         _findByKeySubstrings(json, const ['batch', 'lot', 'charge']);
 
     final article = _scalarOrFirst(json['article']) ??
