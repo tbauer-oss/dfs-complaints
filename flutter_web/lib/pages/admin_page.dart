@@ -251,7 +251,7 @@ class _AdminPageState extends State<AdminPage> {
   static const int _repReminderDefaultDelayDays = 4;
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
   late final AdminApi _api;
-  String _portalRole = 'superuser';
+  String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
   final Map<String, String> _portalTilePermissions = {};
@@ -761,6 +761,12 @@ class _AdminPageState extends State<AdminPage> {
       secret = html.window.localStorage['dfs_admin'] ?? '';
     }
     _api.setSecret(secret);
+
+    // Fallback: legacy Admin-Secret ohne Portal-Role bleibt Superuser,
+    // aber Portal-User ohne Role dürfen nicht als Superuser behandelt werden.
+    if (_portalRole.isEmpty && portalTok.isEmpty && secret.isNotEmpty) {
+      _portalRole = 'superuser';
+    }
 
     _loadRoleTileVisibility();
     _initMenuLayout();
