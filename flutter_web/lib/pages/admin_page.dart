@@ -724,17 +724,26 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _api = AdminApi(onNewsChanged: widget.api.clearCustomerNewsCache);
+    bool _truthy(dynamic flag) {
+      if (flag == null) return false;
+      if (flag is bool) return flag;
+      final s = flag.toString().trim().toLowerCase();
+      return s == 'true' || s == '1' || s == 'yes';
+    }
+
     final profileRole = widget.portalProfile?['role'] ?? widget.api.portalProfile?['role'];
     if (profileRole is String && profileRole.trim().isNotEmpty) {
-      _portalRole = profileRole.trim();
+      _portalRole = profileRole.trim().toLowerCase();
     }
     final profileIsSales = widget.portalProfile?['isSales'] ?? widget.api.portalProfile?['isSales'];
-    _portalIsSales = profileIsSales == true;
+    _portalIsSales = _truthy(profileIsSales);
     final profileIsPrrc = widget.portalProfile?['isPRRC'] ??
+        widget.portalProfile?['isPrrc'] ??
         widget.portalProfile?['prrc'] ??
         widget.api.portalProfile?['isPRRC'] ??
+        widget.api.portalProfile?['isPrrc'] ??
         widget.api.portalProfile?['prrc'];
-    _portalIsPrrc = profileIsPrrc == true || (_portalRole.toLowerCase() == 'prrc');
+    _portalIsPrrc = _truthy(profileIsPrrc) || (_portalRole.toLowerCase() == 'prrc');
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
