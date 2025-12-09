@@ -651,23 +651,24 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             ],
           ),
         ] else ...[
-          _TopListSection(
-            title: 'Artikel (Reklamationshäufigkeit)',
-            icon: Icons.inventory_2_outlined,
-            buckets: products,
-            total: total,
-            emptyMessage: 'Keine Artikelzuordnung verfügbar',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TopListSection(
+                title: 'Artikel (Reklamationshäufigkeit)',
+                icon: Icons.inventory_2_outlined,
+                buckets: products,
+                total: total,
+                emptyMessage: 'Keine Artikelzuordnung verfügbar',
+              ),
+              const SizedBox(height: 24),
+              _CountrySection(
+                total: total,
+                countries: countries,
+                onViewDetails: () => _showCountryDetails(countries, total),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          _CountrySection(
-            total: total,
-            countries: countries,
-            onViewDetails: () => _showCountryDetails(countries, total),
-          ),
-        ] else ...[
-          _CustomerRankingSection(customers: customers, total: total),
-          const SizedBox(height: 24),
-          _RepSection(reps: reps),
         ],
         const SizedBox(height: 24),
         if (isWide) ...[
