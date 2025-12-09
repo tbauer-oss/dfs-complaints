@@ -329,6 +329,7 @@ class _AdminPageState extends State<AdminPage> {
   List<PortalUser> _portalUsers = [];
   List<AdminComplaint> _allComplaints = [];
   List<AdminComplaint> _openComplaints = [];
+  String? _complaintListErr;
   final Map<String, int> _customerContactSeen = {};
   List<Rep> _reps = [];
   final Map<String, bool> _repAssignmentBusy = {};
@@ -1280,6 +1281,7 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _refreshAllComplaints() async {
     setState(() {
       _err = null;
+      _complaintListErr = null;
       _loadAllComplaints = true;
     });
     try {
@@ -1290,9 +1292,13 @@ class _AdminPageState extends State<AdminPage> {
         _selectedAllTickets.removeWhere(
           (ticket) => !_allComplaints.any((c) => c.ticket == ticket),
         );
+        _complaintListErr = null;
       });
     } catch (e) {
-      setState(() => _err = '$e');
+      setState(() {
+        _err = '$e';
+        _complaintListErr = '$e';
+      });
     } finally {
       if (!mounted) return;
       setState(() => _loadAllComplaints = false);
@@ -6885,6 +6891,7 @@ class _AdminPageState extends State<AdminPage> {
           api: widget.api,
           complaints: _complaintListItems(),
           customerLookup: _companyByEmail,
+          errorMessage: _complaintListErr,
           isLoading: _loadAllComplaints,
           onReload: _refreshAllComplaints,
         );

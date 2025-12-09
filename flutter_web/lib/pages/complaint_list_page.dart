@@ -121,6 +121,7 @@ class ComplaintListPage extends StatefulWidget {
   final ApiClient api;
   final List<ComplaintListItem> complaints;
   final String? Function(String email)? customerLookup;
+  final String? errorMessage;
   final bool isLoading;
   final VoidCallback? onReload;
 
@@ -129,6 +130,7 @@ class ComplaintListPage extends StatefulWidget {
     required this.api,
     required this.complaints,
     this.customerLookup,
+    this.errorMessage,
     this.isLoading = false,
     this.onReload,
   });
@@ -777,6 +779,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'customer': _cell(c.customer),
         'customerNumber': _cell(c.customerNumber),
         'region': _cell(c.region),
+        'productFile': _cell(c.productFile),
         'productGroup': _cell(c.productGroup),
         'articleNumber': _cell(c.articleNumber),
         'articleName': _cell(c.articleName),
@@ -915,6 +918,50 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     if (widget.isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (widget.errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Reklamationsliste'),
+          actions: [
+            if (widget.onReload != null)
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: widget.onReload,
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+              const SizedBox(height: 12),
+              Text('Fehler beim Laden der Reklamationsliste', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  widget.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+              if (widget.onReload != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onReload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Erneut versuchen'),
+                  ),
+                ),
+            ],
+          ),
+        ),
       );
     }
 
