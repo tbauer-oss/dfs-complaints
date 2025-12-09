@@ -1198,9 +1198,12 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   }
 
   List<_AuditEntry> _parseAuditEntries() {
-    final raw = (_stats?['audit'] as List?) ?? const [];
+    final rawComplaints = (_stats?['complaints'] as List?) ?? const [];
+    final rawAudit = (_stats?['audit'] as List?) ?? const [];
+    final source = rawComplaints.isNotEmpty ? rawComplaints : rawAudit;
+
     final out = <_AuditEntry>[];
-    for (final entry in raw) {
+    for (final entry in source) {
       if (entry is Map) {
         out.add(_AuditEntry.fromJson(entry.cast<String, dynamic>()));
       }
@@ -2605,11 +2608,18 @@ class _AuditEntry {
     }
 
     final batch = _optional(json['batch']) ??
+        _optional(json['batchNumber']) ??
         _optional(json['lot']) ??
         _optional(json['lotNumber']) ??
         _optional(json['lot_no']) ??
         _optional(json['lotNo']) ??
         _optional(json['charge']);
+
+    final article = _optional(json['article']) ??
+        _optional(json['articleNumber']) ??
+        _optional(json['article_no']) ??
+        _optional(json['articleNo']) ??
+        _optional(json['productNumber']);
 
     return _AuditEntry(
       ticket: (json['ticket'] ?? '').toString(),
@@ -2618,7 +2628,7 @@ class _AuditEntry {
       customerEmail: _optional(json['customerEmail']),
       customerNumber: _optional(json['customerNumber']),
       country: (json['country'] ?? '').toString(),
-      article: _optional(json['article']),
+      article: article,
       segment: _optional(json['segment']),
       statusLabel: (json['statusLabel'] ?? '').toString(),
       decisionLabel: (json['decisionLabel'] ?? '').toString(),
