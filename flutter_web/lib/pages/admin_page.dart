@@ -329,6 +329,7 @@ class _AdminPageState extends State<AdminPage> {
   List<PortalUser> _portalUsers = [];
   List<AdminComplaint> _allComplaints = [];
   List<AdminComplaint> _openComplaints = [];
+  String? _complaintListErr;
   final Map<String, int> _customerContactSeen = {};
   List<Rep> _reps = [];
   final Map<String, bool> _repAssignmentBusy = {};
@@ -1280,6 +1281,7 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _refreshAllComplaints() async {
     setState(() {
       _err = null;
+      _complaintListErr = null;
       _loadAllComplaints = true;
     });
     try {
@@ -1290,9 +1292,13 @@ class _AdminPageState extends State<AdminPage> {
         _selectedAllTickets.removeWhere(
           (ticket) => !_allComplaints.any((c) => c.ticket == ticket),
         );
+        _complaintListErr = null;
       });
     } catch (e) {
-      setState(() => _err = '$e');
+      setState(() {
+        _err = '$e';
+        _complaintListErr = '$e';
+      });
     } finally {
       if (!mounted) return;
       setState(() => _loadAllComplaints = false);
@@ -6558,6 +6564,16 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<ComplaintListItem> _complaintListItems() {
+    ActiveUser? userByEmail(String email) {
+      final normalized = email.trim().toLowerCase();
+      return _users.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+    }
+
+    PortalUser? portalUserByEmail(String email) {
+      final normalized = email.trim().toLowerCase();
+      return _portalUsers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+    }
+
     String payloadValue(AdminComplaint c, List<String> keys) {
       final payload = c.payload ?? const <String, dynamic>{};
       for (final key in keys) {
@@ -6595,52 +6611,272 @@ class _AdminPageState extends State<AdminPage> {
       return null;
     }
 
-    String formatDate(DateTime? value) => value == null ? '—' : DateFormat('dd.MM.yyyy').format(value.toLocal());
+    DateTime? closedDateFor(AdminComplaint c) {
+      final closedEntries = c.history
+          .where((entry) {
+            if (entry.type.toLowerCase() != 'status') return false;
+            final data = entry.data;
+            if (data != null) {
+              final changes = data['changes'];
+              if (changes is List) {
+                for (final change in changes) {
+                  if (change is Map) {
+                    final after = (change['after'] ?? '').toString().toLowerCase();
+                    final label = (change['label'] ?? '').toString().toLowerCase();
+                    final isStatusChange = label.contains('status') || label.isEmpty;
+                    if (isStatusChange && (after.contains('abgeschlossen') || after == '5')) {
+                      return true;
+                    }
+                  }
+                }
+              }
+              final afterRaw = (data['status'] ?? '').toString().toLowerCase();
+              if (afterRaw.contains('abgeschlossen') || afterRaw == '5') return true;
+            }
 
-    return _allComplaints.map((c) {
+            final msg = entry.message.toLowerCase();
+            return msg.contains('abgeschlossen');
+          })
+          .toList();
+
+      if (closedEntries.isEmpty) return c.salesCompletedAt;
+      closedEntries.sort((a, b) => a.at.compareTo(b.at));
+      return closedEntries.last.at;
+    }
+
+    String summarize(String text, {int maxLength = 120}) {
+      final trimmed = text.trim();
+      if (trimmed.length <= maxLength) return trimmed;
+      return '${trimmed.substring(0, maxLength - 1)}…';
+    }
+
+    Set<String> tokenize(String text) {
+      return text
+          .toLowerCase()
+          .split(RegExp(r'[^a-z0-9äöüß]+'))
+          .where((t) => t.trim().length >= 4)
+          .toSet();
+    }
+
+    String inferComplaintType(String source) {
+      final lower = source.toLowerCase();
+      const mapping = {
+        'bruch': 'Bruch',
+        'crack': 'Bruch',
+        'split': 'Bruch',
+        'material': 'Materialfehler',
+        'stoff': 'Materialfehler',
+        'maß': 'Maßabweichung',
+        'mass': 'Maßabweichung',
+        'dimension': 'Maßabweichung',
+        'funktion': 'Funktion',
+        'defekt': 'Funktion',
+        'wirkung': 'Funktion',
+        'verpack': 'Verpackung',
+        'pack': 'Verpackung',
+        'etikett': 'Verpackung',
+      };
+
+      for (final entry in mapping.entries) {
+        if (lower.contains(entry.key)) return entry.value;
+      }
+      if (lower.isEmpty) return '';
+      return 'Sonstige';
+    }
+
+    String assigneeLabel(AdminComplaint c) {
+      final candidateEmails = <String>[
+        payloadValue(c, ['assigneeEmail', 'assignee', 'bearbeiter', 'responsible']),
+        c.salesCompletedBy ?? '',
+      ].where((e) => e.trim().isNotEmpty).toList();
+
+      String? portalLabel(String email) {
+        final user = portalUserByEmail(email);
+        if (user == null) return null;
+        final display = (user.displayName ?? '').trim().isEmpty ? user.email : user.displayName!.trim();
+        final departments = user.assignedDepartments.where((d) => d.trim().isNotEmpty).toList();
+        if (departments.isEmpty) return display;
+        return '$display (${departments.join(', ')})';
+      }
+
+      for (final email in candidateEmails) {
+        final label = portalLabel(email);
+        if (label != null) return label;
+      }
+
+      final staffActors = c.history
+          .where((h) => h.actor.toLowerCase() != 'customer' && h.actor.trim().isNotEmpty)
+          .sorted((a, b) => b.at.compareTo(a.at));
+      for (final entry in staffActors) {
+        final label = portalLabel(entry.actor);
+        if (label != null) return label;
+      }
+
+      for (final raw in candidateEmails) {
+        if (raw.trim().isNotEmpty) return raw.trim();
+      }
+      return '—';
+    }
+
+    String fallbackDash(String value) => value.trim().isEmpty ? '—' : value.trim();
+
+    String formatDate(DateTime? value) => value == null ? '—' : DateFormat('dd.MM.yyyy').format(value.toLocal());
+    final prepared = _allComplaints.map((c) {
       final receivedDate = c.createdAt.toLocal();
-      final dueDate = parseDate(c.payload?['dueDate'] ?? c.payload?['due_at']);
-      final closedDate = parseDate(c.salesCompletedAt ?? c.payload?['closedAt']) ?? c.updatedAt.toLocal();
+      final closedDate = closedDateFor(c) ?? parseDate(c.payload?['closedAt']);
       final dept = c.internalDepartments.join(', ');
       final customerName = _companyByEmail(c.email) ?? c.email;
+      final customer = userByEmail(c.email);
 
       final mainReason = payloadValue(c, ['reasonMain', 'complaintReason', 'mainReason']);
       final detailReason = payloadValue(c, ['reasonDetail', 'complaintReasonDetail', 'detailReason']);
+      final freeTextDesc = payloadValue(c, ['desc', 'description', 'comment', 'details', 'failure_desc', 'text']);
       final combinedReason = [mainReason, detailReason].where((e) => e.trim().isNotEmpty).join(' – ');
+      final reasonSource = [combinedReason, freeTextDesc].where((e) => e.trim().isNotEmpty).join('. ');
+
+      final articleNumber = payloadValue(c, ['articleNumber', 'article_no', 'Artikelnummer', 'article']);
+      final product = _productByArticle(articleNumber);
+      final productGroup = product?.productGroup ?? payloadValue(c, ['productGroup', 'productFile', 'product', 'Produkt']);
+      final productFile = product?.tdNumberAndName ?? payloadValue(c, ['productFile', 'productakte']);
+      final articleName = product?.productName ?? payloadValue(c, ['articleName', 'Artikelbezeichnung', 'article_label']);
+
+      final reasonSummary = summarize(reasonSource.isEmpty ? combinedReason : reasonSource);
+
+      return (
+        complaint: c,
+        receivedDate: receivedDate,
+        closedDate: closedDate,
+        dept: dept,
+        customerName: customerName,
+        customer: customer,
+        combinedReason: combinedReason,
+        reasonSummary: reasonSummary,
+        reasonTokens: tokenize(reasonSource),
+        articleNumber: articleNumber,
+        productGroup: productGroup,
+        productFile: productFile,
+        articleName: articleName,
+        freeTextDesc: freeTextDesc,
+      );
+    }).toList();
+
+    final groupedByArticle = <String,
+        List<({
+          AdminComplaint complaint,
+          DateTime receivedDate,
+          DateTime? closedDate,
+          String dept,
+          String customerName,
+          ActiveUser? customer,
+          String combinedReason,
+          String reasonSummary,
+          Set<String> reasonTokens,
+          String articleNumber,
+          String productGroup,
+          String productFile,
+          String articleName,
+          String freeTextDesc,
+        })>>{};
+    for (final entry in prepared) {
+      final key = entry.articleNumber.trim();
+      if (key.isEmpty) continue;
+      groupedByArticle.putIfAbsent(key, () => <({
+            AdminComplaint complaint,
+            DateTime receivedDate,
+            DateTime? closedDate,
+            String dept,
+            String customerName,
+            ActiveUser? customer,
+            String combinedReason,
+            String reasonSummary,
+            Set<String> reasonTokens,
+            String articleNumber,
+            String productGroup,
+            String productFile,
+            String articleName,
+            String freeTextDesc,
+          })>[])
+        .add(entry);
+    }
+
+    bool hasRecurrence(
+        ({
+          AdminComplaint complaint,
+          DateTime receivedDate,
+          DateTime? closedDate,
+          String dept,
+          String customerName,
+          ActiveUser? customer,
+          String combinedReason,
+          String reasonSummary,
+          Set<String> reasonTokens,
+          String articleNumber,
+          String productGroup,
+          String productFile,
+          String articleName,
+          String freeTextDesc,
+        }) entry) {
+      final peers = groupedByArticle[entry.articleNumber.trim()] ??
+          const <({
+            AdminComplaint complaint,
+            DateTime receivedDate,
+            DateTime? closedDate,
+            String dept,
+            String customerName,
+            ActiveUser? customer,
+            String combinedReason,
+            String reasonSummary,
+            Set<String> reasonTokens,
+            String articleNumber,
+            String productGroup,
+            String productFile,
+            String articleName,
+            String freeTextDesc,
+          })>[];
+      for (final peer in peers) {
+        if (identical(peer, entry)) continue;
+        final overlap = entry.reasonTokens.intersection(peer.reasonTokens).length;
+        if (overlap >= 2) return true;
+      }
+      return false;
+    }
+
+    return prepared.map((entry) {
+      final c = entry.complaint;
+      final customer = entry.customer;
+      final recurrence = hasRecurrence(entry);
 
       return ComplaintListItem(
         internalNumber: (c.internalNo ?? '').trim().isEmpty ? '—' : (c.internalNo ?? ''),
         systemId: c.ticket,
-        customer: customerName,
-        customerNumber: payloadValue(c, ['customerNumber', 'customer_no', 'kunde_nr']),
-        region: payloadValue(c, ['country', 'region', 'land']),
-        productGroup: payloadValue(c, ['productGroup', 'productFile', 'product', 'Produkt']),
-        articleNumber: payloadValue(c, ['articleNumber', 'article_no', 'Artikelnummer', 'article']),
-        articleName: payloadValue(c, ['articleName', 'Artikelbezeichnung', 'article_label']),
-        lotNumber: payloadValue(c, ['lot', 'charge', 'batch']),
-        complaintType: payloadValue(c, ['complaintType', 'type']),
-        complaintReason: combinedReason,
-        receivedAt: formatDate(receivedDate),
-        dueAt: formatDate(dueDate),
-        closedAt: formatDate(closedDate),
+        customer: entry.customerName,
+        customerNumber: fallbackDash(customer?.customerNumber ?? payloadValue(c, ['customerNumber', 'customer_no', 'kunde_nr'])),
+        region: fallbackDash(customer?.country ?? payloadValue(c, ['country', 'region', 'land'])),
+        productFile: fallbackDash(entry.productFile),
+        productGroup: fallbackDash(entry.productGroup),
+        articleNumber: fallbackDash(entry.articleNumber),
+        articleName: fallbackDash(entry.articleName),
+        lotNumber: fallbackDash(payloadValue(c, ['lot', 'charge', 'batch'])),
+        complaintType: fallbackDash(inferComplaintType('${entry.reasonSummary} ${entry.freeTextDesc}')),
+        complaintReason: fallbackDash(entry.reasonSummary),
+        receivedAt: formatDate(entry.receivedDate),
+        closedAt: formatDate(entry.closedDate),
         status: _labelForStatus(c.status),
         goodwill: payloadBool(c, ['isGoodwill', 'kulanz', 'goodwill']),
-        departments: dept.isEmpty ? '—' : dept,
-        assignee: payloadValue(c, ['assignee', 'bearbeiter', 'responsible']),
+        departments: entry.dept.isEmpty ? '—' : entry.dept,
+        assignee: assigneeLabel(c),
         salesCode: c.salesAgentCode ?? '',
         orderNumber: c.orderNumber ?? payloadValue(c, ['orderNumber', 'auftragsnummer']),
         invoiceNumber: c.invoiceNumber ?? payloadValue(c, ['invoiceNumber', 'rechnungsnummer']),
         internalAssessment: c.internalEvaluationTextDe ?? payloadValue(c, ['internalAssessment', 'bewertung']),
         suspectedCause: c.internalEvaluationCause ?? payloadValue(c, ['suspectedCause', 'ursache']),
-        immediateActions: payloadValue(c, ['immediateActions', 'soforthandlung', 'soforthandlungen']),
-        correctiveActions: payloadValue(c, ['correctiveActions', 'capa', 'korrekturmassnahmen']),
-        recurrence: payloadBool(c, ['recurrence', 'wiederauftreten']),
-        severity: payloadValue(c, ['severity', 'kritikalitaet', 'schweregrad']),
-        channel: payloadValue(c, ['channel', 'kanal']),
+        immediateActions: fallbackDash(payloadValue(c, ['immediateActions', 'soforthandlung', 'soforthandlungen'])),
+        correctiveActions: fallbackDash(payloadValue(c, ['correctiveActions', 'capa', 'korrekturmassnahmen'])),
+        recurrence: recurrence,
+        severity: fallbackDash(payloadValue(c, ['severity', 'kritikalitaet', 'schweregrad'])),
         notes: (c.adminNotes ?? payloadValue(c, ['notes', 'bemerkungen'])),
-        receivedDate: receivedDate,
-        dueDate: dueDate,
-        closedDate: closedDate,
+        receivedDate: entry.receivedDate,
+        closedDate: entry.closedDate,
       );
     }).toList();
   }
@@ -6655,6 +6891,9 @@ class _AdminPageState extends State<AdminPage> {
           api: widget.api,
           complaints: _complaintListItems(),
           customerLookup: _companyByEmail,
+          errorMessage: _complaintListErr,
+          isLoading: _loadAllComplaints,
+          onReload: _refreshAllComplaints,
         );
       case _AdminView.pending:
         return _buildPendingPanel();

@@ -19,6 +19,7 @@ class ComplaintListItem {
   final String customer;
   final String customerNumber;
   final String region;
+  final String productFile;
   final String productGroup;
   final String articleNumber;
   final String articleName;
@@ -26,7 +27,6 @@ class ComplaintListItem {
   final String complaintType;
   final String complaintReason;
   final String receivedAt;
-  final String dueAt;
   final String closedAt;
   final String status;
   final bool goodwill;
@@ -41,10 +41,8 @@ class ComplaintListItem {
   final String correctiveActions;
   final bool recurrence;
   final String severity;
-  final String channel;
   final String notes;
   final DateTime? receivedDate;
-  final DateTime? dueDate;
   final DateTime? closedDate;
 
   ComplaintListItem({
@@ -53,6 +51,7 @@ class ComplaintListItem {
     required this.customer,
     required this.customerNumber,
     required this.region,
+    required this.productFile,
     required this.productGroup,
     required this.articleNumber,
     required this.articleName,
@@ -60,7 +59,6 @@ class ComplaintListItem {
     required this.complaintType,
     required this.complaintReason,
     required this.receivedAt,
-    required this.dueAt,
     required this.closedAt,
     required this.status,
     required this.goodwill,
@@ -75,10 +73,8 @@ class ComplaintListItem {
     required this.correctiveActions,
     required this.recurrence,
     required this.severity,
-    required this.channel,
     required this.notes,
     this.receivedDate,
-    this.dueDate,
     this.closedDate,
   });
 }
@@ -125,12 +121,18 @@ class ComplaintListPage extends StatefulWidget {
   final ApiClient api;
   final List<ComplaintListItem> complaints;
   final String? Function(String email)? customerLookup;
+  final String? errorMessage;
+  final bool isLoading;
+  final VoidCallback? onReload;
 
   const ComplaintListPage({
     super.key,
     required this.api,
     required this.complaints,
     this.customerLookup,
+    this.errorMessage,
+    this.isLoading = false,
+    this.onReload,
   });
 
   @override
@@ -151,20 +153,51 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   late Set<String> _visibleColumns;
   Uint8List? _logoBytes;
 
+  static const Map<String, double> _columnWidths = {
+    'internalNumber': 140,
+    'systemId': 140,
+    'customer': 180,
+    'customerNumber': 140,
+    'region': 140,
+    'productFile': 180,
+    'productGroup': 160,
+    'articleNumber': 150,
+    'articleName': 200,
+    'lotNumber': 140,
+    'complaintType': 180,
+    'complaintReason': 220,
+    'receivedAt': 140,
+    'closedAt': 140,
+    'status': 140,
+    'goodwill': 120,
+    'departments': 220,
+    'assignee': 180,
+    'salesCode': 140,
+    'orderNumber': 150,
+    'invoiceNumber': 150,
+    'internalAssessment': 220,
+    'suspectedCause': 220,
+    'immediateActions': 200,
+    'correctiveActions': 220,
+    'recurrence': 140,
+    'severity': 160,
+    'notes': 240,
+  };
+
   static const List<(String, String)> _columnDefs = [
     ('Interne Reklamationsnummer', 'internalNumber'),
     ('Interne System-ID', 'systemId'),
     ('Kunde', 'customer'),
     ('Kundennummer', 'customerNumber'),
     ('Land / Region', 'region'),
-    ('Produktgruppe / Produktakte', 'productGroup'),
+    ('Produktakte (MDR-TD)', 'productFile'),
+    ('Produktgruppe', 'productGroup'),
     ('Artikelnummer', 'articleNumber'),
     ('Artikelbezeichnung', 'articleName'),
     ('Charge / LOT', 'lotNumber'),
     ('Reklamationsart', 'complaintType'),
     ('Reklamationsgrund', 'complaintReason'),
     ('Eingangsdatum', 'receivedAt'),
-    ('Fälligkeitsdatum', 'dueAt'),
     ('Abschlussdatum', 'closedAt'),
     ('Status', 'status'),
     ('Kulanz-Flag', 'goodwill'),
@@ -179,7 +212,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ('Korrekturmaßnahmen / CAPA', 'correctiveActions'),
     ('Wiederauftreten', 'recurrence'),
     ('Kritikalität / Schweregrad', 'severity'),
-    ('Reklamationskanal', 'channel'),
     ('Notizen / Bemerkungen', 'notes'),
   ];
 
@@ -239,6 +271,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   List<String> get _orderedVisibleColumns =>
       _columnOrder.where((key) => _visibleColumns.contains(key)).toList();
+
+  double _columnWidth(String key) => _columnWidths[key] ?? 160;
 
   String _labelForColumn(String key) {
     return _columnDefs.firstWhere((c) => c.$2 == key).$1;
@@ -341,6 +375,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           c.customer,
           c.customerNumber,
           c.productGroup,
+          c.productFile,
           c.articleNumber,
           c.articleName,
           c.lotNumber,
@@ -355,7 +390,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           c.suspectedCause,
           c.immediateActions,
           c.correctiveActions,
-          c.channel,
           c.notes,
         ].any((field) => field.toLowerCase().contains(query));
       }
@@ -386,10 +420,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         final aDate = a.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bDate = b.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         return _sortAscending ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
-      case 'dueAt':
-        final aDate = a.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b.dueDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return _sortAscending ? aDate.compareTo(bDate) : bDate.compareTo(aDate);
       default:
         return compare(a.systemId, b.systemId);
     }
@@ -405,6 +435,37 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   Widget _buildKpiCards(ThemeData theme, List<ComplaintListItem> items) {
     final cs = theme.colorScheme;
+
+    if (items.isEmpty) {
+      return Row(
+        children: [
+          Expanded(
+            child: Card(
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: cs.primary.withOpacity(.12),
+                      foregroundColor: cs.primary,
+                      child: const Icon(Icons.info_outline, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Keine Reklamationen gefunden',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final total = items.length;
     final open = items.where((c) => c.status.toLowerCase().contains('offen')).length;
     final closed = items.where((c) => c.status.toLowerCase().contains('abgeschlossen')).length;
@@ -718,7 +779,14 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   List<DataColumn> _buildColumns() {
     return _orderedVisibleColumns
         .map((key) => DataColumn(
-              label: Text(_labelForColumn(key), style: const TextStyle(fontWeight: FontWeight.w700)),
+              label: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: _columnWidth(key), maxWidth: _columnWidth(key)),
+                child: Text(
+                  _labelForColumn(key),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               onSort: (i, asc) => setState(() {
                 _sortColumn = key;
                 _sortAscending = asc;
@@ -733,7 +801,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     return idx >= 0 ? idx : null;
   }
 
-  DataCell _cell(String value, {double width = 160}) {
+  DataCell _cellFor(String key, String value) {
+    final width = _columnWidth(key);
     return DataCell(Tooltip(
       message: value,
       child: ConstrainedBox(
@@ -746,35 +815,34 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   List<DataRow> _buildRows(List<ComplaintListItem> items) {
     return items.mapIndexed((i, c) {
       final cells = <String, DataCell>{
-        'internalNumber': _cell(c.internalNumber),
-        'systemId': _cell(c.systemId),
-        'customer': _cell(c.customer),
-        'customerNumber': _cell(c.customerNumber),
-        'region': _cell(c.region),
-        'productGroup': _cell(c.productGroup),
-        'articleNumber': _cell(c.articleNumber),
-        'articleName': _cell(c.articleName),
-        'lotNumber': _cell(c.lotNumber),
-        'complaintType': _cell(c.complaintType),
-        'complaintReason': _cell(c.complaintReason, width: 220),
-        'receivedAt': _cell(c.receivedAt),
-        'dueAt': _cell(c.dueAt),
-        'closedAt': _cell(c.closedAt),
-        'status': _cell(c.status),
-        'goodwill': _cell(c.goodwill ? 'Ja' : 'Nein'),
-        'departments': _cell(c.departments, width: 200),
-        'assignee': _cell(c.assignee),
-        'salesCode': _cell(c.salesCode),
-        'orderNumber': _cell(c.orderNumber),
-        'invoiceNumber': _cell(c.invoiceNumber),
-        'internalAssessment': _cell(c.internalAssessment, width: 220),
-        'suspectedCause': _cell(c.suspectedCause, width: 220),
-        'immediateActions': _cell(c.immediateActions, width: 200),
-        'correctiveActions': _cell(c.correctiveActions, width: 220),
-        'recurrence': _cell(c.recurrence ? 'Ja' : 'Nein'),
-        'severity': _cell(c.severity),
-        'channel': _cell(c.channel),
-        'notes': _cell(c.notes, width: 240),
+        'internalNumber': _cellFor('internalNumber', c.internalNumber),
+        'systemId': _cellFor('systemId', c.systemId),
+        'customer': _cellFor('customer', c.customer),
+        'customerNumber': _cellFor('customerNumber', c.customerNumber),
+        'region': _cellFor('region', c.region),
+        'productFile': _cellFor('productFile', c.productFile),
+        'productGroup': _cellFor('productGroup', c.productGroup),
+        'articleNumber': _cellFor('articleNumber', c.articleNumber),
+        'articleName': _cellFor('articleName', c.articleName),
+        'lotNumber': _cellFor('lotNumber', c.lotNumber),
+        'complaintType': _cellFor('complaintType', c.complaintType),
+        'complaintReason': _cellFor('complaintReason', c.complaintReason),
+        'receivedAt': _cellFor('receivedAt', c.receivedAt),
+        'closedAt': _cellFor('closedAt', c.closedAt),
+        'status': _cellFor('status', c.status),
+        'goodwill': _cellFor('goodwill', c.goodwill ? 'Ja' : 'Nein'),
+        'departments': _cellFor('departments', c.departments),
+        'assignee': _cellFor('assignee', c.assignee),
+        'salesCode': _cellFor('salesCode', c.salesCode),
+        'orderNumber': _cellFor('orderNumber', c.orderNumber),
+        'invoiceNumber': _cellFor('invoiceNumber', c.invoiceNumber),
+        'internalAssessment': _cellFor('internalAssessment', c.internalAssessment),
+        'suspectedCause': _cellFor('suspectedCause', c.suspectedCause),
+        'immediateActions': _cellFor('immediateActions', c.immediateActions),
+        'correctiveActions': _cellFor('correctiveActions', c.correctiveActions),
+        'recurrence': _cellFor('recurrence', c.recurrence ? 'Ja' : 'Nein'),
+        'severity': _cellFor('severity', c.severity),
+        'notes': _cellFor('notes', c.notes),
       };
       return DataRow.byIndex(index: i, cells: [
         ..._orderedVisibleColumns.map((key) => cells[key]!),
@@ -830,10 +898,10 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       'System-ID',
       'Kunde',
       'Status',
-      'Produkt',
+      'Produktakte',
+      'Produktgruppe',
       'Artikel',
       'Eingang',
-      'Fälligkeit',
       'Abschluss',
       'Kulanz',
     ];
@@ -844,10 +912,10 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               c.systemId,
               c.customer,
               c.status,
+              c.productFile,
               c.productGroup,
               c.articleNumber,
               c.receivedAt,
-              c.dueAt,
               c.closedAt,
               c.goodwill ? 'Ja' : 'Nein',
             ])
@@ -887,6 +955,94 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final items = _filteredItems;
+
+    if (widget.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (widget.errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Reklamationsliste'),
+          actions: [
+            if (widget.onReload != null)
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: widget.onReload,
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+              const SizedBox(height: 12),
+              Text('Fehler beim Laden der Reklamationsliste', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  widget.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+              if (widget.onReload != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onReload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Erneut versuchen'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (widget.complaints.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Reklamationsliste'),
+          actions: [
+            if (widget.onReload != null)
+              IconButton(
+                tooltip: 'Neu laden',
+                onPressed: widget.onReload,
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.inbox_outlined, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text('Keine Reklamationen gefunden', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text('Bitte Daten neu laden oder Filter anpassen.',
+                  style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              if (widget.onReload != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onReload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Neu laden'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
