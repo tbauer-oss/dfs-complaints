@@ -171,10 +171,14 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   }
 
   String _deriveMdrGroup(DfsProduct? product) {
-    final fallback = 'unbekannt (ggf. Dentallabor)';
+    const fallback = 'unbekannt (ggf. Dentallabor)';
     if (product == null) return fallback;
     final label = product.tdNumberAndName.trim();
-    return label.isEmpty ? fallback : label;
+    if (label.toUpperCase().startsWith('MDR-TD')) return label;
+
+    final productGroup = product.productGroup.trim().toLowerCase();
+    if (productGroup.contains('dental')) return 'Dental Lab';
+    return 'Sonstiges';
   }
 
   String _deriveProductGroup(DfsProduct? product) {
@@ -421,6 +425,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
 
   void _showMdrLotDetails(String mdrGroup) {
     final lots = _buildLotsForMdrGroup(mdrGroup, _visibleComplaints);
+    final articleLots = _buildArticleLotsForMdrGroup(mdrGroup, _visibleComplaints);
     showDialog<void>(
       context: context,
       builder: (context) {
@@ -428,38 +433,77 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           title: const Text('Häufig betroffene Chargen'),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
-            child: lots.isEmpty
+            child: (lots.isEmpty && articleLots.isEmpty)
                 ? const Text('Für diese MDR-TD-Gruppe liegen keine Chargenangaben vor.')
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('MDR-TD-Gruppe: $mdrGroup'),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Top-Chargen inklusive zugeordneter Produktgruppe gemäß Artikelliste.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: math.min(lots.length * 56.0 + 12, 320),
-                        child: ListView.separated(
-                          itemCount: math.min(lots.length, 12),
-                          separatorBuilder: (_, __) => const Divider(height: 12),
-                          itemBuilder: (context, index) {
-                            if (index >= lots.length) return const SizedBox.shrink();
-                            final lot = lots[index];
-                            return ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text('Charge ${lot.batch}'),
-                              subtitle: Text('Produktgruppe: ${lot.productGroup}'),
-                              trailing: Text('${lot.count}×'),
-                            );
-                          },
+                : SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('MDR-TD-Gruppe: $mdrGroup'),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Top-Chargen inklusive zugeordneter Produktgruppe gemäß Artikelliste.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.outline),
                         ),
-                      ),
-                    ],
+                        if (lots.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text('Chargen-Häufigkeiten',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: math.min(lots.length, 12),
+                            separatorBuilder: (_, __) => const Divider(height: 12),
+                            itemBuilder: (context, index) {
+                              if (index >= lots.length) return const SizedBox.shrink();
+                              final lot = lots[index];
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text('Charge ${lot.batch}'),
+                                subtitle: Text('Produktgruppe: ${lot.productGroup}'),
+                                trailing: Text('${lot.count}×'),
+                              );
+                            },
+                          ),
+                        ],
+                        if (articleLots.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text('Artikelnummern & Chargen aus Reklamationen',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: math.min(articleLots.length, 20),
+                            separatorBuilder: (_, __) => const Divider(height: 12),
+                            itemBuilder: (context, index) {
+                              if (index >= articleLots.length) return const SizedBox.shrink();
+                              final lot = articleLots[index];
+                              final article = lot.articleNumber ?? lot.articleLabel;
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text('Artikel $article · Charge ${lot.batch}'),
+                                subtitle: Text('Produktgruppe: ${lot.productGroup}'),
+                                trailing: Text('${lot.count}×'),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
           ),
           actions: [
@@ -989,6 +1033,41 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     return map.entries.map((entry) {
       final topProductGroup = entry.value.productGroups.entries.reduce((a, b) => b.value > a.value ? b : a).key;
       return _LotBucket(batch: entry.key, count: entry.value.count, productGroup: topProductGroup);
+    }).toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+  }
+
+  List<_ArticleLotBucket> _buildArticleLotsForMdrGroup(
+    String mdrGroup,
+    List<_EnrichedComplaint> complaints,
+  ) {
+    final map = <String, _ArticleLotAggregation>{};
+    for (final c in complaints) {
+      if (c.mdrGroup != mdrGroup) continue;
+      final batch = c.batch?.trim();
+      if (batch == null || batch.isEmpty) continue;
+      final articleNumber = c.articleNumber?.trim();
+      final displayArticle = (articleNumber == null || articleNumber.isEmpty)
+          ? c.articleLabel.trim()
+          : articleNumber;
+      if (displayArticle.isEmpty) continue;
+      final productGroup = c.productGroup.trim().isEmpty ? 'Sonstige Produkte' : c.productGroup.trim();
+      final key = '$displayArticle|$batch';
+      final agg = map.putIfAbsent(key, () => _ArticleLotAggregation(articleNumber, c.articleLabel, batch));
+      agg.count++;
+      agg.productGroups[productGroup] = (agg.productGroups[productGroup] ?? 0) + 1;
+    }
+
+    return map.entries.map((entry) {
+      final agg = entry.value;
+      final topProductGroup = agg.productGroups.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+      return _ArticleLotBucket(
+        articleNumber: agg.articleNumber,
+        articleLabel: agg.articleLabel,
+        batch: agg.batch,
+        productGroup: topProductGroup,
+        count: agg.count,
+      );
     }).toList()
       ..sort((a, b) => b.count.compareTo(a.count));
   }
@@ -2518,9 +2597,35 @@ class _LotBucket {
   const _LotBucket({required this.batch, required this.count, required this.productGroup});
 }
 
+class _ArticleLotBucket {
+  final String? articleNumber;
+  final String articleLabel;
+  final String batch;
+  final String productGroup;
+  final int count;
+
+  const _ArticleLotBucket({
+    required this.articleNumber,
+    required this.articleLabel,
+    required this.batch,
+    required this.productGroup,
+    required this.count,
+  });
+}
+
 class _LotAggregation {
   int count = 0;
   final Map<String, int> productGroups = {};
+}
+
+class _ArticleLotAggregation {
+  final String? articleNumber;
+  final String articleLabel;
+  final String batch;
+  int count = 0;
+  final Map<String, int> productGroups = {};
+
+  _ArticleLotAggregation(this.articleNumber, this.articleLabel, this.batch);
 }
 
 class _CountryBucket {
