@@ -1344,6 +1344,23 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
+  Future<ComplaintListItem?> _updateComplaintActions(
+    String ticket,
+    String? immediateActions,
+    String? correctiveActions,
+  ) async {
+    final updated = await widget.api.updateComplaintDetails(
+      ticket: ticket,
+      payload: {
+        if (immediateActions != null) 'immediateActions': immediateActions,
+        if (correctiveActions != null) 'correctiveActions': correctiveActions,
+      },
+    );
+
+    _syncComplaint(updated);
+    return _complaintListItems().firstWhereOrNull((c) => c.systemId == ticket);
+  }
+
   void _toggleTicketSelection(String ticket, bool selected, {required bool isOpenList}) {
     setState(() {
       final set = isOpenList ? _selectedOpenTickets : _selectedAllTickets;
@@ -6894,6 +6911,7 @@ class _AdminPageState extends State<AdminPage> {
           errorMessage: _complaintListErr,
           isLoading: _loadAllComplaints,
           onReload: _refreshAllComplaints,
+          onInlineUpdateActions: _updateComplaintActions,
         );
       case _AdminView.pending:
         return _buildPendingPanel();
