@@ -2765,6 +2765,28 @@ class _AuditEntry {
       return _optional(value);
     }
 
+    String? _findByKeySubstrings(dynamic value, List<String> keys) {
+      if (value is Map) {
+        for (final entry in value.entries) {
+          final key = entry.key.toString().toLowerCase().trim();
+          if (keys.any((needle) => key.contains(needle))) {
+            final match = _scalarOrFirst(entry.value);
+            if (match != null) return match;
+          }
+
+          final nested = _findByKeySubstrings(entry.value, keys);
+          if (nested != null) return nested;
+        }
+      } else if (value is Iterable) {
+        for (final item in value) {
+          final nested = _findByKeySubstrings(item, keys);
+          if (nested != null) return nested;
+        }
+      }
+
+      return null;
+    }
+
     final batch = _scalarOrFirst(json['batch']) ??
         _scalarOrFirst(json['batchNumber']) ??
         _scalarOrFirst(json['batch_number']) ??
@@ -2783,7 +2805,8 @@ class _AuditEntry {
         _scalarOrFirst(json['charge_number']) ??
         _scalarOrFirst(json['chargeNo']) ??
         _scalarOrFirst(json['charge_no']) ??
-        _scalarOrFirst(json['charges']);
+        _scalarOrFirst(json['charges']) ??
+        _findByKeySubstrings(json, const ['batch', 'lot', 'charge']);
 
     final article = _scalarOrFirst(json['article']) ??
         _scalarOrFirst(json['articleNumber']) ??
