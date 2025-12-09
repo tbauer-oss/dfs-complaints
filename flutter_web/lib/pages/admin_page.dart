@@ -435,17 +435,12 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     _DEFAULT_ROLE_TILES.forEach((role, defaults) {
-      final tiles = _roleTileVisibility[role];
-      if (tiles == null || tiles.isEmpty) {
-        final newTiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
-        var changed = false;
-        for (final tile in defaults) {
-          if (newTiles.add(tile)) changed = true;
-        }
-        if (changed) {
-          addedDefaults = true;
-        }
+      final tiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
+      var changed = false;
+      for (final tile in defaults) {
+        if (tiles.add(tile)) changed = true;
       }
+      if (changed) addedDefaults = true;
     });
 
     return addedDefaults;
@@ -5186,6 +5181,7 @@ class _AdminPageState extends State<AdminPage> {
         }
         _filterMenuSectionsForRole();
         _ensureMenuTilePresent('complaintList');
+        _ensureMenuTilePresent('prrc');
       }
 
       final remoteLayout = config['menuLayout'];
@@ -5196,6 +5192,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('downloads');
         _ensureMenuTilePresent('portalUsers');
         _ensureMenuTilePresent('complaintList');
+        _ensureMenuTilePresent('prrc');
       }
 
       final navOrder = config['navOrder'];
