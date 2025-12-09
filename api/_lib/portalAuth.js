@@ -14,6 +14,7 @@ export const PORTAL_ROLES = {
   superuser: 'superuser',
   user: 'user',
   readonly: 'readonly',
+  prrc: 'prrc',
 };
 
 // Hinterlegte Admin-E-Mails (Superuser) – Initialpasswort = ADMIN_SECRET
@@ -28,6 +29,7 @@ export function normalizeRole(role) {
   const lc = String(role || '').trim().toLowerCase();
   if (lc === PORTAL_ROLES.superuser) return PORTAL_ROLES.superuser;
   if (lc === PORTAL_ROLES.readonly) return PORTAL_ROLES.readonly;
+  if (lc === PORTAL_ROLES.prrc) return PORTAL_ROLES.prrc;
   return PORTAL_ROLES.user;
 }
 
