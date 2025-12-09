@@ -10,6 +10,10 @@ class Complaint {
   final Map<String, String>? reportLinks; // neue Mehrsprachigkeit für Reports
   final Map<String, String>? externalReportLinks;
   final Map<String, String>? internalReportLinks;
+  final String? prrcClassification;
+  final String? prrcComment;
+  final String? prrcUserId;
+  final DateTime? prrcTimestamp;
   final bool isGoodwill;
   final String? qmCustomerSummary;
   final String? qmMeasures;
@@ -42,6 +46,10 @@ class Complaint {
     this.reportLinks,
     this.externalReportLinks,
     this.internalReportLinks,
+    this.prrcClassification,
+    this.prrcComment,
+    this.prrcUserId,
+    this.prrcTimestamp,
     this.isGoodwill = false,
     this.qmCustomerSummary,
     this.qmMeasures,
@@ -192,6 +200,10 @@ class Complaint {
       internalReportLinks: (j['internalReportLinks'] is Map)
           ? Map<String, String>.from((j['internalReportLinks'] as Map).map((k, v) => MapEntry('$k', v.toString())))
           : null,
+      prrcClassification: (j['prrcClassification'] ?? j['prrc_classification'])?.toString(),
+      prrcComment: j['prrcComment']?.toString(),
+      prrcUserId: j['prrcUserId']?.toString(),
+      prrcTimestamp: _parseDate(j['prrcTimestamp']),
       isGoodwill: _parseBool(j['isGoodwill'] ?? j['goodwill'] ?? j['isKulanz']),
       qmCustomerSummary: (j['qmCustomerSummary'] ?? j['qmCustomerSummary_de'])?.toString(),
       qmMeasures: (j['qmMeasures'] ?? j['qmMeasures_de'])?.toString(),
