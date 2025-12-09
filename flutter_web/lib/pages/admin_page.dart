@@ -18851,7 +18851,8 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     }
 
     final total = list.length;
-    final share = total == 0 ? 0 : double.parse(((incidents / total) * 100).toStringAsFixed(1));
+    final double share =
+        total == 0 ? 0.0 : double.parse(((incidents / total) * 100).toStringAsFixed(1));
 
     return PrrcDashboardStats(
       counts: counts,
