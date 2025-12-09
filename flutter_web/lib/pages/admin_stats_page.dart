@@ -12,6 +12,8 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../api/client.dart';
 import '../data/country_geography.dart';
+import '../models/dfs_product.dart';
+import '../services/dfs_product_service.dart';
 import '../widgets/legal_footer.dart';
 
 class AdminStatsPage extends StatefulWidget {
@@ -23,6 +25,7 @@ class AdminStatsPage extends StatefulWidget {
 }
 
 class _AdminStatsPageState extends State<AdminStatsPage> {
+  final _productService = DfsProductService();
   Map<String, dynamic>? _stats;
   bool _loading = true;
   String? _error;
@@ -30,10 +33,19 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   DateTime? _manualFrom;
   DateTime? _manualTo;
   bool _exporting = false;
+  List<DfsProduct> _products = const [];
+  Map<String, DfsProduct> _productByArticle = const {};
+  List<_EnrichedComplaint> _enrichedComplaints = const [];
+  List<_EnrichedComplaint> _visibleComplaints = const [];
+  String? _selectedMdrGroup;
+  String? _selectedCountry;
+  String? _selectedCustomer;
+  String? _selectedProductGroup;
 
   @override
   void initState() {
     super.initState();
+    _loadProducts();
     _loadStats();
   }
 
@@ -60,12 +72,31 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         _range = parsedRange;
         _loading = false;
       });
+      _rebuildComplaints();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final products = await _productService.loadProducts();
+      if (!mounted) return;
+      setState(() {
+        _products = products;
+        _productByArticle = {
+          for (final p in products)
+            if (p.articleNumber.trim().isNotEmpty) p.articleNumber.trim(): p,
+        };
+      });
+      _rebuildComplaints();
+    } catch (_) {
+      // We intentionally fail silently to avoid blocking the page when the
+      // article catalog cannot be loaded (e.g. offline mode).
     }
   }
 
@@ -87,6 +118,142 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     final to = parse(data['to']);
     if (from == null || to == null) return null;
     return DateTimeRange(start: from, end: to);
+  }
+
+  void _rebuildComplaints() {
+    if (_stats == null) return;
+    final audit = _parseAuditEntries();
+    final enriched = audit.map((entry) {
+      final product = _matchProduct(entry.article);
+      final mdrGroup = _deriveMdrGroup(product, entry.article);
+      final productGroup = _deriveProductGroup(product);
+      final articleNumber = _extractArticleNumber(entry.article);
+      final articleLabel = _deriveArticleLabel(entry, product, articleNumber);
+      final effectiveCountry = entry.country.isEmpty ? 'Unbekannt' : entry.country;
+      return _EnrichedComplaint(
+        entry: entry,
+        product: product,
+        mdrGroup: mdrGroup,
+        productGroup: productGroup,
+        articleNumber: articleNumber,
+        articleLabel: articleLabel,
+        country: effectiveCountry,
+        batch: entry.batch,
+      );
+    }).toList();
+
+    setState(() {
+      _enrichedComplaints = enriched;
+    });
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    var filtered = List<_EnrichedComplaint>.from(_enrichedComplaints);
+    if (_selectedMdrGroup != null && _selectedMdrGroup!.isNotEmpty) {
+      filtered = filtered.where((c) => c.mdrGroup == _selectedMdrGroup).toList();
+    }
+    if (_selectedCountry != null && _selectedCountry!.isNotEmpty) {
+      filtered = filtered.where((c) => c.country == _selectedCountry).toList();
+    }
+    if (_selectedCustomer != null && _selectedCustomer!.isNotEmpty) {
+      filtered = filtered
+          .where((c) => c.entry.customer.toLowerCase() == _selectedCustomer!.toLowerCase())
+          .toList();
+    }
+    if (_selectedProductGroup != null && _selectedProductGroup!.isNotEmpty) {
+      filtered = filtered.where((c) => c.productGroup == _selectedProductGroup).toList();
+    }
+
+    setState(() {
+      _visibleComplaints = filtered;
+    });
+  }
+
+  String _deriveMdrGroup(DfsProduct? product, String? rawArticle) {
+    const fallback = 'unbekannt (ggf. Dentallabor)';
+
+    bool _isMdrLabel(String value) => value.toUpperCase().startsWith('MDR-TD');
+
+    String _classifyNonMdr(String? value) {
+      final lower = (value ?? '').toLowerCase();
+      if (lower.contains('dental') || lower.contains('labor')) return 'Dental Lab';
+      if (lower.isNotEmpty) return 'Sonstiges';
+      return fallback;
+    }
+
+    String? fromArticle(String? article) {
+      if (article == null || article.trim().isEmpty) return null;
+      final upper = article.toUpperCase();
+      final match = RegExp(r'MDR-TD\s*\d+').firstMatch(upper);
+      if (match != null) {
+        final label = article.substring(match.start).trim();
+        if (label.isNotEmpty) return label;
+        final code = match.group(0)!.replaceAll(RegExp(r'\s+'), '-');
+        return code;
+      }
+      return null;
+    }
+
+    if (product != null) {
+      final label = product.tdNumberAndName.trim();
+      if (_isMdrLabel(label)) return label;
+      return _classifyNonMdr(product.productGroup);
+    }
+
+    final derived = fromArticle(rawArticle);
+    if (derived != null && _isMdrLabel(derived)) return derived;
+
+    return _classifyNonMdr(rawArticle);
+  }
+
+  String _deriveProductGroup(DfsProduct? product) {
+    const fallback = 'Sonstige Produkte';
+    if (product != null) {
+      final label = product.productGroup.trim();
+      return label.isEmpty ? fallback : label;
+    }
+    return fallback;
+  }
+
+  String _deriveArticleLabel(_AuditEntry entry, DfsProduct? product, String? articleNumber) {
+    if (product != null) {
+      final number = product.articleNumber.trim();
+      final name = product.productName.trim();
+      if (number.isNotEmpty && name.isNotEmpty) return '$number · $name';
+      if (name.isNotEmpty) return name;
+      if (number.isNotEmpty) return number;
+    }
+    if (articleNumber != null && articleNumber.isNotEmpty) return articleNumber;
+    return entry.article ?? 'Unbekannt';
+  }
+
+  String? _extractArticleNumber(String? article) {
+    if (article == null || article.trim().isEmpty) return null;
+    final match = RegExp(r'(\d{4,})').firstMatch(article.replaceAll(RegExp(r'[^0-9]'), ' '));
+    return match?.group(1)?.trim();
+  }
+
+  DfsProduct? _matchProduct(String? article) {
+    final articleNumber = _extractArticleNumber(article);
+    if (articleNumber != null && _productByArticle.containsKey(articleNumber)) {
+      return _productByArticle[articleNumber];
+    }
+    final normalized = (article ?? '').toLowerCase().trim();
+    if (normalized.isEmpty) return null;
+    try {
+      return _products.firstWhere(
+        (p) =>
+            p.productName.toLowerCase() == normalized ||
+            p.articleNumber.toLowerCase() == normalized,
+      );
+    } catch (_) {}
+
+    try {
+      return _products.firstWhere((p) => normalized.contains(p.articleNumber.toLowerCase()));
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _pickRange() async {
@@ -284,6 +451,97 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     );
   }
 
+  void _showMdrLotDetails(String mdrGroup) {
+    final lots = _buildLotsForMdrGroup(mdrGroup, _visibleComplaints);
+    final articleLots = _buildArticleLotsForMdrGroup(mdrGroup, _visibleComplaints);
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Häufig betroffene Chargen'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
+            child: (lots.isEmpty && articleLots.isEmpty)
+                ? const Text('Für diese MDR-TD-Gruppe liegen keine Chargenangaben vor.')
+                : SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('MDR-TD-Gruppe: $mdrGroup'),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Top-Chargen inklusive zugeordneter Produktgruppe gemäß Artikelliste.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.outline),
+                        ),
+                        if (lots.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text('Chargen-Häufigkeiten',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: math.min(lots.length, 12),
+                            separatorBuilder: (_, __) => const Divider(height: 12),
+                            itemBuilder: (context, index) {
+                              if (index >= lots.length) return const SizedBox.shrink();
+                              final lot = lots[index];
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text('Charge ${lot.batch}'),
+                                subtitle: Text('Produktgruppe: ${lot.productGroup}'),
+                                trailing: Text('${lot.count}×'),
+                              );
+                            },
+                          ),
+                        ],
+                        if (articleLots.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text('Artikelnummern & Chargen aus Reklamationen',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: math.min(articleLots.length, 20),
+                            separatorBuilder: (_, __) => const Divider(height: 12),
+                            itemBuilder: (context, index) {
+                              if (index >= articleLots.length) return const SizedBox.shrink();
+                              final lot = articleLots[index];
+                              final article = lot.articleNumber ?? lot.articleLabel;
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text('Artikel $article · Charge ${lot.batch}'),
+                                subtitle: Text('Produktgruppe: ${lot.productGroup}'),
+                                trailing: Text('${lot.count}×'),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -326,16 +584,17 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   }
 
   Widget _buildContent(ThemeData theme, double maxWidth) {
-    final total = (_stats?['total'] as num?)?.toInt() ?? 0;
-    final open = (_stats?['open'] as num?)?.toInt();
-    final decisions = _parseDecisionBuckets();
-    final resolvedOpen = open ?? _calcOpenFallback(decisions, total);
-    final months = _parseMonthBuckets();
-    final countries = _parseCountryBuckets();
+    final complaints = _visibleComplaints;
+    final total = complaints.length;
+    final resolvedOpen = complaints.where((c) => c.isOpen).length;
+    final months = _buildMonthBuckets(complaints);
+    final decisions = _buildDecisionBuckets(complaints);
+    final countries = _buildCountryBuckets(complaints);
     final reps = _parseRepBuckets();
-    final products = _parseProductBuckets();
-    final lots = _parseLotBuckets();
-    final customers = _parseCustomerBuckets();
+    final products = _buildArticleBuckets(complaints);
+    final productGroups = _buildProductGroupBuckets(complaints);
+    final mdrGroups = _buildMdrBuckets(complaints);
+    final customers = _buildCustomerBuckets(complaints);
     final timeStats = _parseTimeToCloseStats();
     final weekdays = _parseWeekdayBuckets();
     final hours = _parseHourBuckets();
@@ -347,6 +606,8 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildRangeHeader(theme, audit),
+        const SizedBox(height: 16),
+        _buildFilterPanel(),
         const SizedBox(height: 20),
         _KpiWrap(
           children: [
@@ -398,24 +659,88 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
+                child: _TopListSection(
+                  title: 'MDR-TD-Gruppen',
+                  icon: Icons.balance_outlined,
+                  buckets: mdrGroups,
+                  total: total,
+                  emptyMessage: 'Keine MDR-TD-Zuordnung verfügbar',
+                  onTapBucket: (bucket) => _showMdrLotDetails(bucket.label),
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: _TopListSection(
+                  title: 'Produktbereiche',
+                  icon: Icons.category_outlined,
+                  buckets: productGroups,
+                  total: total,
+                  emptyMessage: 'Keine Produktbereiche erkannt',
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          _TopListSection(
+            title: 'MDR-TD-Gruppen',
+            icon: Icons.balance_outlined,
+            buckets: mdrGroups,
+            total: total,
+            emptyMessage: 'Keine MDR-TD-Zuordnung verfügbar',
+            onTapBucket: (bucket) => _showMdrLotDetails(bucket.label),
+          ),
+          const SizedBox(height: 24),
+          _TopListSection(
+            title: 'Produktbereiche',
+            icon: Icons.category_outlined,
+            buckets: productGroups,
+            total: total,
+            emptyMessage: 'Keine Produktbereiche erkannt',
+          ),
+        ],
+        const SizedBox(height: 24),
+        if (isWide) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _TopListSection(
+                  title: 'Artikel (Reklamationshäufigkeit)',
+                  icon: Icons.inventory_2_outlined,
+                  buckets: products,
+                  total: total,
+                  emptyMessage: 'Keine Artikelzuordnung verfügbar',
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
                 child: _CountrySection(
                   total: total,
                   countries: countries,
                   onViewDetails: () => _showCountryDetails(countries, total),
                 ),
               ),
-              const SizedBox(width: 24),
-              Expanded(child: _RepSection(reps: reps)),
             ],
           ),
         ] else ...[
-          _CountrySection(
-            total: total,
-            countries: countries,
-            onViewDetails: () => _showCountryDetails(countries, total),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TopListSection(
+                title: 'Artikel (Reklamationshäufigkeit)',
+                icon: Icons.inventory_2_outlined,
+                buckets: products,
+                total: total,
+                emptyMessage: 'Keine Artikelzuordnung verfügbar',
+              ),
+              const SizedBox(height: 24),
+              _CountrySection(
+                total: total,
+                countries: countries,
+                onViewDetails: () => _showCountryDetails(countries, total),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          _RepSection(reps: reps),
         ],
         const SizedBox(height: 24),
         if (isWide) ...[
@@ -424,57 +749,16 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             children: [
               Expanded(child: _CustomerRankingSection(customers: customers, total: total)),
               const SizedBox(width: 24),
-              Expanded(child: _TimeToCloseSection(stats: timeStats)),
+              Expanded(child: _RepSection(reps: reps)),
             ],
           ),
         ] else ...[
           _CustomerRankingSection(customers: customers, total: total),
           const SizedBox(height: 24),
-          _TimeToCloseSection(stats: timeStats),
+          _RepSection(reps: reps),
         ],
         const SizedBox(height: 24),
-        if (isWide) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _TopListSection(
-                  title: 'Top-Produkte (nach Reklamationen)',
-                  icon: Icons.inventory_2_outlined,
-                  buckets: products,
-                  total: total,
-                  emptyMessage: 'Keine Produktdaten verfügbar',
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _TopListSection(
-                  title: 'Top-LOTs',
-                  icon: Icons.qr_code_2_outlined,
-                  buckets: lots,
-                  total: total,
-                  emptyMessage: 'Keine LOT-Daten verfügbar',
-                ),
-              ),
-            ],
-          ),
-        ] else ...[
-          _TopListSection(
-            title: 'Top-Produkte (nach Reklamationen)',
-            icon: Icons.inventory_2_outlined,
-            buckets: products,
-            total: total,
-            emptyMessage: 'Keine Produktdaten verfügbar',
-          ),
-          const SizedBox(height: 24),
-          _TopListSection(
-            title: 'Top-LOTs',
-            icon: Icons.qr_code_2_outlined,
-            buckets: lots,
-            total: total,
-            emptyMessage: 'Keine LOT-Daten verfügbar',
-          ),
-        ],
+        _TimeToCloseSection(stats: timeStats),
         const SizedBox(height: 24),
         _LoadPatternSection(weekdays: weekdays, hours: hours),
       ],
@@ -487,6 +771,127 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       return 'Letzte 12 Monate';
     }
     return '${df.format(_range!.start)} – ${df.format(_range!.end)}';
+  }
+
+  bool get _hasActiveFilters =>
+      (_selectedMdrGroup?.isNotEmpty ?? false) ||
+      (_selectedCountry?.isNotEmpty ?? false) ||
+      (_selectedCustomer?.isNotEmpty ?? false) ||
+      (_selectedProductGroup?.isNotEmpty ?? false);
+
+  List<String> _availableMdrGroups() {
+    final set = <String>{};
+    for (final c in _enrichedComplaints) {
+      if (c.mdrGroup.isNotEmpty) set.add(c.mdrGroup);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  List<String> _availableCountries() {
+    final set = <String>{};
+    for (final c in _enrichedComplaints) {
+      if (c.country.isNotEmpty) set.add(c.country);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  List<String> _availableCustomers() {
+    final set = <String>{};
+    for (final c in _enrichedComplaints) {
+      final name = c.entry.customer.trim();
+      if (name.isNotEmpty) set.add(name);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  List<String> _availableProductGroups() {
+    final set = <String>{};
+    for (final c in _enrichedComplaints) {
+      if (c.productGroup.isNotEmpty) set.add(c.productGroup);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _selectedMdrGroup = null;
+      _selectedCountry = null;
+      _selectedCustomer = null;
+      _selectedProductGroup = null;
+    });
+    _applyFilters();
+  }
+
+  Widget _buildFilterPanel() {
+    final mdrOptions = _availableMdrGroups();
+    final countryOptions = _availableCountries();
+    final customerOptions = _availableCustomers();
+    final productGroupOptions = _availableProductGroups();
+
+    return _SectionCard(
+      title: 'Filter & Fokus',
+      icon: Icons.tune_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _FilterDropdown(
+                label: 'MDR-TD-Gruppe',
+                value: _selectedMdrGroup,
+                options: mdrOptions,
+                onChanged: (value) {
+                  setState(() => _selectedMdrGroup = value);
+                  _applyFilters();
+                },
+              ),
+              _FilterDropdown(
+                label: 'Land',
+                value: _selectedCountry,
+                options: countryOptions,
+                onChanged: (value) {
+                  setState(() => _selectedCountry = value);
+                  _applyFilters();
+                },
+              ),
+              _FilterDropdown(
+                label: 'Kunde',
+                value: _selectedCustomer,
+                options: customerOptions,
+                onChanged: (value) {
+                  setState(() => _selectedCustomer = value);
+                  _applyFilters();
+                },
+              ),
+              _FilterDropdown(
+                label: 'Produktbereich',
+                value: _selectedProductGroup,
+                options: productGroupOptions,
+                onChanged: (value) {
+                  setState(() => _selectedProductGroup = value);
+                  _applyFilters();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _hasActiveFilters ? _resetFilters : null,
+              icon: const Icon(Icons.filter_alt_off_outlined),
+              label: const Text('Filter zurücksetzen'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRangeHeader(ThemeData theme, List<_AuditEntry> audit) {
@@ -557,6 +962,176 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         );
       },
     );
+  }
+
+  List<_DecisionBucket> _buildDecisionBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, int>{};
+    String normalize(String input) {
+      final raw = input.toLowerCase();
+      if (raw.contains('angenommen')) return 'accepted';
+      if (raw.contains('abgelehnt')) return 'rejected';
+      if (raw.contains('offen')) return 'pending';
+      if (raw.contains('pending')) return 'pending';
+      return input;
+    }
+
+    for (final c in complaints) {
+      final key = normalize(c.entry.decisionLabel);
+      map[key] = (map[key] ?? 0) + 1;
+    }
+
+    return map.entries
+        .map((e) => _DecisionBucket(decision: e.key, count: e.value))
+        .toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+  }
+
+  List<_MonthBucket> _buildMonthBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, int>{};
+    for (final c in complaints) {
+      final date = c.entry.createdAt;
+      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+      map[key] = (map[key] ?? 0) + 1;
+    }
+
+    return map.entries
+        .map((e) => _MonthBucket(key: e.key, count: e.value))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  List<_CountryBucket> _buildCountryBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, int>{};
+    for (final c in complaints) {
+      final key = c.country.isEmpty ? 'Unbekannt' : c.country;
+      map[key] = (map[key] ?? 0) + 1;
+    }
+    return map.entries
+        .map((e) => _CountryBucket(
+              country: e.key,
+              count: e.value,
+              code: e.key.trim().length == 2 ? e.key.trim() : null,
+            ))
+        .toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+  }
+
+  List<_TopBucket> _buildArticleBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, int>{};
+    for (final c in complaints) {
+      final key = c.articleLabel.trim();
+      if (key.isEmpty) continue;
+      map[key] = (map[key] ?? 0) + 1;
+    }
+    return _mapToTopBuckets(map);
+  }
+
+  List<_TopBucket> _buildProductGroupBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, int>{};
+    for (final c in complaints) {
+      final key = c.productGroup.trim();
+      if (key.isEmpty) continue;
+      map[key] = (map[key] ?? 0) + 1;
+    }
+    return _mapToTopBuckets(map);
+  }
+
+  List<_TopBucket> _buildMdrBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, int>{};
+    for (final c in complaints) {
+      final key = c.mdrGroup.trim();
+      if (key.isEmpty) continue;
+      map[key] = (map[key] ?? 0) + 1;
+    }
+    return _mapToTopBuckets(map);
+  }
+
+  List<_LotBucket> _buildLotsForMdrGroup(String mdrGroup, List<_EnrichedComplaint> complaints) {
+    final map = <String, _LotAggregation>{};
+    for (final c in complaints) {
+      if (c.mdrGroup != mdrGroup) continue;
+      final batch = c.batch?.trim();
+      if (batch == null || batch.isEmpty) continue;
+      final productGroup = c.productGroup.trim().isEmpty ? 'Sonstige Produkte' : c.productGroup.trim();
+      final agg = map.putIfAbsent(batch, () => _LotAggregation());
+      agg.count++;
+      agg.productGroups[productGroup] = (agg.productGroups[productGroup] ?? 0) + 1;
+    }
+
+    return map.entries.map((entry) {
+      final topProductGroup = entry.value.productGroups.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+      return _LotBucket(batch: entry.key, count: entry.value.count, productGroup: topProductGroup);
+    }).toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+  }
+
+  List<_ArticleLotBucket> _buildArticleLotsForMdrGroup(
+    String mdrGroup,
+    List<_EnrichedComplaint> complaints,
+  ) {
+    final map = <String, _ArticleLotAggregation>{};
+    for (final c in complaints) {
+      if (c.mdrGroup != mdrGroup) continue;
+      final batch = c.batch?.trim();
+      if (batch == null || batch.isEmpty) continue;
+      final articleNumber = c.articleNumber?.trim();
+      final displayArticle = (articleNumber == null || articleNumber.isEmpty)
+          ? c.articleLabel.trim()
+          : articleNumber;
+      if (displayArticle.isEmpty) continue;
+      final productGroup = c.productGroup.trim().isEmpty ? 'Sonstige Produkte' : c.productGroup.trim();
+      final key = '$displayArticle|$batch';
+      final agg = map.putIfAbsent(key, () => _ArticleLotAggregation(articleNumber, c.articleLabel, batch));
+      agg.count++;
+      agg.productGroups[productGroup] = (agg.productGroups[productGroup] ?? 0) + 1;
+    }
+
+    return map.entries.map((entry) {
+      final agg = entry.value;
+      final topProductGroup = agg.productGroups.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+      return _ArticleLotBucket(
+        articleNumber: agg.articleNumber,
+        articleLabel: agg.articleLabel,
+        batch: agg.batch,
+        productGroup: topProductGroup,
+        count: agg.count,
+      );
+    }).toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+  }
+
+  List<_TopBucket> _mapToTopBuckets(Map<String, int> map) {
+    return map.entries
+        .map((e) => _TopBucket(label: e.key, count: e.value))
+        .toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
+  }
+
+  List<_CustomerBucket> _buildCustomerBuckets(List<_EnrichedComplaint> complaints) {
+    final map = <String, _CustomerBucket>{};
+    for (final c in complaints) {
+      final key = c.entry.customer.trim();
+      if (key.isEmpty) continue;
+      final existing = map[key];
+      if (existing == null) {
+        map[key] = _CustomerBucket(
+          label: key,
+          count: 1,
+          email: c.entry.customerEmail,
+          customerNumber: c.entry.customerNumber,
+        );
+      } else {
+        map[key] = _CustomerBucket(
+          label: existing.label,
+          count: existing.count + 1,
+          email: existing.email ?? c.entry.customerEmail,
+          customerNumber: existing.customerNumber ?? c.entry.customerNumber,
+        );
+      }
+    }
+
+    return map.values.toList()
+      ..sort((a, b) => b.count.compareTo(a.count));
   }
 
   List<_DecisionBucket> _parseDecisionBuckets() {
@@ -735,14 +1310,74 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   }
 
   List<_AuditEntry> _parseAuditEntries() {
-    final raw = (_stats?['audit'] as List?) ?? const [];
+    final rawComplaints = (_stats?['complaints'] as List?) ?? const [];
+    final rawAudit = (_stats?['audit'] as List?) ?? const [];
+
     final out = <_AuditEntry>[];
-    for (final entry in raw) {
-      if (entry is Map) {
-        out.add(_AuditEntry.fromJson(entry.cast<String, dynamic>()));
+    if (rawComplaints.isNotEmpty) {
+      final auditByTicket = <String, _AuditEntry>{};
+      for (final entry in rawAudit) {
+        if (entry is Map) {
+          final parsed = _AuditEntry.fromJson(entry.cast<String, dynamic>());
+          auditByTicket[parsed.ticket] = parsed;
+        }
+      }
+
+      final seenTickets = <String>{};
+      for (final entry in rawComplaints) {
+        if (entry is! Map) continue;
+        final parsed = _AuditEntry.fromJson(entry.cast<String, dynamic>());
+        final fallback = auditByTicket[parsed.ticket];
+        final merged = fallback == null ? parsed : _mergeAuditEntries(primary: parsed, secondary: fallback);
+        out.add(merged);
+        seenTickets.add(parsed.ticket);
+      }
+
+      for (final entry in auditByTicket.values) {
+        if (!seenTickets.contains(entry.ticket)) {
+          out.add(entry);
+        }
+      }
+    } else {
+      for (final entry in rawAudit) {
+        if (entry is Map) {
+          out.add(_AuditEntry.fromJson(entry.cast<String, dynamic>()));
+        }
       }
     }
     return out;
+  }
+
+  _AuditEntry _mergeAuditEntries({required _AuditEntry primary, required _AuditEntry secondary}) {
+    String chooseNonEmpty(String first, String fallback) {
+      return first.trim().isNotEmpty ? first : fallback;
+    }
+
+    String? chooseOptional(String? first, String? fallback) {
+      final cleaned = first?.trim();
+      if (cleaned != null && cleaned.isNotEmpty) return first;
+      final cleanedFallback = fallback?.trim();
+      if (cleanedFallback != null && cleanedFallback.isNotEmpty) return fallback;
+      return null;
+    }
+
+    return _AuditEntry(
+      ticket: primary.ticket.isNotEmpty ? primary.ticket : secondary.ticket,
+      createdAt: primary.createdAt != DateTime.fromMillisecondsSinceEpoch(0)
+          ? primary.createdAt
+          : secondary.createdAt,
+      customer: chooseNonEmpty(primary.customer, secondary.customer),
+      customerEmail: chooseOptional(primary.customerEmail, secondary.customerEmail),
+      customerNumber: chooseOptional(primary.customerNumber, secondary.customerNumber),
+      country: chooseNonEmpty(primary.country, secondary.country),
+      article: chooseOptional(primary.article, secondary.article),
+      segment: chooseOptional(primary.segment, secondary.segment),
+      statusLabel: chooseNonEmpty(primary.statusLabel, secondary.statusLabel),
+      decisionLabel: chooseNonEmpty(primary.decisionLabel, secondary.decisionLabel),
+      repName: chooseOptional(primary.repName, secondary.repName),
+      repEmail: chooseOptional(primary.repEmail, secondary.repEmail),
+      batch: chooseOptional(primary.batch, secondary.batch),
+    );
   }
 
   int _calcOpenFallback(List<_DecisionBucket> decisions, int total) {
@@ -760,6 +1395,55 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   String _formatNumber(int value) {
     final formatter = NumberFormat.decimalPattern('de');
     return formatter.format(value);
+  }
+}
+
+class _FilterDropdown extends StatelessWidget {
+  final String label;
+  final String? value;
+  final List<String> options;
+  final ValueChanged<String?> onChanged;
+
+  const _FilterDropdown({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final effectiveOptions = ['Alle', ...options];
+
+    return SizedBox(
+      width: 260,
+      child: DropdownButtonFormField<String>(
+        value: value ?? 'Alle',
+        decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        items: effectiveOptions
+            .map(
+              (option) => DropdownMenuItem<String>(
+                value: option,
+                child: Text(option),
+              ),
+            )
+            .toList(),
+        onChanged: (selected) {
+          if (selected == 'Alle') {
+            onChanged(null);
+          } else {
+            onChanged(selected);
+          }
+        },
+      ),
+    );
   }
 }
 
@@ -1310,6 +1994,7 @@ class _TopListSection extends StatelessWidget {
   final String title;
   final IconData icon;
   final String emptyMessage;
+  final ValueChanged<_TopBucket>? onTapBucket;
 
   const _TopListSection({
     required this.buckets,
@@ -1317,6 +2002,7 @@ class _TopListSection extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.emptyMessage,
+    this.onTapBucket,
   });
 
   @override
@@ -1335,7 +2021,17 @@ class _TopListSection extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < top.length; i++) ...[
-            _TopRankTile(rank: i + 1, bucket: top[i], total: total),
+            if (onTapBucket != null)
+              InkWell(
+                onTap: () => onTapBucket!(top[i]),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: _TopRankTile(rank: i + 1, bucket: top[i], total: total),
+                ),
+              )
+            else
+              _TopRankTile(rank: i + 1, bucket: top[i], total: total),
             if (i != top.length - 1) const SizedBox(height: 12),
           ],
         ],
@@ -1846,6 +2542,35 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+class _EnrichedComplaint {
+  final _AuditEntry entry;
+  final DfsProduct? product;
+  final String mdrGroup;
+  final String productGroup;
+  final String? articleNumber;
+  final String articleLabel;
+  final String country;
+  final String? batch;
+
+  _EnrichedComplaint({
+    required this.entry,
+    required this.product,
+    required this.mdrGroup,
+    required this.productGroup,
+    required this.articleNumber,
+    required this.articleLabel,
+    required this.country,
+    required this.batch,
+  });
+
+  bool get isOpen {
+    final normalized = entry.statusLabel.toLowerCase();
+    if (normalized.contains('abgeschlossen')) return false;
+    if (normalized.contains('closed')) return false;
+    return true;
+  }
+}
+
 class _DecisionBucket {
   final String decision;
   final int count;
@@ -1890,6 +2615,45 @@ class _TopBucket {
   final String label;
   final int count;
   const _TopBucket({required this.label, required this.count});
+}
+
+class _LotBucket {
+  final String batch;
+  final int count;
+  final String productGroup;
+
+  const _LotBucket({required this.batch, required this.count, required this.productGroup});
+}
+
+class _ArticleLotBucket {
+  final String? articleNumber;
+  final String articleLabel;
+  final String batch;
+  final String productGroup;
+  final int count;
+
+  const _ArticleLotBucket({
+    required this.articleNumber,
+    required this.articleLabel,
+    required this.batch,
+    required this.productGroup,
+    required this.count,
+  });
+}
+
+class _LotAggregation {
+  int count = 0;
+  final Map<String, int> productGroups = {};
+}
+
+class _ArticleLotAggregation {
+  final String? articleNumber;
+  final String articleLabel;
+  final String batch;
+  int count = 0;
+  final Map<String, int> productGroups = {};
+
+  _ArticleLotAggregation(this.articleNumber, this.articleLabel, this.batch);
 }
 
 class _CountryBucket {
@@ -1998,6 +2762,7 @@ class _AuditEntry {
   final String decisionLabel;
   final String? repName;
   final String? repEmail;
+  final String? batch;
 
   _AuditEntry({
     required this.ticket,
@@ -2012,6 +2777,7 @@ class _AuditEntry {
     required this.decisionLabel,
     required this.repName,
     required this.repEmail,
+    required this.batch,
   });
 
   factory _AuditEntry.fromJson(Map<String, dynamic> json) {
@@ -2036,6 +2802,52 @@ class _AuditEntry {
       return s.isEmpty ? null : s;
     }
 
+    String? _scalarOrFirst(dynamic value) {
+      if (value is List) {
+        for (final item in value) {
+          final extracted = _optional(item);
+          if (extracted != null) return extracted;
+        }
+        return null;
+      }
+      return _optional(value);
+    }
+
+    final batch = _scalarOrFirst(json['batch']) ??
+        _scalarOrFirst(json['batchNumber']) ??
+        _scalarOrFirst(json['batch_number']) ??
+        _scalarOrFirst(json['batch_no']) ??
+        _scalarOrFirst(json['batchNo']) ??
+        _scalarOrFirst(json['batches']) ??
+        _scalarOrFirst(json['lot']) ??
+        _scalarOrFirst(json['lotNumber']) ??
+        _scalarOrFirst(json['lot_no']) ??
+        _scalarOrFirst(json['lotNo']) ??
+        _scalarOrFirst(json['lotId']) ??
+        _scalarOrFirst(json['lot_id']) ??
+        _scalarOrFirst(json['lots']) ??
+        _scalarOrFirst(json['charge']) ??
+        _scalarOrFirst(json['chargeNumber']) ??
+        _scalarOrFirst(json['charge_number']) ??
+        _scalarOrFirst(json['chargeNo']) ??
+        _scalarOrFirst(json['charge_no']) ??
+        _scalarOrFirst(json['charges']);
+
+    final article = _scalarOrFirst(json['article']) ??
+        _scalarOrFirst(json['articleNumber']) ??
+        _scalarOrFirst(json['article_no']) ??
+        _scalarOrFirst(json['articleNo']) ??
+        _scalarOrFirst(json['articleNr']) ??
+        _scalarOrFirst(json['article_nr']) ??
+        _scalarOrFirst(json['itemNumber']) ??
+        _scalarOrFirst(json['item_no']) ??
+        _scalarOrFirst(json['itemNo']) ??
+        _scalarOrFirst(json['item_nr']) ??
+        _scalarOrFirst(json['productNumber']) ??
+        _scalarOrFirst(json['product_no']) ??
+        _scalarOrFirst(json['productNo']) ??
+        _scalarOrFirst(json['article_id']);
+
     return _AuditEntry(
       ticket: (json['ticket'] ?? '').toString(),
       createdAt: _ts(json['createdAt']),
@@ -2043,12 +2855,13 @@ class _AuditEntry {
       customerEmail: _optional(json['customerEmail']),
       customerNumber: _optional(json['customerNumber']),
       country: (json['country'] ?? '').toString(),
-      article: _optional(json['article']),
+      article: article,
       segment: _optional(json['segment']),
       statusLabel: (json['statusLabel'] ?? '').toString(),
       decisionLabel: (json['decisionLabel'] ?? '').toString(),
       repName: _optional(json['repName']),
       repEmail: _optional(json['repEmail']),
+      batch: batch,
     );
   }
 }
