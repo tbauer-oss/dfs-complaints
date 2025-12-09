@@ -1312,6 +1312,29 @@ class ApiClient {
     return (jsonDecode(r.body) as Map).cast<String, dynamic>();
   }
 
+  Future<Map<String, dynamic>> updateComplaintDetails({
+    required String ticket,
+    required Map<String, String> payload,
+  }) async {
+    final r = await http.post(
+      _u('/api/admin/complaints'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({
+        'ticket': ticket,
+        'payload': payload,
+      }),
+    );
+
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+
+    final decoded = (r.body.trim().isEmpty) ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map<String, dynamic>) return decoded;
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    throw ApiError(500, 'Ungültige Antwort für Reklamations-Update');
+  }
+
   // ---------- Admin: Secret prüfen (für Dialog) ----------
   Future<bool> validateAdminSecret(String secret) async {
     if (secret.trim().isEmpty) return false;
