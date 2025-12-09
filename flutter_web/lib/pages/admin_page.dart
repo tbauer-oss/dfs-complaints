@@ -6114,6 +6114,20 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'prrc':
+        return AdminTilePro(
+          label: 'PRRC-Einstufungen',
+          subtitle: 'Regulatorische Bewertung',
+          icon: Icons.medical_information_outlined,
+          colorA: AdminPalette.pinkA,
+          colorB: AdminPalette.pinkB,
+          compact: compact,
+          count: _allComplaints.length,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.prrc),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'stats':
         return AdminTilePro(
           label: 'Statistik & KPIs',
