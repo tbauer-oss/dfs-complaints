@@ -7283,6 +7283,8 @@ class _AdminPageState extends State<AdminPage> {
       return false;
     }
 
+    final capaMap = buildCapaMap();
+
     return prepared.map((entry) {
       final c = entry.complaint;
       final customer = entry.customer;
@@ -13383,39 +13385,6 @@ class AdminComplaint {
         return value.map((k, v) => MapEntry('$k', v.toString()));
       }
       return null;
-    }
-
-    final capaByComplaint = <String, CapaReport>{};
-    for (final capa in _capaReports) {
-      final key = capa.complaintId.trim();
-      if (key.isEmpty) continue;
-      final existing = capaByComplaint[key];
-      if (existing == null || capa.updatedAt.isAfter(existing.updatedAt)) {
-        capaByComplaint[key] = capa;
-      }
-    }
-
-    String capaImmediate(CapaReport? report) {
-      if (report == null) return '—';
-      final details = report.sections.immediateDetails.trim();
-      final actions = report.sections.immediateActions
-          .map((a) => a.action.trim())
-          .where((a) => a.isNotEmpty)
-          .toList();
-      final segments = <String>[];
-      if (details.isNotEmpty) segments.add(details);
-      if (actions.isNotEmpty) segments.add(actions.join(' • '));
-      return segments.isEmpty ? '—' : segments.join(' — ');
-    }
-
-    String capaSummary(CapaReport? report) {
-      if (report == null) return '—';
-      final number = report.effectiveNumber.trim();
-      final title = report.title.trim();
-      if (number.isNotEmpty && title.isNotEmpty) return '$number – $title';
-      if (number.isNotEmpty) return number;
-      if (title.isNotEmpty) return title;
-      return '—';
     }
 
     return AdminComplaint(
