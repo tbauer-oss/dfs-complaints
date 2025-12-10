@@ -8,25 +8,14 @@ import {
   noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
-import { normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../_lib/portalAuth.js';
+import { requirePortalAccess } from './_guard.js';
 import {
   countryLabelFromCode,
   normalizeCountryName,
   resolveCountryCode,
 } from '../_lib/countryNames.js';
 
-async function requireSuperuser(req, res) {
-  const actor = await portalUserFromRequest(req);
-  if (!actor) {
-    bad(res, 'admin unauthorized', 401);
-    return null;
-  }
-  if (normalizeRole(actor.role) !== PORTAL_ROLES.superuser) {
-    bad(res, 'forbidden', 403);
-    return null;
-  }
-  return actor;
-}
+const requireStatsAccess = (req, res) => requirePortalAccess(req, res, { tile: 'stats' });
 
 function defaultRange() {
   const to = new Date();
@@ -784,7 +773,7 @@ export default async function handler(req, res) {
   setCors(req, res);
   if (req.method === 'OPTIONS') return noContent(res);
   if (req.method !== 'GET') return methodNotAllowed(res);
-  const actor = await requireSuperuser(req, res);
+  const actor = await requireStatsAccess(req, res);
   if (!actor) return;
 
   try {
