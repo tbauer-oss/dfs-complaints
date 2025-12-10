@@ -6841,6 +6841,7 @@ class _AdminPageState extends State<AdminPage> {
       final dept = c.internalDepartments.join(', ');
       final customerName = _companyByEmail(c.email) ?? c.email;
       final customer = userByEmail(c.email);
+      final segment = payloadValue(c, ['segment', 'customer_segment', 'segment_code']);
 
       final mainReason = payloadValue(c, ['reasonMain', 'complaintReason', 'mainReason']);
       final detailReason = payloadValue(c, ['reasonDetail', 'complaintReasonDetail', 'detailReason']);
@@ -6871,6 +6872,7 @@ class _AdminPageState extends State<AdminPage> {
         productFile: productFile,
         articleName: articleName,
         freeTextDesc: freeTextDesc,
+        segment: segment,
       );
     }).toList();
 
@@ -6890,6 +6892,7 @@ class _AdminPageState extends State<AdminPage> {
           String productFile,
           String articleName,
           String freeTextDesc,
+          String segment,
         })>>{};
     for (final entry in prepared) {
       final key = entry.articleNumber.trim();
@@ -6929,6 +6932,7 @@ class _AdminPageState extends State<AdminPage> {
           String productFile,
           String articleName,
           String freeTextDesc,
+          String segment,
         }) entry) {
       final peers = groupedByArticle[entry.articleNumber.trim()] ??
           const <({
@@ -6993,6 +6997,7 @@ class _AdminPageState extends State<AdminPage> {
         notes: (c.adminNotes ?? payloadValue(c, ['notes', 'bemerkungen'])),
         hasPrrcDecision: prrc.isNotEmpty,
         salesCompleted: c.salesCompleted,
+        segment: fallbackDash(entry.segment),
         receivedDate: entry.receivedDate,
         closedDate: entry.closedDate,
       );

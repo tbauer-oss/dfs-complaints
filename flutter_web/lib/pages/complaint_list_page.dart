@@ -21,6 +21,7 @@ class ComplaintListItem {
   final String region;
   final String productFile;
   final String productGroup;
+  final String segment;
   final String articleNumber;
   final String articleName;
   final String lotNumber;
@@ -56,6 +57,7 @@ class ComplaintListItem {
     required this.region,
     required this.productFile,
     required this.productGroup,
+    required this.segment,
     required this.articleNumber,
     required this.articleName,
     required this.lotNumber,
@@ -90,6 +92,7 @@ class ComplaintListItem {
     String? prrcClassification,
     bool? hasPrrcDecision,
     bool? salesCompleted,
+    String? segment,
   }) {
     return ComplaintListItem(
       internalNumber: internalNumber,
@@ -99,6 +102,7 @@ class ComplaintListItem {
       region: region,
       productFile: productFile,
       productGroup: productGroup,
+      segment: segment ?? this.segment,
       articleNumber: articleNumber,
       articleName: articleName,
       lotNumber: lotNumber,
@@ -985,8 +989,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   Color? _rowBackgroundColor(ComplaintListItem item) {
+    final normalizedSegment = item.segment.trim().toLowerCase();
     final normalizedGroup = item.productGroup.trim().toLowerCase();
-    final isDentalProduct = normalizedGroup.contains('zahnmedizin');
+    final isDentalProduct = normalizedSegment == 'zahnmedizin' ||
+        normalizedSegment == 'zahnarzt' ||
+        normalizedGroup.contains('zahnmedizin');
     if (!isDentalProduct) return null;
 
     final isClosed = item.status.trim().toLowerCase() == 'abgeschlossen';
