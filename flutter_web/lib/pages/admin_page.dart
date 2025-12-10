@@ -31,6 +31,7 @@ import 'admin_wiki_articles_page.dart';
 import 'rep_wiki_list_page.dart';
 import 'admin_downloads_page.dart';
 import 'complaint_list_page.dart';
+import 'capa_overview_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -65,6 +66,7 @@ enum _AdminView {
   menu,
   all,
   complaintList,
+  capaReports,
   prrc,
   pending,
   portalUsers,
@@ -138,6 +140,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'capaReports',
     'prrc',
     'stats',
     'pending',
@@ -163,6 +166,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'capaReports',
     'prrc',
     'stats',
     'pending',
@@ -254,6 +258,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
+  bool _portalIsQm = false;
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
@@ -478,7 +483,9 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   bool _tileVisibleForActor(String tileId) {
+    if (_isSuperuser && tileId == 'capaReports') return true;
     if (tileId == 'prrc' && !_portalIsPrrc && !_isSuperuser) return false;
+    if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
     return true;
@@ -757,6 +764,13 @@ class _AdminPageState extends State<AdminPage> {
         widget.api.portalProfile?['isPrrc'] ??
         widget.api.portalProfile?['prrc'];
     _portalIsPrrc = _truthy(profileIsPrrc) || (_portalRole.toLowerCase() == 'prrc');
+    final profileIsQm = widget.portalProfile?['isQM'] ??
+        widget.portalProfile?['isQm'] ??
+        widget.portalProfile?['qm'] ??
+        widget.api.portalProfile?['isQM'] ??
+        widget.api.portalProfile?['isQm'] ??
+        widget.api.portalProfile?['qm'];
+    _portalIsQm = _truthy(profileIsQm);
     final profileTilePermissions =
         widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
     _portalTilePermissions
@@ -4143,6 +4157,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.complaintList  => 'Reklamationsliste',
+      _AdminView.capaReports    => 'CAPA / 8D-Reports',
       _AdminView.prrc           => 'PRRC-Einstufungen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.portalUsers    => 'User-Datenbank',
@@ -4783,6 +4798,8 @@ class _AdminPageState extends State<AdminPage> {
         return null;
       case _AdminView.complaintList:
         return 'complaintList';
+      case _AdminView.capaReports:
+        return 'capaReports';
       case _AdminView.prrc:
         return 'prrc';
       case _AdminView.open:
@@ -4842,6 +4859,7 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.open,
         _AdminView.all,
         _AdminView.complaintList,
+        _AdminView.capaReports,
         _AdminView.prrc,
         _AdminView.pending,
         _AdminView.users,
@@ -4903,6 +4921,11 @@ class _AdminPageState extends State<AdminPage> {
             label: 'Reklamationsliste',
             icon: Icons.table_view_outlined,
             view: _AdminView.complaintList,
+          ),
+          _AdminNavItem(
+            label: 'CAPA / 8D-Reports',
+            icon: Icons.fact_check_outlined,
+            view: _AdminView.capaReports,
           ),
           _AdminNavItem(
             label: 'PRRC-Einstufungen',
@@ -5094,6 +5117,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.all;
         case 'complaintList':
           return _AdminView.complaintList;
+        case 'capaReports':
+          return _AdminView.capaReports;
         case 'prrc':
           return _AdminView.prrc;
         case 'pending':
@@ -5142,7 +5167,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tileIds: ['open', 'all', 'complaintList', 'prrc', 'stats'],
+        tileIds: ['open', 'all', 'complaintList', 'capaReports', 'prrc', 'stats'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5461,6 +5486,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'Alle Reklamationen';
       case 'complaintList':
         return 'Reklamationsliste';
+      case 'capaReports':
+        return 'CAPA / 8D-Reports';
       case 'prrc':
         return 'PRRC-Bewertung';
       case 'stats':
@@ -7025,6 +7052,11 @@ class _AdminPageState extends State<AdminPage> {
               ? _updatePrrcClassification
               : null,
           prrcReadOnly: !_portalIsPrrc && !_isSuperuser,
+        );
+      case _AdminView.capaReports:
+        return CapaOverviewPage(
+          api: widget.api,
+          canWrite: _canWriteTile('capaReports'),
         );
       case _AdminView.prrc:
         return _buildPrrcPanel();
