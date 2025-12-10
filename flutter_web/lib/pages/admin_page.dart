@@ -19235,8 +19235,46 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
           );
         }
 
+        final theme = Theme.of(ctx);
+        final warningColor = theme.colorScheme.error;
+        final warningBackground = theme.colorScheme.errorContainer.withOpacity(0.25);
+
         return AlertDialog(
-          title: const Text('Hinweis: mögliche Meldepflicht'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: warningColor, width: 2),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 4),
+          contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: warningBackground,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: warningColor.withOpacity(0.25),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.warning_amber_rounded, color: warningColor, size: 32),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Hinweis: mögliche Meldepflicht',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: warningColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
             child: SingleChildScrollView(
@@ -19244,9 +19282,29 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Hinweis: Diese Einstufung deutet auf ein potenziell meldepflichtiges Vorkommnis hin. '
-                    'Bitte prüfen Sie, ob eine Meldung an die zuständige Behörde erforderlich ist.',
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: warningBackground,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: warningColor.withOpacity(0.4)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.priority_high, color: warningColor),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Hinweis: Diese Einstufung deutet auf ein potenziell meldepflichtiges Vorkommnis hin. '
+                              'Bitte prüfen Sie, ob eine Meldung an die zuständige Behörde erforderlich ist.',
+                              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
