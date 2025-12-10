@@ -5178,7 +5178,12 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Reklamationen',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tileIds: ['open', 'all', 'complaintList', 'capaReports', 'prrc', 'stats'],
+        tileIds: ['open', 'all', 'complaintList', 'prrc', 'stats'],
+      ),
+      const _AdminMenuSectionState(
+        title: 'Qualitätsmanagement',
+        subtitle: 'CAPA / 8D-Reports verwalten',
+        tileIds: ['capaReports'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
