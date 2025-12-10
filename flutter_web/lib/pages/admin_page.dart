@@ -16,6 +16,7 @@ import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
+import '../models/portal_user.dart' show PortalUserSummary;
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
@@ -32,6 +33,7 @@ import 'rep_wiki_list_page.dart';
 import 'admin_downloads_page.dart';
 import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
+import 'capa_detail_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -15013,6 +15015,41 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
   }
 
+  Future<void> _openCapaFromComplaint() async {
+    final portalApi = context.findAncestorStateOfType<_AdminPageState>()?.widget.api;
+    if (portalApi == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API-Client nicht verfügbar – bitte Seite neu laden.')),
+        );
+      }
+      return;
+    }
+
+    final snapshot = _payloadSnapshot();
+    final summary = _qmSummaryCtrl.text.trim();
+    final desc = (snapshot['desc'] ?? '').trim();
+    final problem = summary.isNotEmpty ? summary : desc;
+    final title = problem.isNotEmpty ? problem : 'Reklamation ${widget.c.ticket}';
+
+    final prefill = <String, String>{
+      if ((snapshot['article'] ?? '').trim().isNotEmpty) 'product': snapshot['article']!.trim(),
+      if ((snapshot['batch'] ?? '').trim().isNotEmpty) 'batch': snapshot['batch']!.trim(),
+      if (problem.isNotEmpty) 'problem': problem,
+      'title': title,
+    };
+
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CapaDetailPage(
+        api: portalApi,
+        canWrite: _isPortalSuperuser && !_isPortalReadonly,
+        complaintId: widget.c.ticket,
+        complaintLabel: problem.isNotEmpty ? problem : null,
+        complaintPrefill: prefill,
+      ),
+    ));
+  }
+
   Future<void> _saveInternalNo() async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -17924,15 +17961,25 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
-                                ? null
-                                : _saveQmSummary,
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text('Zusammenfassung sichern'),
-                          ),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 10,
+                          runSpacing: 8,
+                          children: [
+                            if (_isPortalSuperuser)
+                              OutlinedButton.icon(
+                                onPressed: (_busy || _isPortalReadonly) ? null : _openCapaFromComplaint,
+                                icon: const Icon(Icons.playlist_add_check_circle_outlined),
+                                label: const Text('CAPA mit Reklamation verknüpfen'),
+                              ),
+                            FilledButton.icon(
+                              onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                  ? null
+                                  : _saveQmSummary,
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Zusammenfassung sichern'),
+                            ),
+                          ],
                         ),
                       ],
                     );
@@ -18730,6 +18777,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   bool _loading = true;
   String? _error;
   List<AdminComplaint> _complaints = const <AdminComplaint>[];
+  List<PortalUserSummary> _portalUsers = const <PortalUserSummary>[];
   PrrcDashboardStats _stats = const PrrcDashboardStats(
     counts: {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0},
     unrated: 0,
@@ -18816,8 +18864,51 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   }
 
   String _customer(AdminComplaint c) {
-    final payloadCustomer = _payloadValue(c, const ['company', 'firma', 'customer', 'kunde', 'customer_name']);
+    final company = _companyByEmail(c.email)?.trim();
+    if (company != null && company.isNotEmpty) return company;
+
+    const companyKeys = [
+      'company',
+      'companyName',
+      'customerCompany',
+      'firm',
+      'firma',
+      'organization',
+      'organisation',
+      'org',
+      'customer',
+      'kunde',
+      'customer_name',
+      'customerName',
+      'accountCompany',
+    ];
+
+    String fromMap(Map value) {
+      final map = value.map((key, v) => MapEntry('$key', v));
+      for (final key in companyKeys) {
+        final v = map[key];
+        final s = (v ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      final name = map['name']?.toString().trim();
+      if (name != null && name.isNotEmpty) return name;
+      return '';
+    }
+
+    final payloadCustomer = _payloadValue(c, companyKeys);
     if (payloadCustomer.isNotEmpty) return payloadCustomer;
+
+    final payload = c.payload;
+    if (payload != null) {
+      for (final key in const ['customer', 'kunde', 'customerData', 'customerInfo']) {
+        final value = payload[key];
+        if (value is Map && value.isNotEmpty) {
+          final nested = fromMap(value);
+          if (nested.isNotEmpty) return nested;
+        }
+      }
+    }
+
     return c.email;
   }
 
@@ -18839,6 +18930,13 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
 
   String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
 
+  String? _companyByEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    final user = _portalUsers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+    final label = user?.displayName.trim() ?? '';
+    return label.isNotEmpty ? label : null;
+  }
+
   Future<void> _load() async {
     if (!_isPrrc) {
       setState(() {
@@ -18854,14 +18952,20 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     });
 
     try {
-      final res = await _api.fetchPrrcDashboard(
-        from: _dateRange?.start,
-        to: _dateRange?.end,
-      );
+      final results = await Future.wait([
+        _api.fetchPrrcDashboard(
+          from: _dateRange?.start,
+          to: _dateRange?.end,
+        ),
+        _api.fetchPortalUserSummaries(),
+      ]);
+      final res = results[0] as PrrcDashboardData;
+      final portalUsers = results[1] as List<PortalUserSummary>;
       if (!mounted) return;
       setState(() {
         _complaints = res.complaints;
         _stats = res.stats;
+        _portalUsers = portalUsers;
         if (_complaints.isNotEmpty && _selected == null) {
           if (widget.initialTicket != null) {
             _selected = _complaints.firstWhere(
@@ -19834,6 +19938,30 @@ class AdminApi {
     if (txt.trim().isEmpty) return const <PortalUser>[];
     final List data = jsonDecode(txt);
     return data.map((e) => PortalUser.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  Future<List<PortalUserSummary>> fetchPortalUserSummaries() async {
+    final res = await _request('GET', '/api/portal/users');
+    if (res.status != 200) throw 'portal/users GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return const <PortalUserSummary>[];
+
+    final decoded = jsonDecode(txt);
+    List? list;
+    if (decoded is List) list = decoded;
+    if (decoded is Map) {
+      final mapList = decoded['items'] ?? decoded['list'] ?? decoded['users'];
+      if (mapList is List) list = mapList;
+    }
+
+    if (list == null) {
+      throw 'Ungültige Antwort für Portal-User';
+    }
+
+    return list
+        .whereType<Map>()
+        .map((e) => PortalUserSummary.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   Future<PortalUser> createPortalUser({
