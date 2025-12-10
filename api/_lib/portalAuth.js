@@ -23,11 +23,6 @@ export const ADMIN_EMAILS = new Set([
   'elisabeth.kersjes@dfs-diamon.de',
 ]);
 
-// PRRC-Berechtigung darf ausschließlich diesem Konto erteilt werden
-export const PRRC_EMAILS = new Set([
-  'tobias.bauer@dfs-diamon.de',
-]);
-
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 export function normalizeRole(role) {
@@ -36,12 +31,6 @@ export function normalizeRole(role) {
   if (lc === PORTAL_ROLES.readonly) return PORTAL_ROLES.readonly;
   if (lc === PORTAL_ROLES.prrc) return PORTAL_ROLES.prrc;
   return PORTAL_ROLES.user;
-}
-
-export function hasPrrcAccess(user) {
-  const email = String(user?.email || '').trim().toLowerCase();
-  if (!PRRC_EMAILS.has(email)) return false;
-  return user?.isPRRC === true;
 }
 
 export function normalizeStatus(status, revoked = false) {
@@ -153,4 +142,3 @@ export async function requirePortalRole(req, res, { minRole = PORTAL_ROLES.user,
   if (minRole === PORTAL_ROLES.superuser && role !== PORTAL_ROLES.superuser) return false;
   return true;
 }
-
