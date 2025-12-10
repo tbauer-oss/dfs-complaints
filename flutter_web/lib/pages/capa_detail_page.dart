@@ -980,18 +980,24 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
           const SizedBox(width: 8),
           TextButton.icon(
             onPressed: (readOnly || _saving) ? null : _save,
-            icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save),
+            icon: _saving
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.save),
             label: const Text('Speichern'),
           ),
           const SizedBox(width: 8),
           OutlinedButton(
             onPressed: _exporting ? null : () => _export('de'),
-            child: _exporting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('PDF DE'),
+            child: _exporting
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('PDF DE'),
           ),
           const SizedBox(width: 8),
           OutlinedButton(
             onPressed: _exporting ? null : () => _export('en'),
-            child: _exporting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('PDF EN'),
+            child: _exporting
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('PDF EN'),
           ),
           const SizedBox(width: 8),
         ],
@@ -1056,8 +1062,11 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                                   optionsBuilder: (text) {
                                     final query = text.text.toLowerCase();
                                     if (query.isEmpty) return _superusers;
-                                    return _superusers.where((u) =>
-                                        u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
+                                    return _superusers.where(
+                                      (u) =>
+                                          u.label.toLowerCase().contains(query) ||
+                                          u.email.toLowerCase().contains(query),
+                                    );
                                   },
                                   displayStringForOption: (u) => u.label,
                                   fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
@@ -1068,8 +1077,11 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                                       suffixIcon: _portalUsersLoading
                                           ? const Padding(
                                               padding: EdgeInsets.all(8),
-                                              child:
-                                                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                                              child: SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              ),
                                             )
                                           : const Icon(Icons.arrow_drop_down),
                                     ),
@@ -1102,7 +1114,10 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                                 if (_portalUsersError != null)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
-                                    child: Text(_portalUsersError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                    child: Text(
+                                      _portalUsersError!,
+                                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                                    ),
                                   ),
                               ],
                             ),
@@ -1118,7 +1133,8 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                    'Verknüpfte Reklamation: ${_report.complaintId}${widget.complaintLabel != null ? ' – ${widget.complaintLabel}' : ''}'),
+                                  'Verknüpfte Reklamation: ${_report.complaintId}${widget.complaintLabel != null ? ' – ${widget.complaintLabel}' : ''}',
+                                ),
                               ),
                             ],
                           ),
@@ -1161,285 +1177,318 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                _sectionContainer(title: 'Team & Problemdefinition', children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: RawAutocomplete<String>(
-                          textEditingController: _areaCtrl,
-                          optionsBuilder: (text) {
-                            final query = text.text.toLowerCase();
-                            return _departmentOptions
-                                .where((o) => o.toLowerCase().contains(query))
-                                .toList(growable: false);
-                          },
-                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
-                            controller: controller,
-                            focusNode: focusNode,
-                            decoration: const InputDecoration(labelText: 'Bereich'),
-                            onChanged: (v) => _updateSections((s) => s.copyWith(area: v)),
-                            onFieldSubmitted: (_) => onFieldSubmitted(),
-                          ),
-                          optionsViewBuilder: (ctx, onSelected, options) => Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4,
-                              child: SizedBox(
-                                height: 200,
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  itemCount: options.length,
-                                  itemBuilder: (ctx, idx) {
-                                    final opt = options.elementAt(idx);
-                                    return ListTile(
-                                      title: Text(opt),
-                                      onTap: () => onSelected(opt),
-                                    );
-                                  },
-                                ),
+                            _sectionContainer(title: 'Team & Problemdefinition', children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: RawAutocomplete<String>(
+                                      textEditingController: _areaCtrl,
+                                      optionsBuilder: (text) {
+                                        final query = text.text.toLowerCase();
+                                        return _departmentOptions
+                                            .where((o) => o.toLowerCase().contains(query))
+                                            .toList(growable: false);
+                                      },
+                                      fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                                        controller: controller,
+                                        focusNode: focusNode,
+                                        decoration: const InputDecoration(labelText: 'Bereich'),
+                                        onChanged: (v) => _updateSections((s) => s.copyWith(area: v)),
+                                        onFieldSubmitted: (_) => onFieldSubmitted(),
+                                      ),
+                                      optionsViewBuilder: (ctx, onSelected, options) => Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Material(
+                                          elevation: 4,
+                                          child: SizedBox(
+                                            height: 200,
+                                            child: ListView.builder(
+                                              padding: EdgeInsets.zero,
+                                              itemCount: options.length,
+                                              itemBuilder: (ctx, idx) {
+                                                final opt = options.elementAt(idx);
+                                                return ListTile(
+                                                  title: Text(opt),
+                                                  onTap: () => onSelected(opt),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      onSelected: (value) => _updateSections((s) => s.copyWith(area: value)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: DateField(
+                                      label: 'Datum',
+                                      value: _report.sections.date,
+                                      onChanged: (v) => _updateSections((s) => s.copyWith(date: v, clearDate: v == null)),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ),
-                          onSelected: (value) => _updateSections((s) => s.copyWith(area: value)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DateField(
-                          label: 'Datum',
-                          value: _report.sections.date,
-                          onChanged: (v) => _updateSections((s) => s.copyWith(date: v, clearDate: v == null)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: RawAutocomplete<PortalUserSummary>(
-                          textEditingController: _teamLeadCtrl,
-                          optionsBuilder: (text) {
-                            final query = text.text.toLowerCase();
-                            if (query.isEmpty) return _activePortalUsers;
-                            return _activePortalUsers.where((u) =>
-                                u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
-                          },
-                          displayStringForOption: (u) => u.label,
-                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
-                            controller: controller,
-                            focusNode: focusNode,
-                            decoration: const InputDecoration(labelText: 'Bereichsverantwortlicher'),
-                            onChanged: (v) => _updateSections((s) => s.copyWith(teamLead: v)),
-                            onFieldSubmitted: (_) => onFieldSubmitted(),
-                          ),
-                          onSelected: (u) => _updateSections((s) => s.copyWith(teamLead: u.label)),
-                          optionsViewBuilder: (ctx, onSelected, options) => Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4,
-                              child: SizedBox(
-                                height: 220,
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  itemCount: options.length,
-                                  itemBuilder: (ctx, idx) {
-                                    final opt = options.elementAt(idx);
-                                    return ListTile(
-                                      title: Text(opt.label.isEmpty ? opt.email : opt.label),
-                                      subtitle: Text(opt.email),
-                                      onTap: () => onSelected(opt),
-                                    );
-                                  },
-                                ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: RawAutocomplete<PortalUserSummary>(
+                                      textEditingController: _teamLeadCtrl,
+                                      optionsBuilder: (text) {
+                                        final query = text.text.toLowerCase();
+                                        if (query.isEmpty) return _activePortalUsers;
+                                        return _activePortalUsers.where(
+                                          (u) =>
+                                              u.label.toLowerCase().contains(query) ||
+                                              u.email.toLowerCase().contains(query),
+                                        );
+                                      },
+                                      displayStringForOption: (u) => u.label,
+                                      fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                                        controller: controller,
+                                        focusNode: focusNode,
+                                        decoration: const InputDecoration(labelText: 'Bereichsverantwortlicher'),
+                                        onChanged: (v) => _updateSections((s) => s.copyWith(teamLead: v)),
+                                        onFieldSubmitted: (_) => onFieldSubmitted(),
+                                      ),
+                                      onSelected: (u) => _updateSections((s) => s.copyWith(teamLead: u.label)),
+                                      optionsViewBuilder: (ctx, onSelected, options) => Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Material(
+                                          elevation: 4,
+                                          child: SizedBox(
+                                            height: 220,
+                                            child: ListView.builder(
+                                              padding: EdgeInsets.zero,
+                                              itemCount: options.length,
+                                              itemBuilder: (ctx, idx) {
+                                                final opt = options.elementAt(idx);
+                                                return ListTile(
+                                                  title: Text(opt.label.isEmpty ? opt.email : opt.label),
+                                                  subtitle: Text(opt.email),
+                                                  onTap: () => onSelected(opt),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        RawAutocomplete<DfsProduct>(
+                                          textEditingController: _productCtrl,
+                                          optionsBuilder: (text) {
+                                            final query = text.text.toLowerCase();
+                                            if (query.isEmpty) return _productLookup.products;
+                                            return _productLookup.products.where((p) {
+                                              return p.articleNumber.toLowerCase().contains(query) ||
+                                                  p.productName.toLowerCase().contains(query) ||
+                                                  p.basicUdiDi.toLowerCase().contains(query);
+                                            });
+                                          },
+                                          displayStringForOption: (p) => p.articleNumber,
+                                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                                            controller: controller,
+                                            focusNode: focusNode,
+                                            readOnly: widget.complaintPrefill != null &&
+                                                (widget.complaintPrefill?['product'] ?? '').isNotEmpty,
+                                            decoration: InputDecoration(
+                                              labelText: 'Produkt / Artikel',
+                                              suffixIcon: _productLoading
+                                                  ? const Padding(
+                                                      padding: EdgeInsets.all(8),
+                                                      child: SizedBox(
+                                                        width: 18,
+                                                        height: 18,
+                                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                                      ),
+                                                    )
+                                                  : const Icon(Icons.search),
+                                            ),
+                                            onChanged: (v) {
+                                              _updateSections((s) => s.copyWith(product: v));
+                                              _updateSelectedProduct();
+                                            },
+                                            onTap: _ensureProductsLoaded,
+                                            onFieldSubmitted: (_) => onFieldSubmitted(),
+                                          ),
+                                          onSelected: (product) {
+                                            _updateSections((s) => s.copyWith(product: product.articleNumber));
+                                            _productCtrl.text = product.articleNumber;
+                                            _updateSelectedProduct();
+                                          },
+                                          optionsViewBuilder: (ctx, onSelected, options) => Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Material(
+                                              elevation: 4,
+                                              child: SizedBox(
+                                                height: 240,
+                                                child: ListView.builder(
+                                                  padding: EdgeInsets.zero,
+                                                  itemCount: options.length,
+                                                  itemBuilder: (ctx, idx) {
+                                                    final opt = options.elementAt(idx);
+                                                    return ListTile(
+                                                      title: Text(opt.articleNumber.isEmpty ? '—' : opt.articleNumber),
+                                                      subtitle: Text(opt.productName),
+                                                      onTap: () => onSelected(opt),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (_selectedProduct != null)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 6),
+                                            child: Text(
+                                              'Artikelbezeichnung: ${_selectedProduct?.productName ?? ''}',
+                                              style: Theme.of(context).textTheme.bodySmall,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: RawAutocomplete<DfsProduct>(
-                          textEditingController: _productCtrl,
-                          optionsBuilder: (text) {
-                            final query = text.text.toLowerCase();
-                            if (query.isEmpty) return _productLookup.products;
-                            return _productLookup.products.where((p) {
-                              return p.articleNumber.toLowerCase().contains(query) ||
-                                  p.productName.toLowerCase().contains(query) ||
-                                  p.basicUdiDi.toLowerCase().contains(query);
-                            });
-                          },
-                          displayStringForOption: (p) => p.articleNumber,
-                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
-                            controller: controller,
-                            focusNode: focusNode,
-                            readOnly: widget.complaintPrefill != null &&
-                                (widget.complaintPrefill?['product'] ?? '').isNotEmpty,
-                            decoration: InputDecoration(
-                              labelText: 'Produkt / Artikel',
-                              suffixIcon: _productLoading
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(8),
-                                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                                    )
-                                  : const Icon(Icons.search),
-                            ),
-                            onChanged: (v) {
-                              _updateSections((s) => s.copyWith(product: v));
-                              _updateSelectedProduct();
-                            },
-                            onTap: _ensureProductsLoaded,
-                            onFieldSubmitted: (_) => onFieldSubmitted(),
-                          ),
-                          onSelected: (product) {
-                            _updateSections((s) => s.copyWith(product: product.articleNumber));
-                            _productCtrl.text = product.articleNumber;
-                            _updateSelectedProduct();
-                          },
-                          optionsViewBuilder: (ctx, onSelected, options) => Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4,
-                              child: SizedBox(
-                                height: 240,
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  itemCount: options.length,
-                                  itemBuilder: (ctx, idx) {
-                                    final opt = options.elementAt(idx);
-                                    return ListTile(
-                                      title: Text(opt.articleNumber.isEmpty ? '—' : opt.articleNumber),
-                                      subtitle: Text(opt.productName),
-                                      onTap: () => onSelected(opt),
-                                    );
-                                  },
-                                ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      initialValue: _report.sections.batch,
+                                      readOnly: widget.complaintPrefill != null &&
+                                          (widget.complaintPrefill?['batch'] ?? '').isNotEmpty,
+                                      decoration: const InputDecoration(labelText: 'Charge / Batch'),
+                                      onChanged: (v) => _updateSections((s) => s.copyWith(batch: v)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      initialValue: _report.sections.problem,
+                                      readOnly: widget.complaintPrefill != null &&
+                                          (widget.complaintPrefill?['problem'] ?? '').isNotEmpty,
+                                      decoration: const InputDecoration(labelText: 'Problembeschreibung'),
+                                      maxLines: 3,
+                                      onChanged: (v) => _updateSections((s) => s.copyWith(problem: v)),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_selectedProduct != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Artikelbezeichnung: ${_selectedProduct?.productName ?? ''}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          initialValue: _report.sections.batch,
-                          readOnly: widget.complaintPrefill != null && (widget.complaintPrefill?['batch'] ?? '').isNotEmpty,
-                          decoration: const InputDecoration(labelText: 'Charge / Batch'),
-                          onChanged: (v) => _updateSections((s) => s.copyWith(batch: v)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          initialValue: _report.sections.problem,
-                          readOnly: widget.complaintPrefill != null && (widget.complaintPrefill?['problem'] ?? '').isNotEmpty,
-                          decoration: const InputDecoration(labelText: 'Problembeschreibung'),
-                          maxLines: 3,
-                          onChanged: (v) => _updateSections((s) => s.copyWith(problem: v)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTeamMembers(),
-                ]),
-                _sectionContainer(title: 'Sofortmaßnahmen', children: [_buildImmediateActions()]),
-                _sectionContainer(title: 'Ursachenanalyse (5-Why)', children: [_buildCauses()]),
-                _sectionContainer(title: 'Korrekturmaßnahmen', children: [_buildCorrectiveActions()]),
-                _sectionContainer(title: 'Wirksamkeitsprüfung', children: [
-                  TextFormField(
-                    initialValue: _report.sections.d5Description,
-                    decoration: const InputDecoration(labelText: 'Beschreibung der Verifizierung'),
-                    maxLines: 3,
-                    onChanged: (v) => _updateSections((s) => s.copyWith(d5Description: v)),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DateField(
-                          label: 'Datum',
-                          value: _report.sections.d5Date,
-                          onChanged: (v) => _updateSections((s) => s.copyWith(d5Date: v, clearD5Date: v == null)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<bool>(
-                          value: _report.sections.d5Effective,
-                          items: const [
-                            DropdownMenuItem(value: true, child: Text('Ja')),
-                            DropdownMenuItem(value: false, child: Text('Nein')),
+                              const SizedBox(height: 12),
+                              _buildTeamMembers(),
+                            ]),
+                            _sectionContainer(title: 'Sofortmaßnahmen', children: [_buildImmediateActions()]),
+                            _sectionContainer(title: 'Ursachenanalyse (5-Why)', children: [_buildCauses()]),
+                            _sectionContainer(title: 'Korrekturmaßnahmen', children: [_buildCorrectiveActions()]),
+                            _sectionContainer(title: 'Wirksamkeitsprüfung', children: [
+                              TextFormField(
+                                initialValue: _report.sections.d5Description,
+                                decoration: const InputDecoration(labelText: 'Beschreibung der Verifizierung'),
+                                maxLines: 3,
+                                onChanged: (v) => _updateSections((s) => s.copyWith(d5Description: v)),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DateField(
+                                      label: 'Datum',
+                                      value: _report.sections.d5Date,
+                                      onChanged: (v) => _updateSections((s) => s.copyWith(d5Date: v, clearD5Date: v == null)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: DropdownButtonFormField<bool>(
+                                      value: _report.sections.d5Effective,
+                                      items: const [
+                                        DropdownMenuItem(value: true, child: Text('Ja')),
+                                        DropdownMenuItem(value: false, child: Text('Nein')),
+                                      ],
+                                      decoration: const InputDecoration(labelText: 'Wirksam?'),
+                                      onChanged: (v) => _updateSections((s) => s.copyWith(d5Effective: v ?? false)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                initialValue: _report.sections.d5FollowUp,
+                                decoration: const InputDecoration(labelText: 'Folgende Maßnahmen bei Nein'),
+                                maxLines: 3,
+                                onChanged: (v) => _updateSections((s) => s.copyWith(d5FollowUp: v)),
+                              ),
+                            ]),
+                            _sectionContainer(title: 'Vorbeugungsmaßnahmen', children: [
+                              TextFormField(
+                                initialValue: _report.sections.preventiveActions.join('\n'),
+                                maxLines: 4,
+                                decoration: const InputDecoration(labelText: 'Präventive Maßnahmen (eine pro Zeile)'),
+                                onChanged: (v) => _updateSections((s) => s.copyWith(
+                                      preventiveActions:
+                                          v.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                                    )),
+                              ),
+                            ]),
+                            _sectionContainer(title: 'Lessons Learned / Transfer', children: [
+                              TextFormField(
+                                initialValue: _report.sections.lessons.join('\n'),
+                                decoration: const InputDecoration(labelText: 'Lessons Learned (eine pro Zeile)'),
+                                maxLines: 3,
+                                onChanged: (v) => _updateSections((s) => s.copyWith(
+                                      lessons: v
+                                          .split('\n')
+                                          .map((e) => e.trim())
+                                          .where((e) => e.isNotEmpty)
+                                          .toList(),
+                                    )),
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                initialValue: _report.sections.transfer,
+                                decoration:
+                                    const InputDecoration(labelText: 'Übertragbarkeit auf andere Produkte/Prozesse'),
+                                maxLines: 3,
+                                onChanged: (v) => _updateSections((s) => s.copyWith(transfer: v)),
+                              ),
+                            ]),
+                            _sectionContainer(title: 'Abschluss & Freigabe', children: [
+                              _buildApprovals(),
+                              const SizedBox(height: 12),
+                              CheckboxListTile(
+                                value: _report.status == 'closed',
+                                onChanged: readOnly
+                                    ? null
+                                    : (v) => _updateReport(
+                                          status: (v ?? false)
+                                              ? 'closed'
+                                              : _report.status == 'closed'
+                                                  ? 'open'
+                                                  : _report.status,
+                                        ),
+                                title: const Text('Abgeschlossen'),
+                              ),
+                            ]),
                           ],
-                          decoration: const InputDecoration(labelText: 'Wirksam?'),
-                          onChanged: (v) => _updateSections((s) => s.copyWith(d5Effective: v ?? false)),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    initialValue: _report.sections.d5FollowUp,
-                    decoration: const InputDecoration(labelText: 'Folgende Maßnahmen bei Nein'),
-                    maxLines: 3,
-                    onChanged: (v) => _updateSections((s) => s.copyWith(d5FollowUp: v)),
-                  ),
-                ]),
-                _sectionContainer(title: 'Vorbeugungsmaßnahmen', children: [
-                  TextFormField(
-                    initialValue: _report.sections.preventiveActions.join('\n'),
-                    maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Präventive Maßnahmen (eine pro Zeile)'),
-                    onChanged: (v) => _updateSections((s) => s.copyWith(
-                          preventiveActions: v.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-                        )),
-                  ),
-                ]),
-                _sectionContainer(title: 'Lessons Learned / Transfer', children: [
-                  TextFormField(
-                    initialValue: _report.sections.lessons.join('\n'),
-                    decoration: const InputDecoration(labelText: 'Lessons Learned (eine pro Zeile)'),
-                    maxLines: 3,
-                    onChanged: (v) => _updateSections((s) => s.copyWith(
-                          lessons: v.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-                        )),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    initialValue: _report.sections.transfer,
-                    decoration: const InputDecoration(labelText: 'Übertragbarkeit auf andere Produkte/Prozesse'),
-                    maxLines: 3,
-                    onChanged: (v) => _updateSections((s) => s.copyWith(transfer: v)),
-                  ),
-                ]),
-                _sectionContainer(title: 'Abschluss & Freigabe', children: [
-                  _buildApprovals(),
-                  const SizedBox(height: 12),
-                  CheckboxListTile(
-                    value: _report.status == 'closed',
-                    onChanged: readOnly
-                        ? null
-                        : (v) => _updateReport(status: (v ?? false) ? 'closed' : _report.status == 'closed' ? 'open' : _report.status),
-                    title: const Text('Abgeschlossen'),
-                  ),
-                ]),
-              ],
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
