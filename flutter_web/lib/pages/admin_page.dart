@@ -267,6 +267,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
+  bool _portalIsPrrcAuthorized = false;
   bool _portalIsQm = false;
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
@@ -315,6 +316,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalUserFilterRole = 'Alle Rollen';
   String _portalUserFilterStatus = 'Alle Stati';
   String _portalUserFilterDepartment = 'Alle Abteilungen';
+  bool _isPrrcGreetingHovered = false;
 
 
   // Vertreter-Form (persistente Felder)
@@ -784,6 +786,11 @@ class _AdminPageState extends State<AdminPage> {
         widget.api.portalProfile?['isPrrc'] ??
         widget.api.portalProfile?['prrc'];
     _portalIsPrrc = _truthy(profileIsPrrc);
+    final profileIsPrrcAuthorized = widget.portalProfile?['isPrrcAuthorized'] ??
+        widget.api.portalProfile?['isPrrcAuthorized'] ??
+        widget.portalProfile?['prrcAuthorized'] ??
+        widget.api.portalProfile?['prrcAuthorized'];
+    _portalIsPrrcAuthorized = _truthy(profileIsPrrcAuthorized) || _portalIsPrrc;
     final profileIsQm = widget.portalProfile?['isQM'] ??
         widget.portalProfile?['isQm'] ??
         widget.portalProfile?['qm'] ??
@@ -4462,20 +4469,66 @@ class _AdminPageState extends State<AdminPage> {
         if (displayName.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.person_outline, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  child: Text(
-                    'Hallo $displayName',
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                  ),
+            child: MouseRegion(
+              onEnter: _portalIsPrrcAuthorized
+                  ? (_) => setState(() => _isPrrcGreetingHovered = true)
+                  : null,
+              onExit: _portalIsPrrcAuthorized
+                  ? (_) => setState(() => _isPrrcGreetingHovered = false)
+                  : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: _portalIsPrrcAuthorized
+                    ? BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF0865A2).withOpacity(0.8),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0865A2)
+                                .withOpacity(_isPrrcGreetingHovered ? 0.4 : 0.28),
+                            blurRadius: _isPrrcGreetingHovered ? 14 : 10,
+                            spreadRadius: _isPrrcGreetingHovered ? 1.4 : 1,
+                          ),
+                        ],
+                      )
+                    : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      color: _portalIsPrrcAuthorized
+                          ? const Color(0xFF0865A2)
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Text(
+                        _portalIsPrrcAuthorized
+                            ? 'Hallo $displayName (PRRC)'
+                            : 'Hallo $displayName',
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: _portalIsPrrcAuthorized
+                              ? const Color(0xFF0865A2)
+                              : theme.textTheme.bodyMedium?.color,
+                          letterSpacing: 0.15,
+                        ),
+                      ),
+                    ),
+                    if (_portalIsPrrcAuthorized) ...[
+                      const SizedBox(width: 8),
+                      Icon(Icons.verified, color: const Color(0xFF0865A2), size: 18),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         IconButton(
