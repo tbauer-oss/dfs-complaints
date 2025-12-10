@@ -15016,6 +15016,16 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   }
 
   Future<void> _openCapaFromComplaint() async {
+    final portalApi = context.findAncestorStateOfType<_AdminPageState>()?.widget.api;
+    if (portalApi == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API-Client nicht verfügbar – bitte Seite neu laden.')),
+        );
+      }
+      return;
+    }
+
     final snapshot = _payloadSnapshot();
     final summary = _qmSummaryCtrl.text.trim();
     final desc = (snapshot['desc'] ?? '').trim();
@@ -15031,7 +15041,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
 
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CapaDetailPage(
-        api: widget.api,
+        api: portalApi,
         canWrite: _isPortalSuperuser && !_isPortalReadonly,
         complaintId: widget.c.ticket,
         complaintLabel: problem.isNotEmpty ? problem : null,
