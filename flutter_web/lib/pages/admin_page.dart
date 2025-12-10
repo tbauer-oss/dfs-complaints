@@ -18730,6 +18730,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   bool _loading = true;
   String? _error;
   List<AdminComplaint> _complaints = const <AdminComplaint>[];
+  List<PortalUserSummary> _portalUsers = const <PortalUserSummary>[];
   PrrcDashboardStats _stats = const PrrcDashboardStats(
     counts: {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0},
     unrated: 0,
@@ -18882,6 +18883,13 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
 
   String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
 
+  String? _companyByEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    final user = _portalUsers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+    final label = user?.displayName.trim() ?? '';
+    return label.isNotEmpty ? label : null;
+  }
+
   Future<void> _load() async {
     if (!_isPrrc) {
       setState(() {
@@ -18897,14 +18905,20 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     });
 
     try {
-      final res = await _api.fetchPrrcDashboard(
-        from: _dateRange?.start,
-        to: _dateRange?.end,
-      );
+      final results = await Future.wait([
+        _api.fetchPrrcDashboard(
+          from: _dateRange?.start,
+          to: _dateRange?.end,
+        ),
+        _api.fetchPortalUsers(),
+      ]);
+      final res = results[0] as PrrcDashboardData;
+      final portalUsers = results[1] as List<PortalUserSummary>;
       if (!mounted) return;
       setState(() {
         _complaints = res.complaints;
         _stats = res.stats;
+        _portalUsers = portalUsers;
         if (_complaints.isNotEmpty && _selected == null) {
           if (widget.initialTicket != null) {
             _selected = _complaints.firstWhere(
