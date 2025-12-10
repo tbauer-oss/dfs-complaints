@@ -11,7 +11,7 @@ import {
 } from '../_lib/http.js';
 import { sendMail } from '../_lib/mailer.js';
 import { requirePortalAccess } from './_guard.js';
-import { hasPrrcAccess, normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
+import { normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
 import {
   DEFAULT_INTERNAL_DEPARTMENTS,
   hasDepartmentOverlap,
@@ -258,7 +258,8 @@ const decorateForAdmin = (c) => {
 };
 
 function canSeePrrc(actor) {
-  return hasPrrcAccess(actor);
+  const role = normalizeRoleSafe(actor);
+  return actor?.isPRRC === true || role === PORTAL_ROLES.prrc || role === PORTAL_ROLES.superuser;
 }
 
 const decorateForActor = (c, actor) => {
@@ -463,7 +464,7 @@ export default async function handler(req, res) {
   const deps = actorDepartments(actor);
   const isSuperuser = role === PORTAL_ROLES.superuser;
   const isNormalUser = role === PORTAL_ROLES.user;
-  const isPrrc = hasPrrcAccess(actor);
+  const isPrrc = actor?.isPRRC === true || role === PORTAL_ROLES.prrc;
   const isPrrcOnly = isPrrc && !isSuperuser && !isNormalUser;
 
   // 4) Schwere Imports NACH Preflight/Admin laden (verhindert 500 bei OPTIONS)
@@ -586,7 +587,7 @@ export default async function handler(req, res) {
       const wantsPrrcUpdate =
         hasPrrcClassification || hasPrrcComment || hasPrrcReportCheck || hasPrrcReportCheckComment || hasPrrcReportableCase;
 
-      if (wantsPrrcUpdate && !isPrrc) return bad(res, 'forbidden for role', 403);
+      if (wantsPrrcUpdate && !isPrrc && !isSuperuser) return bad(res, 'forbidden for role', 403);
 
       const hasNonPrrcChanges = [
         statusIn !== undefined,
