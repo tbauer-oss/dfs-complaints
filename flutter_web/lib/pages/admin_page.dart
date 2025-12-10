@@ -18816,8 +18816,51 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   }
 
   String _customer(AdminComplaint c) {
-    final payloadCustomer = _payloadValue(c, const ['company', 'firma', 'customer', 'kunde', 'customer_name']);
+    final company = _companyByEmail(c.email)?.trim();
+    if (company != null && company.isNotEmpty) return company;
+
+    const companyKeys = [
+      'company',
+      'companyName',
+      'customerCompany',
+      'firm',
+      'firma',
+      'organization',
+      'organisation',
+      'org',
+      'customer',
+      'kunde',
+      'customer_name',
+      'customerName',
+      'accountCompany',
+    ];
+
+    String fromMap(Map value) {
+      final map = value.map((key, v) => MapEntry('$key', v));
+      for (final key in companyKeys) {
+        final v = map[key];
+        final s = (v ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      final name = map['name']?.toString().trim();
+      if (name != null && name.isNotEmpty) return name;
+      return '';
+    }
+
+    final payloadCustomer = _payloadValue(c, companyKeys);
     if (payloadCustomer.isNotEmpty) return payloadCustomer;
+
+    final payload = c.payload;
+    if (payload != null) {
+      for (final key in const ['customer', 'kunde', 'customerData', 'customerInfo']) {
+        final value = payload[key];
+        if (value is Map && value.isNotEmpty) {
+          final nested = fromMap(value);
+          if (nested.isNotEmpty) return nested;
+        }
+      }
+    }
+
     return c.email;
   }
 
