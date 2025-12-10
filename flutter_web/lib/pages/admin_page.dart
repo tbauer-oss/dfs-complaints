@@ -7120,6 +7120,43 @@ class _AdminPageState extends State<AdminPage> {
     String fallbackDash(String value) => value.trim().isEmpty ? '—' : value.trim();
 
     String formatDate(DateTime? value) => value == null ? '—' : DateFormat('dd.MM.yyyy').format(value.toLocal());
+
+    Map<String, CapaReport> buildCapaMap() {
+      final map = <String, CapaReport>{};
+      for (final capa in _capaReports) {
+        final key = capa.complaintId.trim();
+        if (key.isEmpty) continue;
+        final existing = map[key];
+        if (existing == null || capa.updatedAt.isAfter(existing.updatedAt)) {
+          map[key] = capa;
+        }
+      }
+      return map;
+    }
+
+    String immediateText(CapaReport? report) {
+      if (report == null) return '—';
+      final details = report.sections.immediateDetails.trim();
+      final actions = report.sections.immediateActions
+          .map((a) => a.action.trim())
+          .where((a) => a.isNotEmpty)
+          .toList();
+      final segments = <String>[];
+      if (details.isNotEmpty) segments.add(details);
+      if (actions.isNotEmpty) segments.add(actions.join(' • '));
+      return segments.isEmpty ? '—' : segments.join(' — ');
+    }
+
+    String summaryText(CapaReport? report) {
+      if (report == null) return '—';
+      final number = report.effectiveNumber.trim();
+      final title = report.title.trim();
+      if (number.isNotEmpty && title.isNotEmpty) return '$number – $title';
+      if (number.isNotEmpty) return number;
+      if (title.isNotEmpty) return title;
+      return '—';
+    }
+
     final prepared = _allComplaints.map((c) {
       final receivedDate = c.createdAt.toLocal();
       final closedDate = closedDateFor(c) ?? parseDate(c.payload?['closedAt']);
@@ -7251,9 +7288,9 @@ class _AdminPageState extends State<AdminPage> {
       final customer = entry.customer;
       final recurrence = hasRecurrence(entry);
       final prrc = (c.prrcClassification ?? '').trim();
-      final capa = capaByComplaint[c.ticket];
-      final immediate = capaImmediate(capa);
-      final corrective = capaSummary(capa);
+      final capa = capaMap[c.ticket];
+      final immediate = immediateText(capa);
+      final corrective = summaryText(capa);
 
       return ComplaintListItem(
         internalNumber: (c.internalNo ?? '').trim().isEmpty ? '—' : (c.internalNo ?? ''),
