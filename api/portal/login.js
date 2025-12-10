@@ -11,6 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 export default async function handler(req, res) {
+  setCors(req, res);
   if (handlePreflight(req, res)) return;
   setCors(req, res);
   if (req.method !== 'POST') return methodNotAllowed(res);
@@ -80,6 +81,9 @@ export default async function handler(req, res) {
       },
     });
   } catch (err) {
+    // Falls oberhalb ein Fehler geworfen wurde, sicherstellen, dass die
+    // CORS-Header auch in Fehlerfällen gesetzt sind.
+    setCors(req, res);
     return bad(res, err?.message || 'server error', 500);
   }
 }
