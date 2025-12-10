@@ -6980,6 +6980,8 @@ class _AdminPageState extends State<AdminPage> {
         recurrence: recurrence,
         severity: fallbackDash(payloadValue(c, ['severity', 'kritikalitaet', 'schweregrad'])),
         notes: (c.adminNotes ?? payloadValue(c, ['notes', 'bemerkungen'])),
+        hasPrrcDecision: prrc.isNotEmpty,
+        salesCompleted: c.salesCompleted,
         receivedDate: entry.receivedDate,
         closedDate: entry.closedDate,
       );

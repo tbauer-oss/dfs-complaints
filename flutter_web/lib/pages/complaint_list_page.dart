@@ -45,6 +45,8 @@ class ComplaintListItem {
   final String notes;
   final DateTime? receivedDate;
   final DateTime? closedDate;
+  final bool hasPrrcDecision;
+  final bool salesCompleted;
 
   ComplaintListItem({
     required this.internalNumber,
@@ -76,6 +78,8 @@ class ComplaintListItem {
     required this.recurrence,
     required this.severity,
     required this.notes,
+    required this.hasPrrcDecision,
+    required this.salesCompleted,
     this.receivedDate,
     this.closedDate,
   });
@@ -84,6 +88,8 @@ class ComplaintListItem {
     String? immediateActions,
     String? correctiveActions,
     String? prrcClassification,
+    bool? hasPrrcDecision,
+    bool? salesCompleted,
   }) {
     return ComplaintListItem(
       internalNumber: internalNumber,
@@ -115,6 +121,8 @@ class ComplaintListItem {
       recurrence: recurrence,
       severity: severity,
       notes: notes,
+      hasPrrcDecision: hasPrrcDecision ?? this.hasPrrcDecision,
+      salesCompleted: salesCompleted ?? this.salesCompleted,
       receivedDate: receivedDate,
       closedDate: closedDate,
     );
@@ -934,6 +942,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   List<DataRow> _buildRows(List<ComplaintListItem> items) {
     return items.mapIndexed((i, c) {
+      final rowColor = _rowBackgroundColor(c);
       final cells = <String, DataCell>{
         'internalNumber': _cellFor('internalNumber', c.internalNumber),
         'systemId': _cellFor('systemId', c.systemId),
@@ -965,10 +974,39 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'severity': _cellFor('severity', c.severity),
         'notes': _cellFor('notes', c.notes),
       };
-      return DataRow.byIndex(index: i, cells: [
-        ..._orderedVisibleColumns.map((key) => cells[key]!),
-      ]);
+      return DataRow.byIndex(
+        index: i,
+        color: rowColor != null ? MaterialStateProperty.all(rowColor) : null,
+        cells: [
+          ..._orderedVisibleColumns.map((key) => cells[key]!),
+        ],
+      );
     }).toList();
+  }
+
+  Color? _rowBackgroundColor(ComplaintListItem item) {
+    final normalizedGroup = item.productGroup.trim().toLowerCase();
+    final isDentalProduct = normalizedGroup.contains('zahnmedizin');
+    if (!isDentalProduct) return null;
+
+    final isClosed = item.status.trim().toLowerCase() == 'abgeschlossen';
+    final redHighlight = Colors.redAccent.withOpacity(0.16);
+    final amberHighlight = Colors.amberAccent.withOpacity(0.16);
+    final greenHighlight = Colors.lightGreenAccent.withOpacity(0.16);
+
+    if (!item.hasPrrcDecision) {
+      return redHighlight;
+    }
+
+    if (!isClosed) {
+      return amberHighlight;
+    }
+
+    if (item.salesCompleted && isClosed) {
+      return greenHighlight;
+    }
+
+    return null;
   }
 
   Widget _buildDataTableHeader(ThemeData theme) {
