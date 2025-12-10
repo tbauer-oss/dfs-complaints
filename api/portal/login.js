@@ -7,6 +7,7 @@ import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/ht
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
+  PRRC_EMAILS,
   ensureInitialAdmins,
   normalizeRole,
   normalizeStatus,
@@ -52,7 +53,8 @@ export default async function handler(req, res) {
     const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
     if (portalStatus !== 'active') return bad(res, 'inactive', 403);
     const tilePermissions = sanitizeTilePermissions(u.tilePermissions);
-    const isPRRC = u.isPRRC === true;
+    const email = String(u.email || '').trim().toLowerCase();
+    const isPRRC = PRRC_EMAILS.has(email) && u.isPRRC === true;
 
     const token = jwt.sign({
       sub: u.email,
