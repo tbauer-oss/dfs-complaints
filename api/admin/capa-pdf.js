@@ -17,7 +17,9 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return methodNotAllowed(res);
 
-  const id = req.query?.id || req.query?.capaId || req.query?.capaNumber;
+  const id = `${
+    req.query?.id || req.query?.capaId || req.query?.capaNumber || req.query?.number || ''
+  }`.trim();
   if (!id) return bad(res, 'id missing', 400);
 
   const lang = (req.query?.lang || 'de').toString();
@@ -26,14 +28,22 @@ export default async function handler(req, res) {
   if (!report) return bad(res, 'not found', 404);
 
   try {
-    const doc = createCapaPdf(report, { lang });
     const filename = `${report.capaNumber || report.id}.pdf`;
+    res.statusCode = 200;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    doc.pipe(res);
-    doc.end();
+
+    const doc = createCapaPdf(report, { lang, stream: res, finalize: false });
+    await new Promise((resolve, reject) => {
+      doc.on('end', resolve);
+      doc.on('error', reject);
+      res.on('finish', resolve);
+      res.on('error', reject);
+      doc.end();
+    });
   } catch (err) {
     console.error('[admin/capa-pdf] generation failed', err);
-    return bad(res, 'failed to generate', 500);
+    if (!res.headersSent) return bad(res, 'failed to generate', 500);
+    res.end();
   }
 }
