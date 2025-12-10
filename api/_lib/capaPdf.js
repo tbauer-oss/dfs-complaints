@@ -151,7 +151,7 @@ function renderList(doc, entries, formatter) {
 function renderFooter(doc, labels, versionText) {
   const currentY = doc.y;
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const footerY = doc.page.height - doc.page.margins.bottom + 10;
+  const footerY = doc.page.height - doc.page.margins.bottom - 12;
 
   doc.save();
   doc.fontSize(8).fillColor(COLORS.muted).font('Helvetica');
