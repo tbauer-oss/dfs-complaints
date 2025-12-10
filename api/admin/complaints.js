@@ -690,11 +690,17 @@ export default async function handler(req, res) {
 
       if (wantsPrrcUpdate) {
         if (hasPrrcClassification) {
-          const normalized = normalizePrrcClassification(prrcClassificationInput);
-          if (!normalized) return bad(res, 'invalid prrc classification', 400);
-          if (normalized !== prevPrrcClass) {
-            c.prrcClassification = normalized;
-            prrcChanged = true;
+          const raw = (prrcClassificationInput ?? '').toString().trim();
+          if (!raw) {
+            if (prevPrrcClass) prrcChanged = true;
+            delete c.prrcClassification;
+          } else {
+            const normalized = normalizePrrcClassification(raw);
+            if (!normalized) return bad(res, 'invalid prrc classification', 400);
+            if (normalized !== prevPrrcClass) {
+              c.prrcClassification = normalized;
+              prrcChanged = true;
+            }
           }
         }
 

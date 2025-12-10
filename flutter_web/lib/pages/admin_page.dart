@@ -18789,7 +18789,9 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
           } else {
             _selected = _complaints.first;
           }
-          _selectedClassification = _selected != null ? _classification(_selected!) : null;
+          _selectedClassification = _selected != null && (_selected!.prrcClassification ?? '').trim().isNotEmpty
+              ? _classification(_selected!)
+              : null;
           _commentCtrl.text = _selected?.prrcComment ?? '';
         }
       });
@@ -18831,7 +18833,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   void _selectComplaint(AdminComplaint c) {
     setState(() {
       _selected = c;
-      _selectedClassification = _classification(c);
+      _selectedClassification = (c.prrcClassification ?? '').trim().isNotEmpty ? _classification(c) : null;
       _commentCtrl.text = c.prrcComment ?? '';
     });
   }
@@ -18872,19 +18874,21 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     _stats = _localStats(_complaints);
     if (_selected?.ticket == updated.ticket) {
       _selected = updated;
-      _selectedClassification = _classification(updated);
+      _selectedClassification = (updated.prrcClassification ?? '').trim().isNotEmpty
+          ? _classification(updated)
+          : null;
       _commentCtrl.text = updated.prrcComment ?? '';
     }
   }
 
-  Future<void> _savePrrc() async {
-    if (_selected == null || _selectedClassification == null) return;
+  Future<void> _savePrrc({bool clear = false}) async {
+    if (_selected == null) return;
     setState(() => _saving = true);
     try {
       final updated = await _api.adminComplaintUpdate(
         ticket: _selected!.ticket,
-        prrcClassification: _selectedClassification,
-        prrcComment: _commentCtrl.text.trim(),
+        prrcClassification: clear ? '' : _selectedClassification,
+        prrcComment: clear ? '' : _commentCtrl.text.trim(),
       );
       if (!mounted) return;
       setState(() => _applyUpdate(updated));
@@ -18898,6 +18902,32 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
       );
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmClearPrrc() async {
+    if (_selected == null) return;
+    final shouldClear = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('PRRC-Bewertung löschen?'),
+        content: const Text('Die aktuelle PRRC-Klassifikation und der Kommentar werden entfernt.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldClear == true) {
+      setState(() {
+        _selectedClassification = null;
+        _commentCtrl.clear();
+      });
+      await _savePrrc(clear: true);
     }
   }
 
@@ -19237,6 +19267,48 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     );
   }
 
+  Future<void> _openHistoryDialog(AdminComplaint c) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.history_outlined),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'PRRC-Historie',
+                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(height: 16),
+                Expanded(
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(child: _buildHistory(c)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDetail() {
     if (!_isPrrc) {
       return const Center(child: Text('PRRC-Bereich ist nur für PRRC-Accounts zugänglich.'));
@@ -19331,17 +19403,25 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
                   label: const Text('Speichern'),
                 ),
                 const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : _confirmClearPrrc,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Bewertung löschen'),
+                ),
+                const SizedBox(width: 12),
                 if (c.prrcTimestamp != null)
                   Text(
                     'Zuletzt geändert: ${DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal())}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => _openHistoryDialog(c),
+                  icon: const Icon(Icons.history_outlined),
+                  label: const Text('Historie ansehen'),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            Text('PRRC-Historie', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            _buildHistory(c),
           ],
         ),
       ),
@@ -19844,9 +19924,7 @@ class AdminApi {
       body['translateQmSummary'] = {'targetLang': translateQmSummaryLang};
     }
     if (prrcClassification != null) body['prrcClassification'] = prrcClassification;
-    if (prrcComment != null && prrcComment.trim().isNotEmpty) {
-      body['prrcComment'] = prrcComment.trim();
-    }
+    if (prrcComment != null) body['prrcComment'] = prrcComment.trim();
     
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
