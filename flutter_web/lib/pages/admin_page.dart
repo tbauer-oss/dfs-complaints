@@ -4276,15 +4276,26 @@ class _AdminPageState extends State<AdminPage> {
     );
 
     final dashboardEditButton = _view == _AdminView.menu
-        ? FilledButton.icon(
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: const StadiumBorder(),
-              elevation: 0,
-            ),
-            icon: Icon(_menuEditMode ? Icons.close : Icons.edit_outlined),
-            label: Text(_menuEditMode ? 'Bearbeitung schließen' : 'Bearbeiten'),
-            onPressed: () => setState(() => _menuEditMode = !_menuEditMode),
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: const StadiumBorder(),
+                  elevation: 0,
+                ),
+                icon: Icon(_menuEditMode ? Icons.close : Icons.edit_outlined),
+                label: Text(_menuEditMode ? 'Bearbeitung schließen' : 'Bearbeiten'),
+                onPressed: () => setState(() => _menuEditMode = !_menuEditMode),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Admin-Dashboard anpassen',
+                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
           )
         : null;
 
@@ -5570,39 +5581,33 @@ class _AdminPageState extends State<AdminPage> {
 
     return CustomScrollView(
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              children: [
-                Icon(
-                  _menuEditMode ? Icons.drag_indicator_outlined : Icons.dashboard_customize_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _menuEditMode
-                            ? 'Kacheln per Drag & Drop zwischen Bereichen verschieben oder neu anordnen.'
-                            : 'Admin-Dashboard anpassen',
-                      ),
-                      if (_menuEditMode)
+        if (_menuEditMode)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    _menuEditMode ? Icons.drag_indicator_outlined : Icons.dashboard_customize_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Kacheln per Drag & Drop zwischen Bereichen verschieben oder neu anordnen.'),
                         Text(
                           'Zum Beenden unten auf "Bearbeitung schließen" klicken.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
-                      if (_menuEditMode)
                         Text(
                           'Kacheln können ausgeblendet und im Archiv später wieder eingeblendet werden.',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (_menuEditMode) ...[
                   TextButton.icon(
                     onPressed: _addMenuSection,
                     icon: const Icon(Icons.add_outlined),
@@ -5614,10 +5619,9 @@ class _AdminPageState extends State<AdminPage> {
                     label: const Text('Layout zurücksetzen'),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
-        ),
         if (_menuEditMode)
           SliverToBoxAdapter(
             child: Padding(
