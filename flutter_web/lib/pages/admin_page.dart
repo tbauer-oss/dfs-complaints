@@ -795,7 +795,7 @@ class _AdminPageState extends State<AdminPage> {
         widget.api.portalProfile?['isPrrcAuthorized'] ??
         widget.portalProfile?['prrcAuthorized'] ??
         widget.api.portalProfile?['prrcAuthorized'];
-    _portalIsPrrcAuthorized = _truthy(profileIsPrrcAuthorized);
+    _portalIsPrrcAuthorized = _truthy(profileIsPrrcAuthorized) || _portalIsPrrc;
     final profileIsQm = widget.portalProfile?['isQM'] ??
         widget.portalProfile?['isQm'] ??
         widget.portalProfile?['qm'] ??
