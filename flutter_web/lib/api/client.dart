@@ -1603,10 +1603,10 @@ class ApiClient {
   }
 
   Future<void> adminDeleteCapa(String id) async {
+    final path = Uri(path: '/api/admin/capas', queryParameters: {'id': id}).toString();
     final r = await http.delete(
-      _u('/api/admin/capas'),
+      _u(path),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode({'id': id}),
     );
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
