@@ -108,9 +108,10 @@ function renderList(doc, entries, formatter) {
   if (entries.length === 0) doc.text('-');
 }
 
-export function createCapaPdf(report, { lang = 'de' } = {}) {
+export function createCapaPdf(report, { lang = 'de', stream = null, finalize = true } = {}) {
   const labels = resolveLabels(lang);
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  if (stream) doc.pipe(stream);
   doc.info = {
     Title: `${labels.title} ${report.capaNumber || report.id}`,
   };
@@ -185,6 +186,6 @@ export function createCapaPdf(report, { lang = 'de' } = {}) {
   });
   if (s?.d8?.closingNote) doc.text(s.d8.closingNote);
 
-  doc.end();
+  if (finalize) doc.end();
   return doc;
 }
