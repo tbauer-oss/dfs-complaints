@@ -1,22 +1,16 @@
 // Gemeinsamer Guard für DFS Portal Endpunkte (ehem. Adminbereich)
 import { bad } from '../_lib/http.js';
-import {
-  canReadTile,
-  canWrite,
-  canWriteTile,
-  hasPrrcAccess,
-  portalUserFromRequest,
-} from '../_lib/portalAuth.js';
+import { canReadTile, canWrite, canWriteTile, normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../_lib/portalAuth.js';
 
 export async function requirePortalAccess(req, res, { write = false, tile, allowPrrc = false } = {}) {
-  const actor = await portalUserFromRequest(req, { allowSecretFallback: false });
+  const actor = await portalUserFromRequest(req);
   if (!actor) {
     bad(res, 'unauthorized', 401);
     return null;
   }
 
   const tileId = (tile ?? '').toString().trim();
-  const isPrrc = hasPrrcAccess(actor);
+  const isPrrc = actor?.isPRRC === true || normalizeRole(actor?.role) === PORTAL_ROLES.prrc;
 
   if (tileId) {
     const allowed = write ? canWriteTile(actor, tileId) : canReadTile(actor, tileId);
@@ -33,4 +27,3 @@ export async function requirePortalAccess(req, res, { write = false, tile, allow
 
   return actor;
 }
-
