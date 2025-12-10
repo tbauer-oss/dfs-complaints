@@ -1,6 +1,7 @@
 // lib/api/client.dart
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/catalog_link.dart';
@@ -12,6 +13,8 @@ import '../models/wiki_overview.dart';
 import '../models/rep_download_item.dart';
 import '../models/download_category.dart';
 import '../models/admin_rep_summary.dart';
+import '../models/capa_report.dart';
+import '../models/portal_user.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1529,6 +1532,95 @@ class ApiClient {
         .whereType<Map>()
         .map((e) => DownloadCategory.fromJson(e.cast<String, dynamic>()))
         .toList(growable: false);
+  }
+
+  Future<List<CapaReport>> adminCapas() async {
+    final r = await http.get(_u('/api/admin/capas'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => CapaReport.fromJson(e.cast<String, dynamic>()))
+          .toList();
+    }
+    if (decoded is List) {
+      return decoded.whereType<Map>().map((e) => CapaReport.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
+  }
+
+  Future<List<PortalUserSummary>> fetchPortalUsers() async {
+    final r = await http.get(_u('/api/portal/users'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map>()
+          .map((e) => PortalUserSummary.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    throw ApiError(r.statusCode, 'Ungültige Antwort für Portal-User');
+  }
+
+  Future<CapaReport> adminSaveCapa(CapaReport report) async {
+    final r = await http.post(
+      _u('/api/admin/capas'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(report.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map && decoded['report'] is Map) {
+      return CapaReport.fromJson((decoded['report'] as Map).cast<String, dynamic>());
+    }
+    if (decoded is Map) return CapaReport.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'invalid response for CAPA save');
+  }
+
+  Future<CapaReport> adminUpdateCapa(CapaReport report) async {
+    final payload = report.toJson();
+    final r = await http.patch(
+      _u('/api/admin/capas'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map && decoded['report'] is Map) {
+      return CapaReport.fromJson((decoded['report'] as Map).cast<String, dynamic>());
+    }
+    if (decoded is Map) return CapaReport.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'invalid response for CAPA update');
+  }
+
+  Future<void> adminDeleteCapa(String id) async {
+    final r = await http.delete(
+      _u('/api/admin/capas'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'id': id}),
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<Uint8List> adminCapaPdf({required String id, String lang = 'de'}) async {
+    final query = Uri(queryParameters: {'id': id, 'lang': lang}).query;
+    final path = '/api/admin/capa-pdf${query.isEmpty ? '' : '?$query'}';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.bodyBytes;
   }
 
   Future<List<DownloadCategory>> adminDeleteDownloadCategory(String name, {bool force = false}) async {
