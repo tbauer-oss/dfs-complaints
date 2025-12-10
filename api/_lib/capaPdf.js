@@ -38,6 +38,8 @@ const LABELS = {
     signature: 'Freigabe & Unterschrift',
     signLabel: 'Digitale Signatur',
     signDate: 'Datum',
+    version: 'Version',
+    page: 'Seite',
     yes: 'Ja',
     no: 'Nein',
   },
@@ -76,6 +78,8 @@ const LABELS = {
     signature: 'Approval & Signature',
     signLabel: 'Digital signature',
     signDate: 'Date',
+    version: 'Version',
+    page: 'Page',
     yes: 'Yes',
     no: 'No',
   },
@@ -142,6 +146,22 @@ function renderList(doc, entries, formatter) {
     doc.moveDown(0.2);
   });
   if (entries.length === 0) doc.text('-');
+}
+
+function renderFooter(doc, labels, versionText) {
+  const currentY = doc.y;
+  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const footerY = doc.page.height - doc.page.margins.bottom + 10;
+
+  doc.save();
+  doc.fontSize(8).fillColor(COLORS.muted).font('Helvetica');
+  doc.text(versionText, doc.page.margins.left, footerY, { width: width / 2, align: 'left' });
+  doc.text(`${labels.page} ${doc.page.number}`, doc.page.margins.left, footerY, {
+    width,
+    align: 'right',
+  });
+  doc.restore();
+  doc.y = currentY;
 }
 
 function drawHeader(doc, labels, report) {
@@ -256,11 +276,15 @@ export function createCapaPdf(report, { lang = 'de', stream = null, finalize = t
   if (stream) doc.pipe(stream);
   const now = new Date();
   const generatedDate = formatDate(now.getTime());
+  const versionText = `${labels.version}: ${report.version || 'DFS CAPA Report v1.0'}`;
   doc.info = {
     Title: `${labels.title} ${report.capaNumber || report.id}`,
     CreationDate: now,
     ModDate: new Date(report.updatedAt || report.createdAt || now),
   };
+
+  renderFooter(doc, labels, versionText);
+  doc.on('pageAdded', () => renderFooter(doc, labels, versionText));
 
   drawHeader(doc, labels, report);
   renderMetaSection(doc, labels, report);
