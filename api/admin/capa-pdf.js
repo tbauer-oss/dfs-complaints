@@ -29,16 +29,21 @@ export default async function handler(req, res) {
 
   try {
     const filename = `${report.capaNumber || report.id}.pdf`;
+    res.statusCode = 200;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-    const doc = createCapaPdf(report, { lang, stream: res });
-    doc.on('error', err => {
-      console.error('[admin/capa-pdf] stream failed', err);
-      if (!res.headersSent) bad(res, 'failed to generate', 500);
+    const doc = createCapaPdf(report, { lang, stream: res, finalize: false });
+    await new Promise((resolve, reject) => {
+      doc.on('end', resolve);
+      doc.on('error', reject);
+      res.on('finish', resolve);
+      res.on('error', reject);
+      doc.end();
     });
   } catch (err) {
     console.error('[admin/capa-pdf] generation failed', err);
-    return bad(res, 'failed to generate', 500);
+    if (!res.headersSent) return bad(res, 'failed to generate', 500);
+    res.end();
   }
 }
