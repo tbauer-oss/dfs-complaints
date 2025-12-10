@@ -4,8 +4,7 @@ import {
   canReadTile,
   canWrite,
   canWriteTile,
-  normalizeRole,
-  PORTAL_ROLES,
+  hasPrrcAccess,
   portalUserFromRequest,
 } from '../_lib/portalAuth.js';
 
@@ -17,7 +16,7 @@ export async function requirePortalAccess(req, res, { write = false, tile, allow
   }
 
   const tileId = (tile ?? '').toString().trim();
-  const isPrrc = actor?.isPRRC === true || normalizeRole(actor?.role) === PORTAL_ROLES.prrc;
+  const isPrrc = hasPrrcAccess(actor);
 
   if (tileId) {
     const allowed = write ? canWriteTile(actor, tileId) : canReadTile(actor, tileId);
