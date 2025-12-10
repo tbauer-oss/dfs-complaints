@@ -5217,6 +5217,7 @@ class _AdminPageState extends State<AdminPage> {
     // layout is stored without them.
     _ensureMenuTilePresent('downloads');
     _ensureMenuTilePresent('prrc');
+    _ensureMenuTilePresent('capaReports');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
   }
@@ -5235,6 +5236,7 @@ class _AdminPageState extends State<AdminPage> {
         _filterMenuSectionsForRole();
         _ensureMenuTilePresent('complaintList');
         _ensureMenuTilePresent('prrc');
+        _ensureMenuTilePresent('capaReports');
       }
 
       final remoteLayout = config['menuLayout'];
@@ -5246,6 +5248,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('portalUsers');
         _ensureMenuTilePresent('complaintList');
         _ensureMenuTilePresent('prrc');
+        _ensureMenuTilePresent('capaReports');
       }
 
       final navOrder = config['navOrder'];
