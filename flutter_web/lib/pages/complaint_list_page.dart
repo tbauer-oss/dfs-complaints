@@ -941,7 +941,23 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     final width = _columnWidth('prrcClassification');
     final display = item.prrcClassification.isEmpty ? '—' : item.prrcClassification;
     if (widget.onUpdatePrrcClassification == null || widget.prrcReadOnly) {
-      return _cellFor('prrcClassification', display);
+      final disabledStyle = widget.prrcReadOnly
+          ? TextStyle(color: Theme.of(context).disabledColor)
+          : null;
+      return DataCell(
+        Tooltip(
+          message: display,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: width),
+            child: Text(
+              display,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              style: disabledStyle,
+            ),
+          ),
+        ),
+      );
     }
 
     final isSaving = _savingPrrcTickets.contains(item.systemId);
