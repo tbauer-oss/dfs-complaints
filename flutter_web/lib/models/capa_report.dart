@@ -387,7 +387,7 @@ class CapaReport {
   final String complaintId;
   final CapaSections sections;
 
-  const CapaReport({
+  CapaReport({
     this.id = '',
     this.capaNumber = '',
     this.title = '',
