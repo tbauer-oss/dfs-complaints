@@ -18816,6 +18816,9 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   }
 
   String _customer(AdminComplaint c) {
+    final company = _companyByEmail(c.email)?.trim();
+    if (company != null && company.isNotEmpty) return company;
+
     const companyKeys = [
       'company',
       'companyName',
