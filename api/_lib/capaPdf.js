@@ -120,12 +120,18 @@ function sectionHeader(doc, title) {
   const startX = doc.page.margins.left;
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const startY = doc.y;
+  const height = 30;
   doc.save();
-  doc.roundedRect(startX, startY - 4, width, 24, 6).fill(COLORS.sectionBg);
+  doc.roundedRect(startX, startY - 2, width, height, 6).fill(COLORS.sectionBg);
   doc.restore();
-  doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(12).text(title, startX + 10, startY);
-  doc.moveTo(startX, doc.y + 4).lineTo(startX + width, doc.y + 4).stroke(COLORS.border);
-  doc.moveDown(0.3);
+  doc
+    .fillColor(COLORS.primary)
+    .font('Helvetica-Bold')
+    .fontSize(12)
+    .text(title, startX + 14, startY + 6, { width: width - 28 });
+  doc.moveTo(startX, startY + height).lineTo(startX + width, startY + height).stroke(COLORS.border);
+  doc.y = startY + height;
+  doc.moveDown(0.4);
   doc.fontSize(10).fillColor(COLORS.text);
 }
 
@@ -202,7 +208,7 @@ function renderMetaSection(doc, labels, report) {
   doc.y = startY + Math.ceil(entries.length / 2) * 38;
 }
 
-function renderSignatureSection(doc, labels) {
+function renderSignatureSection(doc, labels, signDate) {
   sectionHeader(doc, labels.signature);
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const startX = doc.page.margins.left;
@@ -214,14 +220,24 @@ function renderSignatureSection(doc, labels) {
     doc.roundedRect(label.x, label.y, label.width, 70, 8).stroke(COLORS.border);
     doc.restore();
     doc.fillColor(COLORS.muted).font('Helvetica-Bold').text(label.title, label.x + 12, label.y + 12);
-    doc
-      .fillColor(COLORS.text)
-      .font('Helvetica')
-      .text('__________________________________________', label.x + 12, label.y + 30);
+    if (label.value) {
+      doc.fillColor(COLORS.text).font('Helvetica').text(label.value, label.x + 12, label.y + 34);
+    } else {
+      doc
+        .fillColor(COLORS.text)
+        .font('Helvetica')
+        .text('__________________________________________', label.x + 12, label.y + 34);
+    }
   };
 
   signatureBox({ x: startX, y, width: boxWidth, title: labels.signLabel });
-  signatureBox({ x: startX + boxWidth + 20, y, width: boxWidth, title: labels.signDate });
+  signatureBox({
+    x: startX + boxWidth + 20,
+    y,
+    width: boxWidth,
+    title: labels.signDate,
+    value: signDate,
+  });
 
   doc.y = y + 78;
 }
@@ -231,6 +247,7 @@ export function createCapaPdf(report, { lang = 'de', stream = null, finalize = t
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
   if (stream) doc.pipe(stream);
   const now = new Date();
+  const generatedDate = formatDate(now.getTime());
   doc.info = {
     Title: `${labels.title} ${report.capaNumber || report.id}`,
     CreationDate: now,
@@ -298,7 +315,7 @@ export function createCapaPdf(report, { lang = 'de', stream = null, finalize = t
   });
   if (s?.d8?.closingNote) doc.text(s.d8.closingNote);
 
-  renderSignatureSection(doc, labels);
+  renderSignatureSection(doc, labels, generatedDate);
 
   if (finalize) doc.end();
   return doc;
