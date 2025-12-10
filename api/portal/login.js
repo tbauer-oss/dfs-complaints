@@ -3,20 +3,15 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
-import {
-  ADMIN_EMAILS,
-  ensureInitialAdmins,
-  normalizeRole,
-  normalizeStatus,
-  PORTAL_ROLES,
-} from '../_lib/portalAuth.js';
+import { ADMIN_EMAILS, PRRC_EMAILS, ensureInitialAdmins, normalizeRole, normalizeStatus, PORTAL_ROLES } from '../_lib/portalAuth.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 export default async function handler(req, res) {
+  setCors(req, res);
   if (handlePreflight(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
@@ -45,14 +40,22 @@ export default async function handler(req, res) {
     if (!u) return bad(res, 'invalid credentials', 401);
 
     const hash = u.passhash || u.passwordHash || '';
-    const okPw = await bcrypt.compare(pw, hash);
+    let okPw = false;
+    if (hash && hash.length > 20) {
+      try {
+        okPw = await bcrypt.compare(pw, hash);
+      } catch (err) {
+        okPw = false;
+      }
+    }
     if (!okPw) return bad(res, 'invalid credentials', 401);
 
     const role = normalizeRole(u.role);
     const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
     if (portalStatus !== 'active') return bad(res, 'inactive', 403);
     const tilePermissions = sanitizeTilePermissions(u.tilePermissions);
-    const isPRRC = u.isPRRC === true;
+    const email = String(u.email || '').trim().toLowerCase();
+    const isPRRC = PRRC_EMAILS.has(email) && u.isPRRC === true;
 
     const token = jwt.sign({
       sub: u.email,
@@ -77,6 +80,9 @@ export default async function handler(req, res) {
       },
     });
   } catch (err) {
+    // Falls oberhalb ein Fehler geworfen wurde, sicherstellen, dass die
+    // CORS-Header auch in Fehlerfällen gesetzt sind.
+    setCors(req, res);
     return bad(res, err?.message || 'server error', 500);
   }
 }
