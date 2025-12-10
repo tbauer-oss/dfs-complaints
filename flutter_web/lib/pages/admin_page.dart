@@ -18785,6 +18785,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   bool _loading = true;
   String? _error;
   List<AdminComplaint> _complaints = const <AdminComplaint>[];
+  List<ActiveUser> _customers = const <ActiveUser>[];
   List<PortalUserSummary> _portalUsers = const <PortalUserSummary>[];
   PrrcDashboardStats _stats = const PrrcDashboardStats(
     counts: {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0},
@@ -18872,8 +18873,9 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   }
 
   String _customer(AdminComplaint c) {
+    final number = _customerNumberByEmail(c.email) ?? _customerNumberFromPayload(c);
     final company = _companyByEmail(c.email)?.trim();
-    if (company != null && company.isNotEmpty) return company;
+    if (company != null && company.isNotEmpty) return _withCustomerNumber(company, number);
 
     const companyKeys = [
       'company',
@@ -18904,7 +18906,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     }
 
     final payloadCustomer = _payloadValue(c, companyKeys);
-    if (payloadCustomer.isNotEmpty) return payloadCustomer;
+    if (payloadCustomer.isNotEmpty) return _withCustomerNumber(payloadCustomer, number);
 
     final payload = c.payload;
     if (payload != null) {
@@ -18912,12 +18914,12 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
         final value = payload[key];
         if (value is Map && value.isNotEmpty) {
           final nested = fromMap(value);
-          if (nested.isNotEmpty) return nested;
+          if (nested.isNotEmpty) return _withCustomerNumber(nested, number);
         }
       }
     }
 
-    return c.email;
+    return _withCustomerNumber(c.email, number);
   }
 
   String _statusLabel(int? value) {
@@ -18938,7 +18940,58 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
 
   String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
 
+  ActiveUser? _activeUserByEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    return _customers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+  }
+
+  String? _customerNumberByEmail(String email) {
+    final number = _activeUserByEmail(email)?.customerNumber?.trim() ?? '';
+    return number.isNotEmpty ? number : null;
+  }
+
+  String? _customerNumberFromPayload(AdminComplaint c) {
+    const numberKeys = [
+      'customerNumber',
+      'customer_number',
+      'customerNo',
+      'customer_no',
+      'customerId',
+      'customer_id',
+      'kundennummer',
+      'kundenNr',
+    ];
+
+    final direct = _payloadValue(c, numberKeys);
+    if (direct.isNotEmpty) return direct;
+
+    final payload = c.payload;
+    if (payload != null) {
+      for (final key in const ['customer', 'kunde', 'customerData', 'customerInfo']) {
+        final value = payload[key];
+        if (value is Map && value.isNotEmpty) {
+          final map = value.map((k, v) => MapEntry('$k', v));
+          for (final nKey in numberKeys) {
+            final s = (map[nKey] ?? '').toString().trim();
+            if (s.isNotEmpty) return s;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String _withCustomerNumber(String name, String? number) {
+    if (number == null || number.isEmpty) return name;
+    return '$name (Kundennr.: $number)';
+  }
+
   String? _companyByEmail(String email) {
+    final active = _activeUserByEmail(email);
+    final activeCompany = active?.company.trim() ?? '';
+    if (activeCompany.isNotEmpty) return activeCompany;
+
     final normalized = email.trim().toLowerCase();
     final user = _portalUsers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
     final label = user?.displayName.trim() ?? '';
@@ -18966,13 +19019,16 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
           to: _dateRange?.end,
         ),
         _api.fetchPortalUserSummaries(),
+        _api.fetchUsers().catchError((_) => const <ActiveUser>[]),
       ]);
       final res = results[0] as PrrcDashboardData;
       final portalUsers = results[1] as List<PortalUserSummary>;
+      final customers = results[2] as List<ActiveUser>;
       if (!mounted) return;
       setState(() {
         _complaints = res.complaints;
         _stats = res.stats;
+        _customers = customers;
         _portalUsers = portalUsers;
         if (_complaints.isNotEmpty && _selected == null) {
           if (widget.initialTicket != null) {
