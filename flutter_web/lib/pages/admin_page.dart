@@ -19879,109 +19879,122 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     final scheme = Theme.of(context).colorScheme;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(14),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: constraints.maxWidth,
+                minHeight: constraints.maxHeight,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        'PRRC-Details',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PRRC-Details',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.bodyMedium),
+                          ],
+                        ),
                       ),
-                      Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.bodyMedium),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _openComplaintDialog(c),
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('Standard-Detailansicht'),
+                      ),
                     ],
                   ),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _openComplaintDialog(c),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Standard-Detailansicht'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                Chip(label: Text('Kunde: ${_customer(c)}')),
-                Chip(label: Text('Artikel: ${_article(c).isEmpty ? '—' : _article(c)}')),
-                Chip(label: Text('Eingang: ${_formatDate(c.createdAt)}')),
-                Chip(label: Text('Status: ${_statusLabel(c.status)}')),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text('Schnellauswahl', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              children: ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((value) {
-                final selected = _selectedClassification == value;
-                return ChoiceChip(
-                  label: Text(value),
-                  selected: selected,
-                  onSelected: _saving ? null : (_) => setState(() => _selectedClassification = value),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _selectedClassification,
-              decoration: const InputDecoration(labelText: 'PRRC-Kategorie'),
-              onChanged: _saving ? null : (v) => setState(() => _selectedClassification = v),
-              items: ['N/A', 'Sub', 'A', 'B', 'C', 'D']
-                  .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                  .toList(),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _commentCtrl,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
-            ),
-            _prrcStatusSection(c),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _saving ? null : _savePrrc,
-                  icon: _saving
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
-                        )
-                      : const Icon(Icons.save_outlined),
-                  label: const Text('Speichern'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: _saving ? null : _confirmClearPrrc,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Bewertung löschen'),
-                ),
-                const SizedBox(width: 12),
-                if (c.prrcTimestamp != null)
-                  Text(
-                    'Zuletzt geändert: ${DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal())}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      Chip(label: Text('Kunde: ${_customer(c)}')),
+                      Chip(label: Text('Artikel: ${_article(c).isEmpty ? '—' : _article(c)}')),
+                      Chip(label: Text('Eingang: ${_formatDate(c.createdAt)}')),
+                      Chip(label: Text('Status: ${_statusLabel(c.status)}')),
+                    ],
                   ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => _openHistoryDialog(c),
-                  icon: const Icon(Icons.history_outlined),
-                  label: const Text('Historie ansehen'),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text('Schnellauswahl', style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((value) {
+                      final selected = _selectedClassification == value;
+                      return ChoiceChip(
+                        label: Text(value),
+                        selected: selected,
+                        onSelected: _saving ? null : (_) => setState(() => _selectedClassification = value),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _selectedClassification,
+                    decoration: const InputDecoration(labelText: 'PRRC-Kategorie'),
+                    onChanged: _saving ? null : (v) => setState(() => _selectedClassification = v),
+                    items: ['N/A', 'Sub', 'A', 'B', 'C', 'D']
+                        .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _commentCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
+                  ),
+                  _prrcStatusSection(c),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _saving ? null : _savePrrc,
+                        icon: _saving
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: const Text('Speichern'),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _confirmClearPrrc,
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Bewertung löschen'),
+                      ),
+                      const SizedBox(width: 12),
+                      if (c.prrcTimestamp != null)
+                        Text(
+                          'Zuletzt geändert: ${DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal())}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => _openHistoryDialog(c),
+                        icon: const Icon(Icons.history_outlined),
+                        label: const Text('Historie ansehen'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
