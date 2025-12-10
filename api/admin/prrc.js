@@ -29,6 +29,8 @@ function statsFromComplaints(list = []) {
   let unrated = 0;
   let open = 0;
   let incidents = 0;
+  let potentiallyReportable = 0;
+  let reportableCases = 0;
 
   for (const c of list) {
     const classification = normalizePrrcClassification(c?.prrcClassification) || 'N/A';
@@ -36,6 +38,10 @@ function statsFromComplaints(list = []) {
     if (!normalizePrrcClassification(c?.prrcClassification)) unrated += 1;
     if (Number(c?.status ?? 0) !== 5) open += 1;
     if (['A', 'B', 'C', 'D'].includes(classification)) incidents += 1;
+    if (['B', 'C', 'D'].includes(classification) || c?.isPotentiallyReportable === true) {
+      potentiallyReportable += 1;
+    }
+    if (c?.prrcReportableCase === true) reportableCases += 1;
   }
 
   const total = list.length || 1;
@@ -48,6 +54,8 @@ function statsFromComplaints(list = []) {
     incidents,
     total: list.length,
     incidentShare,
+    potentiallyReportable,
+    reportableCases,
   };
 }
 

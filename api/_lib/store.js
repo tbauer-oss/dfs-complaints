@@ -1811,6 +1811,25 @@ function normalizeComplaintRecord(c = {}) {
   if (prrcUserId) normalized.prrcUserId = prrcUserId; else delete normalized.prrcUserId;
   const prrcTs = parseDate(c.prrcTimestamp);
   if (prrcTs) normalized.prrcTimestamp = prrcTs; else delete normalized.prrcTimestamp;
+  const boolVal = (v) => v === true || v === 'true' || v === 1 || v === '1';
+  const prrcClassUpper = (prrcClass ?? '').toString().trim().toUpperCase();
+  const incidentClass = ['B', 'C', 'D'].includes(prrcClassUpper);
+  const hasClassification = (prrcClass ?? '').toString().trim().isNotEmpty;
+  const potentiallyReportable = incidentClass || (!hasClassification && boolVal(c.isPotentiallyReportable));
+  if (potentiallyReportable) normalized.isPotentiallyReportable = true; else delete normalized.isPotentiallyReportable;
+  const reportCheck = boolVal(c.prrcReportCheck);
+  if (potentiallyReportable && reportCheck) normalized.prrcReportCheck = true; else delete normalized.prrcReportCheck;
+  const reportCheckComment = trim(c.prrcReportCheckComment);
+  if (potentiallyReportable && reportCheckComment) normalized.prrcReportCheckComment = reportCheckComment; else delete normalized.prrcReportCheckComment;
+  const reportableFlag = potentiallyReportable && boolVal(c.prrcReportableCase);
+  const reportableAt = parseDate(c.prrcReportableAt);
+  if (reportableFlag) {
+    normalized.prrcReportableCase = true;
+    normalized.prrcReportableAt = reportableAt || Date.now();
+  } else {
+    delete normalized.prrcReportableCase;
+    delete normalized.prrcReportableAt;
+  }
   normalized.salesCompleted = c.salesCompleted === true || c.salesCompleted === 'true' || c.salesCompleted === 1 || c.salesCompleted === '1';
   const completedAt = parseDate(c.salesCompletedAt);
   if (completedAt) normalized.salesCompletedAt = completedAt; else delete normalized.salesCompletedAt;

@@ -12894,6 +12894,11 @@ class AdminComplaint {
   String? prrcComment;
   String? prrcUserId;
   DateTime? prrcTimestamp;
+  bool isPotentiallyReportable;
+  bool prrcReportCheck;
+  String? prrcReportCheckComment;
+  bool prrcReportableCase;
+  DateTime? prrcReportableAt;
   Map<String, dynamic>? payload;
   final List<ComplaintUpload> uploads;
   List<ComplaintHistoryEntry> history;
@@ -12960,6 +12965,11 @@ class AdminComplaint {
     this.prrcComment,
     this.prrcUserId,
     this.prrcTimestamp,
+    this.isPotentiallyReportable = false,
+    this.prrcReportCheck = false,
+    this.prrcReportCheckComment,
+    this.prrcReportableCase = false,
+    this.prrcReportableAt,
     this.payload,
     this.internalDepartments = const <String>[],
     this.internalEvaluationTextDe,
@@ -13028,6 +13038,13 @@ class AdminComplaint {
       if (s == 'rejected' || s == 'reject' || s == 'red' || s == 'rot') return 'rejected';
       if (s == 'pending' || s == 'wait' || s == 'gelb' || s == 'yellow' || s == 'open') return 'pending';
       return s;
+    }
+
+    bool _truthy(v) {
+      if (v == null) return false;
+      if (v is bool) return v;
+      final s = v.toString().trim().toLowerCase();
+      return s == 'true' || s == '1' || s == 'yes';
     }
 
     final payload = (j['payload'] is Map)
@@ -13117,6 +13134,11 @@ class AdminComplaint {
       prrcComment: j['prrcComment']?.toString(),
       prrcUserId: j['prrcUserId']?.toString(),
       prrcTimestamp: j['prrcTimestamp'] != null ? _dt(j['prrcTimestamp']) : null,
+      isPotentiallyReportable: _truthy(j['isPotentiallyReportable']),
+      prrcReportCheck: _truthy(j['prrcReportCheck']),
+      prrcReportCheckComment: j['prrcReportCheckComment']?.toString(),
+      prrcReportableCase: _truthy(j['prrcReportableCase']),
+      prrcReportableAt: j['prrcReportableAt'] != null ? _dt(j['prrcReportableAt']) : null,
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
@@ -13185,6 +13207,11 @@ class AdminComplaint {
         if (prrcComment != null) 'prrcComment': prrcComment,
         if (prrcUserId != null) 'prrcUserId': prrcUserId,
         if (prrcTimestamp != null) 'prrcTimestamp': prrcTimestamp!.toIso8601String(),
+        'isPotentiallyReportable': isPotentiallyReportable,
+        'prrcReportCheck': prrcReportCheck,
+        if (prrcReportCheckComment != null) 'prrcReportCheckComment': prrcReportCheckComment,
+        'prrcReportableCase': prrcReportableCase,
+        if (prrcReportableAt != null) 'prrcReportableAt': prrcReportableAt!.toIso8601String(),
         'payload': payload,
         'history': history.map((e) => e.toJson()).toList(),
         if (repOpinion != null) 'repOpinion': repOpinion,
@@ -18720,6 +18747,8 @@ class PrrcDashboardStats {
   final int incidents;
   final int total;
   final double incidentShare;
+  final int potentiallyReportable;
+  final int reportableCases;
 
   const PrrcDashboardStats({
     required this.counts,
@@ -18728,6 +18757,8 @@ class PrrcDashboardStats {
     required this.incidents,
     required this.total,
     required this.incidentShare,
+    required this.potentiallyReportable,
+    required this.reportableCases,
   });
 
   factory PrrcDashboardStats.fromJson(Map<String, dynamic> j) {
@@ -18749,6 +18780,8 @@ class PrrcDashboardStats {
       incidents: int.tryParse('${j['incidents'] ?? 0}') ?? 0,
       total: int.tryParse('${j['total'] ?? 0}') ?? 0,
       incidentShare: double.tryParse('${j['incidentShare'] ?? 0}') ?? 0,
+      potentiallyReportable: int.tryParse('${j['potentiallyReportable'] ?? 0}') ?? 0,
+      reportableCases: int.tryParse('${j['reportableCases'] ?? 0}') ?? 0,
     );
   }
 }
@@ -18766,6 +18799,18 @@ class PrrcDashboardData {
       stats: PrrcDashboardStats.fromJson((j['stats'] as Map?)?.cast<String, dynamic>() ?? const {}),
     );
   }
+}
+
+class _PrrcDialogResult {
+  final bool reportCheck;
+  final String comment;
+  final bool markReportable;
+
+  const _PrrcDialogResult({
+    required this.reportCheck,
+    required this.comment,
+    required this.markReportable,
+  });
 }
 
 class PrrcDashboardPage extends StatefulWidget {
@@ -18786,6 +18831,7 @@ class PrrcDashboardPage extends StatefulWidget {
 
 class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   final _commentCtrl = TextEditingController();
+  final _reportCheckCommentCtrl = TextEditingController();
 
   late final AdminApi _api;
   bool _loading = true;
@@ -18800,6 +18846,8 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     incidents: 0,
     total: 0,
     incidentShare: 0,
+    potentiallyReportable: 0,
+    reportableCases: 0,
   );
   AdminComplaint? _selected;
   String _portalRole = 'user';
@@ -18807,11 +18855,14 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   bool _isPrrc = false;
   bool _isSuperuser = false;
   bool _saving = false;
+  bool _reportCheck = false;
+  bool _reportableMarked = false;
 
   String _statusFilter = 'all';
   String _categoryFilter = 'all';
   String _productGroupFilter = 'all';
   bool _onlyUnrated = false;
+  bool _onlyReportable = false;
   DateTimeRange? _dateRange;
   String? _selectedClassification;
 
@@ -18827,6 +18878,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _reportCheckCommentCtrl.dispose();
     super.dispose();
   }
 
@@ -19049,6 +19101,9 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
               ? _classification(_selected!)
               : null;
           _commentCtrl.text = _selected?.prrcComment ?? '';
+          _reportCheck = _selected?.prrcReportCheck ?? false;
+          _reportCheckCommentCtrl.text = _selected?.prrcReportCheckComment ?? '';
+          _reportableMarked = _selected?.prrcReportableCase ?? false;
         }
       });
     } catch (e) {
@@ -19068,6 +19123,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
 
     return _complaints.where((c) {
       if (_onlyUnrated && !_isUnrated(c)) return false;
+      if (_onlyReportable && !c.prrcReportableCase) return false;
       if (from != null && c.createdAt.isBefore(from)) return false;
       if (to != null && c.createdAt.isAfter(to.add(const Duration(days: 1)))) return false;
       if (statusFilter != null && c.status != statusFilter) return false;
@@ -19091,6 +19147,9 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
       _selected = c;
       _selectedClassification = (c.prrcClassification ?? '').trim().isNotEmpty ? _classification(c) : null;
       _commentCtrl.text = c.prrcComment ?? '';
+      _reportCheck = c.prrcReportCheck;
+      _reportCheckCommentCtrl.text = c.prrcReportCheckComment ?? '';
+      _reportableMarked = c.prrcReportableCase;
     });
   }
 
@@ -19099,6 +19158,8 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     var unrated = 0;
     var open = 0;
     var incidents = 0;
+    var potential = 0;
+    var reportable = 0;
 
     for (final c in list) {
       final cls = _classification(c);
@@ -19106,6 +19167,8 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
       if (_isUnrated(c)) unrated += 1;
       if (c.status != 5) open += 1;
       if (['A', 'B', 'C', 'D'].contains(cls)) incidents += 1;
+      if (['B', 'C', 'D'].contains(cls) || c.isPotentiallyReportable) potential += 1;
+      if (c.prrcReportableCase) reportable += 1;
     }
 
     final total = list.length;
@@ -19119,7 +19182,120 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
       incidents: incidents,
       total: total,
       incidentShare: share,
+      potentiallyReportable: potential,
+      reportableCases: reportable,
     );
+  }
+
+  bool _requiresReportDialog(String? cls) {
+    final normalized = (cls ?? '').trim().toUpperCase();
+    return normalized == 'B' || normalized == 'C' || normalized == 'D';
+  }
+
+  Future<_PrrcDialogResult?> _showReportabilityDialog(AdminComplaint complaint) async {
+    bool checked = _reportCheck || complaint.prrcReportCheck;
+    bool markReportable = _reportableMarked || complaint.prrcReportableCase;
+    String? errorText;
+    final controller = TextEditingController(text: _reportCheckCommentCtrl.text.trim());
+
+    final result = await showDialog<_PrrcDialogResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setState) {
+        void validate() {
+          final comment = controller.text.trim();
+          if (!checked) {
+            setState(() => errorText = 'Bitte bestätigen, dass die Meldepflicht geprüft wurde.');
+            return;
+          }
+          if (comment.isEmpty) {
+            setState(() => errorText = 'Bitte einen kurzen Pflichtkommentar ergänzen.');
+            return;
+          }
+          Navigator.of(ctx).pop(
+            _PrrcDialogResult(reportCheck: checked, comment: comment, markReportable: markReportable),
+          );
+        }
+
+        return AlertDialog(
+          title: const Text('Hinweis: mögliche Meldepflicht'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Hinweis: Diese Einstufung deutet auf ein potenziell meldepflichtiges Vorkommnis hin. '
+                    'Bitte prüfen Sie, ob eine Meldung an die zuständige Behörde erforderlich ist.',
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      html.window.open(
+                        'https://health.ec.europa.eu/medical-devices-sector/new-regulations/guidance-mdcg-endorsed-documents-and-other-guidance/pmsv-reporting-forms_en?prefLang=de',
+                        '_blank',
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('MIR-Formular öffnen'),
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: checked,
+                    onChanged: (v) => setState(() {
+                      checked = v ?? false;
+                      if (checked) errorText = null;
+                    }),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Behördliche Meldepflicht geprüft'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  TextField(
+                    controller: controller,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Pflichtkommentar',
+                      helperText: 'Bitte kurz dokumentieren, ob und wie die Meldepflicht geprüft wurde.',
+                      errorText: errorText,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    icon: Icon(markReportable ? Icons.check_circle : Icons.flag_outlined),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          markReportable ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                    ),
+                    onPressed: () => setState(() {
+                      markReportable = !markReportable;
+                    }),
+                    label: Text(
+                      markReportable
+                          ? 'Als meldepflichtig gekennzeichnet'
+                          : 'Als meldepflichtigen Fall kennzeichnen',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: validate,
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      }),
+    );
+
+    return result;
   }
 
   void _applyUpdate(AdminComplaint updated) {
@@ -19134,17 +19310,37 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
           ? _classification(updated)
           : null;
       _commentCtrl.text = updated.prrcComment ?? '';
+      _reportCheck = updated.prrcReportCheck;
+      _reportCheckCommentCtrl.text = updated.prrcReportCheckComment ?? '';
+      _reportableMarked = updated.prrcReportableCase;
     }
   }
 
   Future<void> _savePrrc({bool clear = false}) async {
     if (_selected == null) return;
+    final classification = clear ? '' : (_selectedClassification ?? '');
+
+    if (!clear && _requiresReportDialog(classification)) {
+      final dialogResult = await _showReportabilityDialog(_selected!);
+      if (dialogResult == null) return;
+      _reportCheck = dialogResult.reportCheck;
+      _reportCheckCommentCtrl.text = dialogResult.comment;
+      _reportableMarked = dialogResult.markReportable;
+    } else {
+      _reportCheck = false;
+      _reportCheckCommentCtrl.clear();
+      _reportableMarked = false;
+    }
+
     setState(() => _saving = true);
     try {
       final updated = await _api.adminComplaintUpdate(
         ticket: _selected!.ticket,
         prrcClassification: clear ? '' : _selectedClassification,
         prrcComment: clear ? '' : _commentCtrl.text.trim(),
+        prrcReportCheck: _reportCheck,
+        prrcReportCheckComment: _reportCheckCommentCtrl.text.trim(),
+        prrcReportableCase: _reportableMarked,
       );
       if (!mounted) return;
       setState(() => _applyUpdate(updated));
@@ -19324,10 +19520,28 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
             SizedBox(
               width: 240,
               child: _kpiTile(
+                label: 'Potenzielle Meldefälle',
+                value: '${_stats.potentiallyReportable}',
+                icon: Icons.report_problem_outlined,
+                color: Colors.deepOrangeAccent,
+              ),
+            ),
+            SizedBox(
+              width: 240,
+              child: _kpiTile(
                 label: 'Bewertungen gesamt',
                 value: '${_stats.total}',
                 icon: Icons.analytics_outlined,
                 color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            SizedBox(
+              width: 240,
+              child: _kpiTile(
+                label: 'Meldepflichtige Fälle',
+                value: '${_stats.reportableCases}',
+                icon: Icons.assignment_turned_in_outlined,
+                color: Colors.green,
               ),
             ),
           ],
@@ -19397,6 +19611,11 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
           selected: _onlyUnrated,
           label: const Text('Nur unbewertete Reklamationen'),
           onSelected: (v) => setState(() => _onlyUnrated = v),
+        ),
+        FilterChip(
+          selected: _onlyReportable,
+          label: const Text('Meldepflichtige Fälle'),
+          onSelected: (v) => setState(() => _onlyReportable = v),
         ),
         IconButton(
           tooltip: 'Neu laden',
@@ -19566,6 +19785,87 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     );
   }
 
+  Widget _statusChip({required String label, required Color color, required IconData icon}) {
+    return Chip(
+      avatar: Icon(icon, size: 18, color: color),
+      label: Text(label),
+      backgroundColor: color.withOpacity(0.1),
+      shape: StadiumBorder(side: BorderSide(color: color.withOpacity(0.4))),
+    );
+  }
+
+  Widget _prrcStatusSection(AdminComplaint c) {
+    final theme = Theme.of(context);
+    final potential = c.isPotentiallyReportable || _requiresReportDialog(c.prrcClassification);
+    final comment = (_reportCheckCommentCtrl.text.trim().isNotEmpty
+            ? _reportCheckCommentCtrl.text.trim()
+            : (c.prrcReportCheckComment ?? '').trim())
+        .trim();
+    final reportableCase = _reportableMarked || c.prrcReportableCase;
+    final reportableLabel = c.prrcReportableAt != null
+        ? DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcReportableAt!.toLocal())
+        : null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Meldepflicht-Status', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _statusChip(
+                label: potential ? 'Potenzielle Meldung' : 'Keine Meldepflicht erwartet',
+                color: potential ? Colors.deepOrange : theme.colorScheme.outline,
+                icon: potential ? Icons.report_problem_outlined : Icons.verified_user_outlined,
+              ),
+              _statusChip(
+                label: (_reportCheck || c.prrcReportCheck)
+                    ? 'Meldepflicht geprüft'
+                    : 'Prüfung offen',
+                color: (_reportCheck || c.prrcReportCheck) ? Colors.blue : Colors.grey,
+                icon: (_reportCheck || c.prrcReportCheck)
+                    ? Icons.check_circle_outline
+                    : Icons.info_outline,
+              ),
+              _statusChip(
+                label: reportableCase
+                    ? 'Als meldepflichtig markiert${reportableLabel != null ? ' ($reportableLabel)' : ''}'
+                    : 'Noch nicht markiert',
+                color: reportableCase ? Colors.green : Colors.grey,
+                icon: reportableCase
+                    ? Icons.assignment_turned_in_outlined
+                    : Icons.outlined_flag,
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('Kommentar zur Meldepflichtprüfung', style: theme.textTheme.labelMedium),
+            Text(comment, style: theme.textTheme.bodyMedium),
+          ],
+          if (c.prrcUserId != null || c.prrcTimestamp != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              "Zuletzt bewertet von ${c.prrcUserId ?? '—'} am "
+              "${c.prrcTimestamp != null ? DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal()) : '—'}",
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildDetail() {
     if (!_isPrrc) {
       return const Center(child: Text('PRRC-Bereich ist nur für PRRC-Accounts zugänglich.'));
@@ -19579,108 +19879,122 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     final scheme = Theme.of(context).colorScheme;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(14),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: constraints.maxWidth,
+                minHeight: constraints.maxHeight,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        'PRRC-Details',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PRRC-Details',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.bodyMedium),
+                          ],
+                        ),
                       ),
-                      Text('Ticket ${c.ticket}', style: Theme.of(context).textTheme.bodyMedium),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _openComplaintDialog(c),
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('Standard-Detailansicht'),
+                      ),
                     ],
                   ),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _openComplaintDialog(c),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Standard-Detailansicht'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                Chip(label: Text('Kunde: ${_customer(c)}')),
-                Chip(label: Text('Artikel: ${_article(c).isEmpty ? '—' : _article(c)}')),
-                Chip(label: Text('Eingang: ${_formatDate(c.createdAt)}')),
-                Chip(label: Text('Status: ${_statusLabel(c.status)}')),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text('Schnellauswahl', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              children: ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((value) {
-                final selected = _selectedClassification == value;
-                return ChoiceChip(
-                  label: Text(value),
-                  selected: selected,
-                  onSelected: _saving ? null : (_) => setState(() => _selectedClassification = value),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _selectedClassification,
-              decoration: const InputDecoration(labelText: 'PRRC-Kategorie'),
-              onChanged: _saving ? null : (v) => setState(() => _selectedClassification = v),
-              items: ['N/A', 'Sub', 'A', 'B', 'C', 'D']
-                  .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                  .toList(),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _commentCtrl,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _saving ? null : _savePrrc,
-                  icon: _saving
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
-                        )
-                      : const Icon(Icons.save_outlined),
-                  label: const Text('Speichern'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: _saving ? null : _confirmClearPrrc,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Bewertung löschen'),
-                ),
-                const SizedBox(width: 12),
-                if (c.prrcTimestamp != null)
-                  Text(
-                    'Zuletzt geändert: ${DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal())}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      Chip(label: Text('Kunde: ${_customer(c)}')),
+                      Chip(label: Text('Artikel: ${_article(c).isEmpty ? '—' : _article(c)}')),
+                      Chip(label: Text('Eingang: ${_formatDate(c.createdAt)}')),
+                      Chip(label: Text('Status: ${_statusLabel(c.status)}')),
+                    ],
                   ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => _openHistoryDialog(c),
-                  icon: const Icon(Icons.history_outlined),
-                  label: const Text('Historie ansehen'),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text('Schnellauswahl', style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((value) {
+                      final selected = _selectedClassification == value;
+                      return ChoiceChip(
+                        label: Text(value),
+                        selected: selected,
+                        onSelected: _saving ? null : (_) => setState(() => _selectedClassification = value),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _selectedClassification,
+                    decoration: const InputDecoration(labelText: 'PRRC-Kategorie'),
+                    onChanged: _saving ? null : (v) => setState(() => _selectedClassification = v),
+                    items: ['N/A', 'Sub', 'A', 'B', 'C', 'D']
+                        .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _commentCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
+                  ),
+                  _prrcStatusSection(c),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _saving ? null : _savePrrc,
+                        icon: _saving
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: const Text('Speichern'),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _confirmClearPrrc,
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Bewertung löschen'),
+                      ),
+                      const SizedBox(width: 12),
+                      if (c.prrcTimestamp != null)
+                        Text(
+                          'Zuletzt geändert: ${DateFormat('dd.MM.yyyy – HH:mm').format(c.prrcTimestamp!.toLocal())}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () => _openHistoryDialog(c),
+                        icon: const Icon(Icons.history_outlined),
+                        label: const Text('Historie ansehen'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -20174,6 +20488,9 @@ class AdminApi {
     String? translateQmSummaryLang,
     String? prrcClassification,
     String? prrcComment,
+    bool? prrcReportCheck,
+    String? prrcReportCheckComment,
+    bool? prrcReportableCase,
   }) async {
     final body = <String, dynamic>{'ticket': ticket};
     if (status != null) body['status'] = status;
@@ -20206,6 +20523,9 @@ class AdminApi {
     }
     if (prrcClassification != null) body['prrcClassification'] = prrcClassification;
     if (prrcComment != null) body['prrcComment'] = prrcComment.trim();
+    if (prrcReportCheck != null) body['prrcReportCheck'] = prrcReportCheck;
+    if (prrcReportCheckComment != null) body['prrcReportCheckComment'] = prrcReportCheckComment.trim();
+    if (prrcReportableCase != null) body['prrcReportableCase'] = prrcReportableCase;
     
     final res = await _request('POST', '/api/admin/complaints', body: body);
     if (res.status != 200) {
