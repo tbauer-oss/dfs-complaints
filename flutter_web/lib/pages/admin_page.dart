@@ -15040,6 +15040,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     final problem = summary.isNotEmpty ? summary : desc;
     final title = problem.isNotEmpty ? problem : 'Reklamation ${widget.c.ticket}';
 
+    final internalNo = widget.c.internalNo?.trim();
     final prefill = <String, String>{
       if ((snapshot['article'] ?? '').trim().isNotEmpty) 'product': snapshot['article']!.trim(),
       if ((snapshot['batch'] ?? '').trim().isNotEmpty) 'batch': snapshot['batch']!.trim(),
@@ -15047,12 +15048,17 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       'title': title,
     };
 
+    final complaintLabel = [
+      if (problem.isNotEmpty) problem,
+      if (internalNo != null && internalNo.isNotEmpty) 'Interne Nummer: $internalNo',
+    ].join(' · ');
+
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CapaDetailPage(
         api: portalApi,
         canWrite: _isPortalSuperuser && !_isPortalReadonly,
         complaintId: widget.c.ticket,
-        complaintLabel: problem.isNotEmpty ? problem : null,
+        complaintLabel: complaintLabel.isNotEmpty ? complaintLabel : null,
         complaintPrefill: prefill,
       ),
     ));
