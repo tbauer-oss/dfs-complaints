@@ -997,7 +997,12 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     if (!isDentalProduct) return null;
 
     final normalizedProductFile = item.productFile.trim().toLowerCase();
-    final hasMdrAssignment = normalizedProductFile.startsWith('mdr-td');
+    final isDentalLabPlaceholder =
+        normalizedProductFile.isEmpty ||
+            normalizedProductFile == '-' ||
+            normalizedProductFile.contains('dental lab');
+    final hasMdrAssignment =
+        normalizedProductFile.startsWith('mdr-td') && !isDentalLabPlaceholder;
     final isClosed = item.status.trim().toLowerCase() == 'abgeschlossen';
     final redHighlight = Colors.redAccent.withOpacity(0.16);
     final amberHighlight = Colors.amberAccent.withOpacity(0.16);
