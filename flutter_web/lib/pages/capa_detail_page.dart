@@ -443,16 +443,64 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          initialValue: entry.value.owner,
-                          decoration: const InputDecoration(labelText: 'Verantwortlicher'),
-                          onChanged: (v) => _updateSections((s) => s.copyWith(
+                        child: RawAutocomplete<PortalUserSummary>(
+                          initialValue: TextEditingValue(text: entry.value.owner),
+                          optionsBuilder: (text) {
+                            final query = text.text.toLowerCase();
+                            if (query.isEmpty) return _activePortalUsers;
+                            return _activePortalUsers.where((u) =>
+                                u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
+                          },
+                          displayStringForOption: (u) => u.label,
+                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              labelText: 'Verantwortlicher',
+                              suffixIcon: _portalUsersLoading
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(8),
+                                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    )
+                                  : const Icon(Icons.arrow_drop_down),
+                            ),
+                            onChanged: (v) => _updateSections((s) => s.copyWith(
+                                  correctiveActions: updateList(
+                                    s.correctiveActions,
+                                    entry.key,
+                                    (old) => old.copyWith(owner: v),
+                                  ),
+                                )),
+                            onFieldSubmitted: (_) => onFieldSubmitted(),
+                          ),
+                          onSelected: (u) => _updateSections((s) => s.copyWith(
                                 correctiveActions: updateList(
                                   s.correctiveActions,
                                   entry.key,
-                                  (old) => old.copyWith(owner: v),
+                                  (old) => old.copyWith(owner: u.label),
                                 ),
                               )),
+                          optionsViewBuilder: (ctx, onSelected, options) => Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              child: SizedBox(
+                                height: 220,
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  itemCount: options.length,
+                                  itemBuilder: (ctx, idx) {
+                                    final opt = options.elementAt(idx);
+                                    return ListTile(
+                                      title: Text(opt.label.isEmpty ? opt.email : opt.label),
+                                      subtitle: Text(opt.email),
+                                      onTap: () => onSelected(opt),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),

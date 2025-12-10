@@ -18,6 +18,7 @@ class _CapaOverviewPageState extends State<CapaOverviewPage> {
   String? _error;
   List<CapaReport> _reports = const [];
   String _search = '';
+  String? _deletingId;
 
   @override
   void initState() {
@@ -79,6 +80,30 @@ class _CapaOverviewPageState extends State<CapaOverviewPage> {
     _load();
   }
 
+  Future<void> _confirmDelete(CapaReport report) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('CAPA löschen'),
+        content: Text('Soll die CAPA ${report.effectiveNumber.isEmpty ? report.id : report.effectiveNumber} wirklich gelöscht werden?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
+          ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _deletingId = report.id);
+    try {
+      await widget.api.adminDeleteCapa(report.id);
+      await _load();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _deletingId = null);
+    }
+  }
+
   Widget _kpiTile({required String label, required String value, Color? color}) {
     final theme = Theme.of(context);
     return Card(
@@ -107,6 +132,16 @@ class _CapaOverviewPageState extends State<CapaOverviewPage> {
         DataCell(Text(report.responsibleUserId.isEmpty ? '—' : report.responsibleUserId)),
         DataCell(Text(report.createdAt.toLocal().toIso8601String().substring(0, 10))),
         DataCell(Text(report.complaintId.isEmpty ? '—' : report.complaintId)),
+        if (widget.canWrite)
+          DataCell(
+            IconButton(
+              icon: _deletingId == report.id
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.delete_outline),
+              onPressed: _deletingId == null ? () => _confirmDelete(report) : null,
+              tooltip: 'CAPA löschen',
+            ),
+          ),
       ],
       onSelectChanged: (_) => _openEditor(report),
       color: MaterialStateProperty.resolveWith((states) {
@@ -180,13 +215,14 @@ class _CapaOverviewPageState extends State<CapaOverviewPage> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: DataTable(
-                            columns: const [
-                              DataColumn(label: Text('CAPA-Nr.')),
-                              DataColumn(label: Text('Titel')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Verantwortlicher')),
-                              DataColumn(label: Text('Erstellt am')),
-                              DataColumn(label: Text('Reklamation')),
+                            columns: [
+                              const DataColumn(label: Text('CAPA-Nr.')),
+                              const DataColumn(label: Text('Titel')),
+                              const DataColumn(label: Text('Status')),
+                              const DataColumn(label: Text('Verantwortlicher')),
+                              const DataColumn(label: Text('Erstellt am')),
+                              const DataColumn(label: Text('Reklamation')),
+                              if (widget.canWrite) const DataColumn(label: Text('Aktionen')),
                             ],
                             rows: _filtered.map(_row).toList(),
                           ),
