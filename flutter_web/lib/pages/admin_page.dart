@@ -6175,6 +6175,19 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'capaReports':
+        return AdminTilePro(
+          label: 'CAPA / 8D-Reports',
+          subtitle: 'Corrective & Preventive Actions',
+          icon: Icons.fact_check_outlined,
+          colorA: AdminPalette.greenA,
+          colorB: AdminPalette.greenB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.capaReports),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'prrc':
         return AdminTilePro(
           label: 'PRRC-Einstufungen',
