@@ -29,18 +29,22 @@ export default async function handler(req, res) {
 
   try {
     const filename = `${report.capaNumber || report.id}.pdf`;
+    const chunks = [];
+    const doc = createCapaPdf(report, { lang, finalize: false });
+
+    await new Promise((resolve, reject) => {
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', resolve);
+      doc.on('error', reject);
+      doc.end();
+    });
+
+    const buffer = Buffer.concat(chunks);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    const doc = createCapaPdf(report, { lang, stream: res, finalize: false });
-    await new Promise((resolve, reject) => {
-      doc.on('end', resolve);
-      doc.on('error', reject);
-      res.on('finish', resolve);
-      res.on('error', reject);
-      doc.end();
-    });
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   } catch (err) {
     console.error('[admin/capa-pdf] generation failed', err);
     if (!res.headersSent) return bad(res, 'failed to generate', 500);
