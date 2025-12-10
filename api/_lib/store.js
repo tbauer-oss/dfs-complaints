@@ -2710,7 +2710,13 @@ export async function capaAll() {
   if (r) {
     const keys = await rkeys(`${P}capa:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
-    const list = vals.filter(Boolean).map(v => normalizeCapaRecord(v));
+    const list = [];
+    keys.forEach((key, index) => {
+      const val = vals[index];
+      if (!val) return;
+      const id = key.replace(`${P}capa:`, '');
+      list.push(normalizeCapaRecord({ ...val, id }));
+    });
     list.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
     return list;
   }
