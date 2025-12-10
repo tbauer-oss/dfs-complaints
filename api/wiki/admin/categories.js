@@ -4,25 +4,15 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../_lib/http.js';
 import { wikiCategories, wikiSaveCategory } from '../../_lib/wikiStore.js';
 import { validateCategoryPayload } from '../../_lib/wikiValidation.js';
-import { normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../../_lib/portalAuth.js';
+import { requirePortalAccess } from '../../admin/_guard.js';
 
-async function requireSuperuser(req, res) {
-  const actor = await portalUserFromRequest(req);
-  if (!actor) {
-    bad(res, 'unauthorized', 401);
-    return null;
-  }
-  if (normalizeRole(actor.role) !== PORTAL_ROLES.superuser) {
-    bad(res, 'forbidden', 403);
-    return null;
-  }
-  return actor;
-}
+const WIKI_TILE = 'wiki';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  const actor = await requireSuperuser(req, res);
+  const write = req.method !== 'GET';
+  const actor = await requirePortalAccess(req, res, { write, tile: WIKI_TILE });
   if (!actor) return;
 
   try {

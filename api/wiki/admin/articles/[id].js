@@ -4,30 +4,15 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../../_lib/http.js';
 import { wikiSaveArticle, wikiDeleteArticle, wikiGetArticle } from '../../../_lib/wikiStore.js';
 import { validateArticlePayload } from '../../../_lib/wikiValidation.js';
-import { normalizeRole, PORTAL_ROLES, portalUserFromRequest } from '../../../_lib/portalAuth.js';
+import { requirePortalAccess } from '../../../admin/_guard.js';
 
-async function requirePortalUser(req, res) {
-  const actor = await portalUserFromRequest(req);
-  if (!actor) {
-    bad(res, 'unauthorized', 401);
-    return null;
-  }
-  return actor;
-}
-
-function assertSuperuser(actor, res) {
-  const isSuperuser = normalizeRole(actor?.role) === PORTAL_ROLES.superuser;
-  if (!isSuperuser) {
-    bad(res, 'forbidden', 403);
-    return false;
-  }
-  return true;
-}
+const WIKI_TILE = 'wiki';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-  const actor = await requirePortalUser(req, res);
+  const write = req.method !== 'GET';
+  const actor = await requirePortalAccess(req, res, { write, tile: WIKI_TILE });
   if (!actor) return;
 
   const id = (req.query?.id ?? '').toString().trim();
@@ -40,7 +25,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PUT') {
-    if (!assertSuperuser(actor, res)) return;
     const body = readJson(req);
     try {
       const payload = validateArticlePayload(body || {});
@@ -52,7 +36,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    if (!assertSuperuser(actor, res)) return;
     await wikiDeleteArticle(id);
     return noContent(res);
   }
