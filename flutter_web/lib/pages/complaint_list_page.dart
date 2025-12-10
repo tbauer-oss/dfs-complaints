@@ -940,7 +940,9 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   DataCell _prrcCell(ComplaintListItem item) {
     final width = _columnWidth('prrcClassification');
     final display = item.prrcClassification.isEmpty ? '—' : item.prrcClassification;
-    if (widget.onUpdatePrrcClassification == null || widget.prrcReadOnly) {
+    final prrcEditable = widget.onUpdatePrrcClassification != null && !widget.prrcReadOnly;
+
+    if (!prrcEditable) {
       final disabledStyle = widget.prrcReadOnly
           ? TextStyle(color: Theme.of(context).disabledColor)
           : null;
