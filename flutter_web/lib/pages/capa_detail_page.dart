@@ -49,6 +49,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
   late CapaReport _report;
   bool _saving = false;
   bool _exporting = false;
+  bool _allocatingNumber = false;
   String? _error;
   final _responsibleCtrl = TextEditingController();
   final _teamLeadCtrl = TextEditingController();
@@ -78,6 +79,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
     _syncControllersFromReport();
     _loadPortalUsers();
     _ensureProductsLoaded();
+    _ensureCapaNumber();
   }
 
   Future<void> _save() async {
@@ -86,6 +88,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
       _error = null;
     });
     try {
+      await _ensureCapaNumber();
       CapaReport saved;
       if ((_report.id).isEmpty) {
         saved = await widget.api.adminSaveCapa(_report);
@@ -188,6 +191,37 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
 
   List<PortalUserSummary> get _superusers =>
       _activePortalUsers.where((u) => u.role.toLowerCase() == 'superuser').toList();
+
+  Future<void> _ensureCapaNumber() async {
+    if (_report.capaNumber.isNotEmpty || _allocatingNumber) return;
+    setState(() => _allocatingNumber = true);
+    try {
+      final list = await widget.api.adminCapas();
+      final next = _nextNumber(list);
+      if (mounted) setState(() => _report = _report.copyWith(capaNumber: next));
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = _error ?? 'CAPA-Nr. konnte nicht ermittelt werden: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _allocatingNumber = false);
+    }
+  }
+
+  String _nextNumber(List<CapaReport> existing) {
+    final now = DateTime.now();
+    final yy = (now.year % 100).toString().padLeft(2, '0');
+    final pattern = RegExp('^DFS-CAPA-$yy_(\\d+)$');
+    int maxSeq = 0;
+    for (final c in existing) {
+      final match = pattern.firstMatch(c.capaNumber);
+      if (match == null) continue;
+      final parsed = int.tryParse(match.group(1) ?? '0') ?? 0;
+      if (parsed > maxSeq) maxSeq = parsed;
+    }
+    final nextSeq = (maxSeq + 1).toString().padLeft(4, '0');
+    return 'DFS-CAPA-$yy_$nextSeq';
+  }
 
   @override
   void dispose() {

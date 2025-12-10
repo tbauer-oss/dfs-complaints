@@ -69,12 +69,27 @@ class _CapaOverviewPageState extends State<CapaOverviewPage> {
     };
   }
 
+  String _nextCapaNumber() {
+    final now = DateTime.now();
+    final yy = (now.year % 100).toString().padLeft(2, '0');
+    final pattern = RegExp('^DFS-CAPA-$yy_(\\d+)$');
+    int maxSeq = 0;
+    for (final c in _reports) {
+      final match = pattern.firstMatch(c.capaNumber);
+      if (match == null) continue;
+      final parsed = int.tryParse(match.group(1) ?? '0') ?? 0;
+      if (parsed > maxSeq) maxSeq = parsed;
+    }
+    final nextSeq = (maxSeq + 1).toString().padLeft(4, '0');
+    return 'DFS-CAPA-$yy_$nextSeq';
+  }
+
   void _openEditor([CapaReport? report]) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CapaDetailPage(
         api: widget.api,
         canWrite: widget.canWrite,
-        initialReport: report,
+        initialReport: report ?? CapaReport(capaNumber: _nextCapaNumber()),
       ),
     ));
     _load();
