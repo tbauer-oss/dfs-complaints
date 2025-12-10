@@ -990,17 +990,20 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     if (!isDentalProduct) return null;
 
     final isClosed = item.status.trim().toLowerCase() == 'abgeschlossen';
+    final redHighlight = Colors.redAccent.withOpacity(0.16);
+    final amberHighlight = Colors.amberAccent.withOpacity(0.16);
+    final greenHighlight = Colors.lightGreenAccent.withOpacity(0.16);
 
     if (!item.hasPrrcDecision) {
-      return Colors.red.shade50;
+      return redHighlight;
     }
 
     if (!isClosed) {
-      return Colors.amber.shade50;
+      return amberHighlight;
     }
 
     if (item.salesCompleted && isClosed) {
-      return Colors.green.shade50;
+      return greenHighlight;
     }
 
     return null;
