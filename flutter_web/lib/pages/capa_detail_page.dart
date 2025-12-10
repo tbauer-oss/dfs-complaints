@@ -22,6 +22,28 @@ const List<String> _departmentOptions = [
   'Vertrieb',
 ];
 
+const List<String> _capaSteps = [
+  'D1 Team',
+  'D2 Sofortmaßnahmen',
+  'D3 Ursachen',
+  'D4 Korrekturmaßnahmen',
+  'D5 Wirksamkeit',
+  'D6 Prävention',
+  'D7 Lessons',
+  'D8 Abschluss',
+];
+
+const List<String> _stepDescriptions = [
+  'Team aufstellen und Problem definieren.',
+  'Akute Sofortmaßnahmen planen und dokumentieren.',
+  'Haupt- und Nebenursachen strukturiert bewerten.',
+  'Korrekturmaßnahmen zuweisen, terminieren und verfolgen.',
+  'Wirksamkeit der Maßnahmen nachhalten.',
+  'Präventive Maßnahmen für Wiederholungen ableiten.',
+  'Erkenntnisse teilen und übertragen.',
+  'Abschluss, Freigabe und Dokumentation sicherstellen.',
+];
+
 class CapaDetailPage extends StatefulWidget {
   final ApiClient api;
   final CapaReport? initialReport;
@@ -61,6 +83,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
   String? _portalUsersError;
   bool _productLoading = false;
   DfsProduct? _selectedProduct;
+  late final VoidCallback _tabListener;
 
   @override
   void initState() {
@@ -75,7 +98,9 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
           ),
           title: widget.complaintPrefill?['title'] ?? '',
         );
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: _capaSteps.length, vsync: this);
+    _tabListener = () => setState(() {});
+    _tabController.addListener(_tabListener);
     _syncControllersFromReport();
     _loadPortalUsers();
     _ensureProductsLoaded();
@@ -186,6 +211,179 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
     setState(() => _selectedProduct = found);
   }
 
+  void _goToNextStep() {
+    if (_tabController.index >= _tabController.length - 1) return;
+    _tabController.animateTo(_tabController.index + 1);
+  }
+
+  Widget _infoChip({required String label, required String value, required IconData icon, Color? color}) {
+    final cs = Theme.of(context).colorScheme;
+    return Chip(
+      avatar: Icon(icon, size: 18, color: color ?? cs.primary),
+      label: Text('$label: $value'),
+      backgroundColor: (color ?? cs.primary).withOpacity(0.08),
+      labelStyle: TextStyle(color: cs.onSurface.withOpacity(0.8)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+  }
+
+  Widget _buildHeroHeader(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [cs.primary.withOpacity(0.14), cs.secondary.withOpacity(0.12)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: cs.primary,
+                  foregroundColor: cs.onPrimary,
+                  child: const Icon(Icons.bolt_outlined),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('CAPA / 8D Report', style: Theme.of(context).textTheme.titleMedium),
+                    Text('Geführter Prozess mit klaren Schritten',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  ],
+                ),
+                const Spacer(),
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 250),
+                  opacity: _saving ? 0.6 : 1,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: cs.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: cs.shadow.withOpacity(0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.confirmation_number_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _report.capaNumber.isEmpty ? 'Neue CAPA' : _report.capaNumber,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _infoChip(
+                  label: 'Verantwortlich',
+                  value: _report.responsibleUserId.isEmpty ? 'Noch nicht zugewiesen' : _report.responsibleUserId,
+                  icon: Icons.manage_accounts_outlined,
+                ),
+                _infoChip(
+                  label: 'Status',
+                  value: _report.status.isEmpty ? 'in Planung' : _report.status,
+                  icon: Icons.flag_outlined,
+                  color: cs.tertiary,
+                ),
+                if (_report.complaintId.isNotEmpty)
+                  _infoChip(
+                    label: 'Reklamation',
+                    value: _report.complaintId,
+                    icon: Icons.link,
+                    color: cs.secondary,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepProgress(ColorScheme cs) {
+    final currentStep = _tabController.index;
+    final progress = (currentStep + 1) / _tabController.length;
+    final isLastStep = currentStep >= _tabController.length - 1;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(16),
+        color: cs.surface,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Schritt ${currentStep + 1} von ${_tabController.length} – ${_capaSteps[currentStep]}',
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text(_stepDescriptions[currentStep],
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: cs.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: isLastStep ? null : _goToNextStep,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(isLastStep ? 'Fertig' : 'Weiter'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: cs.surfaceVariant.withOpacity(0.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   List<PortalUserSummary> get _activePortalUsers =>
       _portalUsers.where((u) => u.portalStatus.isEmpty || u.portalStatus == 'active').toList();
 
@@ -225,6 +423,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
 
   @override
   void dispose() {
+    _tabController.removeListener(_tabListener);
     _tabController.dispose();
     _responsibleCtrl.dispose();
     _teamLeadCtrl.dispose();
@@ -234,16 +433,38 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
   }
 
   Widget _sectionContainer({required String title, required List<Widget> children}) {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          ...children,
-          const SizedBox(height: 24),
-        ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.dashboard_customize, color: cs.primary),
+                const SizedBox(width: 8),
+                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...children,
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
   }
@@ -775,134 +996,171 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
           const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          if (_error != null)
-            Material(
-              color: cs.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: cs.onErrorContainer),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(_error!, style: TextStyle(color: cs.onErrorContainer))),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      color: cs.onErrorContainer,
-                      onPressed: () => setState(() => _error = null),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (_report.complaintId.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(Icons.link, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Verknüpfte Reklamation: ${_report.complaintId}${widget.complaintLabel != null ? ' – ${widget.complaintLabel}' : ''}'),
-                  ),
-                ],
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    initialValue: _report.title,
-                    decoration: const InputDecoration(labelText: 'Titel / Problemkurzbeschreibung *'),
-                    onChanged: (v) => _updateReport(title: v),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 260,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [cs.surfaceVariant.withOpacity(0.24), cs.surface],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Column(
+          children: [
+            if (_error != null)
+              Material(
+                color: cs.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
                     children: [
-                      RawAutocomplete<PortalUserSummary>(
-                        textEditingController: _responsibleCtrl,
-                        optionsBuilder: (text) {
-                          final query = text.text.toLowerCase();
-                          if (query.isEmpty) return _superusers;
-                          return _superusers.where((u) =>
-                              u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
-                        },
-                        displayStringForOption: (u) => u.label,
-                        fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: InputDecoration(
-                            labelText: 'Verantwortlicher',
-                            suffixIcon: _portalUsersLoading
-                                ? const Padding(
-                                    padding: EdgeInsets.all(8),
-                                    child:
-                                        SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                                  )
-                                : const Icon(Icons.arrow_drop_down),
-                          ),
-                          onChanged: (v) => _updateReport(responsible: v),
-                          onFieldSubmitted: (_) => onFieldSubmitted(),
-                        ),
-                        onSelected: (u) => _updateReport(responsible: u.label),
-                        optionsViewBuilder: (ctx, onSelected, options) => Align(
-                          alignment: Alignment.topLeft,
-                          child: Material(
-                            elevation: 4,
-                            child: SizedBox(
-                              height: 200,
-                              child: ListView.builder(
-                                padding: EdgeInsets.zero,
-                                itemCount: options.length,
-                                itemBuilder: (ctx, idx) {
-                                  final opt = options.elementAt(idx);
-                                  return ListTile(
-                                    title: Text(opt.label.isEmpty ? opt.email : opt.label),
-                                    subtitle: Text(opt.email),
-                                    onTap: () => onSelected(opt),
-                                  );
-                                },
-                              ),
+                      Icon(Icons.error_outline, color: cs.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_error!, style: TextStyle(color: cs.onErrorContainer))),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        color: cs.onErrorContainer,
+                        onPressed: () => setState(() => _error = null),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            _buildHeroHeader(cs),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(16),
+                color: cs.surface,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              initialValue: _report.title,
+                              decoration: const InputDecoration(labelText: 'Titel / Problemkurzbeschreibung *'),
+                              onChanged: (v) => _updateReport(title: v),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 260,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                RawAutocomplete<PortalUserSummary>(
+                                  textEditingController: _responsibleCtrl,
+                                  optionsBuilder: (text) {
+                                    final query = text.text.toLowerCase();
+                                    if (query.isEmpty) return _superusers;
+                                    return _superusers.where((u) =>
+                                        u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
+                                  },
+                                  displayStringForOption: (u) => u.label,
+                                  fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                                    controller: controller,
+                                    focusNode: focusNode,
+                                    decoration: InputDecoration(
+                                      labelText: 'Verantwortlicher',
+                                      suffixIcon: _portalUsersLoading
+                                          ? const Padding(
+                                              padding: EdgeInsets.all(8),
+                                              child:
+                                                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                                            )
+                                          : const Icon(Icons.arrow_drop_down),
+                                    ),
+                                    onChanged: (v) => _updateReport(responsible: v),
+                                    onFieldSubmitted: (_) => onFieldSubmitted(),
+                                  ),
+                                  onSelected: (u) => _updateReport(responsible: u.label),
+                                  optionsViewBuilder: (ctx, onSelected, options) => Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Material(
+                                      elevation: 4,
+                                      child: SizedBox(
+                                        height: 200,
+                                        child: ListView.builder(
+                                          padding: EdgeInsets.zero,
+                                          itemCount: options.length,
+                                          itemBuilder: (ctx, idx) {
+                                            final opt = options.elementAt(idx);
+                                            return ListTile(
+                                              title: Text(opt.label.isEmpty ? opt.email : opt.label),
+                                              subtitle: Text(opt.email),
+                                              onTap: () => onSelected(opt),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (_portalUsersError != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(_portalUsersError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      if (_portalUsersError != null)
+                      if (_report.complaintId.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(_portalUsersError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Row(
+                            children: [
+                              Icon(Icons.link, color: cs.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                    'Verknüpfte Reklamation: ${_report.complaintId}${widget.complaintLabel != null ? ' – ${widget.complaintLabel}' : ''}'),
+                              ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabs: const [
-              Tab(text: 'D1 Team'),
-              Tab(text: 'D2 Sofortmaßnahmen'),
-              Tab(text: 'D3 Ursachen'),
-              Tab(text: 'D4 Korrekturmaßnahmen'),
-              Tab(text: 'D5 Wirksamkeit'),
-              Tab(text: 'D6 Prävention'),
-              Tab(text: 'D7 Lessons'),
-              Tab(text: 'D8 Abschluss'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
+            _buildStepProgress(cs),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceVariant.withOpacity(0.3),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          isScrollable: true,
+                          indicator: BoxDecoration(
+                            color: cs.primary.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          labelColor: cs.primary,
+                          unselectedLabelColor: cs.onSurfaceVariant,
+                          labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+                          tabs: [for (final step in _capaSteps) Tab(text: step)],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
                 _sectionContainer(title: 'Team & Problemdefinition', children: [
                   Row(
                     children: [
