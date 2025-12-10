@@ -996,10 +996,19 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         normalizedGroup.contains('zahnmedizin');
     if (!isDentalProduct) return null;
 
+    final normalizedProductFile = item.productFile.trim().toLowerCase();
+    final hasMdrAssignment =
+        normalizedProductFile.isNotEmpty &&
+            normalizedProductFile != '-' &&
+            normalizedProductFile != 'dental lab';
     final isClosed = item.status.trim().toLowerCase() == 'abgeschlossen';
     final redHighlight = Colors.redAccent.withOpacity(0.16);
     final amberHighlight = Colors.amberAccent.withOpacity(0.16);
     final greenHighlight = Colors.lightGreenAccent.withOpacity(0.16);
+
+    if (!hasMdrAssignment) {
+      return isClosed ? (item.salesCompleted ? greenHighlight : null) : amberHighlight;
+    }
 
     if (!item.hasPrrcDecision) {
       return redHighlight;
