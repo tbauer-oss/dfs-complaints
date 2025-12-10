@@ -1,0 +1,134 @@
+{
+  "sections": [
+    {
+      "id": "customers",
+      "title": "Kunden",
+      "audience": "Kunde",
+      "description": "Alle Schritte für Reklamation, Uploads und Statusnachverfolgung.",
+      "topics": [
+        {
+          "id": "complaint-create",
+          "title": "Reklamation starten",
+          "summary": "So erfassen Sie einen neuen Vorgang inkl. Pflichtfelder und Bestätigung.",
+          "tags": ["Ticket", "Upload", "Schritt für Schritt"],
+          "steps": [
+            {"title": "Anmeldung & Start", "anchor": "start", "description": "Melden Sie sich an und wählen Sie \"Neue Reklamation\" auf dem Dashboard. Nutzen Sie die Quick-Card, um ohne Umwege zum Formular zu springen."},
+            {"title": "Produkt & Charge hinterlegen", "anchor": "product", "description": "Wählen Sie Produktkategorie, Artikel und Charge. Pflichtfelder werden hervorgehoben – unvollständige Felder können Sie später ergänzen."},
+            {"title": "Bilder & Dokumente hochladen", "anchor": "upload", "description": "Fügen Sie Fotos oder PDFs hinzu. Nutzen Sie die Markierungsfunktion, um betroffene Bereiche zu kennzeichnen. Maximale Gesamtgröße: 10 MB."},
+            {"title": "Zusammenfassung prüfen", "anchor": "summary", "description": "Kontrollieren Sie Ihre Angaben. Über den Abschnitt \"Automatische Hilfe\" erhalten Sie kontextbezogene Tipps zu fehlenden Pflichtangaben."},
+            {"title": "Senden & Bestätigung", "anchor": "submit", "description": "Senden Sie die Reklamation ab. Sie erhalten eine Ticketnummer und eine Bestätigung per E-Mail."}
+          ],
+          "tips": [
+            "Nutzen Sie den Entwurfsmodus, um später weiterzuarbeiten.",
+            "Anhänge können auch nach Absenden ergänzt werden – nutzen Sie dazu die Ticket-Detailseite.",
+            "Mit dem Button \"Automatische Hilfe\" sehen Sie thematisch passende Antworten aus der Wissensdatenbank."
+          ],
+          "screenshots": ["[Screenshot: Dashboard > Neue Reklamation]", "[Screenshot: Formular mit Pflichtfeldern]"],
+          "links": ["#complaint-create"]
+        },
+        {
+          "id": "complaint-track",
+          "title": "Status & Kommunikation",
+          "summary": "Status verstehen, Rückfragen beantworten und Ansprechpartner kontaktieren.",
+          "tags": ["Status", "Chat", "Kontakt"],
+          "steps": [
+            {"title": "Statusfarben verstehen", "anchor": "status", "description": "Nutzen Sie die Status-Badges (Eingegangen, In Bearbeitung, Entscheidung usw.), um den Bearbeitungsstand zu erkennen."},
+            {"title": "Nachrichten senden", "anchor": "messages", "description": "Öffnen Sie die Ticket-Detailansicht und nutzen Sie den Chat-Bereich, um Rückfragen zu stellen oder Antworten zu geben. Vertreter und QM werden automatisch benachrichtigt."},
+            {"title": "Dateien nachreichen", "anchor": "followup", "description": "Laden Sie weitere Fotos/Dokumente hoch, die direkt mit dem Ticket verknüpft werden."},
+            {"title": "Berichte öffnen", "anchor": "reports", "description": "Je nach Freigabe können Sie Prüfberichte und CAPA-Infos einsehen. Nicht sichtbare Dokumente sind aus Rechtegründen ausgeblendet."}
+          ],
+          "tips": [
+            "Halten Sie Antworten kurz und fügen Sie, wenn möglich, ein Foto hinzu.",
+            "Bei dringenden Fällen nutzen Sie zusätzlich den \"Kontakt zum Vertreter\"-Button im Ticket.",
+            "Der Download-Link ist personalisiert – nicht weiterleiten." 
+          ],
+          "screenshots": ["[Screenshot: Ticketstatus & Chat]"],
+          "links": ["#complaint-track"]
+        }
+      ]
+    },
+    {
+      "id": "representatives",
+      "title": "Vertreter",
+      "audience": "Vertreter",
+      "description": "Wissensartikel, Kundenkommunikation und Entscheidungen verwalten.",
+      "topics": [
+        {
+          "id": "rep-dashboard",
+          "title": "Dashboard & Filter",
+          "summary": "Alle Kundenfälle nach Priorität und Status filtern.",
+          "tags": ["Filter", "Übersicht", "Download"],
+          "steps": [
+            {"title": "Login & Rollenwechsel", "anchor": "login", "description": "Melden Sie sich im Vertreterbereich an. Der Rollenschalter zeigt, ob Sie im Kunden- oder Vertreterkontext arbeiten."},
+            {"title": "Filter setzen", "anchor": "filters", "description": "Nutzen Sie Status-, Entscheidungs- und Kundenfilter. Gespeicherte Filter erscheinen im Schnellzugriff."},
+            {"title": "Downloads & Kataloge", "anchor": "downloads", "description": "Greifen Sie auf freigegebene Dokumente (z.B. Prüfberichte, Kataloge) zu. Die Sichtbarkeit richtet sich nach Ihrer Region und Sprache."}
+          ],
+          "tips": [
+            "Über das Kundenprofil gelangen Sie direkt zu offenen Tickets der Firma.",
+            "Kennzeichnen Sie dringende Tickets mit einem Stern, um sie oben zu halten." 
+          ],
+          "screenshots": ["[Screenshot: Vertreter-Dashboard mit Filtern]"],
+          "links": ["#rep-dashboard"]
+        },
+        {
+          "id": "rep-decisions",
+          "title": "Bewerten & Freigeben",
+          "summary": "So dokumentieren Sie Entscheidungen nachvollziehbar.",
+          "tags": ["Entscheidung", "PRRC", "Freigabe"],
+          "steps": [
+            {"title": "Ticket öffnen", "anchor": "open", "description": "Öffnen Sie das Ticket und wählen Sie \"Bewerten\"."},
+            {"title": "Entscheidung erfassen", "anchor": "decision", "description": "Hinterlegen Sie Entscheidung, Begründung und optional eine CAPA. Fügen Sie interne Notizen für PRRC hinzu."},
+            {"title": "Freigabe & Sichtbarkeit", "anchor": "visibility", "description": "Geben Sie an, ob die Entscheidung für Kunden sichtbar ist. Interne Bewertungen bleiben nur für DFS/PRRC und Vertreter sichtbar."}
+          ],
+          "tips": [
+            "Setzen Sie ein Wiedervorlagedatum, wenn Unterlagen fehlen.",
+            "PRRC-Hinweis: Jede Entscheidung benötigt eine Quelle (Laborbericht, Kundenfoto, CAPA)."
+          ],
+          "screenshots": ["[Screenshot: Entscheidungsdialog]"]
+        }
+      ]
+    },
+    {
+      "id": "dfs",
+      "title": "DFS-User & PRRC",
+      "audience": "DFS / PRRC",
+      "description": "Interner Bereich für Qualitätssicherung, CAPA-Steuerung und Freigaben.",
+      "topics": [
+        {
+          "id": "dfs-overview",
+          "title": "CAPA & Prüfberichte",
+          "summary": "So erstellen Sie CAPA-Items, laden Berichte hoch und steuern Sichtbarkeit.",
+          "tags": ["CAPA", "QM", "Berichte"],
+          "steps": [
+            {"title": "CAPA anlegen", "anchor": "capa", "description": "Öffnen Sie das Admin-Dashboard und wählen Sie \"Neue CAPA\". Verknüpfen Sie Ticket, Ursache und Maßnahme."},
+            {"title": "Berichte hochladen", "anchor": "reports", "description": "Laden Sie Prüfberichte als PDF hoch und entscheiden Sie, ob sie für Kunden/Vertreter sichtbar sind."},
+            {"title": "Rollen & Rechte", "anchor": "roles", "description": "Sichtbarkeit richtet sich nach Rolle: Kunden sehen nur freigegebene Berichte, Vertreter interne Notizen, PRRC alle Bewertungen."}
+          ],
+          "tips": [
+            "Nutzen Sie Tags (Segment, Region), um Berichte schneller zu finden.",
+            "Audit-Tipp: Jede CAPA sollte eine verantwortliche Person und ein Zieldatum enthalten." 
+          ],
+          "screenshots": ["[Screenshot: CAPA-Detail mit Bericht]"]
+        },
+        {
+          "id": "prrc-safeguards",
+          "title": "PRRC-Sonderbereich",
+          "summary": "Bewertungen, Freigaben, Rechte & Sichtbarkeit klar dokumentieren.",
+          "tags": ["PRRC", "Compliance", "Audit"],
+          "steps": [
+            {"title": "Bewertungen nachweisen", "anchor": "assessment", "description": "Hinterlegen Sie Bewertungsgrundlagen (Laborbefunde, Chargenprüfung, Kundenkommunikation). Jede Bewertung erhält einen Zeitstempel."},
+            {"title": "Freigaben dokumentieren", "anchor": "approval", "description": "Freigaben erfolgen zweistufig: Vertreter-Empfehlung und PRRC-Finalfreigabe. Beide Schritte werden protokolliert."},
+            {"title": "Rechte & Sichtbarkeit steuern", "anchor": "rights", "description": "Setzen Sie Sichtbarkeiten pro Dokument: PRRC-only, Intern (DFS/Vertreter) oder Kundensichtbar. Jede Änderung erzeugt einen Audit-Trail."},
+            {"title": "Deep-Links teilen", "anchor": "links", "description": "Nutzen Sie sichere Deep-Links für Audits. Links sind signiert und zeitlich begrenzt."}
+          ],
+          "tips": [
+            "Nutzen Sie das PRRC-Protokoll als Export für Audits.",
+            "Sichtbarkeiten immer vor dem Teilen prüfen – die App zeigt die aktuelle Freigabestufe an." 
+          ],
+          "screenshots": ["[Screenshot: PRRC-Protokoll & Rechte]"],
+          "links": ["#prrc-safeguards", "#prrc-audit"]
+        }
+      ]
+    }
+  ]
+}
