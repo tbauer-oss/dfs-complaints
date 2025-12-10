@@ -1,0 +1,134 @@
+{
+  "sections": [
+    {
+      "id": "customers",
+      "title": "Customers",
+      "audience": "Customer",
+      "description": "Everything you need to submit complaints, upload evidence and track status.",
+      "topics": [
+        {
+          "id": "complaint-create",
+          "title": "Create a complaint",
+          "summary": "How to submit a new case with all mandatory fields and confirmation steps.",
+          "tags": ["Ticket", "Upload", "Step-by-step"],
+          "steps": [
+            {"title": "Sign in & start", "anchor": "start", "description": "Sign in and choose \"New complaint\" on the dashboard. Use the quick action to jump directly into the form."},
+            {"title": "Add product & lot", "anchor": "product", "description": "Pick the product category, item and lot. Mandatory fields are highlighted – incomplete values can be added later."},
+            {"title": "Upload photos & documents", "anchor": "upload", "description": "Attach photos or PDFs. Use the markup tool to highlight affected areas. Maximum total size: 10 MB."},
+            {"title": "Review summary", "anchor": "summary", "description": "Verify your details. The \"Automatic help\" panel suggests relevant knowledge base answers for missing information."},
+            {"title": "Submit & confirmation", "anchor": "submit", "description": "Send the complaint. You receive a ticket number and confirmation by email."}
+          ],
+          "tips": [
+            "Use draft mode if you need to continue later.",
+            "You can add attachments after submission via the ticket details page.",
+            "The \"Automatic help\" button shows matching guidance from the knowledge base."
+          ],
+          "screenshots": ["[Screenshot: Dashboard > New complaint]", "[Screenshot: Form with required fields]"],
+          "links": ["#complaint-create"]
+        },
+        {
+          "id": "complaint-track",
+          "title": "Status & communication",
+          "summary": "Understand statuses, answer questions and reach your contact person.",
+          "tags": ["Status", "Chat", "Contact"],
+          "steps": [
+            {"title": "Read the status badges", "anchor": "status", "description": "Use the badges (Received, In progress, Decision, etc.) to understand progress."},
+            {"title": "Send messages", "anchor": "messages", "description": "Open the ticket details and use the chat area to ask or answer questions. Representatives and QM receive notifications automatically."},
+            {"title": "Add follow-up files", "anchor": "followup", "description": "Upload more photos/documents that are linked directly to the ticket."},
+            {"title": "Open reports", "anchor": "reports", "description": "Depending on permissions you can see lab reports and CAPA updates. Hidden documents are restricted for compliance reasons."}
+          ],
+          "tips": [
+            "Keep replies short and add a photo if possible.",
+            "For urgent cases also use the \"Contact representative\" button in the ticket.",
+            "Download links are personal – please do not forward them."
+          ],
+          "screenshots": ["[Screenshot: Ticket status & chat]"],
+          "links": ["#complaint-track"]
+        }
+      ]
+    },
+    {
+      "id": "representatives",
+      "title": "Representatives",
+      "audience": "Representative",
+      "description": "Manage knowledge articles, customer communication and decisions.",
+      "topics": [
+        {
+          "id": "rep-dashboard",
+          "title": "Dashboard & filters",
+          "summary": "Filter all customer cases by priority and status.",
+          "tags": ["Filter", "Overview", "Download"],
+          "steps": [
+            {"title": "Login & role switch", "anchor": "login", "description": "Sign in to the representative area. The role switch shows whether you are in customer or representative context."},
+            {"title": "Apply filters", "anchor": "filters", "description": "Use status, decision and customer filters. Saved filters appear in quick access."},
+            {"title": "Downloads & catalogs", "anchor": "downloads", "description": "Access released documents (e.g. reports, catalogs). Visibility depends on your region and language."}
+          ],
+          "tips": [
+            "Open the customer profile to jump directly to their open tickets.",
+            "Mark urgent tickets with a star to keep them on top."
+          ],
+          "screenshots": ["[Screenshot: Rep dashboard with filters]"],
+          "links": ["#rep-dashboard"]
+        },
+        {
+          "id": "rep-decisions",
+          "title": "Evaluate & approve",
+          "summary": "Document decisions in a traceable way.",
+          "tags": ["Decision", "PRRC", "Approval"],
+          "steps": [
+            {"title": "Open the ticket", "anchor": "open", "description": "Open the ticket and choose \"Evaluate\"."},
+            {"title": "Capture the decision", "anchor": "decision", "description": "Provide the decision, rationale and optionally a CAPA. Add internal notes for PRRC."},
+            {"title": "Approval & visibility", "anchor": "visibility", "description": "Define whether the decision is visible for customers. Internal assessments stay limited to DFS/PRRC and reps."}
+          ],
+          "tips": [
+            "Set a follow-up date when documents are missing.",
+            "PRRC note: every decision needs a source (lab report, customer photo, CAPA)."
+          ],
+          "screenshots": ["[Screenshot: Decision dialog]"]
+        }
+      ]
+    },
+    {
+      "id": "dfs",
+      "title": "DFS users & PRRC",
+      "audience": "DFS / PRRC",
+      "description": "Internal area for quality assurance, CAPA management and approvals.",
+      "topics": [
+        {
+          "id": "dfs-overview",
+          "title": "CAPA & reports",
+          "summary": "Create CAPA items, upload reports and manage visibility.",
+          "tags": ["CAPA", "QM", "Reports"],
+          "steps": [
+            {"title": "Create a CAPA", "anchor": "capa", "description": "Open the admin dashboard and pick \"New CAPA\". Link the ticket, root cause and action."},
+            {"title": "Upload reports", "anchor": "reports", "description": "Upload PDF reports and decide whether they are visible for customers/representatives."},
+            {"title": "Roles & permissions", "anchor": "roles", "description": "Visibility follows roles: customers only see released reports, representatives see internal notes, PRRC sees all assessments."}
+          ],
+          "tips": [
+            "Use tags (segment, region) to find reports faster.",
+            "Audit tip: every CAPA needs a responsible person and due date."
+          ],
+          "screenshots": ["[Screenshot: CAPA detail with report]"]
+        },
+        {
+          "id": "prrc-safeguards",
+          "title": "PRRC focus",
+          "summary": "Clear guidance on assessments, approvals, rights & visibility.",
+          "tags": ["PRRC", "Compliance", "Audit"],
+          "steps": [
+            {"title": "Evidence for assessments", "anchor": "assessment", "description": "Store evidence (lab results, lot checks, customer communication). Each assessment receives a timestamp."},
+            {"title": "Document approvals", "anchor": "approval", "description": "Approvals are two-step: representative recommendation and PRRC final approval. Both are logged."},
+            {"title": "Manage rights & visibility", "anchor": "rights", "description": "Set visibility per document: PRRC-only, Internal (DFS/rep) or Customer visible. Every change creates an audit trail."},
+            {"title": "Share deep links", "anchor": "links", "description": "Use secure deep links for audits. Links are signed and time-limited."}
+          ],
+          "tips": [
+            "Use the PRRC protocol export for audits.",
+            "Always verify visibility before sharing – the app shows the current approval level."
+          ],
+          "screenshots": ["[Screenshot: PRRC protocol & rights]"],
+          "links": ["#prrc-safeguards", "#prrc-audit"]
+        }
+      ]
+    }
+  ]
+}
