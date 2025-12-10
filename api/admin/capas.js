@@ -39,8 +39,9 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const body = readJson(req) || {};
-      if (!body.id) return bad(res, 'id missing', 400);
-      await capaDelete(body.id);
+      const id = body.id || req.query?.id;
+      if (!id) return bad(res, 'id missing', 400);
+      await capaDelete(id);
       return ok(res, { ok: true });
     }
 
