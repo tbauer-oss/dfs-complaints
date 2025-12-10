@@ -507,6 +507,10 @@ class _AdminPageState extends State<AdminPage> {
       if (_tileVisibleForActor(tile)) allowed.add(tile);
     }
 
+    if (_isSuperuser) {
+      allowed.add('capaReports');
+    }
+
     _portalTilePermissions.forEach((tile, perm) {
       final normalized = _normalizeTilePermission(perm);
       if (normalized == null) return;
