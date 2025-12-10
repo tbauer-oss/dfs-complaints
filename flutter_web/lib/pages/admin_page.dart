@@ -18776,6 +18776,10 @@ class PrrcDashboardStats {
         ? (j['counts'] as Map).map((key, value) => MapEntry('$key', int.tryParse('$value') ?? 0))
         : <String, int>{};
 
+    final total = int.tryParse('${j['total'] ?? 0}') ?? 0;
+    final incidents = (raw['B'] ?? 0) + (raw['C'] ?? 0) + (raw['D'] ?? 0);
+    final incidentShare = total == 0 ? 0.0 : double.parse(((incidents / total) * 100).toStringAsFixed(1));
+
     return PrrcDashboardStats(
       counts: {
         'N/A': raw['N/A'] ?? 0,
@@ -18787,9 +18791,9 @@ class PrrcDashboardStats {
       },
       unrated: int.tryParse('${j['unrated'] ?? 0}') ?? 0,
       open: int.tryParse('${j['open'] ?? 0}') ?? 0,
-      incidents: int.tryParse('${j['incidents'] ?? 0}') ?? 0,
-      total: int.tryParse('${j['total'] ?? 0}') ?? 0,
-      incidentShare: double.tryParse('${j['incidentShare'] ?? 0}') ?? 0,
+      incidents: incidents,
+      total: total,
+      incidentShare: incidentShare,
       potentiallyReportable: int.tryParse('${j['potentiallyReportable'] ?? 0}') ?? 0,
       reportableCases: int.tryParse('${j['reportableCases'] ?? 0}') ?? 0,
     );
@@ -19176,7 +19180,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
       counts[cls] = (counts[cls] ?? 0) + 1;
       if (_isUnrated(c)) unrated += 1;
       if (c.status != 5) open += 1;
-      if (['A', 'B', 'C', 'D'].contains(cls)) incidents += 1;
+      if (['B', 'C', 'D'].contains(cls)) incidents += 1;
       if (['B', 'C', 'D'].contains(cls) || c.isPotentiallyReportable) potential += 1;
       if (c.prrcReportableCase) reportable += 1;
     }
