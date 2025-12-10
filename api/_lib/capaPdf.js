@@ -108,9 +108,10 @@ function renderList(doc, entries, formatter) {
   if (entries.length === 0) doc.text('-');
 }
 
-export function createCapaPdf(report, { lang = 'de' } = {}) {
+export function createCapaPdf(report, { lang = 'de', stream = null } = {}) {
   const labels = resolveLabels(lang);
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
+  if (stream) doc.pipe(stream);
   doc.info = {
     Title: `${labels.title} ${report.capaNumber || report.id}`,
   };
