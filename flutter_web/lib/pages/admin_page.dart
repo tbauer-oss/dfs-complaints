@@ -16,6 +16,7 @@ import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
+import '../models/portal_user.dart' show PortalUserSummary;
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
@@ -18730,6 +18731,8 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   bool _loading = true;
   String? _error;
   List<AdminComplaint> _complaints = const <AdminComplaint>[];
+  List<ActiveUser> _customers = const <ActiveUser>[];
+  List<PortalUserSummary> _portalUsers = const <PortalUserSummary>[];
   PrrcDashboardStats _stats = const PrrcDashboardStats(
     counts: {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0},
     unrated: 0,
@@ -18816,9 +18819,53 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   }
 
   String _customer(AdminComplaint c) {
-    final payloadCustomer = _payloadValue(c, const ['company', 'firma', 'customer', 'kunde', 'customer_name']);
-    if (payloadCustomer.isNotEmpty) return payloadCustomer;
-    return c.email;
+    final number = _customerNumberByEmail(c.email) ?? _customerNumberFromPayload(c);
+    final company = _companyByEmail(c.email)?.trim();
+    if (company != null && company.isNotEmpty) return _withCustomerNumber(company, number);
+
+    const companyKeys = [
+      'company',
+      'companyName',
+      'customerCompany',
+      'firm',
+      'firma',
+      'organization',
+      'organisation',
+      'org',
+      'customer',
+      'kunde',
+      'customer_name',
+      'customerName',
+      'accountCompany',
+    ];
+
+    String fromMap(Map value) {
+      final map = value.map((key, v) => MapEntry('$key', v));
+      for (final key in companyKeys) {
+        final v = map[key];
+        final s = (v ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      final name = map['name']?.toString().trim();
+      if (name != null && name.isNotEmpty) return name;
+      return '';
+    }
+
+    final payloadCustomer = _payloadValue(c, companyKeys);
+    if (payloadCustomer.isNotEmpty) return _withCustomerNumber(payloadCustomer, number);
+
+    final payload = c.payload;
+    if (payload != null) {
+      for (final key in const ['customer', 'kunde', 'customerData', 'customerInfo']) {
+        final value = payload[key];
+        if (value is Map && value.isNotEmpty) {
+          final nested = fromMap(value);
+          if (nested.isNotEmpty) return _withCustomerNumber(nested, number);
+        }
+      }
+    }
+
+    return _withCustomerNumber(c.email, number);
   }
 
   String _statusLabel(int? value) {
@@ -18839,6 +18886,64 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
 
   String _formatDate(DateTime d) => DateFormat('dd.MM.yyyy').format(d.toLocal());
 
+  ActiveUser? _activeUserByEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    return _customers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+  }
+
+  String? _customerNumberByEmail(String email) {
+    final number = _activeUserByEmail(email)?.customerNumber?.trim() ?? '';
+    return number.isNotEmpty ? number : null;
+  }
+
+  String? _customerNumberFromPayload(AdminComplaint c) {
+    const numberKeys = [
+      'customerNumber',
+      'customer_number',
+      'customerNo',
+      'customer_no',
+      'customerId',
+      'customer_id',
+      'kundennummer',
+      'kundenNr',
+    ];
+
+    final direct = _payloadValue(c, numberKeys);
+    if (direct.isNotEmpty) return direct;
+
+    final payload = c.payload;
+    if (payload != null) {
+      for (final key in const ['customer', 'kunde', 'customerData', 'customerInfo']) {
+        final value = payload[key];
+        if (value is Map && value.isNotEmpty) {
+          final map = value.map((k, v) => MapEntry('$k', v));
+          for (final nKey in numberKeys) {
+            final s = (map[nKey] ?? '').toString().trim();
+            if (s.isNotEmpty) return s;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String _withCustomerNumber(String name, String? number) {
+    if (number == null || number.isEmpty) return name;
+    return '$name (Kundennr.: $number)';
+  }
+
+  String? _companyByEmail(String email) {
+    final active = _activeUserByEmail(email);
+    final activeCompany = active?.company.trim() ?? '';
+    if (activeCompany.isNotEmpty) return activeCompany;
+
+    final normalized = email.trim().toLowerCase();
+    final user = _portalUsers.firstWhereOrNull((u) => u.email.trim().toLowerCase() == normalized);
+    final label = user?.displayName.trim() ?? '';
+    return label.isNotEmpty ? label : null;
+  }
+
   Future<void> _load() async {
     if (!_isPrrc) {
       setState(() {
@@ -18854,14 +18959,23 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     });
 
     try {
-      final res = await _api.fetchPrrcDashboard(
-        from: _dateRange?.start,
-        to: _dateRange?.end,
-      );
+      final results = await Future.wait([
+        _api.fetchPrrcDashboard(
+          from: _dateRange?.start,
+          to: _dateRange?.end,
+        ),
+        _api.fetchPortalUserSummaries(),
+        _api.fetchUsers().catchError((_) => const <ActiveUser>[]),
+      ]);
+      final res = results[0] as PrrcDashboardData;
+      final portalUsers = results[1] as List<PortalUserSummary>;
+      final customers = results[2] as List<ActiveUser>;
       if (!mounted) return;
       setState(() {
         _complaints = res.complaints;
         _stats = res.stats;
+        _customers = customers;
+        _portalUsers = portalUsers;
         if (_complaints.isNotEmpty && _selected == null) {
           if (widget.initialTicket != null) {
             _selected = _complaints.firstWhere(
@@ -19834,6 +19948,30 @@ class AdminApi {
     if (txt.trim().isEmpty) return const <PortalUser>[];
     final List data = jsonDecode(txt);
     return data.map((e) => PortalUser.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  Future<List<PortalUserSummary>> fetchPortalUserSummaries() async {
+    final res = await _request('GET', '/api/portal/users');
+    if (res.status != 200) throw 'portal/users GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return const <PortalUserSummary>[];
+
+    final decoded = jsonDecode(txt);
+    List? list;
+    if (decoded is List) list = decoded;
+    if (decoded is Map) {
+      final mapList = decoded['items'] ?? decoded['list'] ?? decoded['users'];
+      if (mapList is List) list = mapList;
+    }
+
+    if (list == null) {
+      throw 'Ungültige Antwort für Portal-User';
+    }
+
+    return list
+        .whereType<Map>()
+        .map((e) => PortalUserSummary.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   Future<PortalUser> createPortalUser({
