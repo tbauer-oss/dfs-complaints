@@ -10455,6 +10455,7 @@ class _AdminPageState extends State<AdminPage> {
                         return _ComplaintDialogLauncher(
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
+                          portalApi: widget.api,
                           c: c,
                           portalRole: _portalRole,
                           portalIsSales: _portalIsSales,
@@ -10621,6 +10622,7 @@ class _AdminPageState extends State<AdminPage> {
                         return _ComplaintDialogLauncher(
                           key: ValueKey('complaint-${c.ticket}'),
                           api: _api,
+                          portalApi: widget.api,
                           c: c,
                           portalRole: _portalRole,
                           portalIsSales: _portalIsSales,
@@ -12676,6 +12678,7 @@ class _ComplaintsDetailList extends StatelessWidget {
               .map((c) => _ComplaintDialogLauncher(
                     key: ValueKey('complaint-${c.ticket}'),
                     api: api,
+                    portalApi: parent?.widget.api,
                     c: c,
                     productLookup: parent?._productByArticle,
                     onChanged: parent?._syncComplaint,
@@ -13845,6 +13848,7 @@ class _ComplaintDetailsDialog extends StatelessWidget {
 
 class _ComplaintDialogLauncher extends StatelessWidget {
   final AdminApi api;
+  final ApiClient? portalApi;
   final AdminComplaint c;
   final VoidCallback onClosed;
   final DfsProduct? Function(String articleNumber)? productLookup;
@@ -13865,6 +13869,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
   const _ComplaintDialogLauncher({
     super.key,
     required this.api,
+    this.portalApi,
     required this.c,
     required this.onClosed,
     required this.portalRole,
@@ -14013,6 +14018,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     child: _ComplaintEditor(
                       api: api,
+                      portalApi: portalApi,
                       c: c,
                       portalRole: portalRole,
                       portalIsSales: portalIsSales,
@@ -14272,6 +14278,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
 
 class _ComplaintEditor extends StatefulWidget {
   final AdminApi api;
+  final ApiClient? portalApi;
   final AdminComplaint c;
   final VoidCallback onClosed;
   final bool initiallyExpanded;
@@ -14292,6 +14299,7 @@ class _ComplaintEditor extends StatefulWidget {
   const _ComplaintEditor({
     super.key,
     required this.api,
+    this.portalApi,
     required this.c,
     required this.onClosed,
     this.initiallyExpanded = false,
@@ -15016,7 +15024,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   }
 
   Future<void> _openCapaFromComplaint() async {
-    final portalApi = context.findAncestorStateOfType<_AdminPageState>()?.widget.api;
+    final portalApi = widget.portalApi ?? context.findAncestorStateOfType<_AdminPageState>()?.widget.api;
     if (portalApi == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -19151,6 +19159,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
                     padding: const EdgeInsets.all(12),
                     child: _ComplaintEditor(
                       api: _api,
+                      portalApi: widget.api,
                       c: c,
                       portalRole: _portalRole,
                       portalIsSales: _portalIsSales,
