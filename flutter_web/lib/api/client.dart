@@ -14,6 +14,7 @@ import '../models/rep_download_item.dart';
 import '../models/download_category.dart';
 import '../models/admin_rep_summary.dart';
 import '../models/capa_report.dart';
+import '../models/portal_user.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1549,6 +1550,21 @@ class ApiClient {
       return decoded.whereType<Map>().map((e) => CapaReport.fromJson(e.cast<String, dynamic>())).toList();
     }
     return const [];
+  }
+
+  Future<List<PortalUserSummary>> fetchPortalUsers() async {
+    final r = await http.get(_u('/api/portal/users'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is List) {
+      return decoded
+          .whereType<Map>()
+          .map((e) => PortalUserSummary.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    throw ApiError(r.statusCode, 'Ungültige Antwort für Portal-User');
   }
 
   Future<CapaReport> adminSaveCapa(CapaReport report) async {

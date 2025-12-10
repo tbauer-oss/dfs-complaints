@@ -4,7 +4,23 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models/capa_report.dart';
+import '../models/portal_user.dart';
+import '../models/dfs_product.dart';
+import '../services/product_lookup.dart';
 import '../widgets/date_field.dart';
+
+const List<String> _departmentOptions = [
+  'Sinterei',
+  'Galvanik',
+  'Galvanik Vor-/Nachbereitung',
+  'Schleiferei',
+  'Bürstenproduktion',
+  'Dreherei',
+  'MP Spezialfertigung',
+  'Chemie / Logistik',
+  'Versand / Lager',
+  'Vertrieb',
+];
 
 class CapaDetailPage extends StatefulWidget {
   final ApiClient api;
@@ -34,6 +50,16 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
   bool _saving = false;
   bool _exporting = false;
   String? _error;
+  final _responsibleCtrl = TextEditingController();
+  final _teamLeadCtrl = TextEditingController();
+  final _areaCtrl = TextEditingController();
+  final _productCtrl = TextEditingController();
+  final ProductLookup _productLookup = ProductLookup();
+  List<PortalUserSummary> _portalUsers = const [];
+  bool _portalUsersLoading = false;
+  String? _portalUsersError;
+  bool _productLoading = false;
+  DfsProduct? _selectedProduct;
 
   @override
   void initState() {
@@ -49,6 +75,9 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
           title: widget.complaintPrefill?['title'] ?? '',
         );
     _tabController = TabController(length: 8, vsync: this);
+    _syncControllersFromReport();
+    _loadPortalUsers();
+    _ensureProductsLoaded();
   }
 
   Future<void> _save() async {
@@ -63,7 +92,10 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
       } else {
         saved = await widget.api.adminUpdateCapa(_report);
       }
-      setState(() => _report = saved);
+      setState(() {
+        _report = saved;
+        _syncControllersFromReport();
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CAPA gespeichert.')));
       }
@@ -107,6 +139,64 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
           status: status ?? _report.status,
           responsibleUserId: responsible ?? _report.responsibleUserId,
         ));
+  }
+
+  void _syncControllersFromReport() {
+    _responsibleCtrl.text = _report.responsibleUserId;
+    _teamLeadCtrl.text = _report.sections.teamLead;
+    _areaCtrl.text = _report.sections.area;
+    _productCtrl.text = _report.sections.product;
+    _updateSelectedProduct();
+  }
+
+  Future<void> _loadPortalUsers() async {
+    setState(() {
+      _portalUsersLoading = true;
+      _portalUsersError = null;
+    });
+    try {
+      final list = await widget.api.fetchPortalUsers();
+      if (!mounted) return;
+      setState(() => _portalUsers = list);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _portalUsersError = e.toString());
+    } finally {
+      if (mounted) setState(() => _portalUsersLoading = false);
+    }
+  }
+
+  Future<void> _ensureProductsLoaded() async {
+    if (_productLoading || _productLookup.hasProducts) return;
+    setState(() => _productLoading = true);
+    try {
+      await _productLookup.loadProducts();
+      _updateSelectedProduct();
+    } finally {
+      if (mounted) setState(() => _productLoading = false);
+    }
+  }
+
+  void _updateSelectedProduct() {
+    final found = _productLookup.byArticle(_productCtrl.text.trim());
+    if (!mounted) return;
+    setState(() => _selectedProduct = found);
+  }
+
+  List<PortalUserSummary> get _activePortalUsers =>
+      _portalUsers.where((u) => u.portalStatus.isEmpty || u.portalStatus == 'active').toList();
+
+  List<PortalUserSummary> get _superusers =>
+      _activePortalUsers.where((u) => u.role.toLowerCase() == 'superuser').toList();
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _responsibleCtrl.dispose();
+    _teamLeadCtrl.dispose();
+    _areaCtrl.dispose();
+    _productCtrl.dispose();
+    super.dispose();
   }
 
   Widget _sectionContainer({required String title, required List<Widget> children}) {
@@ -651,10 +741,63 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                 const SizedBox(width: 12),
                 SizedBox(
                   width: 260,
-                  child: TextFormField(
-                    initialValue: _report.responsibleUserId,
-                    decoration: const InputDecoration(labelText: 'Verantwortlicher'),
-                    onChanged: (v) => _updateReport(responsible: v),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RawAutocomplete<PortalUserSummary>(
+                        textEditingController: _responsibleCtrl,
+                        optionsBuilder: (text) {
+                          final query = text.text.toLowerCase();
+                          if (query.isEmpty) return _superusers;
+                          return _superusers.where((u) =>
+                              u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
+                        },
+                        displayStringForOption: (u) => u.label,
+                        fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            labelText: 'Verantwortlicher',
+                            suffixIcon: _portalUsersLoading
+                                ? const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child:
+                                        SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  )
+                                : const Icon(Icons.arrow_drop_down),
+                          ),
+                          onChanged: (v) => _updateReport(responsible: v),
+                          onFieldSubmitted: (_) => onFieldSubmitted(),
+                        ),
+                        onSelected: (u) => _updateReport(responsible: u.label),
+                        optionsViewBuilder: (ctx, onSelected, options) => Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4,
+                            child: SizedBox(
+                              height: 200,
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                itemCount: options.length,
+                                itemBuilder: (ctx, idx) {
+                                  final opt = options.elementAt(idx);
+                                  return ListTile(
+                                    title: Text(opt.label.isEmpty ? opt.email : opt.label),
+                                    subtitle: Text(opt.email),
+                                    onTap: () => onSelected(opt),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_portalUsersError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(_portalUsersError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -682,10 +825,42 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          initialValue: _report.sections.area,
-                          decoration: const InputDecoration(labelText: 'Bereich'),
-                          onChanged: (v) => _updateSections((s) => s.copyWith(area: v)),
+                        child: RawAutocomplete<String>(
+                          textEditingController: _areaCtrl,
+                          optionsBuilder: (text) {
+                            final query = text.text.toLowerCase();
+                            return _departmentOptions
+                                .where((o) => o.toLowerCase().contains(query))
+                                .toList(growable: false);
+                          },
+                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            decoration: const InputDecoration(labelText: 'Bereich'),
+                            onChanged: (v) => _updateSections((s) => s.copyWith(area: v)),
+                            onFieldSubmitted: (_) => onFieldSubmitted(),
+                          ),
+                          optionsViewBuilder: (ctx, onSelected, options) => Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              child: SizedBox(
+                                height: 200,
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  itemCount: options.length,
+                                  itemBuilder: (ctx, idx) {
+                                    final opt = options.elementAt(idx);
+                                    return ListTile(
+                                      title: Text(opt),
+                                      onTap: () => onSelected(opt),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          onSelected: (value) => _updateSections((s) => s.copyWith(area: value)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -702,23 +877,119 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          initialValue: _report.sections.teamLead,
-                          decoration: const InputDecoration(labelText: 'Teamleiter'),
-                          onChanged: (v) => _updateSections((s) => s.copyWith(teamLead: v)),
+                        child: RawAutocomplete<PortalUserSummary>(
+                          textEditingController: _teamLeadCtrl,
+                          optionsBuilder: (text) {
+                            final query = text.text.toLowerCase();
+                            if (query.isEmpty) return _activePortalUsers;
+                            return _activePortalUsers.where((u) =>
+                                u.label.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
+                          },
+                          displayStringForOption: (u) => u.label,
+                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            decoration: const InputDecoration(labelText: 'Bereichsverantwortlicher'),
+                            onChanged: (v) => _updateSections((s) => s.copyWith(teamLead: v)),
+                            onFieldSubmitted: (_) => onFieldSubmitted(),
+                          ),
+                          onSelected: (u) => _updateSections((s) => s.copyWith(teamLead: u.label)),
+                          optionsViewBuilder: (ctx, onSelected, options) => Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              child: SizedBox(
+                                height: 220,
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  itemCount: options.length,
+                                  itemBuilder: (ctx, idx) {
+                                    final opt = options.elementAt(idx);
+                                    return ListTile(
+                                      title: Text(opt.label.isEmpty ? opt.email : opt.label),
+                                      subtitle: Text(opt.email),
+                                      onTap: () => onSelected(opt),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextFormField(
-                          initialValue: _report.sections.product,
-                          readOnly: widget.complaintPrefill != null && (widget.complaintPrefill?['product'] ?? '').isNotEmpty,
-                          decoration: const InputDecoration(labelText: 'Produkt / Artikel'),
-                          onChanged: (v) => _updateSections((s) => s.copyWith(product: v)),
+                        child: RawAutocomplete<DfsProduct>(
+                          textEditingController: _productCtrl,
+                          optionsBuilder: (text) {
+                            final query = text.text.toLowerCase();
+                            if (query.isEmpty) return _productLookup.products;
+                            return _productLookup.products.where((p) {
+                              return p.articleNumber.toLowerCase().contains(query) ||
+                                  p.productName.toLowerCase().contains(query) ||
+                                  p.basicUdiDi.toLowerCase().contains(query);
+                            });
+                          },
+                          displayStringForOption: (p) => p.articleNumber,
+                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            readOnly: widget.complaintPrefill != null &&
+                                (widget.complaintPrefill?['product'] ?? '').isNotEmpty,
+                            decoration: InputDecoration(
+                              labelText: 'Produkt / Artikel',
+                              suffixIcon: _productLoading
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(8),
+                                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    )
+                                  : const Icon(Icons.search),
+                            ),
+                            onChanged: (v) {
+                              _updateSections((s) => s.copyWith(product: v));
+                              _updateSelectedProduct();
+                            },
+                            onTap: _ensureProductsLoaded,
+                            onFieldSubmitted: (_) => onFieldSubmitted(),
+                          ),
+                          onSelected: (product) {
+                            _updateSections((s) => s.copyWith(product: product.articleNumber));
+                            _productCtrl.text = product.articleNumber;
+                            _updateSelectedProduct();
+                          },
+                          optionsViewBuilder: (ctx, onSelected, options) => Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              child: SizedBox(
+                                height: 240,
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  itemCount: options.length,
+                                  itemBuilder: (ctx, idx) {
+                                    final opt = options.elementAt(idx);
+                                    return ListTile(
+                                      title: Text(opt.articleNumber.isEmpty ? '—' : opt.articleNumber),
+                                      subtitle: Text(opt.productName),
+                                      onTap: () => onSelected(opt),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
+                  if (_selectedProduct != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Artikelbezeichnung: ${_selectedProduct?.productName ?? ''}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [

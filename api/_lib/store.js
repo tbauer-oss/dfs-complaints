@@ -59,7 +59,7 @@ const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
 const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
-const KEY_CAPA_COUNTER = `${P}capa:counter`;
+const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -68,7 +68,7 @@ const mem = {
   pending: new Map(),
   complaints: new Map(),
   capaReports: new Map(),
-  counters: { ticket: 1, capa: 1 },
+  counters: { ticket: 1, capa: {} },
   catalogConfig: {},
   repPushTokens: new Map(),
   adminPushTokens: [],
@@ -2640,12 +2640,15 @@ function normalizeCapaStatus(status) {
 
 export async function nextCapaNumber() {
   const r = getRedis();
+  const year = new Date().getFullYear().toString().slice(-2);
+  const key = KEY_CAPA_COUNTER(year);
   if (r) {
-    const n = await withRedisTimeout(r.incr(KEY_CAPA_COUNTER), 'capa counter');
-    return `CAPA-${String(n).padStart(5, '0')}`;
+    const n = await withRedisTimeout(r.incr(key), 'capa counter');
+    return `DFS-CAPA-${year}_${String(n).padStart(4, '0')}`;
   }
-  const n = mem.counters.capa++;
-  return `CAPA-${String(n).padStart(5, '0')}`;
+  const current = mem.counters.capa[year] ?? 1;
+  mem.counters.capa[year] = current + 1;
+  return `DFS-CAPA-${year}_${String(current).padStart(4, '0')}`;
 }
 
 function normalizeCapaRecord(data = {}) {
@@ -2698,7 +2701,8 @@ export async function capaGet(idOrNumber) {
   const r = getRedis();
   const direct = r ? await rget(key) : mem.capaReports.get(idOrNumber) ?? null;
   if (direct) return normalizeCapaRecord({ ...direct, id: idOrNumber });
-  return await capaFindByNumber(idOrNumber);
+  const byNumber = await capaFindByNumber(idOrNumber);
+  return byNumber ? normalizeCapaRecord({ ...byNumber, id: byNumber.id || idOrNumber }) : null;
 }
 
 export async function capaAll() {
