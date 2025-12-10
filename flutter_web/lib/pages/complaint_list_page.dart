@@ -218,7 +218,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   late Set<String> _visibleColumns;
   Uint8List? _logoBytes;
   late List<ComplaintListItem> _items;
-  final Set<String> _savingTickets = {};
   final Set<String> _savingPrrcTickets = {};
 
   static const Map<String, double> _columnWidths = {
@@ -1027,8 +1026,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'prrcClassification': _prrcCell(c),
         'internalAssessment': _cellFor('internalAssessment', c.internalAssessment),
         'suspectedCause': _cellFor('suspectedCause', c.suspectedCause),
-        'immediateActions': _editableActionCell(c, 'immediateActions', c.immediateActions),
-        'correctiveActions': _editableActionCell(c, 'correctiveActions', c.correctiveActions),
+        'immediateActions': _actionCell('immediateActions', c.immediateActions),
+        'correctiveActions': _actionCell('correctiveActions', c.correctiveActions),
         'recurrence': _cellFor('recurrence', c.recurrence ? 'Ja' : 'Nein'),
         'severity': _cellFor('severity', c.severity),
         'notes': _cellFor('notes', c.notes),
@@ -1107,46 +1106,9 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     );
   }
 
-  Future<void> _handleInlineActionsUpdate(
-    ComplaintListItem item, {
-    String? immediate,
-    String? corrective,
-  }) async {
-    if (widget.onInlineUpdateActions == null) return;
-
-    final nextImmediate = immediate?.trim() ?? item.immediateActions;
-    final nextCorrective = corrective?.trim() ?? item.correctiveActions;
-    if (nextImmediate == item.immediateActions && nextCorrective == item.correctiveActions) return;
-
-    setState(() => _savingTickets.add(item.systemId));
-    try {
-      final updated = await widget.onInlineUpdateActions!(
-        item.systemId,
-        nextImmediate,
-        nextCorrective,
-      );
-      final replacement = updated ?? item.copyWith(
-        immediateActions: nextImmediate,
-        correctiveActions: nextCorrective,
-      );
-      setState(() {
-        final idx = _items.indexWhere((c) => c.systemId == item.systemId);
-        if (idx != -1) _items[idx] = replacement;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Maßnahmen gespeichert.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingTickets.remove(item.systemId));
-    }
+  DataCell _actionCell(String key, String value) {
+    final display = value.trim().isEmpty ? '—' : value;
+    return _cellFor(key, display);
   }
 
   Future<void> _handlePrrcChange(ComplaintListItem item, String classification) async {
@@ -1175,48 +1137,6 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     } finally {
       if (mounted) setState(() => _savingPrrcTickets.remove(item.systemId));
     }
-  }
-
-  DataCell _editableActionCell(ComplaintListItem item, String key, String value) {
-    if (widget.onInlineUpdateActions == null) return _cellFor(key, value);
-    final width = _columnWidth(key);
-    final isSaving = _savingTickets.contains(item.systemId);
-    return DataCell(
-      ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: width),
-        child: Stack(
-          alignment: Alignment.centerRight,
-          children: [
-            TextFormField(
-              initialValue: value,
-              maxLines: 2,
-              minLines: 1,
-              decoration: const InputDecoration(
-                isDense: true,
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              ),
-              onFieldSubmitted: (v) {
-                if (key == 'immediateActions') {
-                  _handleInlineActionsUpdate(item, immediate: v);
-                } else {
-                  _handleInlineActionsUpdate(item, corrective: v);
-                }
-              },
-            ),
-            if (isSaving)
-              const Positioned(
-                right: 6,
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildDataTableBody(List<ComplaintListItem> items) {
