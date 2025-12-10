@@ -112,8 +112,11 @@ export function createCapaPdf(report, { lang = 'de', stream = null, finalize = t
   const labels = resolveLabels(lang);
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
   if (stream) doc.pipe(stream);
+  const now = new Date();
   doc.info = {
     Title: `${labels.title} ${report.capaNumber || report.id}`,
+    CreationDate: now,
+    ModDate: new Date(report.updatedAt || report.createdAt || now),
   };
 
   doc.fontSize(16).font('Helvetica-Bold').text(labels.title);
