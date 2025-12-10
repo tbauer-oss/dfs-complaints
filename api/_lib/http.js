@@ -32,7 +32,7 @@ export function isAllowedOrigin(origin = '') {
 }
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
-export function setCors(req, res) {
+export function setCors(req, res, allowHeaders = '') {
   const origin = req.headers?.origin || '';
   const allow  = isAllowedOrigin(origin) ? origin : PROD_FE;
 
@@ -45,9 +45,33 @@ export function setCors(req, res) {
   // Vom Browser angefragte Header dynamisch spiegeln; Baseline immer erlauben
   const reqAllowed = req.headers?.['access-control-request-headers'];
   const baseline   = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
-  const allowHdrs  = reqAllowed && String(reqAllowed).trim().length > 0
-    ? `${baseline}, ${String(reqAllowed)}`
-    : baseline;
+
+  const fromExtras = String(allowHeaders || '')
+    .split(',')
+    .map((h) => h.trim())
+    .filter(Boolean);
+
+  const requested = reqAllowed && String(reqAllowed).trim().length > 0
+    ? String(reqAllowed).split(',')
+    : [];
+
+  const toHeaderCase = (h) => h
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('-');
+
+  const merged = [
+    ...baseline.split(','),
+    ...fromExtras,
+    ...requested,
+  ]
+    .map((h) => h.trim())
+    .filter(Boolean)
+    .map((h) => h.toLowerCase())
+    .filter((h, idx, arr) => arr.indexOf(h) === idx)
+    .map(toHeaderCase);
+
+  const allowHdrs = merged.join(', ');
   res.setHeader('Access-Control-Allow-Headers', allowHdrs);
 
   // Optional: welche Response-Header der Client lesen darf
