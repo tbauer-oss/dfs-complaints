@@ -498,7 +498,7 @@ class _AdminPageState extends State<AdminPage> {
 
   bool _tileVisibleForActor(String tileId) {
     if (_isSuperuser && tileId == 'capaReports') return true;
-    if (tileId == 'prrc' && !_portalIsPrrc && !_isSuperuser) return false;
+    if (tileId == 'prrc' && !_portalIsPrrc) return false;
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'capaDashboard' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
@@ -783,7 +783,7 @@ class _AdminPageState extends State<AdminPage> {
         widget.api.portalProfile?['isPRRC'] ??
         widget.api.portalProfile?['isPrrc'] ??
         widget.api.portalProfile?['prrc'];
-    _portalIsPrrc = _truthy(profileIsPrrc) || (_portalRole.toLowerCase() == 'prrc');
+    _portalIsPrrc = _truthy(profileIsPrrc);
     final profileIsQm = widget.portalProfile?['isQM'] ??
         widget.portalProfile?['isQm'] ??
         widget.portalProfile?['qm'] ??
@@ -7221,10 +7221,9 @@ class _AdminPageState extends State<AdminPage> {
           onReload: _refreshAllComplaints,
           onInlineUpdateActions: _updateComplaintActions,
           showPrrcColumn: true,
-          onUpdatePrrcClassification: (_portalIsPrrc || _isSuperuser)
-              ? _updatePrrcClassification
-              : null,
-          prrcReadOnly: !_portalIsPrrc && !_isSuperuser,
+          onUpdatePrrcClassification:
+              _portalIsPrrc ? _updatePrrcClassification : null,
+          prrcReadOnly: !_portalIsPrrc,
         );
       case _AdminView.capaReports:
         return CapaOverviewPage(
@@ -10621,7 +10620,7 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           portalRole: _portalRole,
                           portalIsSales: _portalIsSales,
-                          canOpenPrrc: _portalIsPrrc || _isSuperuser,
+                          canOpenPrrc: _portalIsPrrc,
                           onOpenPrrc: _openPrrcScreen,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
@@ -10660,7 +10659,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Widget _buildPrrcPanel() {
-    final canEdit = _portalIsPrrc || _isSuperuser;
+    final canEdit = _portalIsPrrc;
     return ComplaintListPage(
       api: widget.api,
       complaints: _complaintListItems(),
@@ -10788,7 +10787,7 @@ class _AdminPageState extends State<AdminPage> {
                           c: c,
                           portalRole: _portalRole,
                           portalIsSales: _portalIsSales,
-                          canOpenPrrc: _portalIsPrrc || _isSuperuser,
+                          canOpenPrrc: _portalIsPrrc,
                           onOpenPrrc: _openPrrcScreen,
                           productLookup: _productByArticle,
                           companyHint: _companyByEmail(c.email),
@@ -12856,7 +12855,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                         ? null
                         : () => parent._markCustomerMessageSeen(c),
                     portalRole: parent?._portalRole ?? PORTAL_ROLES['superuser']!,
-                    canOpenPrrc: (parent?._portalIsPrrc ?? false) || (parent?._isSuperuser ?? false),
+                    canOpenPrrc: parent?._portalIsPrrc ?? false,
                     onOpenPrrc: parent?._openPrrcScreen,
                   ))
               .toList(),
@@ -19073,7 +19072,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
     }
     _portalIsSales = _truthy(profile['isSales']);
     _isSuperuser = _portalRole == 'superuser';
-    _isPrrc = _truthy(profile['isPRRC'] ?? profile['isPrrc'] ?? profile['prrc']) || _portalRole == 'prrc' || _isSuperuser;
+    _isPrrc = _truthy(profile['isPRRC'] ?? profile['isPrrc'] ?? profile['prrc']);
   }
 
   String _classification(AdminComplaint c) {

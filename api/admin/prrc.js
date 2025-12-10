@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   if (!actor) return;
 
   const role = normalizeRole(actor?.role || actor?.portalRole || '');
-  const isPrrc = actor?.isPRRC === true || role === PORTAL_ROLES.prrc || role === PORTAL_ROLES.superuser;
+  const isPrrc = actor?.isPRRC === true;
   if (!isPrrc) return bad(res, 'forbidden for role', 403);
 
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);

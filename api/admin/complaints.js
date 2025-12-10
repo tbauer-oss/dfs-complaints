@@ -258,8 +258,7 @@ const decorateForAdmin = (c) => {
 };
 
 function canSeePrrc(actor) {
-  const role = normalizeRoleSafe(actor);
-  return actor?.isPRRC === true || role === PORTAL_ROLES.prrc || role === PORTAL_ROLES.superuser;
+  return actor?.isPRRC === true;
 }
 
 const decorateForActor = (c, actor) => {
@@ -464,8 +463,8 @@ export default async function handler(req, res) {
   const deps = actorDepartments(actor);
   const isSuperuser = role === PORTAL_ROLES.superuser;
   const isNormalUser = role === PORTAL_ROLES.user;
-  const isPrrc = actor?.isPRRC === true || role === PORTAL_ROLES.prrc;
-  const actorHasPrrcAccess = isPrrc || isSuperuser;
+  const isPrrc = actor?.isPRRC === true;
+  const actorHasPrrcAccess = isPrrc;
   const isPrrcOnly = isPrrc && !isSuperuser && !isNormalUser;
 
   // 4) Schwere Imports NACH Preflight/Admin laden (verhindert 500 bei OPTIONS)
