@@ -64,14 +64,14 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = readJson(req) || {};
       const email = String(body.email || '').trim().toLowerCase();
-    const password = String(body.password || '');
-    const role = normalizeRole(body.role);
-    const displayName = String(body.displayName || '').trim();
-    const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
-    const isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
-    const isPRRC = PRRC_EMAILS.has(email) && isTruthy(body.isPRRC);
-    const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
-    const tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
+      const password = String(body.password || '');
+      const role = normalizeRole(body.role);
+      const displayName = String(body.displayName || '').trim();
+      const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
+      const isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
+      const isPRRC = PRRC_EMAILS.has(email) && isTruthy(body.isPRRC);
+      const assignedDepartments = normalizeDepartments(body.assignedDepartments || []);
+      const tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
       if (!email || !password) return bad(res, 'missing email or password', 400);
 
       const hash = await bcrypt.hash(password, 10);

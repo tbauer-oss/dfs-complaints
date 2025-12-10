@@ -5,14 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
-import {
-  ADMIN_EMAILS,
-  PRRC_EMAILS,
-  ensureInitialAdmins,
-  normalizeRole,
-  normalizeStatus,
-  PORTAL_ROLES,
-} from '../_lib/portalAuth.js';
+import { ADMIN_EMAILS, PRRC_EMAILS, ensureInitialAdmins, normalizeRole, normalizeStatus, PORTAL_ROLES } from '../_lib/portalAuth.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
