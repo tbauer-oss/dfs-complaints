@@ -116,6 +116,7 @@ function textBlock(doc, label, value) {
 }
 
 function sectionHeader(doc, title) {
+  ensureSpace(doc, 90);
   doc.moveDown(0.7);
   const startX = doc.page.margins.left;
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -240,6 +241,13 @@ function renderSignatureSection(doc, labels, signDate) {
   });
 
   doc.y = y + 78;
+}
+
+function ensureSpace(doc, needed) {
+  const limit = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + needed > limit) {
+    doc.addPage();
+  }
 }
 
 export function createCapaPdf(report, { lang = 'de', stream = null, finalize = true } = {}) {
