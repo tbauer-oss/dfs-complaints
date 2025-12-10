@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
-import { hasPrrcAccess } from '../_lib/portalAuth.js';
+import { normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
 import { normalizeDepartments, hasDepartmentOverlap } from '../_lib/departments.js';
 
 const PRRC_VALUES = new Set(['N/A', 'SUB', 'A', 'B', 'C', 'D']);
@@ -67,7 +67,8 @@ export default async function handler(req, res) {
   const actor = await requirePortalAccess(req, res, { tile: 'prrc', allowPrrc: true });
   if (!actor) return;
 
-  const isPrrc = hasPrrcAccess(actor);
+  const role = normalizeRole(actor?.role || actor?.portalRole || '');
+  const isPrrc = actor?.isPRRC === true || role === PORTAL_ROLES.prrc || role === PORTAL_ROLES.superuser;
   if (!isPrrc) return bad(res, 'forbidden for role', 403);
 
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
