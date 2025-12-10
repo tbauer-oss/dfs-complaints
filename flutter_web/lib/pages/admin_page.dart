@@ -4399,6 +4399,7 @@ class _AdminPageState extends State<AdminPage> {
     final shouldRefreshFaq = view == _AdminView.faq &&
         !_faqLoading &&
         (_faqCategories.isEmpty || _faqEntries.isEmpty);
+    final shouldRefreshComplaints = view == _AdminView.complaintList && !_loadAllComplaints;
 
     if (_view != view) {
       setState(() => _view = view);
@@ -4406,6 +4407,10 @@ class _AdminPageState extends State<AdminPage> {
 
     if (shouldRefreshFaq) {
       _refreshFaq();
+    }
+
+    if (shouldRefreshComplaints) {
+      _refreshAllComplaints();
     }
   }
 
@@ -6172,7 +6177,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.complaintList),
+          onTap: isPreview ? () {} : () => _handleNavigation(_AdminView.complaintList),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
