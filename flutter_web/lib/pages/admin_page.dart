@@ -4548,7 +4548,7 @@ class _AdminPageState extends State<AdminPage> {
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: _portalIsPrrcAuthorized
-                              ? const Color(0xFF0865A2)
+                              ? const Color(0xFF2ECCB3)
                               : theme.textTheme.bodyMedium?.color,
                           letterSpacing: 0.15,
                         ),
