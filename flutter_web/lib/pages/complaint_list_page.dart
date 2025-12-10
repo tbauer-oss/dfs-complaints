@@ -989,14 +989,16 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   Color? _rowBackgroundColor(ComplaintListItem item) {
+    final normalizedProductFile = item.productFile.trim().toLowerCase();
     final normalizedSegment = item.segment.trim().toLowerCase();
     final normalizedGroup = item.productGroup.trim().toLowerCase();
+    final productFileLooksDental = normalizedProductFile.contains('dental');
     final isDentalProduct = normalizedSegment == 'zahnmedizin' ||
         normalizedSegment == 'zahnarzt' ||
-        normalizedGroup.contains('zahnmedizin');
+        normalizedGroup.contains('zahnmedizin') ||
+        productFileLooksDental;
     if (!isDentalProduct) return null;
 
-    final normalizedProductFile = item.productFile.trim().toLowerCase();
     final isDentalLabPlaceholder =
         normalizedProductFile.isEmpty ||
             normalizedProductFile == '-' ||
