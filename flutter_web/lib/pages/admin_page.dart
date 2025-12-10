@@ -483,6 +483,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   bool _tileVisibleForActor(String tileId) {
+    if (_isSuperuser && tileId == 'capaReports') return true;
     if (tileId == 'prrc' && !_portalIsPrrc && !_isSuperuser) return false;
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
