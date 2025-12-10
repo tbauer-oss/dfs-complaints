@@ -154,7 +154,7 @@ class _AdminCapaDashboardPageState extends State<AdminCapaDashboardPage> {
     await _ensureCapasLoaded();
     final match = _allCapas.firstWhere(
       (c) => c.id == capa.id || c.capaNumber == capa.capaNumber,
-      orElse: () => const CapaReport(),
+      orElse: () => CapaReport(),
     );
     if (!mounted) return;
     if (match.id.isEmpty && match.capaNumber.isEmpty) {
