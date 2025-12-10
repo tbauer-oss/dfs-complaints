@@ -1278,81 +1278,87 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
-                                    child: RawAutocomplete<DfsProduct>(
-                                      textEditingController: _productCtrl,
-                                      optionsBuilder: (text) {
-                                        final query = text.text.toLowerCase();
-                                        if (query.isEmpty) return _productLookup.products;
-                                        return _productLookup.products.where((p) {
-                                          return p.articleNumber.toLowerCase().contains(query) ||
-                                              p.productName.toLowerCase().contains(query) ||
-                                              p.basicUdiDi.toLowerCase().contains(query);
-                                        });
-                                      },
-                                      displayStringForOption: (p) => p.articleNumber,
-                                      fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
-                                        controller: controller,
-                                        focusNode: focusNode,
-                                        readOnly: widget.complaintPrefill != null &&
-                                            (widget.complaintPrefill?['product'] ?? '').isNotEmpty,
-                                        decoration: InputDecoration(
-                                          labelText: 'Produkt / Artikel',
-                                          suffixIcon: _productLoading
-                                              ? const Padding(
-                                                  padding: EdgeInsets.all(8),
-                                                  child: SizedBox(
-                                                    width: 18,
-                                                    height: 18,
-                                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                                  ),
-                                                )
-                                              : const Icon(Icons.search),
-                                        ),
-                                        onChanged: (v) {
-                                          _updateSections((s) => s.copyWith(product: v));
-                                          _updateSelectedProduct();
-                                        },
-                                        onTap: _ensureProductsLoaded,
-                                        onFieldSubmitted: (_) => onFieldSubmitted(),
-                                      ),
-                                      onSelected: (product) {
-                                        _updateSections((s) => s.copyWith(product: product.articleNumber));
-                                        _productCtrl.text = product.articleNumber;
-                                        _updateSelectedProduct();
-                                      },
-                                      optionsViewBuilder: (ctx, onSelected, options) => Align(
-                                        alignment: Alignment.topLeft,
-                                        child: Material(
-                                          elevation: 4,
-                                          child: SizedBox(
-                                            height: 240,
-                                            child: ListView.builder(
-                                              padding: EdgeInsets.zero,
-                                              itemCount: options.length,
-                                              itemBuilder: (ctx, idx) {
-                                                final opt = options.elementAt(idx);
-                                                return ListTile(
-                                                  title: Text(opt.articleNumber.isEmpty ? '—' : opt.articleNumber),
-                                                  subtitle: Text(opt.productName),
-                                                  onTap: () => onSelected(opt),
-                                                );
-                                              },
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        RawAutocomplete<DfsProduct>(
+                                          textEditingController: _productCtrl,
+                                          optionsBuilder: (text) {
+                                            final query = text.text.toLowerCase();
+                                            if (query.isEmpty) return _productLookup.products;
+                                            return _productLookup.products.where((p) {
+                                              return p.articleNumber.toLowerCase().contains(query) ||
+                                                  p.productName.toLowerCase().contains(query) ||
+                                                  p.basicUdiDi.toLowerCase().contains(query);
+                                            });
+                                          },
+                                          displayStringForOption: (p) => p.articleNumber,
+                                          fieldViewBuilder: (ctx, controller, focusNode, onFieldSubmitted) => TextFormField(
+                                            controller: controller,
+                                            focusNode: focusNode,
+                                            readOnly: widget.complaintPrefill != null &&
+                                                (widget.complaintPrefill?['product'] ?? '').isNotEmpty,
+                                            decoration: InputDecoration(
+                                              labelText: 'Produkt / Artikel',
+                                              suffixIcon: _productLoading
+                                                  ? const Padding(
+                                                      padding: EdgeInsets.all(8),
+                                                      child: SizedBox(
+                                                        width: 18,
+                                                        height: 18,
+                                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                                      ),
+                                                    )
+                                                  : const Icon(Icons.search),
+                                            ),
+                                            onChanged: (v) {
+                                              _updateSections((s) => s.copyWith(product: v));
+                                              _updateSelectedProduct();
+                                            },
+                                            onTap: _ensureProductsLoaded,
+                                            onFieldSubmitted: (_) => onFieldSubmitted(),
+                                          ),
+                                          onSelected: (product) {
+                                            _updateSections((s) => s.copyWith(product: product.articleNumber));
+                                            _productCtrl.text = product.articleNumber;
+                                            _updateSelectedProduct();
+                                          },
+                                          optionsViewBuilder: (ctx, onSelected, options) => Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Material(
+                                              elevation: 4,
+                                              child: SizedBox(
+                                                height: 240,
+                                                child: ListView.builder(
+                                                  padding: EdgeInsets.zero,
+                                                  itemCount: options.length,
+                                                  itemBuilder: (ctx, idx) {
+                                                    final opt = options.elementAt(idx);
+                                                    return ListTile(
+                                                      title: Text(opt.articleNumber.isEmpty ? '—' : opt.articleNumber),
+                                                      subtitle: Text(opt.productName),
+                                                      onTap: () => onSelected(opt),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
+                                        if (_selectedProduct != null)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 6),
+                                            child: Text(
+                                              'Artikelbezeichnung: ${_selectedProduct?.productName ?? ''}',
+                                              style: Theme.of(context).textTheme.bodySmall,
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
-                              if (_selectedProduct != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Text(
-                                    'Artikelbezeichnung: ${_selectedProduct?.productName ?? ''}',
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ),
                               const SizedBox(height: 8),
                               Row(
                                 children: [
