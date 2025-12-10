@@ -424,6 +424,7 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   bool _loadRoleTileVisibility({Map<String, dynamic>? stored}) {
+    final hasRemoteConfig = stored != null;
     var addedDefaults = false;
     final rawData = stored;
     if (rawData != null) {
@@ -435,12 +436,22 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     _DEFAULT_ROLE_TILES.forEach((role, defaults) {
-      final tiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
-      var changed = false;
-      for (final tile in defaults) {
-        if (tiles.add(tile)) changed = true;
+      final existingTiles = _roleTileVisibility[role];
+      if (existingTiles == null) {
+        _roleTileVisibility[role] = defaults.toSet();
+        addedDefaults = true;
+        return;
       }
-      if (changed) addedDefaults = true;
+
+      // Only merge defaults when no remote layout exists yet so explicit hides are
+      // respected once an admin has saved a custom configuration.
+      if (!hasRemoteConfig) {
+        var changed = false;
+        for (final tile in defaults) {
+          if (existingTiles.add(tile)) changed = true;
+        }
+        if (changed) addedDefaults = true;
+      }
     });
 
     return addedDefaults;
