@@ -6912,6 +6912,7 @@ class _AdminPageState extends State<AdminPage> {
             String productFile,
             String articleName,
             String freeTextDesc,
+            String segment,
           })>[])
         .add(entry);
     }
@@ -6935,22 +6936,23 @@ class _AdminPageState extends State<AdminPage> {
           String segment,
         }) entry) {
       final peers = groupedByArticle[entry.articleNumber.trim()] ??
-          const <({
-            AdminComplaint complaint,
-            DateTime receivedDate,
-            DateTime? closedDate,
-            String dept,
-            String customerName,
-            ActiveUser? customer,
-            String combinedReason,
-            String reasonSummary,
-            Set<String> reasonTokens,
-            String articleNumber,
-            String productGroup,
-            String productFile,
-            String articleName,
-            String freeTextDesc,
-          })>[];
+            const <({
+              AdminComplaint complaint,
+              DateTime receivedDate,
+              DateTime? closedDate,
+              String dept,
+              String customerName,
+              ActiveUser? customer,
+              String combinedReason,
+              String reasonSummary,
+              Set<String> reasonTokens,
+              String articleNumber,
+              String productGroup,
+              String productFile,
+              String articleName,
+              String freeTextDesc,
+              String segment,
+            })>[];
       for (final peer in peers) {
         if (identical(peer, entry)) continue;
         final overlap = entry.reasonTokens.intersection(peer.reasonTokens).length;
