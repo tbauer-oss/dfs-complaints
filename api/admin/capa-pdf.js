@@ -33,11 +33,13 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-    const doc = createCapaPdf(report, { lang, stream: res });
+    const doc = createCapaPdf(report, { lang, stream: res, finalize: false });
     await new Promise((resolve, reject) => {
       doc.on('end', resolve);
       doc.on('error', reject);
+      res.on('finish', resolve);
       res.on('error', reject);
+      doc.end();
     });
   } catch (err) {
     console.error('[admin/capa-pdf] generation failed', err);
