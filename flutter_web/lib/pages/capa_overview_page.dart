@@ -81,7 +81,7 @@ class _CapaOverviewPageState extends State<CapaOverviewPage> {
       if (parsed > maxSeq) maxSeq = parsed;
     }
     final nextSeq = (maxSeq + 1).toString().padLeft(4, '0');
-    return 'DFS-CAPA-$yy_$nextSeq';
+    return 'DFS-CAPA-${yy}_$nextSeq';
   }
 
   void _openEditor([CapaReport? report]) async {
