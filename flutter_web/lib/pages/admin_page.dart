@@ -521,7 +521,14 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _persistRoleTileVisibility({bool syncRemote = true}) async {
     if (syncRemote) {
-      await _syncAdminUiConfig(roleTileVisibility: _roleTileVisibility);
+      final remote = await _syncAdminUiConfig(
+        roleTileVisibility: _roleTileVisibility,
+        swallowErrors: false,
+      );
+      final savedVisibility = remote['roleTileVisibility'];
+      if (savedVisibility is Map<String, dynamic>) {
+        _loadRoleTileVisibility(stored: savedVisibility);
+      }
     }
 
     if (mounted) {
@@ -5416,19 +5423,22 @@ class _AdminPageState extends State<AdminPage> {
     _persistMenuLayout();
   }
 
-  Future<void> _syncAdminUiConfig({
+  Future<Map<String, dynamic>> _syncAdminUiConfig({
     Map<String, Set<String>>? roleTileVisibility,
     Map<String, dynamic>? menuLayout,
     List<_AdminView>? navOrder,
+    bool swallowErrors = true,
   }) async {
     try {
-      await _api.updateAdminUiConfig(
+      return await _api.updateAdminUiConfig(
         roleTileVisibility: roleTileVisibility,
         menuLayout: menuLayout,
         navOrder: navOrder?.map((v) => v.name).toList(),
       );
     } catch (e) {
+      if (!swallowErrors) rethrow;
       debugPrint('Failed to sync admin UI config: $e');
+      return const {};
     }
   }
 
