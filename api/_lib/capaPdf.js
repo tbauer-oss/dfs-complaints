@@ -148,7 +148,7 @@ function renderList(doc, entries, formatter) {
   if (entries.length === 0) doc.text('-');
 }
 
-function renderFooter(doc, labels, versionText) {
+function renderFooter(doc, labels, versionText, pageNumber) {
   const currentY = doc.y;
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const footerY = doc.page.height - doc.page.margins.bottom - 12;
@@ -156,7 +156,7 @@ function renderFooter(doc, labels, versionText) {
   doc.save();
   doc.fontSize(8).fillColor(COLORS.muted).font('Helvetica');
   doc.text(versionText, doc.page.margins.left, footerY, { width: width / 2, align: 'left' });
-  doc.text(`${labels.page} ${doc.page.number}`, doc.page.margins.left, footerY, {
+  doc.text(`${labels.page} ${pageNumber}`, doc.page.margins.left, footerY, {
     width,
     align: 'right',
   });
@@ -173,8 +173,9 @@ function drawHeader(doc, labels, report) {
   doc.roundedRect(doc.page.margins.left, startY, availableWidth, headerHeight, 8).fill(COLORS.bannerBg);
   doc.restore();
 
+  const logoWidth = 90;
   try {
-    doc.image(LOGO_PATH, doc.page.margins.left + 12, startY + 12, { width: 110, align: 'left' });
+    doc.image(LOGO_PATH, doc.page.margins.left + 12, startY + 14, { width: logoWidth, align: 'left' });
   } catch (e) {
     // Logo is optional; keep report generation robust without altering spacing.
   }
@@ -183,15 +184,15 @@ function drawHeader(doc, labels, report) {
     .fillColor(COLORS.primary)
     .font('Helvetica-Bold')
     .fontSize(16)
-    .text(labels.title, doc.page.margins.left + 140, startY + 16, {
-      width: availableWidth - 150,
+    .text(labels.title, doc.page.margins.left + logoWidth + 32, startY + 16, {
+      width: availableWidth - logoWidth - 42,
     });
   doc
     .fontSize(10)
     .font('Helvetica')
     .fillColor(COLORS.text)
     .text(`${labels.capaNumber}: ${report.capaNumber || report.id}`, {
-      width: availableWidth - 150,
+      width: availableWidth - logoWidth - 42,
       align: 'left',
     })
     .text(`${labels.status}: ${report.status || '-'}`);
@@ -277,14 +278,18 @@ export function createCapaPdf(report, { lang = 'de', stream = null, finalize = t
   const now = new Date();
   const generatedDate = formatDate(now.getTime());
   const versionText = `${labels.version}: ${report.version || 'DFS CAPA Report v1.0'}`;
+  let pageCounter = 1;
   doc.info = {
     Title: `${labels.title} ${report.capaNumber || report.id}`,
     CreationDate: now,
     ModDate: new Date(report.updatedAt || report.createdAt || now),
   };
 
-  renderFooter(doc, labels, versionText);
-  doc.on('pageAdded', () => renderFooter(doc, labels, versionText));
+  renderFooter(doc, labels, versionText, pageCounter);
+  doc.on('pageAdded', () => {
+    pageCounter += 1;
+    renderFooter(doc, labels, versionText, pageCounter);
+  });
 
   drawHeader(doc, labels, report);
   renderMetaSection(doc, labels, report);
