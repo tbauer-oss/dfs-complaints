@@ -18957,7 +18957,7 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
           from: _dateRange?.start,
           to: _dateRange?.end,
         ),
-        _api.fetchPortalUsers(),
+        _api.fetchPortalUserSummaries(),
       ]);
       final res = results[0] as PrrcDashboardData;
       final portalUsers = results[1] as List<PortalUserSummary>;
@@ -19938,6 +19938,30 @@ class AdminApi {
     if (txt.trim().isEmpty) return const <PortalUser>[];
     final List data = jsonDecode(txt);
     return data.map((e) => PortalUser.fromJson((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  Future<List<PortalUserSummary>> fetchPortalUserSummaries() async {
+    final res = await _request('GET', '/api/portal/users');
+    if (res.status != 200) throw 'portal/users GET: HTTP ${res.status} ${res.responseText}';
+    final txt = res.responseText ?? '';
+    if (txt.trim().isEmpty) return const <PortalUserSummary>[];
+
+    final decoded = jsonDecode(txt);
+    List? list;
+    if (decoded is List) list = decoded;
+    if (decoded is Map) {
+      final mapList = decoded['items'] ?? decoded['list'] ?? decoded['users'];
+      if (mapList is List) list = mapList;
+    }
+
+    if (list == null) {
+      throw 'Ungültige Antwort für Portal-User';
+    }
+
+    return list
+        .whereType<Map>()
+        .map((e) => PortalUserSummary.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   Future<PortalUser> createPortalUser({
