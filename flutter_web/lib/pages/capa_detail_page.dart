@@ -140,7 +140,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
       _error = null;
     });
     try {
-      final id = _report.id.isNotEmpty ? _report.id : _report.capaNumber;
+      final id = _report.capaNumber.isNotEmpty ? _report.capaNumber : _report.id;
       if (id.isEmpty) throw Exception('Bitte zuerst speichern.');
       final bytes = await widget.api.adminCapaPdf(id: id, lang: lang);
       final blob = html.Blob([bytes], 'application/pdf');

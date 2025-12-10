@@ -17,7 +17,9 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return methodNotAllowed(res);
 
-  const id = req.query?.id || req.query?.capaId || req.query?.capaNumber;
+  const id = `${
+    req.query?.id || req.query?.capaId || req.query?.capaNumber || req.query?.number || ''
+  }`.trim();
   if (!id) return bad(res, 'id missing', 400);
 
   const lang = (req.query?.lang || 'de').toString();
