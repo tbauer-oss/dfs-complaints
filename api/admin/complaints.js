@@ -240,13 +240,22 @@ function pushHistory(c, entry) {
   return c.history;
 }
 
-const decorateForAdmin = (c) => ({
-  ...c,
-  history: normalizeHistory(c?.history),
-  statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
-  internalDepartmentOptions: DEFAULT_INTERNAL_DEPARTMENTS,
-  internalEvaluationCauseOptions: INTERNAL_EVALUATION_CAUSES,
-});
+const decorateForAdmin = (c) => {
+  const normalizedClass = normalizePrrcClassification(c?.prrcClassification);
+  const potential = ['B', 'C', 'D'].includes(normalizedClass || '') || c?.isPotentiallyReportable === true;
+  const reportableCase = c?.prrcReportableCase === true;
+
+  return {
+    ...c,
+    ...(potential ? { isPotentiallyReportable: true } : {}),
+    ...(reportableCase ? { prrcReportableCase: true } : {}),
+    ...(c?.prrcReportableAt ? { prrcReportableAt: c.prrcReportableAt } : {}),
+    history: normalizeHistory(c?.history),
+    statusLabel: STATUS_LABEL[c.status] || STATUS_LABEL[1],
+    internalDepartmentOptions: DEFAULT_INTERNAL_DEPARTMENTS,
+    internalEvaluationCauseOptions: INTERNAL_EVALUATION_CAUSES,
+  };
+};
 
 function canSeePrrc(actor) {
   const role = normalizeRoleSafe(actor);
@@ -256,7 +265,17 @@ function canSeePrrc(actor) {
 const decorateForActor = (c, actor) => {
   const base = decorateForAdmin(c);
   if (canSeePrrc(actor)) return base;
-  const { prrcComment, prrcUserId, prrcTimestamp, ...rest } = base;
+  const {
+    prrcComment,
+    prrcUserId,
+    prrcTimestamp,
+    prrcReportCheck,
+    prrcReportCheckComment,
+    prrcReportableCase,
+    prrcReportableAt,
+    isPotentiallyReportable,
+    ...rest
+  } = base;
   return rest;
 };
 
@@ -559,7 +578,14 @@ export default async function handler(req, res) {
       const prrcClassificationInput = hasPrrcClassification ? body.prrcClassification : undefined;
       const hasPrrcComment = Object.prototype.hasOwnProperty.call(body || {}, 'prrcComment');
       const prrcCommentInput = hasPrrcComment ? body.prrcComment : undefined;
-      const wantsPrrcUpdate = hasPrrcClassification || hasPrrcComment;
+      const hasPrrcReportCheck = Object.prototype.hasOwnProperty.call(body || {}, 'prrcReportCheck');
+      const prrcReportCheckInput = hasPrrcReportCheck ? body.prrcReportCheck : undefined;
+      const hasPrrcReportCheckComment = Object.prototype.hasOwnProperty.call(body || {}, 'prrcReportCheckComment');
+      const prrcReportCheckCommentInput = hasPrrcReportCheckComment ? body.prrcReportCheckComment : undefined;
+      const hasPrrcReportableCase = Object.prototype.hasOwnProperty.call(body || {}, 'prrcReportableCase');
+      const prrcReportableCaseInput = hasPrrcReportableCase ? body.prrcReportableCase : undefined;
+      const wantsPrrcUpdate =
+        hasPrrcClassification || hasPrrcComment || hasPrrcReportCheck || hasPrrcReportCheckComment || hasPrrcReportableCase;
 
       if (wantsPrrcUpdate && !isPrrc && !isSuperuser) return bad(res, 'forbidden for role', 403);
 
@@ -658,6 +684,10 @@ export default async function handler(req, res) {
       const prevGoodwill = c.isGoodwill === true;
       const prevPrrcClass = normalizePrrcClassification(c.prrcClassification) || '';
       const prevPrrcComment = (c.prrcComment ?? '').toString().trim();
+      const prevPrrcReportCheck = c.prrcReportCheck === true;
+      const prevPrrcReportCheckComment = (c.prrcReportCheckComment ?? '').toString().trim();
+      const prevPrrcReportableCase = c.prrcReportableCase === true;
+      const prevPotentiallyReportable = c.isPotentiallyReportable === true;
       const hasReports = (complaint) => {
         if (!complaint) return false;
         const link = (complaint.reportLink ?? '').toString().trim();
@@ -710,6 +740,43 @@ export default async function handler(req, res) {
           if (comment !== prevPrrcComment) prrcChanged = true;
         }
 
+        if (hasPrrcReportCheck) {
+          const checked = parseBool(prrcReportCheckInput);
+          if (checked) c.prrcReportCheck = true; else delete c.prrcReportCheck;
+          if (checked !== prevPrrcReportCheck) prrcChanged = true;
+        }
+
+        if (hasPrrcReportCheckComment) {
+          const comment = (prrcReportCheckCommentInput ?? '').toString().trim();
+          if (comment) c.prrcReportCheckComment = comment; else delete c.prrcReportCheckComment;
+          if (comment !== prevPrrcReportCheckComment) prrcChanged = true;
+        }
+
+        if (hasPrrcReportableCase) {
+          const flag = parseBool(prrcReportableCaseInput);
+          if (flag) {
+            c.prrcReportableCase = true;
+            c.prrcReportableAt = Date.now();
+          } else {
+            delete c.prrcReportableCase;
+            delete c.prrcReportableAt;
+          }
+          if (flag !== prevPrrcReportableCase) prrcChanged = true;
+        }
+
+        const normalizedClass = normalizePrrcClassification(c.prrcClassification);
+        const potentiallyReportable = ['B', 'C', 'D'].includes(normalizedClass || '');
+        if (potentiallyReportable !== prevPotentiallyReportable) prrcChanged = true;
+        if (potentiallyReportable) {
+          c.isPotentiallyReportable = true;
+        } else {
+          delete c.isPotentiallyReportable;
+          delete c.prrcReportCheck;
+          delete c.prrcReportCheckComment;
+          delete c.prrcReportableCase;
+          delete c.prrcReportableAt;
+        }
+
         if (prrcChanged || hasPrrcComment || hasPrrcClassification) {
           c.prrcUserId = actor.email || actor.sub || actor.id || c.prrcUserId;
           c.prrcTimestamp = Date.now();
@@ -724,6 +791,9 @@ export default async function handler(req, res) {
           data: {
             classification: c.prrcClassification || null,
             comment: c.prrcComment || null,
+            reportCheck: c.prrcReportCheck === true,
+            reportCheckComment: c.prrcReportCheckComment || null,
+            reportableCase: c.prrcReportableCase === true,
           },
         });
       }
