@@ -2,6 +2,7 @@
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
 import { Redis } from '@upstash/redis';
+import crypto from 'node:crypto';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
 import {
   normalizeDepartments,
@@ -58,6 +59,7 @@ const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
 const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
+const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -65,7 +67,8 @@ const mem = {
   portalUsers: new Map(),
   pending: new Map(),
   complaints: new Map(),
-  counters: { ticket: 1 },
+  capaReports: new Map(),
+  counters: { ticket: 1, capa: {} },
   catalogConfig: {},
   repPushTokens: new Map(),
   adminPushTokens: [],
@@ -2514,5 +2517,219 @@ export async function gateStoreDelete(email) {
     catch (e) { console.error('[store] gateStoreDelete failed:', e); }
   }
   mem.gateCodes.delete(mail);
+  return true;
+}
+
+/* ============== CAPA / 8D-Reports ============== */
+const CAPA_STATUS = new Set(['open', 'inProgress', 'closed']);
+
+const emptySections = () => ({
+  d1: { teamMembers: [] },
+  d2: { immediateActions: [] },
+  d3: { causes: [] },
+  d4: { correctiveActions: [] },
+  d5: { verification: {} },
+  d6: { preventiveActions: [] },
+  d7: { lessons: [] },
+  d8: { approvals: [] },
+});
+
+function normalizeString(v) { return (v ?? '').toString(); }
+
+function normalizeDateValue(v) {
+  if (!v && v !== 0) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeArray(list) {
+  return Array.isArray(list) ? list.filter(Boolean) : [];
+}
+
+function normalizeCapaSections(raw = {}) {
+  const base = emptySections();
+  const d1 = raw.d1 || {};
+  base.d1 = {
+    area: normalizeString(d1.area || ''),
+    date: normalizeDateValue(d1.date),
+    teamLead: normalizeString(d1.teamLead || ''),
+    product: normalizeString(d1.product || ''),
+    batch: normalizeString(d1.batch || ''),
+    problem: normalizeString(d1.problem || ''),
+    teamMembers: normalizeArray(d1.teamMembers || []).map(m => ({
+      name: normalizeString(m?.name || ''),
+      role: normalizeString(m?.role || ''),
+    })).filter(m => m.name || m.role),
+  };
+
+  const d2 = raw.d2 || {};
+  base.d2 = {
+    immediateActions: normalizeArray(d2.immediateActions || []).map(a => ({
+      action: normalizeString(a?.action || ''),
+      doneAt: normalizeDateValue(a?.doneAt),
+      notes: normalizeString(a?.notes || ''),
+      selected: a?.selected === true || a?.selected === 'true' || a?.selected === 1,
+    })).filter(a => a.action || a.notes),
+    details: normalizeString(d2.details || ''),
+  };
+
+  const d3 = raw.d3 || {};
+  base.d3 = {
+    causes: normalizeArray(d3.causes || []).map(c => ({
+      why: normalizeString(c?.why || ''),
+      root: normalizeString(c?.root || ''),
+    })).filter(c => c.why || c.root),
+    summary: normalizeString(d3.summary || ''),
+  };
+
+  const d4 = raw.d4 || {};
+  base.d4 = {
+    correctiveActions: normalizeArray(d4.correctiveActions || []).map(c => ({
+      description: normalizeString(c?.description || ''),
+      owner: normalizeString(c?.owner || ''),
+      dueDate: normalizeDateValue(c?.dueDate),
+      completedAt: normalizeDateValue(c?.completedAt),
+      status: normalizeString(c?.status || ''),
+      changeType: normalizeString(c?.changeType || ''),
+      notes: normalizeString(c?.notes || ''),
+    })).filter(c => c.description || c.owner || c.status),
+  };
+
+  const d5 = raw.d5 || {};
+  base.d5 = {
+    description: normalizeString(d5.description || ''),
+    date: normalizeDateValue(d5.date),
+    effective: d5.effective === true || d5.effective === 'true' || d5.effective === 1,
+    followUp: normalizeString(d5.followUp || ''),
+  };
+
+  const d6 = raw.d6 || {};
+  base.d6 = {
+    preventiveActions: normalizeArray(d6.preventiveActions || []).map(p => normalizeString(p)).filter(Boolean),
+  };
+
+  const d7 = raw.d7 || {};
+  base.d7 = {
+    lessons: normalizeArray(d7.lessons || []).map(l => normalizeString(l)).filter(Boolean),
+    transfer: normalizeString(d7.transfer || ''),
+  };
+
+  const d8 = raw.d8 || {};
+  base.d8 = {
+    approvals: normalizeArray(d8.approvals || []).map(a => ({
+      name: normalizeString(a?.name || ''),
+      role: normalizeString(a?.role || ''),
+      date: normalizeDateValue(a?.date),
+      signature: normalizeString(a?.signature || ''),
+    })).filter(a => a.name || a.role),
+    closingNote: normalizeString(d8.closingNote || ''),
+  };
+
+  return base;
+}
+
+function normalizeCapaStatus(status) {
+  const raw = (status ?? '').toString().trim();
+  const lc = raw.toLowerCase();
+  if (CAPA_STATUS.has(lc)) return lc;
+  if (['open', 'offen'].includes(lc)) return 'open';
+  if (['inprogress', 'in bearbeitung'].includes(lc)) return 'inProgress';
+  if (['done', 'closed', 'abgeschlossen'].includes(lc)) return 'closed';
+  return 'open';
+}
+
+export async function nextCapaNumber() {
+  const r = getRedis();
+  const year = new Date().getFullYear().toString().slice(-2);
+  const key = KEY_CAPA_COUNTER(year);
+  if (r) {
+    const n = await withRedisTimeout(r.incr(key), 'capa counter');
+    return `DFS-CAPA-${year}_${String(n).padStart(4, '0')}`;
+  }
+  const current = mem.counters.capa[year] ?? 1;
+  mem.counters.capa[year] = current + 1;
+  return `DFS-CAPA-${year}_${String(current).padStart(4, '0')}`;
+}
+
+function normalizeCapaRecord(data = {}) {
+  const now = Date.now();
+  const normalized = { ...data };
+  normalized.id = (normalized.id || normalized.capaNumber || crypto.randomUUID()).toString();
+  normalized.capaNumber = normalizeString(normalized.capaNumber || '');
+  if (!normalized.capaNumber) normalized.capaNumber = normalized.id.startsWith('CAPA-') ? normalized.id : null;
+  normalized.title = normalizeString(normalized.title || normalized.problem || '');
+  normalized.status = normalizeCapaStatus(normalized.status);
+  normalized.responsibleUserId = normalizeString(normalized.responsibleUserId || '');
+  normalized.complaintId = normalizeString(normalized.complaintId || '');
+  normalized.sections = normalizeCapaSections(normalized.sections || {});
+  normalized.createdAt = normalizeDateValue(normalized.createdAt) || now;
+  normalized.updatedAt = normalizeDateValue(normalized.updatedAt) || now;
+  normalized.language = normalizeString(normalized.language || 'de');
+  return normalized;
+}
+
+function capaKey(id) {
+  return `${P}capa:${id}`;
+}
+
+async function capaFindByNumber(capaNumber) {
+  if (!capaNumber) return null;
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}capa:*`);
+    const vals = await Promise.all(keys.map(k => rget(k)));
+    return vals.find(v => (v?.capaNumber || '').toString() === capaNumber) || null;
+  }
+  for (const v of mem.capaReports.values()) {
+    if ((v?.capaNumber || '').toString() === capaNumber) return v;
+  }
+  return null;
+}
+
+export async function capaSave(record) {
+  const data = normalizeCapaRecord(record);
+  if (!data.capaNumber) data.capaNumber = await nextCapaNumber();
+  const key = capaKey(data.id);
+  const r = getRedis();
+  if (r) await rset(key, data); else mem.capaReports.set(data.id, data);
+  return data;
+}
+
+export async function capaGet(idOrNumber) {
+  if (!idOrNumber) return null;
+  const key = capaKey(idOrNumber);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.capaReports.get(idOrNumber) ?? null;
+  if (direct) return normalizeCapaRecord({ ...direct, id: idOrNumber });
+  const byNumber = await capaFindByNumber(idOrNumber);
+  return byNumber ? normalizeCapaRecord({ ...byNumber, id: byNumber.id || idOrNumber }) : null;
+}
+
+export async function capaAll() {
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}capa:*`);
+    const vals = await Promise.all(keys.map(k => rget(k)));
+    const list = vals.filter(Boolean).map(v => normalizeCapaRecord(v));
+    list.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
+    return list;
+  }
+  const list = Array.from(mem.capaReports.values()).map(v => normalizeCapaRecord(v));
+  list.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
+  return list;
+}
+
+export async function capaUpdate(id, patch) {
+  const current = await capaGet(id);
+  if (!current) return null;
+  const updated = { ...current, ...patch, sections: { ...current.sections, ...(patch?.sections || {}) }, updatedAt: Date.now() };
+  return await capaSave(updated);
+}
+
+export async function capaDelete(id) {
+  if (!id) return false;
+  const key = capaKey(id);
+  const r = getRedis();
+  if (r) await rdel(key); else mem.capaReports.delete(id);
   return true;
 }
