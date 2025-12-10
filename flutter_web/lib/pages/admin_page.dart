@@ -26,6 +26,7 @@ import '../widgets/password_field.dart';
 import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import 'admin_stats_page.dart';
+import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
 import 'admin_wiki_categories_page.dart';
 import 'admin_wiki_articles_page.dart';
@@ -69,6 +70,7 @@ enum _AdminView {
   all,
   complaintList,
   capaReports,
+  capaDashboard,
   prrc,
   pending,
   portalUsers,
@@ -143,6 +145,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'all',
     'complaintList',
     'capaReports',
+    'capaDashboard',
     'prrc',
     'stats',
     'pending',
@@ -169,6 +172,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'all',
     'complaintList',
     'capaReports',
+    'capaDashboard',
     'prrc',
     'stats',
     'pending',
@@ -387,6 +391,11 @@ class _AdminPageState extends State<AdminPage> {
   String _faqSearch = '';
   bool _faqShowCategories = true;
 
+  // CAPA Dashboard
+  Map<String, dynamic> _capaDashboard = const {};
+  bool _capaDashboardLoading = false;
+  String? _capaDashboardErr;
+
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
 
@@ -488,6 +497,7 @@ class _AdminPageState extends State<AdminPage> {
     if (_isSuperuser && tileId == 'capaReports') return true;
     if (tileId == 'prrc' && !_portalIsPrrc && !_isSuperuser) return false;
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
+    if (tileId == 'capaDashboard' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
     return true;
@@ -511,6 +521,7 @@ class _AdminPageState extends State<AdminPage> {
 
     if (_isSuperuser) {
       allowed.add('capaReports');
+      allowed.add('capaDashboard');
     }
 
     _portalTilePermissions.forEach((tile, perm) {
@@ -822,6 +833,7 @@ class _AdminPageState extends State<AdminPage> {
     _refreshAll();
     _refreshAllComplaints();
     _refreshOpen();
+    _refreshCapaDashboard();
     _refreshReps();
     _loadCatalogConfigAdmin();
     _loadProducts();
@@ -1336,6 +1348,25 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (!mounted) return;
       setState(() => _loadOpen = false);
+    }
+  }
+
+  Future<void> _refreshCapaDashboard() async {
+    if (!_hasTileAccess('capaDashboard')) return;
+    setState(() {
+      _capaDashboardLoading = true;
+      _capaDashboardErr = null;
+    });
+    try {
+      final data = await widget.api.adminCapaDashboard();
+      if (!mounted) return;
+      setState(() => _capaDashboard = data);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _capaDashboardErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _capaDashboardLoading = false);
     }
   }
 
@@ -4822,6 +4853,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'complaintList';
       case _AdminView.capaReports:
         return 'capaReports';
+      case _AdminView.capaDashboard:
+        return 'capaDashboard';
       case _AdminView.prrc:
         return 'prrc';
       case _AdminView.open:
@@ -4882,6 +4915,7 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.all,
         _AdminView.complaintList,
         _AdminView.capaReports,
+        _AdminView.capaDashboard,
         _AdminView.prrc,
         _AdminView.pending,
         _AdminView.users,
@@ -4948,6 +4982,11 @@ class _AdminPageState extends State<AdminPage> {
             label: 'CAPA / 8D-Reports',
             icon: Icons.fact_check_outlined,
             view: _AdminView.capaReports,
+          ),
+          _AdminNavItem(
+            label: 'CAPA-Dashboard',
+            icon: Icons.dashboard_customize_outlined,
+            view: _AdminView.capaDashboard,
           ),
           _AdminNavItem(
             label: 'PRRC-Einstufungen',
@@ -5141,6 +5180,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.complaintList;
         case 'capaReports':
           return _AdminView.capaReports;
+        case 'capaDashboard':
+          return _AdminView.capaDashboard;
         case 'prrc':
           return _AdminView.prrc;
         case 'pending':
@@ -5194,7 +5235,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Qualitätsmanagement',
         subtitle: 'CAPA / 8D-Reports verwalten',
-        tileIds: ['capaReports'],
+        tileIds: ['capaDashboard', 'capaReports'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5241,6 +5282,7 @@ class _AdminPageState extends State<AdminPage> {
     _ensureMenuTilePresent('downloads');
     _ensureMenuTilePresent('prrc');
     _ensureMenuTilePresent('capaReports');
+    _ensureMenuTilePresent('capaDashboard');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
   }
@@ -5260,6 +5302,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('complaintList');
         _ensureMenuTilePresent('prrc');
         _ensureMenuTilePresent('capaReports');
+        _ensureMenuTilePresent('capaDashboard');
       }
 
       final remoteLayout = config['menuLayout'];
@@ -5272,6 +5315,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('complaintList');
         _ensureMenuTilePresent('prrc');
         _ensureMenuTilePresent('capaReports');
+        _ensureMenuTilePresent('capaDashboard');
       }
 
       final navOrder = config['navOrder'];
@@ -6204,6 +6248,30 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'capaDashboard':
+        final total = (_capaDashboard['totalOpen'] is num)
+            ? (_capaDashboard['totalOpen'] as num).toInt()
+            : null;
+        final overdue = _capaDashboard['overdue'] ?? '—';
+        final dueSoon = _capaDashboard['dueSoon'] ?? '—';
+        final subtitle = _capaDashboardErr != null
+            ? 'Fehler beim Laden'
+            : _capaDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : 'Überfällig: $overdue · < 7 Tage: $dueSoon';
+        return AdminTilePro(
+          label: 'CAPA-Dashboard',
+          subtitle: subtitle,
+          icon: Icons.dashboard_customize_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          count: total,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.capaDashboard),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'prrc':
         return AdminTilePro(
           label: 'PRRC-Einstufungen',
@@ -7091,6 +7159,11 @@ class _AdminPageState extends State<AdminPage> {
         );
       case _AdminView.capaReports:
         return CapaOverviewPage(
+          api: widget.api,
+          canWrite: _canWriteTile('capaReports'),
+        );
+      case _AdminView.capaDashboard:
+        return AdminCapaDashboardPage(
           api: widget.api,
           canWrite: _canWriteTile('capaReports'),
         );
