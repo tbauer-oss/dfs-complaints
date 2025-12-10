@@ -39,7 +39,14 @@ export default async function handler(req, res) {
     if (!u) return bad(res, 'invalid credentials', 401);
 
     const hash = u.passhash || u.passwordHash || '';
-    const okPw = await bcrypt.compare(pw, hash);
+    let okPw = false;
+    if (hash && hash.length > 20) {
+      try {
+        okPw = await bcrypt.compare(pw, hash);
+      } catch (err) {
+        okPw = false;
+      }
+    }
     if (!okPw) return bad(res, 'invalid credentials', 401);
 
     const role = normalizeRole(u.role);
