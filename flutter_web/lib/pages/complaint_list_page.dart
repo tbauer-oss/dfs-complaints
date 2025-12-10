@@ -676,9 +676,24 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
     const denseDecoration = InputDecoration(
       isDense: true,
-      floatingLabelBehavior: FloatingLabelBehavior.always,
       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
+
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w700,
+    );
+
+    Widget labeledField({required String label, required Widget child}) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: labelStyle),
+          const SizedBox(height: 4),
+          child,
+        ],
+      );
+    }
 
     Widget summaryChip(String label) {
       return Chip(
@@ -766,81 +781,103 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
             children: [
               SizedBox(
                 width: 220,
-                child: InputDecorator(
-                  decoration: denseDecoration.copyWith(labelText: 'Status (Mehrfachauswahl)'),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: statuses
-                        .map((s) => FilterChip(
-                              label: Text(s),
-                              visualDensity: VisualDensity.compact,
-                              labelStyle: const TextStyle(fontSize: 12),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              selected: _filters.statuses.contains(s),
-                              onSelected: (sel) {
-                                final set = {..._filters.statuses};
-                                sel ? set.add(s) : set.remove(s);
-                                setState(() => _filters = _filters.copyWith(statuses: set));
-                              },
-                            ))
-                        .toList(),
+                child: labeledField(
+                  label: 'Status (Mehrfachauswahl)',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: theme.dividerColor),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: statuses
+                          .map((s) => FilterChip(
+                                label: Text(s),
+                                visualDensity: VisualDensity.compact,
+                                labelStyle: const TextStyle(fontSize: 12),
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                selected: _filters.statuses.contains(s),
+                                onSelected: (sel) {
+                                  final set = {..._filters.statuses};
+                                  sel ? set.add(s) : set.remove(s);
+                                  setState(() => _filters = _filters.copyWith(statuses: set));
+                                },
+                              ))
+                          .toList(),
+                    ),
                   ),
                 ),
               ),
               SizedBox(
                 width: 180,
-                child: DropdownButtonFormField<String>(
-                  value: _filters.productGroup.isEmpty ? null : _filters.productGroup,
-                  items: [const DropdownMenuItem(value: '', child: Text('Alle Produktgruppen')),
-                    ...productGroups.map((p) => DropdownMenuItem(value: p, child: Text(p))),
-                  ],
-                  onChanged: (v) => setState(() => _filters = _filters.copyWith(productGroup: v ?? '')),
-                  decoration: denseDecoration.copyWith(labelText: 'Produktgruppe'),
+                child: labeledField(
+                  label: 'Produktgruppe',
+                  child: DropdownButtonFormField<String>(
+                    value: _filters.productGroup.isEmpty ? null : _filters.productGroup,
+                    items: [const DropdownMenuItem(value: '', child: Text('Alle Produktgruppen')),
+                      ...productGroups.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+                    ],
+                    onChanged: (v) => setState(() => _filters = _filters.copyWith(productGroup: v ?? '')),
+                    decoration: denseDecoration.copyWith(hintText: 'Alle Produktgruppen'),
+                  ),
                 ),
               ),
               SizedBox(
                 width: 180,
-                child: DropdownButtonFormField<String>(
-                  value: _filters.customer.isEmpty ? null : _filters.customer,
-                  items: [const DropdownMenuItem(value: '', child: Text('Alle Kunden')),
-                    ...customers.map((c) => DropdownMenuItem(value: c, child: Text(c))),
-                  ],
-                  onChanged: (v) => setState(() => _filters = _filters.copyWith(customer: v ?? '')),
-                  decoration: denseDecoration.copyWith(labelText: 'Kunde'),
+                child: labeledField(
+                  label: 'Kunde',
+                  child: DropdownButtonFormField<String>(
+                    value: _filters.customer.isEmpty ? null : _filters.customer,
+                    items: [const DropdownMenuItem(value: '', child: Text('Alle Kunden')),
+                      ...customers.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                    ],
+                    onChanged: (v) => setState(() => _filters = _filters.copyWith(customer: v ?? '')),
+                    decoration: denseDecoration.copyWith(hintText: 'Alle Kunden'),
+                  ),
                 ),
               ),
               SizedBox(
                 width: 180,
-                child: DropdownButtonFormField<String>(
-                  value: _filters.department.isEmpty ? null : _filters.department,
-                  items: [const DropdownMenuItem(value: '', child: Text('Alle Abteilungen')),
-                    ...departments.map((d) => DropdownMenuItem(value: d, child: Text(d))),
-                  ],
-                  onChanged: (v) => setState(() => _filters = _filters.copyWith(department: v ?? '')),
-                  decoration: denseDecoration.copyWith(labelText: 'Betroffene Abteilung'),
+                child: labeledField(
+                  label: 'Betroffene Abteilung',
+                  child: DropdownButtonFormField<String>(
+                    value: _filters.department.isEmpty ? null : _filters.department,
+                    items: [const DropdownMenuItem(value: '', child: Text('Alle Abteilungen')),
+                      ...departments.map((d) => DropdownMenuItem(value: d, child: Text(d))),
+                    ],
+                    onChanged: (v) => setState(() => _filters = _filters.copyWith(department: v ?? '')),
+                    decoration: denseDecoration.copyWith(hintText: 'Alle Abteilungen'),
+                  ),
                 ),
               ),
               SizedBox(
                 width: 150,
-                child: DropdownButtonFormField<bool>(
-                  value: _filters.goodwill,
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('Kulanz: alle')),
-                    DropdownMenuItem(value: true, child: Text('Kulanz: Ja')),
-                    DropdownMenuItem(value: false, child: Text('Kulanz: Nein')),
-                  ],
-                  onChanged: (v) => setState(() => _filters = _filters.copyWith(goodwill: v, goodwillSet: true)),
-                  decoration: denseDecoration.copyWith(labelText: 'Kulanz'),
+                child: labeledField(
+                  label: 'Kulanz',
+                  child: DropdownButtonFormField<bool>(
+                    value: _filters.goodwill,
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('Kulanz: alle')),
+                      DropdownMenuItem(value: true, child: Text('Kulanz: Ja')),
+                      DropdownMenuItem(value: false, child: Text('Kulanz: Nein')),
+                    ],
+                    onChanged: (v) => setState(() => _filters = _filters.copyWith(goodwill: v, goodwillSet: true)),
+                    decoration: denseDecoration.copyWith(hintText: 'Kulanz: alle'),
+                  ),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: _pickDateRange,
-                icon: const Icon(Icons.date_range_outlined),
-                style: buttonStyle,
-                label: Text(_filters.dateRange == null
-                    ? 'Datum Von–Bis'
-                    : '${DateFormat.yMd().format(_filters.dateRange!.start)} – ${DateFormat.yMd().format(_filters.dateRange!.end)}'),
+              labeledField(
+                label: 'Datum Von–Bis',
+                child: OutlinedButton.icon(
+                  onPressed: _pickDateRange,
+                  icon: const Icon(Icons.date_range_outlined),
+                  style: buttonStyle,
+                  label: Text(_filters.dateRange == null
+                      ? 'Zeitspanne wählen'
+                      : '${DateFormat.yMd().format(_filters.dateRange!.start)} – ${DateFormat.yMd().format(_filters.dateRange!.end)}'),
+                ),
               ),
               if (_filters.dateRange != null)
                 TextButton(
