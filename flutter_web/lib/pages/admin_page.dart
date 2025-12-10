@@ -112,6 +112,8 @@ const Map<String, String> PORTAL_ROLES = {
   'prrc': 'prrc',
 };
 
+const String kPrrcPassword = 'DFS!PRRC1312';
+
 const List<String> kInternalDepartments = [
   'Sinterei',
   'Galvanik',
@@ -123,6 +125,7 @@ const List<String> kInternalDepartments = [
   'Chemie / Logistik',
   'Versand / Lager',
   'Vertrieb',
+  'PRRC',
 ];
 
 const List<String> kInternalEvaluationCauses = [
@@ -1065,6 +1068,71 @@ class _AdminPageState extends State<AdminPage> {
       return 'Passwort eingeben';
     }
     return null;
+  }
+
+  Future<bool> _requirePrrcPassword() async {
+    final ctrl = TextEditingController();
+    var wrongPassword = false;
+
+    final allowed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              title: const Text('PRRC-Berechtigung aktivieren'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Bitte das Passwort eingeben, um PRRC-Berechtigungen zu vergeben.'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Passwort',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    onSubmitted: (_) => setDialogState(() {}),
+                  ),
+                  if (wrongPassword)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(
+                        'Passwort ist falsch.',
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton.icon(
+                  icon: const Icon(Icons.check_circle_outline),
+                  onPressed: () {
+                    final match = ctrl.text.trim() == kPrrcPassword;
+                    if (match) {
+                      Navigator.of(ctx).pop(true);
+                    } else {
+                      setDialogState(() => wrongPassword = true);
+                    }
+                  },
+                  label: const Text('Bestätigen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    ctrl.dispose();
+    return allowed == true;
   }
 
   String? _repIdForEmail(String email) {
@@ -7152,7 +7220,7 @@ class _AdminPageState extends State<AdminPage> {
           isLoading: _loadAllComplaints,
           onReload: _refreshAllComplaints,
           onInlineUpdateActions: _updateComplaintActions,
-          showPrrcColumn: _portalIsPrrc || _isSuperuser,
+          showPrrcColumn: true,
           onUpdatePrrcClassification: (_portalIsPrrc || _isSuperuser)
               ? _updatePrrcClassification
               : null,
@@ -8958,7 +9026,13 @@ class _AdminPageState extends State<AdminPage> {
                         }),
                         onChanged: _portalUserBusy
                             ? null
-                            : (v) => updateForm(() => _portalUserIsPrrc = v),
+                            : (v) async {
+                                if (v && !_portalUserIsPrrc) {
+                                  final allowed = await _requirePrrcPassword();
+                                  if (!allowed) return;
+                                }
+                                updateForm(() => _portalUserIsPrrc = v);
+                              },
                       ),
                       const SizedBox(height: 6),
                       if (_canShowSalesToggle)
