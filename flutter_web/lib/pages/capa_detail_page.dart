@@ -220,7 +220,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
       if (parsed > maxSeq) maxSeq = parsed;
     }
     final nextSeq = (maxSeq + 1).toString().padLeft(4, '0');
-    return 'DFS-CAPA-$yy_$nextSeq';
+    return 'DFS-CAPA-${yy}_$nextSeq';
   }
 
   @override
