@@ -16,6 +16,7 @@ import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
+import '../models/portal_user.dart' show PortalUserSummary;
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
