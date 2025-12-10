@@ -33,6 +33,7 @@ import 'rep_wiki_list_page.dart';
 import 'admin_downloads_page.dart';
 import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
+import 'capa_detail_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -15014,6 +15015,31 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     }
   }
 
+  Future<void> _openCapaFromComplaint() async {
+    final snapshot = _payloadSnapshot();
+    final summary = _qmSummaryCtrl.text.trim();
+    final desc = (snapshot['desc'] ?? '').trim();
+    final problem = summary.isNotEmpty ? summary : desc;
+    final title = problem.isNotEmpty ? problem : 'Reklamation ${widget.c.ticket}';
+
+    final prefill = <String, String>{
+      if ((snapshot['article'] ?? '').trim().isNotEmpty) 'product': snapshot['article']!.trim(),
+      if ((snapshot['batch'] ?? '').trim().isNotEmpty) 'batch': snapshot['batch']!.trim(),
+      if (problem.isNotEmpty) 'problem': problem,
+      'title': title,
+    };
+
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CapaDetailPage(
+        api: widget.api,
+        canWrite: _isPortalSuperuser && !_isPortalReadonly,
+        complaintId: widget.c.ticket,
+        complaintLabel: problem.isNotEmpty ? problem : null,
+        complaintPrefill: prefill,
+      ),
+    ));
+  }
+
   Future<void> _saveInternalNo() async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -17925,15 +17951,25 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton.icon(
-                            onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
-                                ? null
-                                : _saveQmSummary,
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text('Zusammenfassung sichern'),
-                          ),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 10,
+                          runSpacing: 8,
+                          children: [
+                            if (_isPortalSuperuser)
+                              OutlinedButton.icon(
+                                onPressed: (_busy || _isPortalReadonly) ? null : _openCapaFromComplaint,
+                                icon: const Icon(Icons.playlist_add_check_circle_outlined),
+                                label: const Text('CAPA mit Reklamation verknüpfen'),
+                              ),
+                            FilledButton.icon(
+                              onPressed: (_busy || _isPortalReadonly || !_isPortalSuperuser)
+                                  ? null
+                                  : _saveQmSummary,
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Zusammenfassung sichern'),
+                            ),
+                          ],
                         ),
                       ],
                     );
