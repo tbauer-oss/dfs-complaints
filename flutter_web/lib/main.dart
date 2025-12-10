@@ -685,6 +685,11 @@ class _MyAppState extends State<MyApp> {
                     portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
+              '/admin/prrc': (ctx) => PrrcDashboardPage(
+                    api: api,
+                    portalProfile: api.portalProfile,
+                    initialTicket: ModalRoute.of(ctx)?.settings.arguments as String?,
+                  ),
               '/admin/wiki/categories': (_) => AdminPage.wikiCategories(
                     api: api,
                     portalProfile: api.portalProfile,
