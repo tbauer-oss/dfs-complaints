@@ -4611,7 +4611,7 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
     final title = switch (_view) {
-      _AdminView.menu           => 'DFS Connect+ – Your Digital Quality Hub',
+      _AdminView.menu           => 'DFS Connect+ | Your Digital Quality Hub',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.complaintList  => 'Reklamationsliste',
       _AdminView.capaReports    => 'CAPA / 8D-Reports',
@@ -4724,7 +4724,7 @@ class _AdminPageState extends State<AdminPage> {
         elevation: 0,
       ),
       icon: const Icon(Icons.home_outlined),
-      label: const Text('Admin-Dashboard'),
+      label: const Text('Connect+ Dashboard'),
       onPressed: () => setState(() => _view = _AdminView.menu),
     );
 
@@ -4745,7 +4745,7 @@ class _AdminPageState extends State<AdminPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Admin-Dashboard anpassen',
+                'Connect+ Dashboard anpassen',
                 style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
               ),
             ],
@@ -10699,12 +10699,12 @@ class _AdminPageState extends State<AdminPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Dashboard-Kacheln nach Portal-Rolle',
+                        'Dashboard-Kacheln nach User Rolle',
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Steuere hier zentral, welche Kacheln normale und Read-only Portal-Nutzer im Dashboard sehen.',
+                        'Steuere hier zentral, welche Kacheln normale und Read-only Connect+ Nutzer im Dashboard sehen.',
                         style: theme.textTheme.bodySmall,
                       ),
                     ],
@@ -21573,7 +21573,7 @@ class PrrcDashboardPage extends StatefulWidget {
         title: const Text('PRRC-Screen'),
         actions: [
           IconButton(
-            tooltip: 'Zurück zum Admin-Dashboard',
+            tooltip: 'Zurück zum Connect+ Dashboard',
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.dashboard_customize_outlined),
           ),
