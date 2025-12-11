@@ -1625,6 +1625,14 @@ class _AdminPageState extends State<AdminPage> {
     });
   }
 
+  Future<void> _load() async {
+    await _reloadComplaintList();
+  }
+
+  void _applyUpdate(AdminComplaint updated) {
+    _syncComplaint(updated);
+  }
+
   Future<ComplaintListItem?> _updateComplaintActions(
     String ticket,
     String? immediateActions,
@@ -20100,11 +20108,11 @@ class PrrcDashboardPage extends StatefulWidget {
   State<PrrcDashboardPage> createState() => _PrrcDashboardPageState();
 }
 
-class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
-  final _commentCtrl = TextEditingController();
-  final _reportCheckCommentCtrl = TextEditingController();
-  static const List<String> _prrcCommentPresets = [
-    'Laborprodukt - keine Bewertung erforderlich',
+  class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
+    final _commentCtrl = TextEditingController();
+    final _reportCheckCommentCtrl = TextEditingController();
+    static const List<String> _prrcCommentPresets = [
+      'Laborprodukt - keine Bewertung erforderlich',
     'Subcontractor-Produkt - keine Bewertung erforderlich',
     'Kein regulatorisches Risiko erkennbar',
     'Weitere Unterlagen angefordert',
@@ -20134,16 +20142,71 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   String _portalRole = 'user';
   bool _portalIsSales = false;
   bool _isPrrc = false;
-  bool _isSuperuser = false;
-  bool _saving = false;
-  bool _reportCheck = false;
-  bool _reportableMarked = false;
+    bool _isSuperuser = false;
+    bool _saving = false;
+    bool _reportCheck = false;
+    bool _reportableMarked = false;
 
-  String _statusFilter = 'all';
-  String _categoryFilter = 'all';
-  String _productGroupFilter = 'all';
-  bool _onlyUnrated = false;
-  bool _onlyReportable = false;
+    Map<String, dynamic>? get _portalProfile =>
+        widget.portalProfile ?? widget.api.portalProfile;
+
+    MyRep? get _portalRep {
+      final rep = _portalProfile?['rep'];
+      if (rep is Map) {
+        return MyRep.fromJson(rep.cast<String, dynamic>());
+      }
+      return null;
+    }
+
+    String? get _portalCompanyName {
+      String pickFrom(Map<dynamic, dynamic> map, List<String> keys) {
+        for (final key in keys) {
+          final v = map[key];
+          final s = (v ?? '').toString().trim();
+          if (s.isNotEmpty) return s;
+        }
+        return '';
+      }
+
+      final profile = _portalProfile;
+      if (profile == null) return null;
+
+      final customer = profile['customer'];
+      if (customer is Map) {
+        final fromCustomer = pickFrom(customer, const [
+          'company',
+          'companyName',
+          'customerCompany',
+          'firm',
+          'organisation',
+          'organization',
+          'customer',
+          'kunde',
+        ]);
+        if (fromCustomer.isNotEmpty) return fromCustomer;
+      }
+
+      final direct = pickFrom(profile, const [
+        'company',
+        'companyName',
+        'customerCompany',
+        'customerName',
+        'customer',
+        'organisation',
+        'organization',
+        'org',
+      ]);
+
+      return direct.isEmpty ? null : direct;
+    }
+
+    DfsProduct? _fetchProduct(String articleNumber) => null;
+
+    String _statusFilter = 'all';
+    String _categoryFilter = 'all';
+    String _productGroupFilter = 'all';
+    bool _onlyUnrated = false;
+    bool _onlyReportable = false;
   DateTimeRange? _dateRange;
   String? _selectedClassification;
 
