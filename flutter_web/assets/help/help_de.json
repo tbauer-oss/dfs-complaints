@@ -4,46 +4,81 @@
       "id": "customers",
       "title": "Kunden",
       "audience": "Kunde",
-      "description": "Alle Schritte für Reklamation, Uploads und Statusnachverfolgung.",
+      "description": "Alle Schritte von der Anmeldung bis zur Freigabe – mit klaren To-dos für jede Phase.",
       "topics": [
+        {
+          "id": "customer-access",
+          "title": "Zugang & Profil",
+          "summary": "Anmelden, Sprache wählen, Benachrichtigungen steuern und das Kundenprofil pflegen.",
+          "tags": ["Login", "Profil", "Sprache"],
+          "steps": [
+            {"title": "Anmeldung oder Registrierung", "anchor": "login", "description": "Nutzen Sie die Seiten \"Login\" oder \"Registrieren\". Nach erfolgreicher Anmeldung landen Sie auf dem Kunden-Dashboard."},
+            {"title": "Sprache und Region", "anchor": "locale", "description": "Wählen Sie über den Sprachumschalter DE/EN/ES/FR/IT. Inhalte, Filter und Downloads folgen Ihrer Auswahl."},
+            {"title": "Profil & Firmendaten", "anchor": "profile", "description": "Öffnen Sie \"Mein Konto\". Aktualisieren Sie Ansprechpartner, Telefonnummern und Lieferadressen, damit Rückfragen schneller geklärt werden."},
+            {"title": "Benachrichtigungen aktivieren", "anchor": "notifications", "description": "Unter \"Einstellungen\" wählen Sie, ob Status-Updates per E-Mail angezeigt werden und ob Sie Chat-Pushes erhalten möchten."},
+            {"title": "Sicherheit & Geräte", "anchor": "security", "description": "Melden Sie sich auf gemeinsam genutzten Geräten nach jeder Sitzung ab. Das System protokolliert Anmeldeorte im Bereich \"Sicherheit\"."}
+          ],
+          "tips": [
+            "Nutzen Sie Lesezeichen: Jeder Hilfebereich bietet einen Deep-Link, den Sie mit Ihrem Team teilen können.",
+            "Falls Sie mehrere Standorte betreuen, pflegen Sie diese als separate Adressen im Profil, damit Tickets schneller zugeordnet werden.",
+            "Passwort vergessen? Nutzen Sie den Reset-Link im Login oder wenden Sie sich an Ihren Vertreter."],
+          "screenshots": ["[Screenshot: Login mit Sprachwahl]", "[Screenshot: Konto > Profil & Benachrichtigungen]"],
+          "links": ["#customer-access", "#customer-profile"]
+        },
         {
           "id": "complaint-create",
           "title": "Reklamation starten",
-          "summary": "So erfassen Sie einen neuen Vorgang inkl. Pflichtfelder und Bestätigung.",
+          "summary": "Neues Ticket anlegen, Pflichtfelder ausfüllen, Anhänge hochladen und bestätigen.",
           "tags": ["Ticket", "Upload", "Schritt für Schritt"],
           "steps": [
-            {"title": "Anmeldung & Start", "anchor": "start", "description": "Melden Sie sich an und wählen Sie \"Neue Reklamation\" auf dem Dashboard. Nutzen Sie die Quick-Card, um ohne Umwege zum Formular zu springen."},
-            {"title": "Produkt & Charge hinterlegen", "anchor": "product", "description": "Wählen Sie Produktkategorie, Artikel und Charge. Pflichtfelder werden hervorgehoben – unvollständige Felder können Sie später ergänzen."},
-            {"title": "Bilder & Dokumente hochladen", "anchor": "upload", "description": "Fügen Sie Fotos oder PDFs hinzu. Nutzen Sie die Markierungsfunktion, um betroffene Bereiche zu kennzeichnen. Maximale Gesamtgröße: 10 MB."},
-            {"title": "Zusammenfassung prüfen", "anchor": "summary", "description": "Kontrollieren Sie Ihre Angaben. Über den Abschnitt \"Automatische Hilfe\" erhalten Sie kontextbezogene Tipps zu fehlenden Pflichtangaben."},
-            {"title": "Senden & Bestätigung", "anchor": "submit", "description": "Senden Sie die Reklamation ab. Sie erhalten eine Ticketnummer und eine Bestätigung per E-Mail."}
+            {"title": "Start & Kontext", "anchor": "start", "description": "Klicken Sie im Dashboard auf \"Neue Reklamation\". Wählen Sie Produktlinie und Region, damit die richtigen Prüfteams informiert werden."},
+            {"title": "Produkt & Charge", "anchor": "product", "description": "Pflegen Sie Artikelnummer, Charge, Produktionsdatum und Menge. Pflichtfelder sind hervorgehoben und werden bei fehlender Eingabe validiert."},
+            {"title": "Bilder & Dokumente", "anchor": "upload", "description": "Hängen Sie Fotos, Prüfberichte oder Lieferscheine an. Nutzen Sie Markierungen, um betroffene Bereiche zu kennzeichnen (max. 10 MB gesamt)."},
+            {"title": "Symptome & Erwartung", "anchor": "description", "description": "Beschreiben Sie die Abweichung, wann sie auftrat und was Sie sich als Lösung wünschen (Ersatz, Gutschrift, Analyse)."},
+            {"title": "Zusammenfassung prüfen", "anchor": "summary", "description": "Kontrollieren Sie alle Angaben. Die Automatik-Hilfe blendet Hinweise zu fehlenden Pflichtfeldern und passenden Artikeln aus der Wissensdatenbank ein."},
+            {"title": "Absenden & Bestätigung", "anchor": "submit", "description": "Senden Sie die Reklamation ab. Sie erhalten Ticketnummer, Eingangsbestätigung per E-Mail und einen direkten Deep-Link zur Ticketansicht."}
           ],
           "tips": [
-            "Nutzen Sie den Entwurfsmodus, um später weiterzuarbeiten.",
-            "Anhänge können auch nach Absenden ergänzt werden – nutzen Sie dazu die Ticket-Detailseite.",
-            "Mit dem Button \"Automatische Hilfe\" sehen Sie thematisch passende Antworten aus der Wissensdatenbank."
-          ],
-          "screenshots": ["[Screenshot: Dashboard > Neue Reklamation]", "[Screenshot: Formular mit Pflichtfeldern]"],
+            "Nutzen Sie den Entwurfsmodus, wenn Unterlagen noch fehlen. Entwürfe bleiben 14 Tage gespeichert.",
+            "Scans von Lieferscheinen erhöhen die Trefferquote bei der automatischen Zuordnung zum Produktionslos.",
+            "Verwenden Sie die Wissensdatenbank unterhalb des Formulars für typische Fehlerbilder, bevor Sie abschicken."],
+          "screenshots": ["[Screenshot: Dashboard > Neue Reklamation]", "[Screenshot: Formular mit Pflichtfeldern & Upload]"],
           "links": ["#complaint-create"]
         },
         {
           "id": "complaint-track",
-          "title": "Status & Kommunikation",
-          "summary": "Status verstehen, Rückfragen beantworten und Ansprechpartner kontaktieren.",
-          "tags": ["Status", "Chat", "Kontakt"],
+          "title": "Status, Chat & Dokumente",
+          "summary": "Status verstehen, Rückfragen beantworten, Dateien nachreichen und Entscheidungen einsehen.",
+          "tags": ["Status", "Chat", "Dokumente"],
           "steps": [
-            {"title": "Statusfarben verstehen", "anchor": "status", "description": "Nutzen Sie die Status-Badges (Eingegangen, In Bearbeitung, Entscheidung usw.), um den Bearbeitungsstand zu erkennen."},
-            {"title": "Nachrichten senden", "anchor": "messages", "description": "Öffnen Sie die Ticket-Detailansicht und nutzen Sie den Chat-Bereich, um Rückfragen zu stellen oder Antworten zu geben. Vertreter und QM werden automatisch benachrichtigt."},
-            {"title": "Dateien nachreichen", "anchor": "followup", "description": "Laden Sie weitere Fotos/Dokumente hoch, die direkt mit dem Ticket verknüpft werden."},
-            {"title": "Berichte öffnen", "anchor": "reports", "description": "Je nach Freigabe können Sie Prüfberichte und CAPA-Infos einsehen. Nicht sichtbare Dokumente sind aus Rechtegründen ausgeblendet."}
+            {"title": "Status-Badges lesen", "anchor": "status", "description": "Die Timeline zeigt Eingegangen, In Bearbeitung, Laborprüfung, Entscheidung und Abgeschlossen. Jeder Schritt hat Zeitstempel."},
+            {"title": "Chat & Rückfragen", "anchor": "messages", "description": "Antworten Sie im Ticket-Chat auf Fragen des Teams. Neue Nachrichten werden im Benachrichtigungsbereich und per E-Mail angezeigt."},
+            {"title": "Dateien nachreichen", "anchor": "followup", "description": "Laden Sie weitere Fotos oder Laborergebnisse hoch. Sie erscheinen in der Dokumentenliste mit Version und Hochladedatum."},
+            {"title": "Berichte & CAPA", "anchor": "reports", "description": "Prüfberichte, Korrekturmaßnahmen und Gutschriften sind nach Freigabe sichtbar. Nicht freigegebene Dokumente sind ausgeblendet."},
+            {"title": "Kontakt zum Vertreter", "anchor": "contact", "description": "Bei dringenden Fällen nutzen Sie den Button \"Kontakt zum Vertreter\". Der Chat wird priorisiert und Vertreter erhalten eine Push-Benachrichtigung."}
           ],
           "tips": [
-            "Halten Sie Antworten kurz und fügen Sie, wenn möglich, ein Foto hinzu.",
-            "Bei dringenden Fällen nutzen Sie zusätzlich den \"Kontakt zum Vertreter\"-Button im Ticket.",
-            "Der Download-Link ist personalisiert – nicht weiterleiten." 
+            "Kurze Antworten mit Fotos beschleunigen die Bearbeitung.",
+            "Mit dem PDF-Export im Ticket können Sie Status und Chat-Verlauf dokumentieren (auditfähig).",
+            "Deep-Links sind personalisiert – nicht weiterleiten, sondern im Team über Rollen teilen."],
+          "screenshots": ["[Screenshot: Ticketstatus & Chat]", "[Screenshot: Dokumente & CAPA]"],
+          "links": ["#complaint-track", "#customer-documents"]
+        },
+        {
+          "id": "customer-knowledge",
+          "title": "Wissensdatenbank & Downloads",
+          "summary": "Artikel finden, Produktkataloge ansehen und Support kontaktieren, ohne ein Ticket zu öffnen.",
+          "tags": ["FAQ", "Katalog", "Support"],
+          "steps": [
+            {"title": "Artikel suchen", "anchor": "kb-search", "description": "Nutzen Sie die Suche im Hilfebereich oder die Wissensdatenbank-Seite. Filtern Sie nach Produkt, Region oder Kategorie."},
+            {"title": "Kataloge & Formulare", "anchor": "catalog", "description": "Im Produktkatalog laden Sie Handbücher und Sicherheitsdatenblätter. Sichtbarkeit richtet sich nach Ihrer Region."},
+            {"title": "Support kontaktieren", "anchor": "support", "description": "Falls Sie keine passende Antwort finden, nutzen Sie das Kontaktformular. Ihr Anliegen wird als Ticketvorlage gespeichert."}
           ],
-          "screenshots": ["[Screenshot: Ticketstatus & Chat]"],
-          "links": ["#complaint-track"]
+          "tips": [
+            "Speichern Sie häufig genutzte Artikel als Favorit, um sie im Dashboard oben zu sehen.",
+            "Wenn Sie Offline-Dokumente benötigen, laden Sie den ZIP-Export im Katalog herunter.",
+            "Über die Breadcrumbs springen Sie schnell zurück in verwandte Kategorien."],
+          "screenshots": ["[Screenshot: Wissensdatenbank-Suche]", "[Screenshot: Produktkatalog-Download]"]
         }
       ]
     },
@@ -51,40 +86,72 @@
       "id": "representatives",
       "title": "Vertreter",
       "audience": "Vertreter",
-      "description": "Wissensartikel, Kundenkommunikation und Entscheidungen verwalten.",
+      "description": "Kundenfälle priorisieren, bewerten, freigeben und mit DFS/PRRC abstimmen.",
       "topics": [
         {
           "id": "rep-dashboard",
           "title": "Dashboard & Filter",
-          "summary": "Alle Kundenfälle nach Priorität und Status filtern.",
+          "summary": "Alle Kundenfälle nach Priorität, Region und Status filtern und speichern.",
           "tags": ["Filter", "Übersicht", "Download"],
           "steps": [
-            {"title": "Login & Rollenwechsel", "anchor": "login", "description": "Melden Sie sich im Vertreterbereich an. Der Rollenschalter zeigt, ob Sie im Kunden- oder Vertreterkontext arbeiten."},
-            {"title": "Filter setzen", "anchor": "filters", "description": "Nutzen Sie Status-, Entscheidungs- und Kundenfilter. Gespeicherte Filter erscheinen im Schnellzugriff."},
-            {"title": "Downloads & Kataloge", "anchor": "downloads", "description": "Greifen Sie auf freigegebene Dokumente (z.B. Prüfberichte, Kataloge) zu. Die Sichtbarkeit richtet sich nach Ihrer Region und Sprache."}
+            {"title": "Login & Rollenwechsel", "anchor": "login", "description": "Melden Sie sich im Vertreterbereich an. Der Rollenschalter zeigt, ob Sie Kunden- oder Vertreterkontext sehen."},
+            {"title": "Filter setzen & speichern", "anchor": "filters", "description": "Kombinieren Sie Status-, Entscheidungs- und Kundenfilter. Speichern Sie häufige Filtersets für den Schnellzugriff."},
+            {"title": "Listen & Exporte", "anchor": "downloads", "description": "Exportieren Sie gefilterte Listen als CSV/PDF. Downloads berücksichtigen die aktuelle Sprache."}
           ],
           "tips": [
-            "Über das Kundenprofil gelangen Sie direkt zu offenen Tickets der Firma.",
-            "Kennzeichnen Sie dringende Tickets mit einem Stern, um sie oben zu halten." 
+            "Über das Kundenprofil springen Sie direkt zu offenen Tickets der Firma.",
+            "Markieren Sie dringende Tickets mit einem Stern, um sie in \"Favoriten\" zu fixieren.",
+            "Nutzen Sie die Sortierung nach \"Zuletzt aktualisiert\" für schnelle Reaktionszeiten."],
+          "screenshots": ["[Screenshot: Vertreter-Dashboard mit Filtern]"]
+        },
+        {
+          "id": "rep-casework",
+          "title": "Ticketbearbeitung & Kommunikation",
+          "summary": "Rückfragen stellen, interne Notizen pflegen und Kunden sicher antworten.",
+          "tags": ["Chat", "Notizen", "Anhänge"],
+          "steps": [
+            {"title": "Ticket öffnen", "anchor": "open", "description": "Wählen Sie ein Ticket aus der Liste. Die Kopfzeile zeigt Kunde, Produkt und aktuelle Phase."},
+            {"title": "Interne Notizen", "anchor": "notes", "description": "Fügen Sie interne Kommentare hinzu, die nur DFS/PRRC und Vertreter sehen. So vermeiden Sie Fehlinformationen zum Kunden."},
+            {"title": "Kundenchat", "anchor": "chat", "description": "Antworten Sie im Kunden-Chat mit klaren To-dos. Dateien können Sie direkt im Chat anhängen."},
+            {"title": "Anhänge prüfen", "anchor": "attachments", "description": "Alle Uploads sind mit Version und Upload-User versehen. Laden Sie fehlende Nachweise nach oder fordern Sie sie per Chat an."}
           ],
-          "screenshots": ["[Screenshot: Vertreter-Dashboard mit Filtern]"],
-          "links": ["#rep-dashboard"]
+          "tips": [
+            "Nutzen Sie Antwortvorlagen für wiederkehrende Hinweise (z. B. Verpackung prüfen).",
+            "Bei fehlenden Pflichtangaben können Sie den Kunden auf die passenden Formularabschnitte verlinken (Deep-Link).",
+            "Aktualisieren Sie den Status nur, wenn alle Unterlagen vorliegen – das verhindert Rückfragen."],
+          "screenshots": ["[Screenshot: Ticket mit Chat & internen Notizen]"]
         },
         {
           "id": "rep-decisions",
           "title": "Bewerten & Freigeben",
-          "summary": "So dokumentieren Sie Entscheidungen nachvollziehbar.",
+          "summary": "Entscheidungen dokumentieren, Sichtbarkeit steuern und PRRC einbinden.",
           "tags": ["Entscheidung", "PRRC", "Freigabe"],
           "steps": [
-            {"title": "Ticket öffnen", "anchor": "open", "description": "Öffnen Sie das Ticket und wählen Sie \"Bewerten\"."},
-            {"title": "Entscheidung erfassen", "anchor": "decision", "description": "Hinterlegen Sie Entscheidung, Begründung und optional eine CAPA. Fügen Sie interne Notizen für PRRC hinzu."},
-            {"title": "Freigabe & Sichtbarkeit", "anchor": "visibility", "description": "Geben Sie an, ob die Entscheidung für Kunden sichtbar ist. Interne Bewertungen bleiben nur für DFS/PRRC und Vertreter sichtbar."}
+            {"title": "Bewertung erfassen", "anchor": "decision", "description": "Öffnen Sie den Bereich \"Bewerten\". Hinterlegen Sie Entscheidung, Begründung, betroffene Lose und optionale CAPA."},
+            {"title": "Sichtbarkeit setzen", "anchor": "visibility", "description": "Wählen Sie, ob das Ergebnis für Kunden sichtbar ist oder intern bleibt. PRRC erhält immer Leserechte."},
+            {"title": "Freigabe anstoßen", "anchor": "approval", "description": "Senden Sie den Entwurf an PRRC. Nach Freigabe werden Kunden benachrichtigt und Dokumente werden gemäß Sichtbarkeitsstufe veröffentlicht."}
           ],
           "tips": [
             "Setzen Sie ein Wiedervorlagedatum, wenn Unterlagen fehlen.",
-            "PRRC-Hinweis: Jede Entscheidung benötigt eine Quelle (Laborbericht, Kundenfoto, CAPA)."
-          ],
+            "PRRC-Hinweis: Jede Entscheidung benötigt eine Quelle (Laborbericht, Kundenfoto, CAPA).",
+            "Bei Abweisung empfiehlt sich ein Hinweis auf präventive Maßnahmen, um Wiederholungen zu vermeiden."],
           "screenshots": ["[Screenshot: Entscheidungsdialog]"]
+        },
+        {
+          "id": "rep-knowledge",
+          "title": "Wissensartikel & Kataloge",
+          "summary": "Antwortvorlagen, Handbücher und Produktinfos im Vertreterkontext nutzen.",
+          "tags": ["FAQ", "Handbuch", "Export"],
+          "steps": [
+            {"title": "Artikel nach Segment filtern", "anchor": "segment", "description": "Im Wissensbereich filtern Sie nach Segment, Region und Sprache. Gespeicherte Filter gelten für zukünftige Sitzungen."},
+            {"title": "Downloads teilen", "anchor": "share", "description": "Teilen Sie Kataloge per Deep-Link. Sichtbarkeit folgt der freigegebenen Rolle; Kunden sehen nur kundenspezifische Dokumente."},
+            {"title": "Offline-Paket", "anchor": "offline", "description": "Laden Sie das Paket \"Offline-Beratung\" herunter, um Produkthinweise beim Kunden vor Ort ohne Internet zu zeigen."}
+          ],
+          "tips": [
+            "Favorisieren Sie Artikel, um sie im Dashboard als Schnellzugriff zu sehen.",
+            "Nutzen Sie die Stichwortsuche mit Produktnummern, um direkt relevante Handbücher zu finden.",
+            "Aktualisieren Sie veraltete Links – das System markiert ablaufende Dokumente."],
+          "screenshots": ["[Screenshot: Wissensbasis mit Rollenfilter]"]
         }
       ]
     },
@@ -92,39 +159,57 @@
       "id": "dfs",
       "title": "DFS-User & PRRC",
       "audience": "DFS / PRRC",
-      "description": "Interner Bereich für Qualitätssicherung, CAPA-Steuerung und Freigaben.",
+      "description": "Interner Bereich für Qualitätssicherung, CAPA-Steuerung, Audits und Rechteverwaltung.",
       "topics": [
         {
           "id": "dfs-overview",
-          "title": "CAPA & Prüfberichte",
-          "summary": "So erstellen Sie CAPA-Items, laden Berichte hoch und steuern Sichtbarkeit.",
-          "tags": ["CAPA", "QM", "Berichte"],
+          "title": "Qualitäts-Dashboard & Routing",
+          "summary": "Eingehende Tickets triagieren, Prüfteams zuweisen und SLAs überwachen.",
+          "tags": ["Triage", "SLA", "Routing"],
           "steps": [
-            {"title": "CAPA anlegen", "anchor": "capa", "description": "Öffnen Sie das Admin-Dashboard und wählen Sie \"Neue CAPA\". Verknüpfen Sie Ticket, Ursache und Maßnahme."},
-            {"title": "Berichte hochladen", "anchor": "reports", "description": "Laden Sie Prüfberichte als PDF hoch und entscheiden Sie, ob sie für Kunden/Vertreter sichtbar sind."},
-            {"title": "Rollen & Rechte", "anchor": "roles", "description": "Sichtbarkeit richtet sich nach Rolle: Kunden sehen nur freigegebene Berichte, Vertreter interne Notizen, PRRC alle Bewertungen."}
+            {"title": "Eingangsprüfung", "anchor": "intake", "description": "Im Admin-Dashboard sehen Sie neue Tickets mit Schweregrad und Region. Weisen Sie Prüfteams oder Labore zu."},
+            {"title": "SLA-Monitoring", "anchor": "sla", "description": "Ampeln zeigen, wann SLA-Grenzen erreicht sind. Eskalieren Sie Tickets direkt an Vertreter oder PRRC."},
+            {"title": "Datenqualität", "anchor": "data", "description": "Markieren Sie fehlende Pflichtangaben. Kunden und Vertreter erhalten automatische Aufforderungen zur Nachpflege."}
           ],
           "tips": [
-            "Nutzen Sie Tags (Segment, Region), um Berichte schneller zu finden.",
-            "Audit-Tipp: Jede CAPA sollte eine verantwortliche Person und ein Zieldatum enthalten." 
+            "Nutzen Sie Bulk-Aktionen, um mehrere Tickets einem Labor zuzuweisen.",
+            "Filter \"PRRC relevant\" zeigt Fälle mit regulatorischem Risiko.",
+            "CSV-Exporte enthalten Audit-Timestamps für jede Statusänderung."],
+          "screenshots": ["[Screenshot: Admin-Dashboard mit SLA-Ampeln]"]
+        },
+        {
+          "id": "dfs-capa",
+          "title": "CAPA, Prüfberichte & Rechte",
+          "summary": "CAPA-Items anlegen, Berichte hochladen, Sichtbarkeit und Rollen festlegen.",
+          "tags": ["CAPA", "QM", "Rechte"],
+          "steps": [
+            {"title": "CAPA anlegen", "anchor": "capa", "description": "Im Admin-CAPA-Dashboard wählen Sie \"Neue CAPA\". Verknüpfen Sie Ticket, Ursache, Maßnahme, Verantwortliche und Zieldatum."},
+            {"title": "Berichte hochladen", "anchor": "reports", "description": "Laden Sie Laborberichte als PDF hoch. Ordnen Sie sie einem Ticket, einer CAPA und einer Sichtbarkeitsstufe zu."},
+            {"title": "Rechte prüfen", "anchor": "roles", "description": "Sichtbarkeit pro Dokument: PRRC-only, Intern (DFS/Vertreter) oder Kundensichtbar. Änderungen erzeugen einen Audit-Trail."},
+            {"title": "Audit-Export", "anchor": "export", "description": "Exportieren Sie Ticket-Historie, Entscheidungen und Dokumente als ZIP für Audits mit Zeitstempeln und Benutzer-IDs."}
           ],
+          "tips": [
+            "Setzen Sie Erinnerungen für CAPA-Fälligkeiten; das System erinnert Verantwortliche per E-Mail.",
+            "Nutzen Sie Tags (Segment, Region), um Berichte schneller zu finden.",
+            "Kombinieren Sie mehrere Tickets in einer CAPA, wenn dieselbe Ursache vorliegt."],
           "screenshots": ["[Screenshot: CAPA-Detail mit Bericht]"]
         },
         {
           "id": "prrc-safeguards",
           "title": "PRRC-Sonderbereich",
-          "summary": "Bewertungen, Freigaben, Rechte & Sichtbarkeit klar dokumentieren.",
+          "summary": "Bewertungen, Freigaben, Rechte & Sichtbarkeit klar dokumentieren und auditieren.",
           "tags": ["PRRC", "Compliance", "Audit"],
           "steps": [
-            {"title": "Bewertungen nachweisen", "anchor": "assessment", "description": "Hinterlegen Sie Bewertungsgrundlagen (Laborbefunde, Chargenprüfung, Kundenkommunikation). Jede Bewertung erhält einen Zeitstempel."},
+            {"title": "Bewertungen nachweisen", "anchor": "assessment", "description": "Hinterlegen Sie Bewertungsgrundlagen (Laborbefunde, Chargenprüfung, Kundenkommunikation). Jede Bewertung erhält Quelle und Zeitstempel."},
             {"title": "Freigaben dokumentieren", "anchor": "approval", "description": "Freigaben erfolgen zweistufig: Vertreter-Empfehlung und PRRC-Finalfreigabe. Beide Schritte werden protokolliert."},
-            {"title": "Rechte & Sichtbarkeit steuern", "anchor": "rights", "description": "Setzen Sie Sichtbarkeiten pro Dokument: PRRC-only, Intern (DFS/Vertreter) oder Kundensichtbar. Jede Änderung erzeugt einen Audit-Trail."},
-            {"title": "Deep-Links teilen", "anchor": "links", "description": "Nutzen Sie sichere Deep-Links für Audits. Links sind signiert und zeitlich begrenzt."}
+            {"title": "Rechte & Sichtbarkeit steuern", "anchor": "rights", "description": "Setzen Sie Sichtbarkeiten pro Dokument: PRRC-only, Intern oder Kundensichtbar. Jede Änderung erzeugt einen Audit-Trail."},
+            {"title": "Deep-Links teilen", "anchor": "links", "description": "Nutzen Sie signierte Deep-Links für Audits. Links sind zeitlich begrenzt und zeigen den aktuellen Freigabestatus."},
+            {"title": "PRRC-Protokoll exportieren", "anchor": "log", "description": "Exportieren Sie das PRRC-Protokoll mit allen Entscheidungen, Freigaben, Quellen und Empfängern als PDF."}
           ],
           "tips": [
-            "Nutzen Sie das PRRC-Protokoll als Export für Audits.",
-            "Sichtbarkeiten immer vor dem Teilen prüfen – die App zeigt die aktuelle Freigabestufe an." 
-          ],
+            "Nutzen Sie das PRRC-Protokoll als Audit-Beileger.",
+            "Sichtbarkeiten immer vor dem Teilen prüfen – die App zeigt die aktuelle Freigabestufe an.",
+            "Bei risikoreichen Fällen fügen Sie eine interne CAPA-Referenz hinzu, um spätere Reviews zu erleichtern."],
           "screenshots": ["[Screenshot: PRRC-Protokoll & Rechte]"],
           "links": ["#prrc-safeguards", "#prrc-audit"]
         }

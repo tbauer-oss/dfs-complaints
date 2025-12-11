@@ -7,6 +7,9 @@ class HelpCenterLoader {
   static const Map<String, String> _assetByLang = {
     'de': 'assets/help/help_de.json',
     'en': 'assets/help/help_en.json',
+    'es': 'assets/help/help_es.json',
+    'fr': 'assets/help/help_fr.json',
+    'it': 'assets/help/help_it.json',
   };
 
   /// Load a localized help center. Falls back to English and then German.
@@ -14,6 +17,7 @@ class HelpCenterLoader {
     final lang = locale.toLowerCase();
     final List<String> candidates = [
       if (_assetByLang.containsKey(lang)) lang,
+      if (lang.contains('-')) lang.split('-').first,
       'en',
       'de',
     ];

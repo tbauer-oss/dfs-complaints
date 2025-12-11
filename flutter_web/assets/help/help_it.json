@@ -1,0 +1,217 @@
+{
+  "sections": [
+    {
+      "id": "customers",
+      "title": "Clienti",
+      "audience": "Cliente",
+      "description": "Tutti i passaggi dall'accesso all'approvazione, con attività chiare per ogni fase.",
+      "topics": [
+        {
+          "id": "customer-access",
+          "title": "Accesso e profilo",
+          "summary": "Accedi, scegli la lingua, gestisci le notifiche e mantieni aggiornato il profilo cliente.",
+          "tags": ["Login", "Profilo", "Lingua"],
+          "steps": [
+            {"title": "Accesso o registrazione", "anchor": "login", "description": "Usa le pagine \"Login\" o \"Registrati\". Dopo l'accesso arrivi alla dashboard cliente."},
+            {"title": "Lingua e regione", "anchor": "locale", "description": "Passa tra DE/EN/ES/FR/IT. Filtri, download e aiuto seguono la scelta."},
+            {"title": "Profilo e dati azienda", "anchor": "profile", "description": "Apri \"Il mio account\". Aggiorna referenti, telefoni e indirizzi di consegna per velocizzare le risposte."},
+            {"title": "Attivare le notifiche", "anchor": "notifications", "description": "In \"Impostazioni\" scegli se ricevere aggiornamenti di stato via e-mail e abilita gli avvisi chat."},
+            {"title": "Sicurezza e dispositivi", "anchor": "security", "description": "Esci dopo ogni sessione su dispositivi condivisi. Gli ultimi accessi sono visibili in \"Sicurezza\"."}
+          ],
+          "tips": [
+            "Usa i segnalibri: ogni argomento di aiuto offre un deep link condivisibile con il team.",
+            "Se gestisci più sedi, inseriscile come indirizzi separati per instradare correttamente i ticket.",
+            "Password dimenticata? Usa il link di reset nella pagina di login o contatta il tuo rappresentante."],
+          "screenshots": ["[Screenshot: Login con selettore lingua]", "[Screenshot: Account > Profilo e notifiche]"],
+          "links": ["#customer-access", "#customer-profile"]
+        },
+        {
+          "id": "complaint-create",
+          "title": "Avviare un reclamo",
+          "summary": "Crea un ticket, compila i campi obbligatori, carica prove e conferma.",
+          "tags": ["Ticket", "Upload", "Passo passo"],
+          "steps": [
+            {"title": "Avvio e contesto", "anchor": "start", "description": "Dalla dashboard seleziona \"Nuovo reclamo\". Scegli linea di prodotto e regione per avvisare il team QA corretto."},
+            {"title": "Prodotto e lotto", "anchor": "product", "description": "Inserisci codice articolo, lotto, data di produzione e quantità. I campi obbligatori vengono evidenziati e validati."},
+            {"title": "Immagini e documenti", "anchor": "upload", "description": "Allega foto, rapporti o bolle di consegna. Usa annotazioni per evidenziare le aree interessate (max 10 MB totali)."},
+            {"title": "Sintomi e aspettativa", "anchor": "description", "description": "Descrivi la deviazione, quando si è verificata e la soluzione attesa (sostituzione, nota di credito, analisi)."},
+            {"title": "Verifica riepilogo", "anchor": "summary", "description": "Controlla tutti i dati. L'aiuto automatico segnala campi mancanti e articoli pertinenti della knowledge base."},
+            {"title": "Invia e conferma", "anchor": "submit", "description": "Invia il reclamo. Ricevi numero ticket, e-mail di conferma e un deep link diretto alla vista del ticket."}
+          ],
+          "tips": [
+            "Usa la modalità bozza se mancano prove. Le bozze restano 14 giorni.",
+            "Allegare la bolla di consegna migliora l'associazione con il lotto di produzione.",
+            "Consulta la knowledge base sotto il modulo per i casi ricorrenti prima di inviare."],
+          "screenshots": ["[Screenshot: Dashboard > Nuovo reclamo]", "[Screenshot: Modulo con campi obbligatori e upload]"]
+        },
+        {
+          "id": "complaint-track",
+          "title": "Stato, chat e documenti",
+          "summary": "Leggere lo stato, rispondere alle domande, aggiungere file e vedere le decisioni.",
+          "tags": ["Stato", "Chat", "Documenti"],
+          "steps": [
+            {"title": "Comprendere gli stati", "anchor": "status", "description": "La timeline mostra Ricevuto, In lavorazione, Revisione laboratorio, Decisione e Chiuso con timestamp."},
+            {"title": "Chat e follow-up", "anchor": "messages", "description": "Rispondi nella chat del ticket. I nuovi messaggi compaiono nelle notifiche e via e-mail."},
+            {"title": "Caricare file aggiuntivi", "anchor": "followup", "description": "Aggiungi altre foto o risultati di laboratorio. Ogni caricamento è versionato con data e utente."},
+            {"title": "Rapporti e CAPA", "anchor": "reports", "description": "Rapporti di prova, azioni correttive e note di credito diventano visibili dopo il rilascio. Gli elementi nascosti non sono ancora approvati."},
+            {"title": "Contattare il rappresentante", "anchor": "contact", "description": "Per urgenze usa il pulsante \"Contatta rappresentante\". La chat viene priorizzata e il rappresentante riceve un avviso."}
+          ],
+          "tips": [
+            "Risposte brevi con foto velocizzano l'elaborazione.",
+            "Usa l'esportazione PDF del ticket per documentare stato e cronologia chat per gli audit.",
+            "I deep link sono personali: condividi l'accesso tramite ruoli anziché inoltrare i link."],
+          "screenshots": ["[Screenshot: Stato ticket e chat]", "[Screenshot: Documenti e CAPA]"]
+        },
+        {
+          "id": "customer-knowledge",
+          "title": "Knowledge base e download",
+          "summary": "Trovare articoli, consultare cataloghi e contattare il supporto senza aprire un ticket.",
+          "tags": ["FAQ", "Catalogo", "Supporto"],
+          "steps": [
+            {"title": "Cercare articoli", "anchor": "kb-search", "description": "Usa la ricerca nell'area di aiuto o nella pagina knowledge. Filtra per prodotto, regione o categoria."},
+            {"title": "Cataloghi e moduli", "anchor": "catalog", "description": "Scarica manuali e schede di sicurezza nel catalogo prodotti. La visibilità segue la tua regione."},
+            {"title": "Contattare il supporto", "anchor": "support", "description": "Se non trovi risposta, invia il modulo di contatto. La richiesta viene salvata come bozza di ticket."}
+          ],
+          "tips": [
+            "Aggiungi ai preferiti gli articoli frequenti per vederli in alto nella dashboard.",
+            "Scarica l'export ZIP per la consultazione offline in viaggio.",
+            "Usa il breadcrumb per tornare rapidamente alle categorie correlate."],
+          "screenshots": ["[Screenshot: Ricerca nella knowledge base]", "[Screenshot: Download catalogo]"]
+        }
+      ]
+    },
+    {
+      "id": "representatives",
+      "title": "Rappresentanti",
+      "audience": "Rappresentante",
+      "description": "Prioritizzare, valutare e rilasciare i casi coordinandosi con DFS/PRRC.",
+      "topics": [
+        {
+          "id": "rep-dashboard",
+          "title": "Dashboard e filtri",
+          "summary": "Filtra tutti i casi per priorità, regione e stato e salva le viste.",
+          "tags": ["Filtro", "Panoramica", "Download"],
+          "steps": [
+            {"title": "Login e cambio ruolo", "anchor": "login", "description": "Accedi all'area rappresentanti. Il selettore mostra se vedi contesto cliente o rappresentante."},
+            {"title": "Imposta e salva filtri", "anchor": "filters", "description": "Combina filtri di stato, decisione e cliente. Salva i set più usati per accesso rapido."},
+            {"title": "Liste ed export", "anchor": "downloads", "description": "Esporta le liste filtrate in CSV/PDF. Gli export usano la lingua corrente."}
+          ],
+          "tips": [
+            "Dal profilo cliente apri direttamente i suoi ticket aperti.",
+            "Contrassegna con stella i casi urgenti per fissarli nei Preferiti.",
+            "Ordina per \"Aggiornati di recente\" per reagire più velocemente."],
+          "screenshots": ["[Screenshot: Dashboard rappresentante con filtri]"]
+        },
+        {
+          "id": "rep-casework",
+          "title": "Gestione ticket e comunicazione",
+          "summary": "Richiedere dettagli, mantenere note interne e rispondere al cliente in sicurezza.",
+          "tags": ["Chat", "Note", "Allegati"],
+          "steps": [
+            {"title": "Aprire il ticket", "anchor": "open", "description": "Seleziona un ticket. L'intestazione mostra cliente, prodotto e fase corrente."},
+            {"title": "Note interne", "anchor": "notes", "description": "Aggiungi commenti interni visibili solo a DFS/PRRC e rappresentanti."},
+            {"title": "Chat cliente", "anchor": "chat", "description": "Rispondi con azioni chiare. Allega file direttamente nel chat."},
+            {"title": "Verificare gli allegati", "anchor": "attachments", "description": "Gli upload sono versionati con utente e data. Aggiungi prove mancanti o richiedile via chat."}
+          ],
+          "tips": [
+            "Usa modelli di risposta per indicazioni ricorrenti (es. controllo imballo).",
+            "Collega il cliente alla sezione esatta del modulo tramite deep link quando mancano dati.",
+            "Aggiorna lo stato solo quando tutte le informazioni sono presenti per evitare rilavorazioni."],
+          "screenshots": ["[Screenshot: Ticket con chat e note interne]"]
+        },
+        {
+          "id": "rep-decisions",
+          "title": "Valutare e rilasciare",
+          "summary": "Documentare le decisioni, gestire la visibilità e coinvolgere PRRC.",
+          "tags": ["Decisione", "PRRC", "Approvazione"],
+          "steps": [
+            {"title": "Registrare la decisione", "anchor": "decision", "description": "Apri \"Valuta\". Registra decisione, motivazione, lotti interessati e CAPA opzionale."},
+            {"title": "Impostare la visibilità", "anchor": "visibility", "description": "Scegli se il risultato è visibile al cliente o resta interno. PRRC ha sempre accesso in lettura."},
+            {"title": "Richiedere approvazione", "anchor": "approval", "description": "Invia la bozza a PRRC. Dopo l'approvazione il cliente è notificato e i documenti vengono pubblicati secondo la visibilità."}
+          ],
+          "tips": [
+            "Imposta un promemoria quando mancano prove.",
+            "Nota PRRC: ogni decisione deve avere una fonte (rapporto di laboratorio, foto cliente, CAPA).",
+            "Se rifiuti, aggiungi consigli preventivi per evitare ricorrenze."],
+          "screenshots": ["[Screenshot: Dialogo decisione]"]
+        },
+        {
+          "id": "rep-knowledge",
+          "title": "Conoscenza e cataloghi",
+          "summary": "Usare modelli, manuali e informazioni prodotto nel contesto rappresentante.",
+          "tags": ["FAQ", "Manuale", "Export"],
+          "steps": [
+            {"title": "Filtra per segmento", "anchor": "segment", "description": "Nella vista conoscenza filtra per segmento, regione e lingua. I filtri salvati restano per le sessioni future."},
+            {"title": "Condividere i download", "anchor": "share", "description": "Condividi cataloghi tramite deep link. La visibilità segue il ruolo assegnato; il cliente vede solo ciò che è autorizzato."},
+            {"title": "Pacchetto offline", "anchor": "offline", "description": "Scarica il pacchetto \"Consulenza offline\" per mostrare note prodotto in loco senza internet."}
+          ],
+          "tips": [
+            "Aggiungi ai preferiti gli articoli per visualizzarli nella dashboard.",
+            "Cerca per numero prodotto per accedere subito al manuale correlato.",
+            "Aggiorna i link scaduti: il sistema segnala i documenti in scadenza."],
+          "screenshots": ["[Screenshot: Base di conoscenza con filtro ruolo]"]
+        }
+      ]
+    },
+    {
+      "id": "dfs",
+      "title": "Utenti DFS e PRRC",
+      "audience": "DFS / PRRC",
+      "description": "Area interna per qualità, gestione CAPA, audit e permessi.",
+      "topics": [
+        {
+          "id": "dfs-overview",
+          "title": "Dashboard qualità e instradamento",
+          "summary": "Smistare i ticket in arrivo, assegnare team QA e monitorare gli SLA.",
+          "tags": ["Triage", "SLA", "Instradamento"],
+          "steps": [
+            {"title": "Revisione di ingresso", "anchor": "intake", "description": "Nel dashboard admin vedi i nuovi ticket con gravità e regione. Assegna team o laboratori."},
+            {"title": "Monitoraggio SLA", "anchor": "sla", "description": "Indicatori a semaforo mostrano quando si raggiunge il limite SLA. Escala ai rappresentanti o a PRRC."},
+            {"title": "Qualità dei dati", "anchor": "data", "description": "Segnala i dati obbligatori mancanti. Clienti e rappresentanti ricevono richieste automatiche per completarli."}
+          ],
+          "tips": [
+            "Usa azioni massive per assegnare più ticket allo stesso laboratorio.",
+            "Il filtro \"Rilevante PRRC\" evidenzia i casi con rischio normativo.",
+            "Gli export CSV includono timestamp di audit per ogni cambio di stato."],
+          "screenshots": ["[Screenshot: Dashboard admin con indicatori SLA]"]
+        },
+        {
+          "id": "dfs-capa",
+          "title": "CAPA, rapporti e permessi",
+          "summary": "Creare CAPA, caricare rapporti e gestire visibilità e ruoli.",
+          "tags": ["CAPA", "Qualità", "Permessi"],
+          "steps": [
+            {"title": "Creare CAPA", "anchor": "capa", "description": "Nel dashboard CAPA seleziona \"Nuova CAPA\". Collega ticket, causa radice, azione, responsabili e scadenza."},
+            {"title": "Caricare rapporti", "anchor": "reports", "description": "Carica rapporti di laboratorio in PDF. Collegali al ticket, alla CAPA e al livello di visibilità."},
+            {"title": "Verificare i diritti", "anchor": "roles", "description": "Visibilità per documento: solo PRRC, Interno (DFS/Rappresentanti) o Visibile al cliente. Ogni modifica è tracciata."},
+            {"title": "Export per audit", "anchor": "export", "description": "Esporta cronologia ticket, decisioni e documenti come ZIP con timestamp e ID utente."}
+          ],
+          "tips": [
+            "Imposta promemoria per le scadenze CAPA; i responsabili ricevono e-mail.",
+            "Usa tag (segmento, regione) per trovare più velocemente i rapporti.",
+            "Unisci più ticket in un'unica CAPA se condividono la stessa causa radice."],
+          "screenshots": ["[Screenshot: Dettaglio CAPA con rapporto]"]
+        },
+        {
+          "id": "prrc-safeguards",
+          "title": "Controlli PRRC",
+          "summary": "Documentare valutazioni, approvazioni, diritti e visibilità per gli audit.",
+          "tags": ["PRRC", "Conformità", "Audit"],
+          "steps": [
+            {"title": "Prove delle valutazioni", "anchor": "assessment", "description": "Allega fonti (risultati di laboratorio, controlli lotto, comunicazioni cliente). Ogni valutazione è timestampata."},
+            {"title": "Registrare le approvazioni", "anchor": "approval", "description": "Flusso a due fasi: raccomandazione del rappresentante e approvazione finale PRRC. Entrambe vengono registrate."},
+            {"title": "Gestire diritti e visibilità", "anchor": "rights", "description": "Imposta la visibilità per documento: solo PRRC, Interno o Visibile al cliente. Ogni modifica è auditata."},
+            {"title": "Condividere deep link", "anchor": "links", "description": "Usa deep link firmati per gli audit. Sono limitati nel tempo e mostrano lo stato di rilascio corrente."},
+            {"title": "Esportare il registro PRRC", "anchor": "log", "description": "Esporta il registro PRRC con decisioni, approvazioni, fonti e destinatari in PDF."}
+          ],
+          "tips": [
+            "Usa il registro PRRC come allegato per gli audit.",
+            "Controlla sempre la visibilità prima di condividere: l'app mostra il livello corrente.",
+            "Nei casi ad alto rischio aggiungi un riferimento CAPA interno per facilitare le revisioni future."],
+          "screenshots": ["[Screenshot: Registro PRRC e permessi]"],
+          "links": ["#prrc-safeguards", "#prrc-audit"]
+        }
+      ]
+    }
+  ]
+}
