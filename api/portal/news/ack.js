@@ -12,6 +12,10 @@ export default async function handler(req, res) {
 
   const actor = await portalUserFromRequest(req);
   if (!actor) return bad(res, 'unauthorized', 401);
+  const actorKind = String(actor.kind || actor.type || '').toLowerCase();
+  if (actorKind && actorKind !== 'portal' && actorKind !== 'staff') {
+    return bad(res, 'forbidden', 403);
+  }
 
   try {
     const id = (req.body?.id ?? req.query?.id ?? '').toString().trim();
