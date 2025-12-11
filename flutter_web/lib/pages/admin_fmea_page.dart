@@ -1081,6 +1081,18 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   }
 
   Future<FmeaRiskEntry?> _openRiskDialog({FmeaRiskEntry? existing}) async {
+    final categoryOptions = {
+      ...?_selected?.risks
+          .map((r) => r.category.trim())
+          .where((c) => c.isNotEmpty)
+          .toSet(),
+      if ((existing?.category ?? '').trim().isNotEmpty) existing!.category.trim(),
+    }.toList()
+      ..sort();
+
+    String? selectedCategory = categoryOptions.contains(existing?.category)
+        ? existing?.category
+        : null;
     final catCtrl = TextEditingController(text: existing?.category ?? '');
     final hazardCtrl = TextEditingController(text: existing?.hazard ?? '');
     final situationCtrl = TextEditingController(text: existing?.hazardSituation ?? '');
@@ -1120,9 +1132,32 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (categoryOptions.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: selectedCategory,
+                        decoration: const InputDecoration(labelText: 'Kategorie auswählen'),
+                        items: categoryOptions
+                            .map((c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text(c),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          setStateDialog(() {
+                            selectedCategory = val;
+                            catCtrl.text = val ?? '';
+                          });
+                        },
+                      ),
                     TextField(
                       controller: catCtrl,
-                      decoration: const InputDecoration(labelText: 'Kategorie'),
+                      decoration: const InputDecoration(
+                        labelText: 'Kategorie eingeben',
+                        helperText: 'Eigene Kategorie eingeben oder Auswahl oben nutzen',
+                      ),
+                      onChanged: (val) => setStateDialog(() {
+                        selectedCategory = categoryOptions.contains(val) ? val : null;
+                      }),
                     ),
                     TextField(
                       controller: hazardCtrl,
