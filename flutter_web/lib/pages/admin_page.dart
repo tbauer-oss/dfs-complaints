@@ -920,7 +920,7 @@ class _AdminPageState extends State<AdminPage> {
 
     if (portalTok.isEmpty && secret.isEmpty) {
       _fatalErr =
-          'Keine DFS-Connect Session gefunden. Bitte über den Start-Button anmelden.';
+          'Keine DFS Connect Session gefunden. Bitte über den Start-Button anmelden.';
       return;
     }
 
@@ -4577,7 +4577,7 @@ class _AdminPageState extends State<AdminPage> {
     if (_fatalErr != null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('DFS-Connect – Your Digital Quality Hub'),
+          title: const Text('DFS Connect – Your Digital Quality Hub'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
@@ -7479,7 +7479,7 @@ class _AdminPageState extends State<AdminPage> {
       case 'news':
         return AdminTilePro(
           label: 'Neuigkeiten & Infoscreen',
-          subtitle: 'DFS-Connect & Kundenticker',
+          subtitle: 'DFS Connect & Kundenticker',
           icon: Icons.campaign_outlined,
           colorA: AdminPalette.amberA,
           colorB: AdminPalette.amberB,
@@ -8576,7 +8576,7 @@ class _AdminPageState extends State<AdminPage> {
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       ),
                       SizedBox(height: 4),
-                      Text('Interne DFS-Connect News oder Kundenticker mit einem Klick pflegen.'),
+                      Text('Interne DFS Connect News oder Kundenticker mit einem Klick pflegen.'),
                     ],
                   ),
                 ),
@@ -18117,7 +18117,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               Expanded(
                                 child: Text(
                                   hasNote
-                                      ? 'Notizen sind nur in DFS-Connect sichtbar.'
+                                      ? 'Notizen sind nur in DFS Connect sichtbar.'
                                       : 'Noch keine Notiz gespeichert – alles bleibt intern.',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: const Color(0xFF6D4C41),
