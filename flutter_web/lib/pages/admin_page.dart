@@ -273,6 +273,9 @@ class _AdminPageState extends State<AdminPage> {
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
+  bool get _isPortalSuperuser => _portalRole == PORTAL_ROLES['superuser'];
+  bool get _isPortalReadonly => _portalRole == PORTAL_ROLES['readonly'];
+  bool get _isPortalSales => _portalIsSales;
 
   String get _portalDisplayName {
     String s(Object? v) => (v ?? '').toString().trim();
@@ -6130,6 +6133,66 @@ class _AdminPageState extends State<AdminPage> {
         SnackBar(content: Text('Ticket $ticket konnte nicht geöffnet werden: $e')),
       );
     }
+  }
+
+  Future<void> _openComplaintDialog(AdminComplaint c) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200, maxHeight: 900),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Reklamation ${c.ticket}',
+                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: _ComplaintEditor(
+                      api: _api,
+                      portalApi: widget.api,
+                      c: c,
+                      portalRole: _portalRole,
+                      portalIsSales: _portalIsSales,
+                      hasRep: _portalRep != null,
+                      repName: _portalRep?.name,
+                      productLookup: _fetchProduct,
+                      companyHint: _portalCustomer?.company,
+                      initiallyExpanded: true,
+                      showEditToggle: false,
+                      onClosed: () {
+                        Navigator.of(ctx).pop();
+                        _load();
+                      },
+                      onChanged: (updated) => setState(() => _applyUpdate(updated)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openCapaById(String id) async {
