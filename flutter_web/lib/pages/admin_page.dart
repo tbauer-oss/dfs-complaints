@@ -6340,6 +6340,26 @@ class _AdminPageState extends State<AdminPage> {
         final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
         final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
         final unreadNews = manualNews.where((e) => !e.acknowledged).length;
+
+        Widget pulseDot({required Color color, required bool active}) {
+          final opacity = active ? 1.0 : 0.25;
+          return AnimatedOpacity(
+            duration: const Duration(milliseconds: 480),
+            opacity: opacity,
+            child: Container(
+              height: 12,
+              width: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [if (active) BoxShadow(color: color.withOpacity(.5), blurRadius: 12)],
+              ),
+            ),
+          );
+        }
+
+        final taskBlink = tasks.isNotEmpty && (_portalFeedPulse % 2 == 0);
+        final newsBlink = unreadNews > 0 && (_portalFeedPulse % 3 != 0);
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: ConstrainedBox(
