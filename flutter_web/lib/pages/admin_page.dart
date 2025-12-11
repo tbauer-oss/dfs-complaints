@@ -277,6 +277,62 @@ class _AdminPageState extends State<AdminPage> {
   bool get _isPortalReadonly => _portalRole == PORTAL_ROLES['readonly'];
   bool get _isPortalSales => _portalIsSales;
 
+  Map<String, dynamic>? get _portalProfile =>
+      widget.portalProfile ?? widget.api.portalProfile;
+
+  MyRep? get _portalRep {
+    final rep = _portalProfile?['rep'];
+    if (rep is Map) {
+      return MyRep.fromJson(rep.cast<String, dynamic>());
+    }
+    return null;
+  }
+
+  String? get _portalCompanyName {
+    String pickFrom(Map<dynamic, dynamic> map, List<String> keys) {
+      for (final key in keys) {
+        final v = map[key];
+        final s = (v ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      return '';
+    }
+
+    final profile = _portalProfile;
+    if (profile == null) return null;
+
+    final customer = profile['customer'];
+    if (customer is Map) {
+      final fromCustomer = pickFrom(customer, const [
+        'company',
+        'companyName',
+        'customerCompany',
+        'firm',
+        'organisation',
+        'organization',
+        'customer',
+        'kunde',
+      ]);
+      if (fromCustomer.isNotEmpty) return fromCustomer;
+    }
+
+    final direct = pickFrom(profile, const [
+      'company',
+      'companyName',
+      'customerCompany',
+      'customerName',
+      'customer',
+      'organisation',
+      'organization',
+      'org',
+    ]);
+
+    return direct.isEmpty ? null : direct;
+  }
+
+  DfsProduct? _fetchProduct(String articleNumber) =>
+      _productByArticle(articleNumber);
+
   String get _portalDisplayName {
     String s(Object? v) => (v ?? '').toString().trim();
     final profile = widget.portalProfile ?? widget.api.portalProfile;
@@ -6174,9 +6230,9 @@ class _AdminPageState extends State<AdminPage> {
                       portalRole: _portalRole,
                       portalIsSales: _portalIsSales,
                       hasRep: _portalRep != null,
-                      repName: _portalRep?.name,
+                      repName: _portalRep?.displayName,
                       productLookup: _fetchProduct,
-                      companyHint: _portalCustomer?.company,
+                      companyHint: _portalCompanyName,
                       initiallyExpanded: true,
                       showEditToggle: false,
                       onClosed: () {
