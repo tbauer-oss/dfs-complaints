@@ -4555,7 +4555,7 @@ class _AdminPageState extends State<AdminPage> {
                       child: Builder(
                         builder: (_) {
                           final accentColor = _portalIsPrrcAuthorized
-                              ? const Color(0xFF0865A2)
+                              ? const Color(0xFF2ECCB3)
                               : (theme.brightness == Brightness.dark
                                   ? Colors.white
                                   : Colors.black87);
