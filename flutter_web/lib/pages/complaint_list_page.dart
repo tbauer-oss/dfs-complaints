@@ -37,6 +37,7 @@ class ComplaintListItem {
   final String orderNumber;
   final String invoiceNumber;
   final String prrcClassification;
+  final String prrcComment;
   final String internalAssessment;
   final String suspectedCause;
   final String immediateActions;
@@ -73,6 +74,7 @@ class ComplaintListItem {
     required this.orderNumber,
     required this.invoiceNumber,
     required this.prrcClassification,
+    required this.prrcComment,
     required this.internalAssessment,
     required this.suspectedCause,
     required this.immediateActions,
@@ -90,6 +92,7 @@ class ComplaintListItem {
     String? immediateActions,
     String? correctiveActions,
     String? prrcClassification,
+    String? prrcComment,
     bool? hasPrrcDecision,
     bool? salesCompleted,
     String? segment,
@@ -118,6 +121,7 @@ class ComplaintListItem {
       orderNumber: orderNumber,
       invoiceNumber: invoiceNumber,
       prrcClassification: prrcClassification ?? this.prrcClassification,
+      prrcComment: prrcComment ?? this.prrcComment,
       internalAssessment: internalAssessment,
       suspectedCause: suspectedCause,
       immediateActions: immediateActions ?? this.immediateActions,
@@ -243,6 +247,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     'orderNumber': 150,
     'invoiceNumber': 150,
     'prrcClassification': 140,
+    'prrcComment': 240,
     'internalAssessment': 220,
     'suspectedCause': 220,
     'immediateActions': 200,
@@ -277,6 +282,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     ('Auftragsnummer', 'orderNumber'),
     ('Rechnungsnummer', 'invoiceNumber'),
     ('PRRC-Bewertung', 'prrcClassification'),
+    ('PRRC-Kommentar', 'prrcComment'),
     ('Interne Bewertung', 'internalAssessment'),
     ('Vermutete Ursache', 'suspectedCause'),
     ('Sofortmaßnahmen', 'immediateActions'),
@@ -288,7 +294,9 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   List<(String, String)> get _columnDefs => widget.showPrrcColumn
       ? _baseColumnDefs
-      : _baseColumnDefs.where((c) => c.$2 != 'prrcClassification').toList();
+      : _baseColumnDefs
+          .where((c) => !['prrcClassification', 'prrcComment'].contains(c.$2))
+          .toList();
 
   @override
   void initState() {
@@ -466,6 +474,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           c.complaintType,
           c.complaintReason,
           c.prrcClassification,
+          c.prrcComment,
           c.status,
           c.assignee,
           c.salesCode,
@@ -503,6 +512,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         return compare(a.status, b.status);
       case 'prrcClassification':
         return compare(a.prrcClassification, b.prrcClassification);
+      case 'prrcComment':
+        return compare(a.prrcComment, b.prrcComment);
       case 'receivedAt':
         final aDate = a.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bDate = b.receivedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -1024,6 +1035,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         'orderNumber': _cellFor('orderNumber', c.orderNumber),
         'invoiceNumber': _cellFor('invoiceNumber', c.invoiceNumber),
         'prrcClassification': _prrcCell(c),
+        'prrcComment': _cellFor('prrcComment', c.prrcComment.isEmpty ? '—' : c.prrcComment),
         'internalAssessment': _cellFor('internalAssessment', c.internalAssessment),
         'suspectedCause': _cellFor('suspectedCause', c.suspectedCause),
         'immediateActions': _actionCell('immediateActions', c.immediateActions),
@@ -1167,7 +1179,8 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       'Produktakte',
       'Produktgruppe',
       'Artikel',
-      if (widget.showPrrcColumn) 'PRRC',      
+      if (widget.showPrrcColumn) 'PRRC',
+      if (widget.showPrrcColumn) 'PRRC-Kommentar',
       'Eingang',
       'Abschluss',
       'Kulanz',
@@ -1183,6 +1196,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               c.productGroup,
               c.articleNumber,
               if (widget.showPrrcColumn) c.prrcClassification,
+              if (widget.showPrrcColumn) (c.prrcComment.isEmpty ? '—' : c.prrcComment),
               c.receivedAt,
               c.closedAt,
               c.goodwill ? 'Ja' : 'Nein',
