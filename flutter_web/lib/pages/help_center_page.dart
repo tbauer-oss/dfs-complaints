@@ -5,6 +5,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../l10n/app_localizations.dart';
 import '../models/help_content.dart';
 import '../services/help_center_loader.dart';
+import '../services/app_prefs_scope.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart';
 
@@ -146,6 +147,7 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final isNarrow = MediaQuery.of(context).size.width < 1000;
+    final prefs = AppPrefsScope.of(context);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -176,11 +178,11 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
             ),
           ],
         ),
-        actions: const [
-          LangAction(),
-          SizedBox(width: 4),
-          ThemeAction(),
-          SizedBox(width: 6),
+        actions: [
+          LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+          const SizedBox(width: 4),
+          const ThemeAction(),
+          const SizedBox(width: 6),
         ],
       ),
       body: _loading
