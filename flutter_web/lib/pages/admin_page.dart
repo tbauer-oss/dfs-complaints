@@ -6160,7 +6160,7 @@ class _AdminPageState extends State<AdminPage> {
                       hasRep: _reps.any((r) => r.email.toLowerCase() == c.repEmail?.toLowerCase()),
                       repName: _reps.firstWhereOrNull(
                         (r) => r.email.toLowerCase() == c.repEmail?.toLowerCase(),
-                      )?.name,
+                      )?.displayName,
                       selectable: false,
                       selected: false,
                     ),
@@ -6411,6 +6411,8 @@ class _AdminPageState extends State<AdminPage> {
         final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
         final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
         final unreadNews = manualNews.where((e) => !e.acknowledged).length;
+        final taskBlink = _portalTaskBlink;
+        final newsBlink = _portalNewsBlink;
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: ConstrainedBox(
