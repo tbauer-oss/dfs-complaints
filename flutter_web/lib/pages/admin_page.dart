@@ -20760,6 +20760,12 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
                       c: c,
                       portalRole: _portalRole,
                       portalIsSales: _portalIsSales,
+                      hasRep: _portalRep != null,
+                      repName: _portalRep?.displayName,
+                      productLookup: _fetchProduct,
+                      companyHint: _portalCompanyName,
+                      initiallyExpanded: true,
+                      showEditToggle: false,
                       hasNewCustomerMessage: false,
                       onClosed: () {
                         Navigator.of(ctx).pop();
