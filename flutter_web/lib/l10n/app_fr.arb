@@ -758,6 +758,8 @@
   "newsCatProduct": "Nouveautés produit",
   "newsCatShortage": "Limitations temporaires",
   "newsCatApp": "Versions de l'app",
+  "newsCatDocument": "Nouveau document",
+  "newsCatQmh": "QMH",
   "newsCatGeneral": "Général",
   "customerNewsHeroFreshLabel": "Nouveaux insights (30 jours)",
   "kb_title": "Base de connaissances – Réclamations et instruments",

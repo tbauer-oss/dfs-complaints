@@ -761,6 +761,8 @@
   "newsCatProduct": "Product news",
   "newsCatShortage": "Temporary limitations",
   "newsCatApp": "App releases",
+  "newsCatDocument": "New document",
+  "newsCatQmh": "QMH",
   "newsCatGeneral": "General",
   "customerNewsHeroFreshLabel": "Fresh insights (30 days)",
   "kb_title": "Knowledge Base – Complaints & Instruments",
