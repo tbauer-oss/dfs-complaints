@@ -547,15 +547,15 @@ class _AdminPageState extends State<AdminPage> {
         return;
       }
 
-      // Only merge defaults when no remote layout exists yet so explicit hides are
-      // respected once an admin has saved a custom configuration.
-      if (!hasRemoteConfig) {
-        var changed = false;
-        for (final tile in defaults) {
-          if (existingTiles.add(tile)) changed = true;
-        }
-        if (changed) addedDefaults = true;
+      // Merge neue Standard-Kacheln (z. B. FMEA) auch dann, wenn bereits ein
+      // gespeichertes Layout vorliegt. So erscheinen frisch eingeführte Module
+      // automatisch, solange sie nicht explizit über Tile-Permissions ausgeblendet
+      // werden.
+      var changed = false;
+      for (final tile in defaults) {
+        if (existingTiles.add(tile)) changed = true;
       }
+      if (changed) addedDefaults = true;
     });
 
     return addedDefaults;
@@ -5389,6 +5389,7 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.open,
         _AdminView.all,
         _AdminView.complaintList,
+        _AdminView.fmea,
         _AdminView.pending,
         _AdminView.activity,
         _AdminView.systemHealth,
