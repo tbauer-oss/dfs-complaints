@@ -5,7 +5,8 @@ import '../l10n/app_localizations.dart';
 class LegalFooter extends StatelessWidget {
   final ApiClient api;
   final EdgeInsets padding;
-  const LegalFooter({super.key, required this.api, this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10)});
+  final Widget? trailing;
+  const LegalFooter({super.key, required this.api, this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10), this.trailing});
 
   Future<void> _showVersionDialog(BuildContext context) async {
     final t = Localizations.of<dynamic>(context, Object) != null
@@ -147,11 +148,15 @@ class LegalFooter extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            if (trailing != null) ...[
+              trailing!,
+              const SizedBox(width: 8),
+            ],
             // „?“ / Info-Icon für Version
             IconButton(
               tooltip: t.versioninfo,
               onPressed: () => _showVersionDialog(context),
-              icon: const Icon(Icons.help_outline),
+              icon: const Icon(Icons.info_outline),
             ),
           ],
         ),
