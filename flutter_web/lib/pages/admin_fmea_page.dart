@@ -23,14 +23,6 @@ class AdminFmeaPage extends StatefulWidget {
 
 class _AdminFmeaPageState extends State<AdminFmeaPage> {
   final _dateFmt = DateFormat('dd.MM.yyyy');
-  static const _fallbackMdrOptions = <String>[
-    'MDR-TD1 - rot. Dentalinstrumente',
-    'MDR-TD2 - Knochenfräser',
-    'MDR-TD3 - Dentalpolierer',
-    'MDR-TD4 - PreciCut',
-    'MDR-TD5 - Dentallegierungen',
-  ];
-
   bool _loadingList = false;
   bool _saving = false;
   String? _error;
@@ -39,6 +31,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   List<Map<String, dynamic>> _links = const [];
   bool _loadingLinks = false;
   bool _onlyUnlinked = false;
+  List<String> _mdrTdOptions = const [];
   List<String> _productGroups = const [];
   List<PortalUserSummary> _portalUsers = const [];
   List<Complaint> _complaints = const [];
@@ -60,10 +53,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
   bool get _readOnly => !widget.canEdit;
 
-  List<String> get _mdrOptions {
-    final merged = {..._fallbackMdrOptions, ..._productGroupOptions};
-    return merged.toList()..sort();
-  }
+  List<String> get _mdrOptions => _mdrTdOptions;
 
   List<String> get _productGroupOptions {
     return _productGroups;
@@ -151,10 +141,16 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       final groups = {
         ...products.map((p) => p.productGroup.trim()).where((g) => g.isNotEmpty),
       };
+      final mdrTd = {
+        ...products
+            .map((p) => p.tdNumberAndName.trim())
+            .where((v) => v.startsWith('MDR-TD') && v.isNotEmpty),
+      };
       setState(() {
         _portalUsers = users;
         _complaints = complaints;
         _capas = capas;
+        _mdrTdOptions = mdrTd.toList()..sort();
         _productGroups = groups.toList()..sort();
       });
     } catch (e) {
