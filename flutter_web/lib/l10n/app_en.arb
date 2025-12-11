@@ -471,7 +471,7 @@
   "rep_email_button": "Email",
   "rep_email_tooltip": "Send email to representative",
   "mail_subject_rep": "Inquiry about complaint",
-  "mail_body_rep": "Hello {name},\n\nI am contacting you via the DFS Connect portal.\n\nBest regards",
+  "mail_body_rep": "Hello {name},\n\nI am contacting you via DFS Connect.\n\nBest regards",
   "@mail_body_rep": { "placeholders": { "name": { "type": "String" } } },
   "customerMail": "Customer email",
   "customer_number_label": "Customer no.",
@@ -498,7 +498,7 @@
   "customer_login": "Customer login",
   "customer_label": "Customer",
   "quick_access_title": "DFS internal access",
-  "quick_access_subtitle": "Jump straight into the representative area or DFS Portal.",
+  "quick_access_subtitle": "Jump straight into the representative area or DFS Connect+.",
   "opening_rep_area": "Opening representative area…",
 
   "tab_complaint": "Report complaint",
