@@ -811,52 +811,23 @@ class _InternalFooterButton extends StatelessWidget {
     return Tooltip(
       message: 'Weitere Optionen',
       waitDuration: const Duration(milliseconds: 300),
-      child: Material(
-        color: Colors.transparent,
-        shape: const StadiumBorder(),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(28),
-          onTap: onPressed,
-          child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  scheme.surfaceVariant.withOpacity(isDark ? 0.75 : 0.9),
-                  scheme.surface.withOpacity(isDark ? 0.55 : 0.8),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: scheme.outlineVariant.withOpacity(0.6)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.32 : 0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  expanded ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                  size: 18,
-                  color: scheme.onSurface,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'DFS Internal',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
-            ),
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: Icon(
+          expanded ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+          size: 18,
+        ),
+        label: const Text('DFS Internal'),
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.onSurface,
+          backgroundColor: scheme.onSurface.withOpacity(isDark ? 0.12 : 0.08),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          shape: const StadiumBorder(),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          minimumSize: Size.zero,
+          textStyle: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
       ),
