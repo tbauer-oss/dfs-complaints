@@ -2325,6 +2325,10 @@ class ApiClient {
         .toList();
   }
 
+  Future<List<WikiArticle>> adminWikiArticles({String? status}) async {
+    return adminFetchWikiArticles(status: status);
+  }
+
   Future<WikiArticle> adminSaveWikiArticle(Map<String, dynamic> data,
       {String? id}) async {
     final path = id == null
