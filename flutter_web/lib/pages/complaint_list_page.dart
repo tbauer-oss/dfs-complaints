@@ -1123,6 +1123,46 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     return _cellFor(key, display);
   }
 
+  Map<String, String> _pdfValuesForItem(ComplaintListItem item) {
+    final values = <String, String>{
+      'internalNumber': item.internalNumber,
+      'systemId': item.systemId,
+      'customer': item.customer,
+      'customerNumber': item.customerNumber,
+      'region': item.region,
+      'productFile': item.productFile,
+      'productGroup': item.productGroup,
+      'articleNumber': item.articleNumber,
+      'articleName': item.articleName,
+      'lotNumber': item.lotNumber,
+      'complaintType': item.complaintType,
+      'complaintReason': item.complaintReason,
+      'receivedAt': item.receivedAt,
+      'closedAt': item.closedAt,
+      'status': item.status,
+      'departments': item.departments,
+      'assignee': item.assignee,
+      'salesCode': item.salesCode,
+      'orderNumber': item.orderNumber,
+      'invoiceNumber': item.invoiceNumber,
+      'internalAssessment': item.internalAssessment,
+      'suspectedCause': item.suspectedCause,
+      'immediateActions': item.immediateActions,
+      'correctiveActions': item.correctiveActions,
+      'severity': item.severity,
+      'notes': item.notes,
+    };
+
+    String displayValue(String value) => value.trim().isEmpty ? '—' : value.trim();
+
+    values['goodwill'] = item.goodwill ? 'Ja' : 'Nein';
+    values['prrcClassification'] = displayValue(item.prrcClassification);
+    values['prrcComment'] = displayValue(item.prrcComment);
+    values['recurrence'] = item.recurrence ? 'Ja' : 'Nein';
+
+    return values.map((key, value) => MapEntry(key, displayValue(value)));
+  }
+
   Future<void> _handlePrrcChange(ComplaintListItem item, String classification) async {
     if (widget.onUpdatePrrcClassification == null) return;
     setState(() => _savingPrrcTickets.add(item.systemId));
@@ -1165,66 +1205,92 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
   Future<void> _exportPdf(List<ComplaintListItem> items) async {
     final doc = pw.Document();
-    final date = DateFormat('dd.MM.yyyy HH:mm').format(DateTime.now());
+    final now = DateTime.now();
+    final date = DateFormat('dd.MM.yyyy HH:mm').format(now);
+    final version = DateFormat('dd.MM.yyyy').format(now);
     pw.ImageProvider? logo;
     if (_logoBytes != null) {
       logo = pw.MemoryImage(_logoBytes!);
     }
 
-    final headers = [
-      'Interne Nr.',
-      'System-ID',
-      'Kunde',
-      'Status',
-      'Produktakte',
-      'Produktgruppe',
-      'Artikel',
-      if (widget.showPrrcColumn) 'PRRC',
-      if (widget.showPrrcColumn) 'PRRC-Kommentar',
-      'Eingang',
-      'Abschluss',
-      'Kulanz',
-    ];
-
-    final data = items
-        .map((c) => [
-              c.internalNumber,
-              c.systemId,
-              c.customer,
-              c.status,
-              c.productFile,
-              c.productGroup,
-              c.articleNumber,
-              if (widget.showPrrcColumn) c.prrcClassification,
-              if (widget.showPrrcColumn) (c.prrcComment.isEmpty ? '—' : c.prrcComment),
-              c.receivedAt,
-              c.closedAt,
-              c.goodwill ? 'Ja' : 'Nein',
-            ])
+    final columns = _columnDefs.map((c) => c.$2).toList();
+    final headers = _columnDefs.map((c) => c.$1).toList();
+    final rows = items
+        .map((item) {
+          final values = _pdfValuesForItem(item);
+          return columns.map((key) => values[key] ?? '—').toList();
+        })
         .toList();
+
+    final baseColumnWidths = <int, pw.TableColumnWidth>{
+      for (var i = 0; i < columns.length; i++) i: const pw.FlexColumnWidth(),
+    };
 
     doc.addPage(
       pw.MultiPage(
-        margin: const pw.EdgeInsets.all(24),
-        build: (ctx) => [
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.fromLTRB(24, 32, 24, 36),
+        header: (context) => pw.Column(
+          children: [
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logo != null) pw.Container(width: 86, height: 32, child: pw.Image(logo)),
+                pw.SizedBox(width: 10),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Reklamationsübersicht (Admin)',
+                      style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(date, style: const pw.TextStyle(fontSize: 8)),
+                  ],
+                ),
+                pw.Spacer(),
+                pw.Text('DFS-DIAMON GmbH', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+            pw.SizedBox(height: 8),
+            pw.Divider(color: PdfColors.grey600, height: 1, thickness: 0.6),
+          ],
+        ),
+        footer: (context) => pw.Container(
+          alignment: pw.Alignment.centerLeft,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              if (logo != null) pw.Container(width: 90, height: 40, child: pw.Image(logo)),
-              pw.Spacer(),
-              pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                pw.Text('Reklamationsübersicht (Admin)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                pw.Text(date, style: const pw.TextStyle(fontSize: 10)),
-              ]),
+              pw.Text('Export vom $version', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text(
+                'Seite ${context.pageNumber} von ${context.pagesCount}',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
             ],
           ),
-          pw.SizedBox(height: 12),
-          pw.Table.fromTextArray(
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-            headerDecoration: pw.BoxDecoration(color: PdfColors.blueGrey800),
-            cellStyle: const pw.TextStyle(fontSize: 9),
-            cellAlignment: pw.Alignment.centerLeft,
-            data: [headers, ...data],
+        ),
+        build: (ctx) => [
+          pw.TableHelper.fromTextArray(
+            headerCount: 1,
+            headers: headers,
+            data: rows,
+            cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            border: pw.TableBorder.symmetric(
+              inside: const pw.BorderSide(color: PdfColors.grey500, width: 0.35),
+              outside: const pw.BorderSide(color: PdfColors.grey700, width: 0.5),
+            ),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey900),
+            headerStyle: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+            cellStyle: const pw.TextStyle(fontSize: 7),
+            cellAlignments: {
+              for (var i = 0; i < columns.length; i++) i: pw.Alignment.centerLeft,
+            },
+            columnWidths: baseColumnWidths,
+            oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
           ),
         ],
       ),
