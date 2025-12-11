@@ -376,8 +376,6 @@ class _AdminPageState extends State<AdminPage> {
   int _portalFeedPulse = 0;
   Timer? _portalFeedPulseTimer;
   final Set<String> _portalNewsAckBusy = {};
-  bool get _isPortalSuperuser => _portalRole == 'superuser';
-  bool get _isPortalReadonly => _portalRole == 'readonly';
   bool _portalUsersLoading = false;
   bool _portalUsersLoaded = false;
   String? _portalUsersErr;
@@ -2775,8 +2773,6 @@ class _AdminPageState extends State<AdminPage> {
   Widget _buildCatalogsPanel() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final taskBlink = _portalTaskBlink;
-    final newsBlink = _portalNewsBlink;
     final formKey = GlobalKey<FormState>();
 
     String? _validate(String v) {
@@ -5937,32 +5933,6 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Widget _portalPulseDot({required Color color, required bool active, String? tooltip}) {
-    final opacity = active ? 1.0 : 0.25;
-    return Tooltip(
-      message: tooltip ?? '',
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 480),
-        opacity: opacity,
-        child: Container(
-          height: 12,
-          width: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            boxShadow: [if (active) BoxShadow(color: color.withOpacity(.5), blurRadius: 12)],
-          ),
-        ),
-      ),
-    );
-  }
-
-  bool get _portalTaskBlink =>
-      _portalFeed.any((e) => e.kind == 'task') && (_portalFeedPulse % 2 == 0);
-  bool get _portalNewsBlink => _portalFeed.any((e) => e.kind != 'task' && !e.acknowledged)
-      ? (_portalFeedPulse % 3 != 0)
-      : false;
-
   Widget _buildPortalFeedCard() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -5978,8 +5948,28 @@ class _AdminPageState extends State<AdminPage> {
     final showBanner = _portalFeedLoading || _portalFeedErr != null || tasks.isNotEmpty || manualNews.isNotEmpty;
     if (!showBanner) return const SizedBox.shrink();
 
-    final taskBlink = _portalTaskBlink;
-    final newsBlink = _portalNewsBlink;
+    Widget pulseDot({required Color color, required bool active, String? tooltip}) {
+      final opacity = active ? 1.0 : 0.25;
+      return Tooltip(
+        message: tooltip ?? '',
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 480),
+          opacity: opacity,
+          child: Container(
+            height: 12,
+            width: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [if (active) BoxShadow(color: color.withOpacity(.5), blurRadius: 12)],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final taskBlink = tasks.isNotEmpty && (_portalFeedPulse % 2 == 0);
+    final newsBlink = unreadNews.isNotEmpty && (_portalFeedPulse % 3 != 0);
     final baseGradient = LinearGradient(
       colors: [
         cs.primaryContainer.withOpacity(.55),
@@ -6071,13 +6061,13 @@ class _AdminPageState extends State<AdminPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _portalPulseDot(
+                        pulseDot(
                           color: cs.error,
                           active: taskBlink,
                           tooltip: tasks.isEmpty ? 'Keine offenen Aufgaben' : 'Offene Aufgaben für dich',
                         ),
                         const SizedBox(width: 10),
-                        _portalPulseDot(
+                        pulseDot(
                           color: cs.secondary,
                           active: newsBlink,
                           tooltip: unreadNews.isEmpty ? 'Keine neuen Hinweise' : 'Neue/unbestätigte Hinweise',
@@ -6111,67 +6101,6 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (mounted) setState(() => _portalNewsAckBusy.remove(entry.id));
     }
-  }
-
-  Future<void> _openComplaintDialog(AdminComplaint c) async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200, maxHeight: 900),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Reklamation ${c.ticket}',
-                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: Scrollbar(
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(12),
-                    child: _ComplaintEditor(
-                      api: _api,
-                      portalApi: widget.api,
-                      c: c,
-                      portalRole: _portalRole,
-                      portalIsSales: _portalIsSales,
-                      hasNewCustomerMessage: false,
-                      onClosed: () {
-                        Navigator.of(ctx).pop();
-                        _reloadComplaintList();
-                      },
-                      onChanged: (updated) => setState(() => _applyUpdate(updated)),
-                      hasRep: _reps.any((r) => r.email.toLowerCase() == c.repEmail?.toLowerCase()),
-                      repName: _reps.firstWhereOrNull(
-                        (r) => r.email.toLowerCase() == c.repEmail?.toLowerCase(),
-                      )?.displayName,
-                      selectable: false,
-                      selected: false,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _openComplaintByTicket(String ticket) async {
@@ -6411,8 +6340,6 @@ class _AdminPageState extends State<AdminPage> {
         final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
         final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
         final unreadNews = manualNews.where((e) => !e.acknowledged).length;
-        final taskBlink = _portalTaskBlink;
-        final newsBlink = _portalNewsBlink;
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: ConstrainedBox(
@@ -6471,7 +6398,7 @@ class _AdminPageState extends State<AdminPage> {
                         children: [
                           Row(
                             children: [
-                              _portalPulseDot(color: cs.error, active: taskBlink),
+                              pulseDot(color: cs.error, active: taskBlink),
                               const SizedBox(width: 8),
                               Text('Offene Aufgaben: ${tasks.length}'),
                             ],
@@ -6479,7 +6406,7 @@ class _AdminPageState extends State<AdminPage> {
                           const SizedBox(width: 14),
                           Row(
                             children: [
-                              _portalPulseDot(color: cs.secondary, active: newsBlink),
+                              pulseDot(color: cs.secondary, active: newsBlink),
                               const SizedBox(width: 8),
                               Text('Neue Hinweise: $unreadNews'),
                             ],
@@ -14118,7 +14045,6 @@ class AdminComplaint {
   // Vertreter-Daten
   String? repOpinion; // 'accepted' | 'rejected' | 'pending'
   final String? repId; // z. B. Rep-UID oder E-Mail
-  final String? repEmail;
 
   bool get hasRep => (repId ?? '').trim().isNotEmpty;
 
@@ -14186,7 +14112,6 @@ class AdminComplaint {
     this.salesCompletedBy,
     this.repOpinion,
     this.repId,
-    this.repEmail,
     List<ComplaintHistoryEntry>? history,
     List<ComplaintUpload>? uploads,
   })  : uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]),
@@ -14283,17 +14208,6 @@ class AdminComplaint {
       return null;
     }
 
-    String? _pickRepEmail(Map<String, dynamic> j, Map<String, dynamic>? p) {
-      String pick(Object? v) => (v ?? '').toString().trim();
-      final direct = pick(j['repEmail'] ?? j['rep_email'] ?? j['repMail'] ?? j['rep_mail']);
-      if (direct.isNotEmpty) return direct;
-      if (p != null) {
-        final inPayload = pick(p['repEmail'] ?? p['rep_email'] ?? p['repMail'] ?? p['rep_mail']);
-        if (inPayload.isNotEmpty) return inPayload;
-      }
-      return null;
-    }
-
     final repIdLocal = _pickRepId(j, payload);
 
     final uploads = _parseUploads(j['uploads'] ?? j['files']);
@@ -14356,7 +14270,6 @@ class AdminComplaint {
       payload: payload,
       repOpinion: _norm(repRaw),
       repId: repIdLocal,
-      repEmail: _pickRepEmail(j, payload),
       internalDepartments: _parseDepartments(j['internalDepartments'] ?? payload?['internalDepartments']),
       internalEvaluationTextDe:
           (j['internalEvaluationText_de'] ?? j['internalEvaluationTextDe'] ?? payload?['internalEvaluationText_de'])
@@ -14431,7 +14344,6 @@ class AdminComplaint {
         'history': history.map((e) => e.toJson()).toList(),
         if (repOpinion != null) 'repOpinion': repOpinion,
         if (repId != null) 'repId': repId,
-        if (repEmail != null) 'repEmail': repEmail,
       };
 }
 
