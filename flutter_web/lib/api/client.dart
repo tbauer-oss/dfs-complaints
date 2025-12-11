@@ -15,6 +15,7 @@ import '../models/download_category.dart';
 import '../models/admin_rep_summary.dart';
 import '../models/capa_report.dart';
 import '../models/portal_user.dart';
+import '../models/fmea.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -1692,6 +1693,157 @@ class ApiClient {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     return r.bodyBytes;
+  }
+
+  // ---------- Admin: FMEA (Liste & Risiken) ----------
+  Future<List<FmeaRecord>> adminFmeas() async {
+    final r = await http.get(_u('/api/admin/fmeas'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['list'] is List
+        ? decoded['list'] as List
+        : decoded is List
+            ? decoded
+            : <dynamic>[];
+    final records = list
+        .whereType<Map>()
+        .map((e) => FmeaRecord.fromJson(e.cast<String, dynamic>()))
+        .toList();
+    records.sort(FmeaRecord.sortByUpdatedDesc());
+    return records;
+  }
+
+  Future<FmeaRecord> adminFetchFmea(String id) async {
+    final uri = Uri(path: '/api/admin/fmeas', queryParameters: {'id': id}).toString();
+    final r = await http.get(_u(uri), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['fmea'] is Map ? decoded['fmea'] as Map : decoded;
+    if (map is Map) return FmeaRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige FMEA-Antwort');
+  }
+
+  Future<FmeaRecord> adminCreateFmea(FmeaRecord fmea) async {
+    final r = await http.post(
+      _u('/api/admin/fmeas'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(fmea.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['fmea'] is Map ? decoded['fmea'] as Map : decoded;
+    if (map is Map) return FmeaRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige FMEA-Antwort');
+  }
+
+  Future<FmeaRecord> adminUpdateFmea(FmeaRecord fmea) async {
+    final r = await http.patch(
+      _u('/api/admin/fmeas'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(fmea.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['fmea'] is Map ? decoded['fmea'] as Map : decoded;
+    if (map is Map) return FmeaRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige FMEA-Antwort');
+  }
+
+  Future<void> adminDeleteFmea(String id) async {
+    final path = Uri(path: '/api/admin/fmeas', queryParameters: {'id': id}).toString();
+    final r = await http.delete(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<FmeaRiskEntry> adminAddFmeaRisk({required String fmeaId, required FmeaRiskEntry risk}) async {
+    final r = await http.post(
+      _u('/api/admin/fmea-risks'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'fmeaId': fmeaId, 'risk': risk.toJson()}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['risk'] is Map ? decoded['risk'] as Map : decoded;
+    if (map is Map) return FmeaRiskEntry.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige FMEA-Risiko-Antwort');
+  }
+
+  Future<List<Map<String, dynamic>>> adminFmeaLinks() async {
+    final r = await http.get(_u('/api/admin/fmea-links'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map && decoded['links'] is List) {
+      return (decoded['links'] as List)
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<Uint8List> adminFmeaPdf(String id) async {
+    final path = Uri(path: '/api/admin/fmea-export', queryParameters: {'id': id, 'format': 'pdf'}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.bodyBytes;
+  }
+
+  Future<String> adminFmeaCsv(String id) async {
+    final path = Uri(path: '/api/admin/fmea-export', queryParameters: {'id': id, 'format': 'csv'}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.body;
+  }
+
+  Future<FmeaRiskEntry> adminUpdateFmeaRisk({
+    required String fmeaId,
+    required String riskId,
+    required FmeaRiskEntry risk,
+  }) async {
+    final r = await http.patch(
+      _u('/api/admin/fmea-risks'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'fmeaId': fmeaId, 'riskId': riskId, 'risk': risk.toJson()}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['risk'] is Map ? decoded['risk'] as Map : decoded;
+    if (map is Map) return FmeaRiskEntry.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige FMEA-Risiko-Antwort');
+  }
+
+  Future<void> adminDeleteFmeaRisk({required String fmeaId, required String riskId}) async {
+    final r = await http.delete(
+      _u('/api/admin/fmea-risks'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'fmeaId': fmeaId, 'riskId': riskId}),
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
 
   Future<List<DownloadCategory>> adminDeleteDownloadCategory(String name, {bool force = false}) async {
