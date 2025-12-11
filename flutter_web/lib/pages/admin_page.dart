@@ -7336,6 +7336,7 @@ class _AdminPageState extends State<AdminPage> {
         orderNumber: c.orderNumber ?? payloadValue(c, ['orderNumber', 'auftragsnummer']),
         invoiceNumber: c.invoiceNumber ?? payloadValue(c, ['invoiceNumber', 'rechnungsnummer']),
         prrcClassification: prrc.isEmpty ? 'N/A' : prrc,
+        prrcComment: c.prrcComment?.trim() ?? '',
         internalAssessment: c.internalEvaluationTextDe ?? payloadValue(c, ['internalAssessment', 'bewertung']),
         suspectedCause: c.internalEvaluationCause ?? payloadValue(c, ['suspectedCause', 'ursache']),
         immediateActions: immediate,
@@ -19143,6 +19144,13 @@ class PrrcDashboardPage extends StatefulWidget {
 class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   final _commentCtrl = TextEditingController();
   final _reportCheckCommentCtrl = TextEditingController();
+  static const List<String> _prrcCommentPresets = [
+    'Kein regulatorisches Risiko erkennbar',
+    'Weitere Unterlagen angefordert',
+    'Interne Abstimmung erforderlich',
+    'Bewertung abgeschlossen – keine Meldung notwendig',
+    'Behördliche Prüfung wird vorbereitet',
+  ];
 
   late final AdminApi _api;
   bool _loading = true;
@@ -20319,10 +20327,38 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
                         .toList(),
                   ),
                   const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _commentCtrl,
-                    maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _commentCtrl,
+                        maxLines: 4,
+                        decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
+                      ),
+                      if (_prrcCommentPresets.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: _prrcCommentPresets.map((preset) {
+                            final selected = _commentCtrl.text.trim() == preset;
+                            return ChoiceChip(
+                              label: Text(preset),
+                              selected: selected,
+                              onSelected: _saving
+                                  ? null
+                                  : (_) {
+                                      setState(() {
+                                        _commentCtrl.text = preset;
+                                        _commentCtrl.selection = TextSelection.fromPosition(
+                                            TextPosition(offset: _commentCtrl.text.length));
+                                      });
+                                    },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
                   ),
                   _prrcStatusSection(c),
                   const SizedBox(height: 12),
