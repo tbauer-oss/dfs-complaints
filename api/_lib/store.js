@@ -2252,6 +2252,12 @@ function normalizeComplaintRecord(c = {}) {
   if (completedAt) normalized.salesCompletedAt = completedAt; else delete normalized.salesCompletedAt;
   const completedBy = trim(c.salesCompletedBy);
   if (completedBy) normalized.salesCompletedBy = completedBy; else delete normalized.salesCompletedBy;
+
+  // Verknüpfte FMEA-Risiko-Nummern (Mehrfachwerte zulassen)
+  const linked = Array.isArray(c.fmeaRiskNumbers)
+    ? c.fmeaRiskNumbers.map(v => (v ?? '').toString().trim()).filter(Boolean)
+    : [];
+  if (linked.length > 0) normalized.fmeaRiskNumbers = Array.from(new Set(linked)); else delete normalized.fmeaRiskNumbers;
   return normalized;
 }
 
@@ -3097,6 +3103,10 @@ function normalizeCapaRecord(data = {}) {
   normalized.status = normalizeCapaStatus(normalized.status);
   normalized.responsibleUserId = normalizeString(normalized.responsibleUserId || '');
   normalized.complaintId = normalizeString(normalized.complaintId || '');
+  const linkedRisks = Array.isArray(normalized.fmeaRiskNumbers)
+    ? normalized.fmeaRiskNumbers.map(v => normalizeString(v)).filter(Boolean)
+    : [];
+  if (linkedRisks.length > 0) normalized.fmeaRiskNumbers = Array.from(new Set(linkedRisks)); else delete normalized.fmeaRiskNumbers;
   normalized.sections = normalizeCapaSections(normalized.sections || {});
   normalized.createdAt = normalizeDateValue(normalized.createdAt) || now;
   normalized.updatedAt = normalizeDateValue(normalized.updatedAt) || now;
@@ -3232,10 +3242,10 @@ function normalizeRiskEntry(raw = {}, { nextNumber = 1, thresholds } = {}) {
     risk.residualRiskOk === true || risk.residualRiskOk === 'true' || risk.residualRiskOk === 1;
 
   risk.linkedComplaints = Array.isArray(risk.linkedComplaints)
-    ? risk.linkedComplaints.map(String).filter(Boolean)
+    ? Array.from(new Set(risk.linkedComplaints.map(v => (v ?? '').toString().trim()).filter(Boolean)))
     : [];
   risk.linkedCapas = Array.isArray(risk.linkedCapas)
-    ? risk.linkedCapas.map(String).filter(Boolean)
+    ? Array.from(new Set(risk.linkedCapas.map(v => (v ?? '').toString().trim()).filter(Boolean)))
     : [];
 
   risk.createdAt = risk.createdAt || now;
@@ -3357,6 +3367,7 @@ export async function fmeaAddRisk(fmeaId, riskData = {}) {
   const risk = normalizeRiskEntry(riskData, { nextNumber, thresholds: current.riskMatrix });
   const updated = { ...current, risks: [...(current.risks || []), risk], riskCounter: nextNumber, updatedAt: Date.now() };
   await fmeaSave(updated);
+  await syncFmeaRiskLinks(updated, risk, null);
   return { fmea: updated, risk };
 }
 
@@ -3382,6 +3393,7 @@ export async function fmeaUpdateRisk(fmeaId, riskId, patch = {}) {
   risks.splice(idx, 1, updatedRisk);
   const updated = { ...current, risks, updatedAt: Date.now() };
   await fmeaSave(updated);
+  await syncFmeaRiskLinks(updated, updatedRisk, existing);
   return { fmea: updated, risk: updatedRisk };
 }
 
@@ -3390,10 +3402,12 @@ export async function fmeaDeleteRisk(fmeaId, riskId) {
   if (!current) return null;
   const idx = findRiskIndex(current, riskId);
   if (idx < 0) return null;
+  const existing = current.risks[idx];
   const risks = [...current.risks];
   risks.splice(idx, 1);
   const updated = { ...current, risks, updatedAt: Date.now() };
   await fmeaSave(updated);
+  await syncFmeaRiskLinks(updated, null, existing);
   return updated;
 }
 
@@ -3405,7 +3419,7 @@ export async function fmeaDuplicateRisk(fmeaId, riskId) {
   const toClone = current.risks[idx];
   const nextNumber = nextRiskNumberForFmea(current);
   const cloned = normalizeRiskEntry(
-    { ...toClone, id: undefined, riskNumber: undefined, createdAt: Date.now() },
+    { ...toClone, id: undefined, riskNumber: undefined, createdAt: Date.now(), linkedComplaints: [], linkedCapas: [] },
     { nextNumber, thresholds: current.riskMatrix }
   );
   const risks = [...current.risks];
@@ -3413,4 +3427,42 @@ export async function fmeaDuplicateRisk(fmeaId, riskId) {
   const updated = { ...current, risks, riskCounter: nextNumber, updatedAt: Date.now() };
   await fmeaSave(updated);
   return { fmea: updated, risk: cloned };
+}
+
+async function syncFmeaRiskLinks(fmea, risk, prevRisk) {
+  // Sorge dafür, dass Verknüpfungen bidirektional gepflegt bleiben (Reklamationen/CAPA)
+  const riskNumber = (risk?.riskNumber || prevRisk?.riskNumber || '').toString();
+  if (!riskNumber) return;
+
+  const nextComplaints = new Set(risk?.linkedComplaints || []);
+  const prevComplaints = new Set(prevRisk?.linkedComplaints || []);
+  for (const ticket of nextComplaints) {
+    const comp = await complaintGet(ticket).catch(() => null);
+    if (!comp) continue;
+    const list = Array.from(new Set([...(comp.fmeaRiskNumbers || []).map(String), riskNumber]));
+    await complaintSave({ ...comp, fmeaRiskNumbers: list });
+  }
+  for (const ticket of prevComplaints) {
+    if (nextComplaints.has(ticket)) continue;
+    const comp = await complaintGet(ticket).catch(() => null);
+    if (!comp) continue;
+    const list = (comp.fmeaRiskNumbers || []).map(String).filter(n => n !== riskNumber);
+    await complaintSave({ ...comp, fmeaRiskNumbers: list });
+  }
+
+  const nextCapas = new Set(risk?.linkedCapas || []);
+  const prevCapas = new Set(prevRisk?.linkedCapas || []);
+  for (const capaId of nextCapas) {
+    const capa = await capaGet(capaId).catch(() => null);
+    if (!capa) continue;
+    const list = Array.from(new Set([...(capa.fmeaRiskNumbers || []).map(String), riskNumber]));
+    await capaSave({ ...capa, fmeaRiskNumbers: list });
+  }
+  for (const capaId of prevCapas) {
+    if (nextCapas.has(capaId)) continue;
+    const capa = await capaGet(capaId).catch(() => null);
+    if (!capa) continue;
+    const list = (capa.fmeaRiskNumbers || []).map(String).filter(n => n !== riskNumber);
+    await capaSave({ ...capa, fmeaRiskNumbers: list });
+  }
 }

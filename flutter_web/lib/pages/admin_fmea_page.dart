@@ -1,3 +1,6 @@
+import 'dart:html' as html;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
@@ -20,6 +23,9 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   String? _error;
   List<FmeaRecord> _fmeas = const [];
   FmeaRecord? _selected;
+  List<Map<String, dynamic>> _links = const [];
+  bool _loadingLinks = false;
+  bool _onlyUnlinked = false;
 
   final _mdrTdCtrl = TextEditingController();
   final _productGroupCtrl = TextEditingController();
@@ -36,6 +42,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   void initState() {
     super.initState();
     _loadFmeas();
+    _loadLinks();
   }
 
   @override
@@ -70,6 +77,18 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       setState(() => _error = '$e');
     } finally {
       setState(() => _loadingList = false);
+    }
+  }
+
+  Future<void> _loadLinks() async {
+    setState(() => _loadingLinks = true);
+    try {
+      final links = await widget.api.adminFmeaLinks();
+      setState(() => _links = links);
+    } catch (e) {
+      setState(() => _error = '$e');
+    } finally {
+      setState(() => _loadingLinks = false);
     }
   }
 
@@ -147,6 +166,41 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       await widget.api.adminDeleteFmea(current.id);
       _setSelection(null);
       await _loadFmeas();
+    } catch (e) {
+      setState(() => _error = '$e');
+    } finally {
+      setState(() => _saving = false);
+    }
+  }
+
+  void _downloadBytes(Uint8List bytes, String filename, String mime) {
+    final blob = html.Blob([bytes], mime);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)..download = filename;
+    anchor.click();
+    html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _exportPdf() async {
+    if (_selected == null) return;
+    setState(() => _saving = true);
+    try {
+      final bytes = await widget.api.adminFmeaPdf(_selected!.id);
+      _downloadBytes(bytes, 'fmea_${_selected!.mdrTd}.pdf', 'application/pdf');
+    } catch (e) {
+      setState(() => _error = '$e');
+    } finally {
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _exportCsv() async {
+    if (_selected == null) return;
+    setState(() => _saving = true);
+    try {
+      final csv = await widget.api.adminFmeaCsv(_selected!.id);
+      final bytes = Uint8List.fromList(csv.codeUnits);
+      _downloadBytes(bytes, 'fmea_${_selected!.mdrTd}.csv', 'text/csv');
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -281,6 +335,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       final refreshed = await widget.api.adminFetchFmea(_selected!.id);
       setState(() => _selected = refreshed);
       await _loadFmeas();
+      await _loadLinks();
     } catch (e) {
       setState(() => _error = '$e');
     }
@@ -442,6 +497,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
           DataColumn(label: Text('Gefährdung')),
           DataColumn(label: Text('S×A')),
           DataColumn(label: Text('Einstufung')),
+          DataColumn(label: Text('Links / Status')),
           DataColumn(label: Text('Maßnahmen')),
           DataColumn(label: Text('Aktionen')),
         ],
@@ -457,6 +513,24 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                 CircleAvatar(radius: 6, backgroundColor: color),
                 const SizedBox(width: 6),
                 Text(r.riskLevel?.toUpperCase() ?? 'n/a'),
+              ],
+            )),
+            DataCell(Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (r.linkedComplaints.isNotEmpty)
+                  Chip(label: Text('Reklamationen: ${r.linkedComplaints.length}')),
+                if (r.linkedCapas.isNotEmpty) Chip(label: Text('CAPA: ${r.linkedCapas.length}')),
+                Chip(
+                  backgroundColor: r.residualRiskOk ? Colors.green.shade100 : theme.colorScheme.errorContainer,
+                  label: Text(r.residualRiskOk ? 'Restrisiko ok' : 'Restrisiko kritisch'),
+                ),
+                if (r.newHazard)
+                  Chip(
+                    backgroundColor: theme.colorScheme.errorContainer,
+                    label: const Text('Neue Gefährdung'),
+                  ),
               ],
             )),
             DataCell(Text((r.proposedAction.isNotEmpty ? r.proposedAction : r.actionTaken).isEmpty
@@ -482,6 +556,105 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     );
   }
 
+  Widget _buildRiskTab(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text('Risiken', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Chip(label: Text('${_selected?.risks.length ?? 0} Einträge')),
+            const Spacer(),
+            if (widget.canEdit)
+              FilledButton.icon(
+                onPressed: _saving ? null : _addRisk,
+                icon: const Icon(Icons.add_outlined),
+                label: const Text('Risiko hinzufügen'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: _buildRiskTable(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLinksTab(ThemeData theme) {
+    final links = _links.where((l) => !_onlyUnlinked || ((l['linkedComplaints'] ?? []).isEmpty && (l['linkedCapas'] ?? []).isEmpty)).toList();
+    return Column(
+      children: [
+        Row(
+          children: [
+            Text('Verknüpfungen', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Chip(label: Text('${links.length} Zeilen')),
+            const Spacer(),
+            FilterChip(
+              label: const Text('Nur ohne Verknüpfung'),
+              selected: _onlyUnlinked,
+              onSelected: (v) => setState(() => _onlyUnlinked = v),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Verknüpfungen aktualisieren',
+              onPressed: _loadingLinks ? null : _loadLinks,
+              icon: const Icon(Icons.refresh_outlined),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            child: _loadingLinks
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    itemCount: links.length,
+                    itemBuilder: (ctx, idx) {
+                      final row = links[idx];
+                      final complaints = (row['linkedComplaints'] as List?)?.length ?? 0;
+                      final capas = (row['linkedCapas'] as List?)?.length ?? 0;
+                      final badgeColor = _riskColor(row['riskLevel'] as String?, theme);
+                      return ListTile(
+                        leading: CircleAvatar(backgroundColor: badgeColor, radius: 10),
+                        title: Text('${row['mdrTd'] ?? ''} · ${row['riskNumber'] ?? ''}'),
+                        subtitle: Text(row['hazard']?.toString() ?? ''),
+                        trailing: Wrap(spacing: 6, children: [
+                          Chip(label: Text('Rek.: $complaints')),
+                          Chip(label: Text('CAPA: $capas')),
+                          if (row['newHazard'] == true) const Chip(label: Text('Neue Gefährdung')),
+                          if (row['residualRiskOk'] == false)
+                            Chip(
+                              backgroundColor: theme.colorScheme.errorContainer,
+                              label: const Text('Restrisiko prüfen'),
+                            ),
+                        ]),
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<FmeaRiskEntry?> _openRiskDialog({FmeaRiskEntry? existing}) async {
     final catCtrl = TextEditingController(text: existing?.category ?? '');
     final hazardCtrl = TextEditingController(text: existing?.hazard ?? '');
@@ -489,8 +662,19 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     final harmCtrl = TextEditingController(text: existing?.harm ?? '');
     final causeCtrl = TextEditingController(text: existing?.causes ?? '');
     final proposedCtrl = TextEditingController(text: existing?.proposedAction ?? '');
+    final actionCtrl = TextEditingController(text: existing?.actionTaken ?? '');
+    final documentsCtrl = TextEditingController(text: existing?.documents ?? '');
+    final areaCtrl = TextEditingController(text: existing?.affectedArea ?? '');
+    final processCtrl = TextEditingController(text: existing?.processReference ?? '');
+    final benefitCtrl = TextEditingController(text: existing?.riskBenefitAnalysis ?? '');
+    final linkedComplaintsCtrl = TextEditingController(text: (existing?.linkedComplaints ?? []).join(', '));
+    final linkedCapasCtrl = TextEditingController(text: (existing?.linkedCapas ?? []).join(', '));
     int? severity = existing?.severity;
     int? occurrence = existing?.occurrence;
+    int? severityAfter = existing?.severityAfter;
+    int? occurrenceAfter = existing?.occurrenceAfter;
+    bool newHazard = existing?.newHazard ?? false;
+    bool residualOk = existing?.residualRiskOk ?? true;
 
     final res = await showDialog<FmeaRiskEntry?>(
       context: context,
@@ -522,6 +706,14 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                   controller: causeCtrl,
                   decoration: const InputDecoration(labelText: 'Ursachen'),
                 ),
+                TextField(
+                  controller: areaCtrl,
+                  decoration: const InputDecoration(labelText: 'Gefährdeter Bereich / Beteiligte'),
+                ),
+                TextField(
+                  controller: processCtrl,
+                  decoration: const InputDecoration(labelText: 'Prozessbezug'),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -547,9 +739,67 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                     ),
                   ],
                 ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: severityAfter,
+                        decoration: const InputDecoration(labelText: 'Schweregrad S(n)'),
+                        items: [1, 2, 3, 4, 5]
+                            .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                            .toList(),
+                        onChanged: (val) => severityAfter = val,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: occurrenceAfter,
+                        decoration: const InputDecoration(labelText: 'Auftritt A(n)'),
+                        items: [1, 2, 3, 4, 5]
+                            .map((v) => DropdownMenuItem(value: v, child: Text('$v')))
+                            .toList(),
+                        onChanged: (val) => occurrenceAfter = val,
+                      ),
+                    ),
+                  ],
+                ),
                 TextField(
                   controller: proposedCtrl,
                   decoration: const InputDecoration(labelText: 'Vorgeschlagene Maßnahme'),
+                ),
+                TextField(
+                  controller: actionCtrl,
+                  decoration: const InputDecoration(labelText: 'Getroffene Maßnahme'),
+                ),
+                TextField(
+                  controller: documentsCtrl,
+                  decoration: const InputDecoration(labelText: 'Nachweise / Dokumente (Links/IDs)'),
+                ),
+                TextField(
+                  controller: benefitCtrl,
+                  decoration: const InputDecoration(labelText: 'Risiko-Nutzen-Analyse'),
+                  maxLines: 2,
+                ),
+                CheckboxListTile(
+                  value: newHazard,
+                  onChanged: (v) => setState(() => newHazard = v ?? false),
+                  title: const Text('Neue Gefährdung?'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                CheckboxListTile(
+                  value: residualOk,
+                  onChanged: (v) => setState(() => residualOk = v ?? true),
+                  title: const Text('Restrisiko beherrschbar?'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                TextField(
+                  controller: linkedComplaintsCtrl,
+                  decoration: const InputDecoration(labelText: 'Verknüpfte Reklamations-Tickets (Komma-getrennt)'),
+                ),
+                TextField(
+                  controller: linkedCapasCtrl,
+                  decoration: const InputDecoration(labelText: 'Verknüpfte CAPA/8D-IDs (Komma-getrennt)'),
                 ),
               ],
             ),
@@ -569,9 +819,28 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                   hazardSituation: situationCtrl.text.trim(),
                   harm: harmCtrl.text.trim(),
                   causes: causeCtrl.text.trim(),
+                  affectedArea: areaCtrl.text.trim(),
+                  processReference: processCtrl.text.trim(),
                   severity: severity,
                   occurrence: occurrence,
+                  severityAfter: severityAfter,
+                  occurrenceAfter: occurrenceAfter,
                   proposedAction: proposedCtrl.text.trim(),
+                  actionTaken: actionCtrl.text.trim(),
+                  documents: documentsCtrl.text.trim(),
+                  riskBenefitAnalysis: benefitCtrl.text.trim(),
+                  newHazard: newHazard,
+                  residualRiskOk: residualOk,
+                  linkedComplaints: linkedComplaintsCtrl.text
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList(),
+                  linkedCapas: linkedCapasCtrl.text
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList(),
                 ),
               );
             },
@@ -587,6 +856,13 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     harmCtrl.dispose();
     causeCtrl.dispose();
     proposedCtrl.dispose();
+    actionCtrl.dispose();
+    documentsCtrl.dispose();
+    areaCtrl.dispose();
+    processCtrl.dispose();
+    benefitCtrl.dispose();
+    linkedComplaintsCtrl.dispose();
+    linkedCapasCtrl.dispose();
     return res;
   }
 
@@ -688,47 +964,55 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                             style: theme.textTheme.bodyLarge,
                           ),
                         )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildHeaderForm(),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Text('Risiken', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                const SizedBox(width: 8),
-                                Chip(label: Text('${_selected?.risks.length ?? 0} Einträge')),
-                                const Spacer(),
-                                if (widget.canEdit)
-                                  FilledButton.icon(
-                                    onPressed: _saving ? null : _addRisk,
-                                    icon: const Icon(Icons.add_outlined),
-                                    label: const Text('Risiko hinzufügen'),
+                      : DefaultTabController(
+                          length: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildHeaderForm(),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TabBar(
+                                      tabs: const [
+                                        Tab(text: 'Risiken'),
+                                        Tab(text: 'Verknüpfungen'),
+                                      ],
+                                      labelColor: theme.colorScheme.primary,
+                                      unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                const SizedBox(width: 8),
-                                if (widget.canEdit)
-                                  TextButton.icon(
-                                    onPressed: _saving ? null : _deleteSelected,
-                                    icon: const Icon(Icons.delete_outline),
-                                    label: const Text('FMEA löschen'),
+                                  const SizedBox(width: 12),
+                                  IconButton(
+                                    tooltip: 'PDF exportieren',
+                                    onPressed: _saving ? null : _exportPdf,
+                                    icon: const Icon(Icons.picture_as_pdf_outlined),
                                   ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Expanded(
-                              child: Card(
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: theme.colorScheme.outlineVariant),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: _buildRiskTable(),
+                                  IconButton(
+                                    tooltip: 'Excel/CSV exportieren',
+                                    onPressed: _saving ? null : _exportCsv,
+                                    icon: const Icon(Icons.table_view_outlined),
+                                  ),
+                                  if (widget.canEdit)
+                                    TextButton.icon(
+                                      onPressed: _saving ? null : _deleteSelected,
+                                      icon: const Icon(Icons.delete_outline),
+                                      label: const Text('FMEA löschen'),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child: TabBarView(
+                                  children: [
+                                    _buildRiskTab(theme),
+                                    _buildLinksTab(theme),
+                                  ],
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                 ),
               ],
