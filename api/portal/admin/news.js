@@ -16,7 +16,7 @@ import {
   portalNewsList,
   portalNewsUpsert,
 } from '../../_lib/store.js';
-import { requirePortalAccess } from '../_guard.js';
+import { requirePortalAccess } from '../../admin/_guard.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
