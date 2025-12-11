@@ -1,5 +1,5 @@
 {
-  "appTitle": "DFS Customer Complaint",
+  "appTitle": "DFS Connect",
 
   "langDE": "DE",
   "langEN": "EN",
@@ -467,7 +467,7 @@
   "rep_email_button": "Correo",
   "rep_email_tooltip": "Enviar correo al representante",
   "mail_subject_rep": "Consulta sobre reclamación",
-  "mail_body_rep": "Hola {name},\n\nle escribo a través del portal DFS Customer Complaint.\n\nUn saludo cordial",
+  "mail_body_rep": "Hola {name},\n\nle escribo a través del portal DFS Connect.\n\nUn saludo cordial",
   "@mail_body_rep": { "placeholders": { "name": { "type": "String" } } },
   "customerMail": "Correo del cliente",
   "customer_number_label": "Número de cliente",
@@ -635,10 +635,10 @@
   "applied": "aplicado",
   "returned": "devuelto",
 
-  "adminTitle": "DFS Portal – DFS Customer Complaint",
-  "adminArea": "DFS Portal",
-  "@adminArea": { "description": "Botón hacia el DFS Portal" },
-  "admin_area": "DFS Portal",
+  "adminTitle": "DFS Connect+ – Your Digital Quality Hub",
+  "adminArea": "DFS Connect+",
+  "@adminArea": { "description": "Botón hacia el DFS Connect" },
+  "admin_area": "DFS Connect+",
 
   "supportTitle": "Soporte DFS",
   "knowledgeBaseTile": "Base de conocimientos (FAQ)",
