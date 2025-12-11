@@ -31,6 +31,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      if (actor.role !== 'superuser') return bad(res, 'forbidden', 403);
       const body = readJson(req);
       try {
         const saved = await portalNewsUpsert(body);
@@ -41,6 +42,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (actor.role !== 'superuser') return bad(res, 'forbidden', 403);
       const body = readJson(req);
       const id = (body.id ?? req.query?.id ?? '').toString().trim();
       if (!id) return bad(res, 'id required', 400);

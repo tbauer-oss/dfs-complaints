@@ -6014,7 +6014,21 @@ class _AdminPageState extends State<AdminPage> {
               ),
               const SizedBox(height: 12),
               if (_portalFeedLoading)
-                const LinearProgressIndicator(minHeight: 3)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      ),
+                      const SizedBox(width: 10),
+                      Text('Aktualisiere persönliche Ereignisse …',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                    ],
+                  ),
+                )
               else if (_portalFeedErr != null)
                 Text('Konnte Portal-News nicht laden: $_portalFeedErr',
                     style: TextStyle(color: cs.error, fontWeight: FontWeight.w600))
@@ -6029,19 +6043,21 @@ class _AdminPageState extends State<AdminPage> {
               Row(
                 children: [
                   FilledButton.tonalIcon(
-                    onPressed: () {
-                      setState(() {
-                        _newsScope = 'portal';
-                        _view = _AdminView.news;
-                      });
-                      if (_newsEntriesPortal.isEmpty) _refreshNews();
-                    },
+                    onPressed: _isSuperuser
+                        ? () {
+                            setState(() {
+                              _newsScope = 'portal';
+                              _view = _AdminView.news;
+                            });
+                            if (_newsEntriesPortal.isEmpty) _refreshNews();
+                          }
+                        : null,
                     icon: const Icon(Icons.edit_outlined),
                     label: const Text('Portal-News verwalten'),
                   ),
                   const SizedBox(width: 10),
                   TextButton.icon(
-                    onPressed: () => _loadPortalFeed(refresh: true),
+                    onPressed: _portalFeedLoading ? null : () => _loadPortalFeed(refresh: true),
                     icon: const Icon(Icons.notifications_active_outlined),
                     label: const Text('Feed aktualisieren'),
                   ),

@@ -753,12 +753,139 @@ export async function portalNewsList({ limit = 0, includeDrafts = false } = {}) 
 
 export async function portalNewsForUser(user, { limit = 0, includeDrafts = false } = {}) {
   const list = await portalNewsList({ includeDrafts });
-  const filtered = list.filter((item) => _newsAudienceMatchesUser(item.audience, user));
+  const targetedNews = list.filter((item) => _newsAudienceMatchesUser(item.audience, user));
+  const personalEvents = await _personalEventsForUser(user);
+  const combined = _sortNews([...targetedNews, ...personalEvents]);
   if (limit && limit > 0) {
     const max = Math.min(Number(limit) || 0, 200);
-    return filtered.slice(0, max || filtered.length);
+    return combined.slice(0, max || combined.length);
   }
-  return filtered;
+  return combined;
+}
+
+function _namesFromUser(user = {}) {
+  const names = new Set();
+  const display = (user.displayName || user.name || '').toString().trim().toLowerCase();
+  if (display) names.add(display);
+  const email = (user.email || '').toString();
+  if (email.includes('@')) names.add(email.split('@')[0].toLowerCase());
+  return Array.from(names).filter(Boolean);
+}
+
+function _complaintMatchesUser(c, user) {
+  const email = _nm(user?.email);
+  const names = _namesFromUser(user);
+  if (!email && names.length === 0) return false;
+
+  const complaintEmails = _emailsFromComplaint(c);
+  if (email && complaintEmails.some((e) => e === email)) return true;
+
+  const payload = c?.payload || {};
+  const rawNames = [
+    c?.contact,
+    payload.name,
+    payload.contact,
+    payload.reporter,
+    payload.reporterName,
+    payload.customerName,
+  ]
+    .map((n) => (n ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+
+  return names.some((n) => rawNames.some((val) => val.includes(n) || n.includes(val)));
+}
+
+function _statusLabel(status) {
+  switch (status) {
+    case Status.RECEIVED: return 'eingegangen';
+    case Status.IN_PROGRESS: return 'in Bearbeitung';
+    case Status.NEEDS_INFO: return 'Rückfrage';
+    case Status.REWORK: return 'Nacharbeit';
+    case Status.CLOSED: return 'geschlossen';
+    default: return 'aktualisiert';
+  }
+}
+
+function _eventFromComplaint(c) {
+  const title = `Reklamation ${c.ticket || ''}`.trim();
+  const statusLabel = _statusLabel(c.status);
+  const summary = [c.product, c.description, statusLabel]
+    .map((p) => (p || '').toString().trim())
+    .filter(Boolean)
+    .join(' · ');
+  const safeTitle = title.length > 0 ? title : 'Reklamation';
+  return {
+    id: `complaint_${c.ticket || crypto.randomUUID()}`,
+    title: safeTitle,
+    summary: summary || 'Aktualisierung in deiner Reklamation',
+    category: 'internal',
+    linkLabel: 'Reklamation öffnen',
+    linkUrl: c.ticket ? `/admin?ticket=${c.ticket}` : null,
+    pinned: false,
+    draft: false,
+    createdAt: c.createdAt || Date.now(),
+    updatedAt: c.updatedAt || Date.now(),
+    publishedAt: c.updatedAt || c.createdAt || Date.now(),
+    audience: null,
+  };
+}
+
+function _eventFromCapa(capa) {
+  const summaryParts = [
+    capa.title,
+    capa.status ? `Status: ${capa.status}` : '',
+    capa.capaNumber,
+  ].map((p) => (p || '').toString().trim()).filter(Boolean);
+  return {
+    id: `capa_${capa.id || capa.capaNumber || crypto.randomUUID()}`,
+    title: capa.capaNumber ? `CAPA ${capa.capaNumber}` : 'CAPA Update',
+    summary: summaryParts.join(' · ') || 'Neue CAPA-Aktivität',
+    category: 'internal',
+    linkLabel: 'CAPA öffnen',
+    linkUrl: capa.id ? `/admin?capa=${capa.id}` : null,
+    pinned: false,
+    draft: false,
+    createdAt: capa.createdAt || Date.now(),
+    updatedAt: capa.updatedAt || Date.now(),
+    publishedAt: capa.updatedAt || capa.createdAt || Date.now(),
+    audience: null,
+  };
+}
+
+async function _personalEventsForUser(user = {}) {
+  const email = _nm(user?.email);
+  const names = _namesFromUser(user);
+  if (!email && names.length === 0) return [];
+
+  const events = [];
+
+  try {
+    const complaints = await complaintsAll();
+    for (const c of complaints || []) {
+      if (_complaintMatchesUser(c, user)) {
+        events.push(_eventFromComplaint(c));
+      }
+    }
+  } catch (e) {
+    console.warn('[portal feed] complaint aggregation failed', e?.message || e);
+  }
+
+  try {
+    const capas = await capaAll();
+    for (const capa of capas || []) {
+      const responsible = (capa.responsibleUserId || '').toString().trim().toLowerCase();
+      const responsibleName = responsible.includes('@') ? responsible.split('@')[0] : responsible;
+      const matchesEmail = email && responsible === email;
+      const matchesName = names.some((n) => responsibleName && (responsibleName.includes(n) || n.includes(responsibleName)));
+      if (matchesEmail || matchesName) {
+        events.push(_eventFromCapa(capa));
+      }
+    }
+  } catch (e) {
+    console.warn('[portal feed] capa aggregation failed', e?.message || e);
+  }
+
+  return events;
 }
 
 export async function portalNewsUpsert(data) {
