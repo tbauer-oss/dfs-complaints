@@ -501,12 +501,12 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     if (_riskHorizontal.hasClients) {
       final maxX = _riskHorizontal.position.maxScrollExtent;
       final targetX = math.max(0, math.min(maxX, _riskHorizontal.offset - details.delta.dx));
-      _riskHorizontal.jumpTo(targetX);
+      _riskHorizontal.jumpTo(targetX.toDouble());
     }
     if (_riskVertical.hasClients) {
       final maxY = _riskVertical.position.maxScrollExtent;
       final targetY = math.max(0, math.min(maxY, _riskVertical.offset - details.delta.dy));
-      _riskVertical.jumpTo(targetY);
+      _riskVertical.jumpTo(targetY.toDouble());
     }
   }
 
