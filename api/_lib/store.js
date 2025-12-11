@@ -5,6 +5,7 @@ import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
 import {
+  hasDepartmentOverlap,
   normalizeDepartments,
   normalizeEvaluationText,
   normalizeInternalEvaluationCause,
@@ -772,6 +773,60 @@ function _namesFromUser(user = {}) {
   return Array.from(names).filter(Boolean);
 }
 
+function _userDepartments(user = {}) {
+  return normalizeDepartments(user?.assignedDepartments || user?.departments || user?.department || []);
+}
+
+function _complaintDepartments(complaint = {}) {
+  return normalizeDepartments(complaint?.internalDepartments || complaint?.departments || complaint?.department || []);
+}
+
+function _hasDepartment(departments, target) {
+  const wanted = (target || '').toString().trim().toLowerCase();
+  if (!wanted) return false;
+  return normalizeDepartments(departments).some((dep) => dep.toLowerCase() === wanted);
+}
+
+function _isComplaintOpen(complaint = {}) {
+  const status = Number(complaint?.status || 0);
+  const decision = (complaint?.decision || '').toString();
+  if (decision === 'rejected') return false;
+  return status !== Status.CLOSED;
+}
+
+function _complaintMatchesDepartment(complaint, departments) {
+  if (!Array.isArray(departments) || departments.length === 0) return false;
+  if (!_isComplaintOpen(complaint)) return false;
+  const depList = _complaintDepartments(complaint);
+  if (depList.length === 0) return false;
+  return hasDepartmentOverlap(depList, departments);
+}
+
+function _complaintNeedsSalesFollowup(complaint, departments) {
+  if (!_hasDepartment(departments, 'vertrieb')) return false;
+  if (!_isComplaintOpen(complaint)) return false;
+  const missingOrderOrInvoice = !((complaint?.orderNumber || '').toString().trim() || (complaint?.invoiceNumber || '').toString().trim());
+  const missingAgentCode = !(complaint?.salesAgentCode || '').toString().trim();
+  return missingOrderOrInvoice || missingAgentCode;
+}
+
+function _capaDepartment(capa = {}) {
+  return (capa?.sections?.d1?.area || capa?.sections?.area || capa?.department || '').toString().trim();
+}
+
+function _isCapaOpen(capa = {}) {
+  const status = (capa?.status || '').toString().trim().toLowerCase();
+  return ['open', 'inprogress', 'in_progress', 'in progress'].includes(status);
+}
+
+function _capaMatchesDepartment(capa, departments) {
+  if (!Array.isArray(departments) || departments.length === 0) return false;
+  if (!_isCapaOpen(capa)) return false;
+  const capaDept = _capaDepartment(capa);
+  if (!capaDept) return false;
+  return departments.some((dep) => dep.toLowerCase() === capaDept.toLowerCase());
+}
+
 function _complaintMatchesUser(c, user) {
   const email = _nm(user?.email);
   const names = _namesFromUser(user);
@@ -806,10 +861,10 @@ function _statusLabel(status) {
   }
 }
 
-function _eventFromComplaint(c) {
+function _eventFromComplaint(c, { reason = '' } = {}) {
   const title = `Reklamation ${c.ticket || ''}`.trim();
   const statusLabel = _statusLabel(c.status);
-  const summary = [c.product, c.description, statusLabel]
+  const summary = [c.product, c.description, statusLabel, reason]
     .map((p) => (p || '').toString().trim())
     .filter(Boolean)
     .join(' · ');
@@ -830,11 +885,12 @@ function _eventFromComplaint(c) {
   };
 }
 
-function _eventFromCapa(capa) {
+function _eventFromCapa(capa, { reason = '' } = {}) {
   const summaryParts = [
     capa.title,
     capa.status ? `Status: ${capa.status}` : '',
     capa.capaNumber,
+    reason,
   ].map((p) => (p || '').toString().trim()).filter(Boolean);
   return {
     id: `capa_${capa.id || capa.capaNumber || crypto.randomUUID()}`,
@@ -855,16 +911,37 @@ function _eventFromCapa(capa) {
 async function _personalEventsForUser(user = {}) {
   const email = _nm(user?.email);
   const names = _namesFromUser(user);
-  if (!email && names.length === 0) return [];
+  const departments = _userDepartments(user);
+  if (!email && names.length === 0 && departments.length === 0) return [];
 
-  const events = [];
+  const events = new Map();
+  const addEvent = (entry) => {
+    if (!entry?.id) return;
+    if (!events.has(entry.id)) events.set(entry.id, entry);
+  };
 
   try {
     const complaints = await complaintsAll();
     for (const c of complaints || []) {
-      if (_complaintMatchesUser(c, user)) {
-        events.push(_eventFromComplaint(c));
+      const isPersonal = _complaintMatchesUser(c, user);
+      const deptMatch = _complaintMatchesDepartment(c, departments);
+      const salesFollowup = _complaintNeedsSalesFollowup(c, departments);
+      if (!isPersonal && !deptMatch && !salesFollowup) continue;
+
+      const complaintDeps = _complaintDepartments(c);
+      const overlappingDeps = complaintDeps.filter((dep) =>
+        departments.some((userDep) => userDep.toLowerCase() === dep.toLowerCase())
+      );
+      const reasonParts = [];
+      if (deptMatch && overlappingDeps.length > 0) {
+        reasonParts.push(`Offene Aufgabe für ${overlappingDeps.join(', ')}`);
+      } else if (deptMatch) {
+        reasonParts.push('Offene Aufgabe für deine Abteilung');
       }
+      if (salesFollowup) {
+        reasonParts.push('Rechnungs-/Auftragsnummer oder Bearbeiterkürzel fehlen');
+      }
+      addEvent(_eventFromComplaint(c, { reason: reasonParts.join(' · ') }));
     }
   } catch (e) {
     console.warn('[portal feed] complaint aggregation failed', e?.message || e);
@@ -877,15 +954,17 @@ async function _personalEventsForUser(user = {}) {
       const responsibleName = responsible.includes('@') ? responsible.split('@')[0] : responsible;
       const matchesEmail = email && responsible === email;
       const matchesName = names.some((n) => responsibleName && (responsibleName.includes(n) || n.includes(responsibleName)));
-      if (matchesEmail || matchesName) {
-        events.push(_eventFromCapa(capa));
-      }
+      const deptMatch = _capaMatchesDepartment(capa, departments);
+      if (!matchesEmail && !matchesName && !deptMatch) continue;
+
+      const reason = deptMatch ? `Offene CAPA in ${_capaDepartment(capa) || 'deiner Abteilung'}` : '';
+      addEvent(_eventFromCapa(capa, { reason }));
     }
   } catch (e) {
     console.warn('[portal feed] capa aggregation failed', e?.message || e);
   }
 
-  return events;
+  return Array.from(events.values());
 }
 
 export async function portalNewsUpsert(data) {
