@@ -567,28 +567,6 @@ class _MyAppState extends State<MyApp> {
                                               onOpenResetPassword: () => _openResetPassword(ctx),
                                             ),
                                             const SizedBox(height: 18),
-                                            Align(
-                                              alignment: Alignment.center,
-                                              child: TextButton.icon(
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: scheme.onSurfaceVariant,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                ),
-                                                onPressed: () => setState(() => _showInternal = !_showInternal),
-                                                icon: Icon(
-                                                  _showInternal
-                                                      ? Icons.keyboard_arrow_up_rounded
-                                                      : Icons.keyboard_arrow_down_rounded,
-                                                  size: 22,
-                                                ),
-                                                label: Text(
-                                                  _showInternal ? 'DFS intern ausblenden' : 'DFS intern anzeigen',
-                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                        fontWeight: FontWeight.w600,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
                                             AnimatedSize(
                                               duration: const Duration(milliseconds: 220),
                                               curve: Curves.easeInOut,
@@ -620,20 +598,32 @@ class _MyAppState extends State<MyApp> {
                                                       child: Column(
                                                         crossAxisAlignment: CrossAxisAlignment.center,
                                                         children: [
-                                                          Container(
-                                                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
-                                                            decoration: BoxDecoration(
-                                                              color: scheme.surface.withOpacity(0.7),
-                                                              borderRadius: BorderRadius.circular(30),
-                                                              border: Border.all(color: scheme.primary.withOpacity(0.4)),
-                                                            ),
-                                                            child: Text(
-                                                              'DFS',
-                                                              style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                                    letterSpacing: 0.8,
-                                                                    fontWeight: FontWeight.w700,
-                                                                    color: scheme.primary,
-                                                                  ),
+                                                          Tooltip(
+                                                            message: 'Weitere Optionen',
+                                                            child: GestureDetector(
+                                                              behavior: HitTestBehavior.opaque,
+                                                              onLongPress: () =>
+                                                                  setState(() => _showInternal = !_showInternal),
+                                                              onSecondaryTap: () =>
+                                                                  setState(() => _showInternal = !_showInternal),
+                                                              child: Container(
+                                                                padding: const EdgeInsets.symmetric(
+                                                                    vertical: 6, horizontal: 14),
+                                                                decoration: BoxDecoration(
+                                                                  color: scheme.surface.withOpacity(0.7),
+                                                                  borderRadius: BorderRadius.circular(30),
+                                                                  border:
+                                                                      Border.all(color: scheme.primary.withOpacity(0.4)),
+                                                                ),
+                                                                child: Text(
+                                                                  'DFS',
+                                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                                                                        letterSpacing: 0.8,
+                                                                        fontWeight: FontWeight.w700,
+                                                                        color: scheme.primary,
+                                                                      ),
+                                                                ),
+                                                              ),
                                                             ),
                                                           ),
                                                           const SizedBox(height: 12),
@@ -711,7 +701,13 @@ class _MyAppState extends State<MyApp> {
                             },
                           ),
                         ),
-                        bottomNavigationBar: LegalFooter(api: api),
+                        bottomNavigationBar: LegalFooter(
+                          api: api,
+                          trailing: _InternalFooterButton(
+                            expanded: _showInternal,
+                            onPressed: () => setState(() => _showInternal = !_showInternal),
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -798,7 +794,75 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-} // <<< _MyAppState SAUBER geschlossen
+  } // <<< _MyAppState SAUBER geschlossen
+
+class _InternalFooterButton extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  const _InternalFooterButton({required this.expanded, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Tooltip(
+      message: 'Weitere Optionen',
+      waitDuration: const Duration(milliseconds: 300),
+      child: Material(
+        color: Colors.transparent,
+        shape: const StadiumBorder(),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: onPressed,
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.surfaceVariant.withOpacity(isDark ? 0.75 : 0.9),
+                  scheme.surface.withOpacity(isDark ? 0.55 : 0.8),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: scheme.outlineVariant.withOpacity(0.6)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.32 : 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  expanded ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                  size: 18,
+                  color: scheme.onSurface,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'DFS Internal',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // =======================
 // Interner Login-Screen (Kundenbereich)
