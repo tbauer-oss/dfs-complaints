@@ -1288,6 +1288,154 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       for (var i = 0; i < columns.length; i++) i: _pdfColumnWidth(columns[i]),
     };
 
+    final columnFlexes = <double>[
+      for (final column in columns)
+        (_pdfColumnWidth(column) as pw.FlexColumnWidth).value,
+    ];
+
+    pw.Widget _groupHeaderRow() {
+      final groupCells = <pw.Widget>[];
+      String? currentLabel;
+      int span = 0;
+
+      void pushGroupCell() {
+        if (currentLabel == null || span == 0) return;
+        final flex = (span * 1000).round().clamp(1, 1000000);
+        groupCells.add(
+          pw.Expanded(
+            flex: flex,
+            child: pw.Container(
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.symmetric(vertical: 4),
+              decoration: pw.BoxDecoration(
+                color: const PdfColor.fromInt(0xFF1F3A54),
+                border: pw.Border(
+                  left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+                  right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+                  top: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+                  bottom: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+                ),
+              ),
+              child: pw.Text(
+                currentLabel!,
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 8,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      for (var i = 0; i < columns.length; i++) {
+        final column = columns[i];
+        final label = _pdfColumnGroups[column] ?? 'Weitere';
+        final flex = columnFlexes[i];
+
+        if (currentLabel == label) {
+          span += flex;
+        } else {
+          pushGroupCell();
+          currentLabel = label;
+          span = flex;
+        }
+      }
+
+      pushGroupCell();
+
+      return pw.Container(
+        decoration: pw.BoxDecoration(
+          border: pw.Border(
+            left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+            right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+            top: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          ),
+        ),
+        child: pw.Row(children: groupCells),
+      );
+    }
+
+    pw.Widget _columnHeaderRow() {
+      final headerCells = <pw.Widget>[];
+      for (var i = 0; i < columns.length; i++) {
+        headerCells.add(
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+            decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF284765)),
+            alignment: pw.Alignment.center,
+            child: pw.Text(
+              _wrapHeaderLabel(headers[i]),
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: 8,
+                color: PdfColors.white,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      }
+
+      return pw.Table(
+        columnWidths: baseColumnWidths,
+        border: pw.TableBorder(
+          bottom: pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+        ),
+        children: [pw.TableRow(children: headerCells)],
+      );
+    }
+
+    pw.Widget _buildBodyTable() {
+      final dataRows = <pw.TableRow>[];
+      for (var rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+        final row = rows[rowIdx];
+        final cells = <pw.Widget>[];
+        for (var colIdx = 0; colIdx < row.length; colIdx++) {
+          cells.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              alignment: pw.Alignment.centerLeft,
+              decoration: pw.BoxDecoration(
+                color: rowIdx.isOdd ? PdfColors.grey200 : PdfColors.white,
+                border: pw.Border(
+                  left: const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35),
+                  right: const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35),
+                  top: rowIdx == 0
+                      ? const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35)
+                      : pw.BorderSide.none,
+                  bottom: const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35),
+                ),
+              ),
+              child: pw.Text(
+                row[colIdx],
+                style: const pw.TextStyle(fontSize: 7.5),
+              ),
+            ),
+          );
+        }
+        dataRows.add(pw.TableRow(children: cells));
+      }
+
+      return pw.Table(
+        columnWidths: baseColumnWidths,
+        border: pw.TableBorder(
+          left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          top: pw.BorderSide.none,
+        ),
+        children: dataRows,
+      );
+    }
+
+    final baseColumnWidths = <int, pw.TableColumnWidth>{
+      for (var i = 0; i < columns.length; i++) i: _pdfColumnWidth(columns[i]),
+    };
+
     pw.Widget _groupHeaderRow() {
       final groupCells = <pw.Widget>[];
       String? currentLabel;
