@@ -225,36 +225,36 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   final Set<String> _savingPrrcTickets = {};
 
   static const Map<String, double> _columnWidths = {
-    'internalNumber': 140,
+    'internalNumber': 150,
     'systemId': 140,
-    'customer': 180,
-    'customerNumber': 140,
-    'region': 140,
-    'productFile': 180,
-    'productGroup': 160,
+    'customer': 230,
+    'customerNumber': 150,
+    'region': 130,
+    'productFile': 150,
+    'productGroup': 180,
     'articleNumber': 150,
-    'articleName': 200,
+    'articleName': 220,
     'lotNumber': 140,
-    'complaintType': 180,
-    'complaintReason': 220,
-    'receivedAt': 140,
-    'closedAt': 140,
-    'status': 140,
-    'goodwill': 120,
-    'departments': 220,
-    'assignee': 180,
-    'salesCode': 140,
-    'orderNumber': 150,
-    'invoiceNumber': 150,
-    'prrcClassification': 140,
-    'prrcComment': 240,
-    'internalAssessment': 220,
-    'suspectedCause': 220,
-    'immediateActions': 200,
-    'correctiveActions': 220,
-    'recurrence': 140,
-    'severity': 160,
-    'notes': 240,
+    'complaintType': 170,
+    'complaintReason': 190,
+    'receivedAt': 120,
+    'closedAt': 120,
+    'status': 110,
+    'goodwill': 90,
+    'departments': 210,
+    'assignee': 170,
+    'salesCode': 110,
+    'orderNumber': 140,
+    'invoiceNumber': 140,
+    'prrcClassification': 130,
+    'prrcComment': 210,
+    'internalAssessment': 200,
+    'suspectedCause': 200,
+    'immediateActions': 180,
+    'correctiveActions': 200,
+    'recurrence': 110,
+    'severity': 130,
+    'notes': 210,
   };
 
   static const Map<String, String> _pdfColumnGroups = {
@@ -391,12 +391,38 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   String _wrapHeaderLabel(String label) {
-    return label;
+    final words = label.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return label;
+
+    const maxLen = 24;
+    final lines = <String>[];
+    var current = '';
+
+    for (final word in words) {
+      final tentative = current.isEmpty ? word : '$current $word';
+      if (tentative.length <= maxLen || current.isEmpty) {
+        current = tentative;
+      } else {
+        lines.add(current);
+        current = word;
+      }
+
+      if (lines.length == 1 && current.length > maxLen) {
+        lines.add(current);
+        break;
+      }
+    }
+
+    if (current.isNotEmpty && lines.length < 2) {
+      lines.add(current);
+    }
+
+    return lines.take(2).join('\n');
   }
 
   pw.TableColumnWidth _pdfColumnWidth(String key) {
-    final baseWidth = _columnWidths[key] ?? 150;
-    final flex = (baseWidth / 150).clamp(0.8, 1.9) as double;
+    final baseWidth = _columnWidths[key] ?? 140;
+    final flex = (baseWidth / 90).clamp(0.6, 3.0) as double;
     return pw.FlexColumnWidth(flex);
   }
 
@@ -1327,10 +1353,12 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
 
       return pw.Container(
         decoration: pw.BoxDecoration(
+          color: PdfColor.fromInt(0xFFE7EDF4),
           border: pw.Border(
             left: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
             right: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
             top: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
+            bottom: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
           ),
         ),
         child: pw.Row(children: groupCells),
@@ -1342,7 +1370,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       for (var i = 0; i < columns.length; i++) {
         headerCells.add(
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF1F3A54)),
             alignment: pw.Alignment.centerLeft,
             child: pw.Text(
@@ -1352,7 +1380,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               softWrap: true,
               overflow: pw.TextOverflow.clip,
               style: pw.TextStyle(
-                fontSize: 9,
+                fontSize: 9.2,
                 color: PdfColors.white,
                 fontWeight: pw.FontWeight.bold,
               ),
@@ -1364,11 +1392,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       return pw.Table(
         columnWidths: baseColumnWidths,
         border: pw.TableBorder(
-          top: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
-          bottom: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
-          left: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
-          right: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
-          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
+          top: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.45),
+          bottom: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.45),
+          left: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.45),
+          right: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.45),
+          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.45),
         ),
         children: [pw.TableRow(children: headerCells)],
       );
@@ -1382,7 +1410,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         for (var colIdx = 0; colIdx < row.length; colIdx++) {
           cells.add(
             pw.Container(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2.6),
               alignment: pw.Alignment.centerLeft,
               decoration: pw.BoxDecoration(
                 color: rowIdx.isOdd ? PdfColors.grey200 : PdfColors.white,
@@ -1419,7 +1447,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.fromLTRB(24, 32, 24, 36),
+        margin: const pw.EdgeInsets.fromLTRB(18, 30, 18, 34),
         header: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
