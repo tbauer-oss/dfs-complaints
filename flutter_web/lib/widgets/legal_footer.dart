@@ -156,7 +156,7 @@ class LegalFooter extends StatelessWidget {
             IconButton(
               tooltip: t.versioninfo,
               onPressed: () => _showVersionDialog(context),
-              icon: const Icon(Icons.help_outline),
+              icon: const Icon(Icons.info_outline),
             ),
           ],
         ),
