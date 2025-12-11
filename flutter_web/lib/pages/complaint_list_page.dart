@@ -257,6 +257,39 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     'notes': 240,
   };
 
+  static const Map<String, String> _pdfColumnGroups = {
+    'internalNumber': 'Reklamationsdaten',
+    'systemId': 'Reklamationsdaten',
+    'customer': 'Vertrieb / Kunde',
+    'customerNumber': 'Vertrieb / Kunde',
+    'region': 'Vertrieb / Kunde',
+    'productFile': 'Produktdaten',
+    'productGroup': 'Produktdaten',
+    'articleNumber': 'Produktdaten',
+    'articleName': 'Produktdaten',
+    'lotNumber': 'Produktdaten',
+    'complaintType': 'Reklamationsdaten',
+    'complaintReason': 'Reklamationsdaten',
+    'receivedAt': 'Reklamationsdaten',
+    'closedAt': 'Reklamationsdaten',
+    'status': 'Reklamationsdaten',
+    'goodwill': 'Reklamationsdaten',
+    'departments': 'Reklamationsdaten',
+    'assignee': 'Vertrieb / Kunde',
+    'salesCode': 'Vertrieb / Kunde',
+    'orderNumber': 'Vertrieb / Kunde',
+    'invoiceNumber': 'Vertrieb / Kunde',
+    'prrcClassification': 'PRRC / Bewertung',
+    'prrcComment': 'PRRC / Bewertung',
+    'internalAssessment': 'PRRC / Bewertung',
+    'suspectedCause': 'CAPA / Maßnahmen',
+    'immediateActions': 'CAPA / Maßnahmen',
+    'correctiveActions': 'CAPA / Maßnahmen',
+    'recurrence': 'Reklamationsdaten',
+    'severity': 'PRRC / Bewertung',
+    'notes': 'CAPA / Maßnahmen',
+  };
+
   static const List<String> _prrcOptions = ['N/A', 'Sub', 'A', 'B', 'C', 'D'];
 
   static const List<(String, String)> _baseColumnDefs = [
@@ -355,6 +388,35 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       final data = await rootBundle.load('assets/dfs_logo.png');
       setState(() => _logoBytes = data.buffer.asUint8List());
     } catch (_) {}
+  }
+
+  String _wrapHeaderLabel(String label) {
+    const overrides = {
+      'Interne Reklamationsnummer': 'Interne\nReklamationsnummer',
+      'Interne System-ID': 'Interne\nSystem-ID',
+      'Verantwortlicher Bearbeiter (intern)': 'Verantwortlicher\nBearbeiter (intern)',
+      'Kritikalität / Schweregrad': 'Kritikalität /\nSchweregrad',
+      'Produktakte (MDR-TD)': 'Produktakte\n(MDR-TD)',
+      'Vertrieb / Sales-Kürzel': 'Vertrieb /\nSales-Kürzel',
+      'Betroffene interne Abteilungen': 'Betroffene interne\nAbteilungen',
+      'Interne Bewertung': 'Interne\nBewertung',
+      'Korrekturmaßnahmen / CAPA': 'Korrekturmaßnahmen /\nCAPA',
+    };
+
+    if (overrides.containsKey(label)) return overrides[label]!;
+    if (label.contains(' / ')) return label.replaceFirst(' / ', ' /\n');
+
+    final parts = label.split(' ');
+    if (parts.length <= 1) return label;
+
+    final mid = (parts.length / 2).floor();
+    return '${parts.sublist(0, mid).join(' ')}\n${parts.sublist(mid).join(' ')}';
+  }
+
+  pw.TableColumnWidth _pdfColumnWidth(String key) {
+    final baseWidth = _columnWidths[key] ?? 150;
+    final flex = (baseWidth / 110).clamp(0.7, 2.2) as double;
+    return pw.FlexColumnWidth(flex);
   }
 
   String _firstVisibleColumn(Set<String> visible) {
@@ -1223,14 +1285,144 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         .toList();
 
     final baseColumnWidths = <int, pw.TableColumnWidth>{
-      for (var i = 0; i < columns.length; i++) i: const pw.FlexColumnWidth(),
+      for (var i = 0; i < columns.length; i++) i: _pdfColumnWidth(columns[i]),
     };
+
+    pw.Widget _groupHeaderRow() {
+      final groupCells = <pw.Widget>[];
+      String? currentLabel;
+      int span = 0;
+
+      void pushGroupCell() {
+        if (currentLabel == null || span == 0) return;
+        groupCells.add(
+          pw.TableCell(
+            columnSpan: span,
+            verticalAlignment: pw.TableCellVerticalAlignment.middle,
+            child: pw.Container(
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.symmetric(vertical: 4),
+              decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF1F3A54)),
+              child: pw.Text(
+                currentLabel!,
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 8,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      for (final column in columns) {
+        final label = _pdfColumnGroups[column] ?? 'Weitere';
+        if (currentLabel == label) {
+          span++;
+        } else {
+          pushGroupCell();
+          currentLabel = label;
+          span = 1;
+        }
+      }
+
+      pushGroupCell();
+
+      return pw.Table(
+        columnWidths: baseColumnWidths,
+        border: pw.TableBorder(
+          top: pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          bottom: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+        ),
+        children: [pw.TableRow(children: groupCells)],
+      );
+    }
+
+    pw.Widget _columnHeaderRow() {
+      final headerCells = <pw.Widget>[];
+      for (var i = 0; i < columns.length; i++) {
+        headerCells.add(
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+            decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF284765)),
+            alignment: pw.Alignment.center,
+            child: pw.Text(
+              _wrapHeaderLabel(headers[i]),
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: 8,
+                color: PdfColors.white,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      }
+
+      return pw.Table(
+        columnWidths: baseColumnWidths,
+        border: pw.TableBorder(
+          bottom: pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+        ),
+        children: [pw.TableRow(children: headerCells)],
+      );
+    }
+
+    pw.Widget _buildBodyTable() {
+      final dataRows = <pw.TableRow>[];
+      for (var rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+        final row = rows[rowIdx];
+        final cells = <pw.Widget>[];
+        for (var colIdx = 0; colIdx < row.length; colIdx++) {
+          cells.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              alignment: pw.Alignment.centerLeft,
+              decoration: pw.BoxDecoration(
+                color: rowIdx.isOdd ? PdfColors.grey200 : PdfColors.white,
+                border: pw.Border(
+                  left: const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35),
+                  right: const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35),
+                  top: rowIdx == 0
+                      ? const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35)
+                      : pw.BorderSide.none,
+                  bottom: const pw.BorderSide(color: PdfColors.blueGrey400, width: 0.35),
+                ),
+              ),
+              child: pw.Text(
+                row[colIdx],
+                style: const pw.TextStyle(fontSize: 7.5),
+              ),
+            ),
+          );
+        }
+        dataRows.add(pw.TableRow(children: cells));
+      }
+
+      return pw.Table(
+        columnWidths: baseColumnWidths,
+        border: pw.TableBorder(
+          left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          top: pw.BorderSide.none,
+        ),
+        children: dataRows,
+      );
+    }
 
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.fromLTRB(24, 32, 24, 36),
         header: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1251,8 +1443,9 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
                 pw.Text('DFS-DIAMON GmbH', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
               ],
             ),
-            pw.SizedBox(height: 8),
-            pw.Divider(color: PdfColors.grey600, height: 1, thickness: 0.6),
+            pw.SizedBox(height: 10),
+            _groupHeaderRow(),
+            _columnHeaderRow(),
           ],
         ),
         footer: (context) => pw.Container(
@@ -1261,38 +1454,24 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('Export vom $version', style: const pw.TextStyle(fontSize: 8)),
               pw.Text(
-                'Seite ${context.pageNumber} von ${context.pagesCount}',
+                'Reklamationsübersicht (Quality Management)',
                 style: const pw.TextStyle(fontSize: 8),
+              ),
+              pw.Row(
+                children: [
+                  pw.Text(
+                    'Seite ${context.pageNumber} von ${context.pagesCount}',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                  pw.SizedBox(width: 10),
+                  pw.Text('Export vom $version', style: const pw.TextStyle(fontSize: 8)),
+                ],
               ),
             ],
           ),
         ),
-        build: (ctx) => [
-          pw.TableHelper.fromTextArray(
-            headerCount: 1,
-            headers: headers,
-            data: rows,
-            cellPadding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-            border: pw.TableBorder.symmetric(
-              inside: const pw.BorderSide(color: PdfColors.grey500, width: 0.35),
-              outside: const pw.BorderSide(color: PdfColors.grey700, width: 0.5),
-            ),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey900),
-            headerStyle: pw.TextStyle(
-              fontSize: 8,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.white,
-            ),
-            cellStyle: const pw.TextStyle(fontSize: 7),
-            cellAlignments: {
-              for (var i = 0; i < columns.length; i++) i: pw.Alignment.centerLeft,
-            },
-            columnWidths: baseColumnWidths,
-            oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
-          ),
-        ],
+        build: (ctx) => [_buildBodyTable()],
       ),
     );
 
