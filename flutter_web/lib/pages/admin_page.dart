@@ -925,7 +925,7 @@ class _AdminPageState extends State<AdminPage> {
 
     if (portalTok.isEmpty && secret.isEmpty) {
       _fatalErr =
-          'Keine DFS Portal Session gefunden. Bitte über den Start-Button anmelden.';
+          'Keine DFS Connect Session gefunden. Bitte über den Start-Button anmelden.';
       return;
     }
 
@@ -4582,7 +4582,7 @@ class _AdminPageState extends State<AdminPage> {
     if (_fatalErr != null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('DFS Portal – DFS Customer Complaint'),
+          title: const Text('DFS Connect – Your Digital Quality Hub'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
@@ -4611,7 +4611,7 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
     final title = switch (_view) {
-      _AdminView.menu           => 'DFS Portal – DFS Customer Complaint',
+      _AdminView.menu           => 'DFS Connect – Your Digital Quality Hub',
       _AdminView.all            => 'Alle Reklamationen',
       _AdminView.complaintList  => 'Reklamationsliste',
       _AdminView.capaReports    => 'CAPA / 8D-Reports',
@@ -4777,7 +4777,7 @@ class _AdminPageState extends State<AdminPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('DFS Portal', style: onSurfaceMuted),
+              Text('DFS Connect', style: onSurfaceMuted),
               const SizedBox(height: 2),
               Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
             ],
@@ -6182,7 +6182,7 @@ class _AdminPageState extends State<AdminPage> {
                         Row(
                           children: [
                             Text(
-                              'DFS Portal-News',
+                              'DFS Connect-News',
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.2,
@@ -7508,7 +7508,7 @@ class _AdminPageState extends State<AdminPage> {
       case 'news':
         return AdminTilePro(
           label: 'Neuigkeiten & Infoscreen',
-          subtitle: 'DFS-Portal & Kundenticker',
+          subtitle: 'DFS Connect & Kundenticker',
           icon: Icons.campaign_outlined,
           colorA: AdminPalette.amberA,
           colorB: AdminPalette.amberB,
@@ -8610,7 +8610,7 @@ class _AdminPageState extends State<AdminPage> {
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       ),
                       SizedBox(height: 4),
-                      Text('Interne DFS-Portal News oder Kundenticker mit einem Klick pflegen.'),
+                      Text('Interne DFS Connect News oder Kundenticker mit einem Klick pflegen.'),
                     ],
                   ),
                 ),
@@ -18151,7 +18151,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                               Expanded(
                                 child: Text(
                                   hasNote
-                                      ? 'Notizen sind nur im DFS Portal sichtbar.'
+                                      ? 'Notizen sind nur in DFS Connect sichtbar.'
                                       : 'Noch keine Notiz gespeichert – alles bleibt intern.',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: const Color(0xFF6D4C41),
