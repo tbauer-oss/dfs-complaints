@@ -317,7 +317,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalUserFilterRole = 'Alle Rollen';
   String _portalUserFilterStatus = 'Alle Stati';
   String _portalUserFilterDepartment = 'Alle Abteilungen';
-  bool _isPrrcGreetingHovered = false;
+  bool _isGreetingHovered = false;
 
 
   // Vertreter-Form (persistente Felder)
@@ -4502,56 +4502,75 @@ class _AdminPageState extends State<AdminPage> {
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: MouseRegion(
-              onEnter: _portalIsPrrcAuthorized
-                  ? (_) => setState(() => _isPrrcGreetingHovered = true)
-                  : null,
-              onExit: _portalIsPrrcAuthorized
-                  ? (_) => setState(() => _isPrrcGreetingHovered = false)
-                  : null,
+              onEnter: (_) => setState(() => _isGreetingHovered = true),
+              onExit: (_) => setState(() => _isGreetingHovered = false),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: _portalIsPrrcAuthorized
-                    ? BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFF0865A2).withOpacity(0.8),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0865A2)
-                                .withOpacity(_isPrrcGreetingHovered ? 0.4 : 0.28),
-                            blurRadius: _isPrrcGreetingHovered ? 14 : 10,
-                            spreadRadius: _isPrrcGreetingHovered ? 1.4 : 1,
-                          ),
-                        ],
-                      )
-                    : null,
+                decoration: () {
+                  final accentColor = _portalIsPrrcAuthorized
+                      ? const Color(0xFF0865A2)
+                      : (theme.brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black87);
+                  final boxShadowOpacity = _portalIsPrrcAuthorized
+                      ? (_isGreetingHovered ? 0.4 : 0.28)
+                      : (_isGreetingHovered ? 0.22 : 0.12);
+                  return BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: accentColor.withOpacity(
+                        _portalIsPrrcAuthorized ? 0.8 : 0.6,
+                      ),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(boxShadowOpacity),
+                        blurRadius: _isGreetingHovered ? 14 : 10,
+                        spreadRadius: _isGreetingHovered ? 1.4 : 1,
+                      ),
+                    ],
+                  );
+                }(),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.person_outline,
-                      color: _portalIsPrrcAuthorized
-                          ? const Color(0xFF0865A2)
-                          : theme.colorScheme.onSurfaceVariant,
+                    Builder(
+                      builder: (_) {
+                        final accentColor = _portalIsPrrcAuthorized
+                            ? const Color(0xFF0865A2)
+                            : (theme.brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87);
+                        return Icon(
+                          Icons.person_outline,
+                          color: accentColor,
+                        );
+                      },
                     ),
                     const SizedBox(width: 6),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 240),
-                      child: Text(
-                        _portalIsPrrcAuthorized
-                            ? 'Hallo $displayName (PRRC)'
-                            : 'Hallo $displayName',
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: _portalIsPrrcAuthorized
-                              ? const Color(0xFF2ECCB3)
-                              : theme.textTheme.bodyMedium?.color,
-                          letterSpacing: 0.15,
-                        ),
+                      child: Builder(
+                        builder: (_) {
+                          final accentColor = _portalIsPrrcAuthorized
+                              ? const Color(0xFF0865A2)
+                              : (theme.brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black87);
+                          return Text(
+                            _portalIsPrrcAuthorized
+                                ? 'Hallo $displayName (PRRC)'
+                                : 'Hallo $displayName',
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: accentColor,
+                              letterSpacing: 0.15,
+                            ),
+                          );
+                        },
                       ),
                     ),
                     if (_portalIsPrrcAuthorized) ...[
