@@ -4472,32 +4472,28 @@ class _AdminPageState extends State<AdminPage> {
           const SizedBox(width: 16),
           Expanded(
             child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.primary.withOpacity(0.16),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.16),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
-                    child: homeButton,
-                  ),
-                  if (dashboardEditButton != null) ...[
-                    const SizedBox(width: 14),
-                    dashboardEditButton,
                   ],
-                ],
+                ),
+                child: homeButton,
               ),
             ),
           ),
         ],
       ),
       actions: [
+        if (dashboardEditButton != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: dashboardEditButton,
+          ),
         if (displayName.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(right: 6),
