@@ -5991,7 +5991,7 @@ class _AdminPageState extends State<AdminPage> {
                   CircleAvatar(
                     backgroundColor: cs.primaryContainer,
                     foregroundColor: cs.onPrimaryContainer,
-                    child: const Icon(Icons.shield_person_outlined),
+                    child: const Icon(Icons.security),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -7997,7 +7997,7 @@ class _AdminPageState extends State<AdminPage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(_isPortalNewsScope ? Icons.shield_person_outlined : Icons.public,
+                          Icon(_isPortalNewsScope ? Icons.security : Icons.public,
                               size: 40, color: theme.colorScheme.outline),
                           const SizedBox(height: 10),
                           Text(
