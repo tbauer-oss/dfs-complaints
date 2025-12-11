@@ -267,6 +267,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
+  bool _portalIsPrrcAuthorized = false;
   bool _portalIsQm = false;
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
@@ -315,6 +316,7 @@ class _AdminPageState extends State<AdminPage> {
   String _portalUserFilterRole = 'Alle Rollen';
   String _portalUserFilterStatus = 'Alle Stati';
   String _portalUserFilterDepartment = 'Alle Abteilungen';
+  bool _isGreetingHovered = false;
 
 
   // Vertreter-Form (persistente Felder)
@@ -784,6 +786,11 @@ class _AdminPageState extends State<AdminPage> {
         widget.api.portalProfile?['isPrrc'] ??
         widget.api.portalProfile?['prrc'];
     _portalIsPrrc = _truthy(profileIsPrrc);
+    final profileIsPrrcAuthorized = widget.portalProfile?['isPrrcAuthorized'] ??
+        widget.api.portalProfile?['isPrrcAuthorized'] ??
+        widget.portalProfile?['prrcAuthorized'] ??
+        widget.api.portalProfile?['prrcAuthorized'];
+    _portalIsPrrcAuthorized = _truthy(profileIsPrrcAuthorized) || _portalIsPrrc;
     final profileIsQm = widget.portalProfile?['isQM'] ??
         widget.portalProfile?['isQm'] ??
         widget.portalProfile?['qm'] ??
@@ -4462,20 +4469,85 @@ class _AdminPageState extends State<AdminPage> {
         if (displayName.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.person_outline, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  child: Text(
-                    'Hallo $displayName',
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                  ),
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _isGreetingHovered = true),
+              onExit: (_) => setState(() => _isGreetingHovered = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: () {
+                  final accentColor = _portalIsPrrcAuthorized
+                      ? const Color(0xFF0865A2)
+                      : (theme.brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black87);
+                  final boxShadowOpacity = _portalIsPrrcAuthorized
+                      ? (_isGreetingHovered ? 0.4 : 0.28)
+                      : (_isGreetingHovered ? 0.22 : 0.12);
+                  return BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: accentColor.withOpacity(
+                        _portalIsPrrcAuthorized ? 0.8 : 0.6,
+                      ),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(boxShadowOpacity),
+                        blurRadius: _isGreetingHovered ? 14 : 10,
+                        spreadRadius: _isGreetingHovered ? 1.4 : 1,
+                      ),
+                    ],
+                  );
+                }(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Builder(
+                      builder: (_) {
+                        final accentColor = _portalIsPrrcAuthorized
+                            ? const Color(0xFF0865A2)
+                            : (theme.brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87);
+                        return Icon(
+                          Icons.person_outline,
+                          color: accentColor,
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Builder(
+                        builder: (_) {
+                          final accentColor = _portalIsPrrcAuthorized
+                              ? const Color(0xFF0865A2)
+                              : (theme.brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black87);
+                          return Text(
+                            _portalIsPrrcAuthorized
+                                ? 'Hallo $displayName (PRRC)'
+                                : 'Hallo $displayName',
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: accentColor,
+                              letterSpacing: 0.15,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (_portalIsPrrcAuthorized) ...[
+                      const SizedBox(width: 8),
+                      Icon(Icons.verified, color: const Color(0xFF0865A2), size: 18),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         IconButton(
