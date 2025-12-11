@@ -718,6 +718,25 @@ export default async function handler(req, res) {
 
       c.history = normalizeHistory(c.history);
 
+      if (isSuperuser) {
+        const dfsUser = (actor?.email || actor?.userId || actor?.id || '').toString().trim();
+        if (!dfsUser) return bad(res, 'missing dfs user', 400);
+
+        const payload = (c.payload && typeof c.payload === 'object') ? { ...c.payload } : {};
+        const prevAssignee = pickPayloadValue(payload, ['assigneeEmail', 'assignee', 'bearbeiter', 'responsible']);
+        if (prevAssignee !== dfsUser) {
+          payload.assigneeEmail = dfsUser;
+          c.payload = payload;
+          payloadChanged = true;
+          pushHistory(c, {
+            actor: dfsUser,
+            type: 'assignee',
+            message: 'Sachbearbeiter automatisch gesetzt',
+            data: { assignee: dfsUser },
+          });
+        }
+      }
+
       if (wantsPrrcUpdate) {
         if (hasPrrcClassification) {
           const raw = (prrcClassificationInput ?? '').toString().trim();
