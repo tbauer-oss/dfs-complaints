@@ -70,6 +70,7 @@ const mem = {
   pending: new Map(),
   complaints: new Map(),
   capaReports: new Map(),
+  fmeas: new Map(),
   counters: { ticket: 1, capa: {} },
   catalogConfig: {},
   repPushTokens: new Map(),
@@ -3173,4 +3174,243 @@ export async function capaDelete(id) {
   const r = getRedis();
   if (r) await rdel(key); else mem.capaReports.delete(id);
   return true;
+}
+
+/* =========================================================
+   FMEA / Risikomanagement (MDR-TD-bezogen)
+   ========================================================= */
+
+const KEY_FMEA = (id) => `${P}fmea:${id}`;
+
+function normalizeRiskValue(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1) return 1;
+  if (n > 5) return 5;
+  return Math.round(n);
+}
+
+function normalizeRiskLevel(score, thresholds = { red: 15, yellow: 8 }) {
+  if (!score && score !== 0) return null;
+  if (score >= thresholds.red) return 'red';
+  if (score >= thresholds.yellow) return 'yellow';
+  return 'green';
+}
+
+function normalizeRiskEntry(raw = {}, { nextNumber = 1, thresholds } = {}) {
+  const now = Date.now();
+  const risk = { ...raw };
+  risk.id = (risk.id || crypto.randomUUID()).toString();
+  risk.riskNumber = (risk.riskNumber || `R-${String(nextNumber).padStart(3, '0')}`).toString();
+
+  risk.category = (risk.category || '').toString();
+  risk.hazard = (risk.hazard || '').toString();
+  risk.hazardSituation = (risk.hazardSituation || '').toString();
+  risk.harm = (risk.harm || '').toString();
+  risk.causes = (risk.causes || '').toString();
+  risk.affectedArea = (risk.affectedArea || '').toString();
+  risk.processReference = (risk.processReference || '').toString();
+  risk.documents = (risk.documents || '').toString();
+  risk.proposedAction = (risk.proposedAction || '').toString();
+  risk.actionTaken = (risk.actionTaken || '').toString();
+  risk.riskBenefitAnalysis = (risk.riskBenefitAnalysis || '').toString();
+
+  risk.severity = normalizeRiskValue(risk.severity);
+  risk.occurrence = normalizeRiskValue(risk.occurrence);
+  risk.severityAfter = normalizeRiskValue(risk.severityAfter);
+  risk.occurrenceAfter = normalizeRiskValue(risk.occurrenceAfter);
+
+  const beforeScore = risk.severity && risk.occurrence ? risk.severity * risk.occurrence : null;
+  const afterScore = risk.severityAfter && risk.occurrenceAfter ? risk.severityAfter * risk.occurrenceAfter : null;
+  risk.riskScore = beforeScore;
+  risk.riskScoreAfter = afterScore;
+  risk.riskLevel = beforeScore ? normalizeRiskLevel(beforeScore, thresholds) : null;
+  risk.riskLevelAfter = afterScore ? normalizeRiskLevel(afterScore, thresholds) : null;
+
+  risk.newHazard = risk.newHazard === true || risk.newHazard === 'true' || risk.newHazard === 1;
+  risk.residualRiskOk =
+    risk.residualRiskOk === true || risk.residualRiskOk === 'true' || risk.residualRiskOk === 1;
+
+  risk.linkedComplaints = Array.isArray(risk.linkedComplaints)
+    ? risk.linkedComplaints.map(String).filter(Boolean)
+    : [];
+  risk.linkedCapas = Array.isArray(risk.linkedCapas)
+    ? risk.linkedCapas.map(String).filter(Boolean)
+    : [];
+
+  risk.createdAt = risk.createdAt || now;
+  risk.updatedAt = now;
+  return risk;
+}
+
+function normalizeFmeaRecord(raw = {}) {
+  const now = Date.now();
+  const thresholds = {
+    red: Number(raw?.riskMatrix?.red) || 15,
+    yellow: Number(raw?.riskMatrix?.yellow) || 8,
+  };
+
+  const base = { ...raw };
+  base.id = (base.id || crypto.randomUUID()).toString();
+  base.title = (base.title || base.mdrTd || '').toString();
+  base.mdrTd = (base.mdrTd || '').toString();
+  base.productGroup = (base.productGroup || '').toString();
+  base.medicalProduct = (base.medicalProduct || '').toString();
+  base.moderator = (base.moderator || '').toString();
+  base.revision = (base.revision || '').toString();
+  base.prrcApproved = base.prrcApproved === true || base.prrcApproved === 'true' || base.prrcApproved === 1;
+  base.prrcName = (base.prrcName || '').toString();
+  base.prrcDate = base.prrcDate ? normalizeDateValue(base.prrcDate) : null;
+  base.createdAt = normalizeDateValue(base.createdAt) || now;
+  base.updatedAt = normalizeDateValue(base.updatedAt) || now;
+  base.updatedBy = (base.updatedBy || '').toString();
+  base.createdBy = (base.createdBy || '').toString();
+  base.riskMatrix = { red: thresholds.red, yellow: thresholds.yellow };
+
+  const risks = Array.isArray(base.risks) ? base.risks : [];
+  const normalizedRisks = risks.map((r, idx) =>
+    normalizeRiskEntry(r, { nextNumber: idx + 1, thresholds: base.riskMatrix })
+  );
+  base.risks = normalizedRisks;
+  base.riskCounter = Math.max(
+    normalizedRisks.reduce((max, r) => {
+      const parsed = Number((r?.riskNumber || '').toString().replace(/[^0-9]/g, ''));
+      return Number.isFinite(parsed) ? Math.max(max, parsed) : max;
+    }, 0),
+    Number(base.riskCounter) || 0,
+  );
+
+  return base;
+}
+
+async function fmeaAllFromRedis() {
+  const keys = await rkeys(`${P}fmea:*`);
+  const vals = await Promise.all(keys.map(k => rget(k)));
+  const list = [];
+  keys.forEach((key, index) => {
+    const val = vals[index];
+    if (!val) return;
+    const id = key.replace(`${P}fmea:`, '');
+    list.push(normalizeFmeaRecord({ ...val, id }));
+  });
+  list.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
+  return list;
+}
+
+export async function fmeaAll() {
+  const r = getRedis();
+  if (r) return await fmeaAllFromRedis();
+  const list = Array.from(mem.fmeas?.values?.() || []).map(v => normalizeFmeaRecord(v));
+  list.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
+  return list;
+}
+
+export async function fmeaGet(id) {
+  if (!id) return null;
+  const key = KEY_FMEA(id);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.fmeas?.get?.(id) ?? null;
+  return direct ? normalizeFmeaRecord({ ...direct, id }) : null;
+}
+
+export async function fmeaSave(record) {
+  const data = normalizeFmeaRecord(record);
+  const key = KEY_FMEA(data.id);
+  const r = getRedis();
+  if (r) await rset(key, data); else {
+    if (!mem.fmeas) mem.fmeas = new Map();
+    mem.fmeas.set(data.id, data);
+  }
+  return data;
+}
+
+export async function fmeaUpdate(id, patch) {
+  const current = await fmeaGet(id);
+  if (!current) return null;
+  const updated = normalizeFmeaRecord({ ...current, ...patch, updatedAt: Date.now() });
+  return await fmeaSave(updated);
+}
+
+export async function fmeaDelete(id) {
+  if (!id) return false;
+  const key = KEY_FMEA(id);
+  const r = getRedis();
+  if (r) await rdel(key); else mem.fmeas?.delete?.(id);
+  return true;
+}
+
+function nextRiskNumberForFmea(fmea) {
+  const counter = Number(fmea?.riskCounter || 0);
+  const numbers = Array.isArray(fmea?.risks)
+    ? fmea.risks
+        .map(r => Number((r?.riskNumber || '').toString().replace(/[^0-9]/g, '')))
+        .filter(n => Number.isFinite(n))
+    : [];
+  const maxExisting = numbers.length ? Math.max(...numbers) : 0;
+  return Math.max(counter, maxExisting) + 1;
+}
+
+export async function fmeaAddRisk(fmeaId, riskData = {}) {
+  const current = await fmeaGet(fmeaId);
+  if (!current) return null;
+  const nextNumber = nextRiskNumberForFmea(current);
+  const risk = normalizeRiskEntry(riskData, { nextNumber, thresholds: current.riskMatrix });
+  const updated = { ...current, risks: [...(current.risks || []), risk], riskCounter: nextNumber, updatedAt: Date.now() };
+  await fmeaSave(updated);
+  return { fmea: updated, risk };
+}
+
+function findRiskIndex(fmea, riskIdOrNumber) {
+  if (!fmea?.risks) return -1;
+  const needle = (riskIdOrNumber || '').toString();
+  return fmea.risks.findIndex(
+    (r) => r.id === needle || (r.riskNumber && r.riskNumber.toString() === needle)
+  );
+}
+
+export async function fmeaUpdateRisk(fmeaId, riskId, patch = {}) {
+  const current = await fmeaGet(fmeaId);
+  if (!current) return null;
+  const idx = findRiskIndex(current, riskId);
+  if (idx < 0) return null;
+  const existing = current.risks[idx];
+  const updatedRisk = normalizeRiskEntry({ ...existing, ...patch }, {
+    nextNumber: existing?.riskNumber || idx + 1,
+    thresholds: current.riskMatrix,
+  });
+  const risks = [...current.risks];
+  risks.splice(idx, 1, updatedRisk);
+  const updated = { ...current, risks, updatedAt: Date.now() };
+  await fmeaSave(updated);
+  return { fmea: updated, risk: updatedRisk };
+}
+
+export async function fmeaDeleteRisk(fmeaId, riskId) {
+  const current = await fmeaGet(fmeaId);
+  if (!current) return null;
+  const idx = findRiskIndex(current, riskId);
+  if (idx < 0) return null;
+  const risks = [...current.risks];
+  risks.splice(idx, 1);
+  const updated = { ...current, risks, updatedAt: Date.now() };
+  await fmeaSave(updated);
+  return updated;
+}
+
+export async function fmeaDuplicateRisk(fmeaId, riskId) {
+  const current = await fmeaGet(fmeaId);
+  if (!current) return null;
+  const idx = findRiskIndex(current, riskId);
+  if (idx < 0) return null;
+  const toClone = current.risks[idx];
+  const nextNumber = nextRiskNumberForFmea(current);
+  const cloned = normalizeRiskEntry(
+    { ...toClone, id: undefined, riskNumber: undefined, createdAt: Date.now() },
+    { nextNumber, thresholds: current.riskMatrix }
+  );
+  const risks = [...current.risks];
+  risks.splice(idx + 1, 0, cloned);
+  const updated = { ...current, risks, riskCounter: nextNumber, updatedAt: Date.now() };
+  await fmeaSave(updated);
+  return { fmea: updated, risk: cloned };
 }
