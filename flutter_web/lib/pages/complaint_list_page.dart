@@ -391,31 +391,12 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
   }
 
   String _wrapHeaderLabel(String label) {
-    const overrides = {
-      'Interne Reklamationsnummer': 'Interne\nReklamationsnummer',
-      'Interne System-ID': 'Interne\nSystem-ID',
-      'Verantwortlicher Bearbeiter (intern)': 'Verantwortlicher\nBearbeiter (intern)',
-      'Kritikalität / Schweregrad': 'Kritikalität /\nSchweregrad',
-      'Produktakte (MDR-TD)': 'Produktakte\n(MDR-TD)',
-      'Vertrieb / Sales-Kürzel': 'Vertrieb /\nSales-Kürzel',
-      'Betroffene interne Abteilungen': 'Betroffene interne\nAbteilungen',
-      'Interne Bewertung': 'Interne\nBewertung',
-      'Korrekturmaßnahmen / CAPA': 'Korrekturmaßnahmen /\nCAPA',
-    };
-
-    if (overrides.containsKey(label)) return overrides[label]!;
-    if (label.contains(' / ')) return label.replaceFirst(' / ', ' /\n');
-
-    final parts = label.split(' ');
-    if (parts.length <= 1) return label;
-
-    final mid = (parts.length / 2).floor();
-    return '${parts.sublist(0, mid).join(' ')}\n${parts.sublist(mid).join(' ')}';
+    return label;
   }
 
   pw.TableColumnWidth _pdfColumnWidth(String key) {
     final baseWidth = _columnWidths[key] ?? 150;
-    final flex = (baseWidth / 110).clamp(0.7, 2.2) as double;
+    final flex = (baseWidth / 150).clamp(0.8, 1.9) as double;
     return pw.FlexColumnWidth(flex);
   }
 
@@ -1305,23 +1286,22 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
           pw.Expanded(
             flex: flex,
             child: pw.Container(
-              alignment: pw.Alignment.center,
-              padding: const pw.EdgeInsets.symmetric(vertical: 4),
+              alignment: pw.Alignment.centerLeft,
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: pw.BoxDecoration(
-                color: const PdfColor.fromInt(0xFF1F3A54),
+                color: const PdfColor.fromInt(0xFFE8EEF4),
                 border: pw.Border(
-                  left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-                  right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-                  top: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-                  bottom: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+                  left: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
+                  right: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
+                  bottom: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
                 ),
               ),
               child: pw.Text(
                 currentLabel!,
                 style: pw.TextStyle(
-                  color: PdfColors.white,
+                  color: const PdfColor.fromInt(0xFF1F3A54),
                   fontWeight: pw.FontWeight.bold,
-                  fontSize: 8,
+                  fontSize: 8.5,
                 ),
               ),
             ),
@@ -1348,9 +1328,9 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       return pw.Container(
         decoration: pw.BoxDecoration(
           border: pw.Border(
-            left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-            right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-            top: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+            left: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
+            right: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
+            top: const pw.BorderSide(color: PdfColors.blueGrey500, width: 0.4),
           ),
         ),
         child: pw.Row(children: groupCells),
@@ -1362,14 +1342,17 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       for (var i = 0; i < columns.length; i++) {
         headerCells.add(
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
-            decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF284765)),
-            alignment: pw.Alignment.center,
+            padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+            decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF1F3A54)),
+            alignment: pw.Alignment.centerLeft,
             child: pw.Text(
               _wrapHeaderLabel(headers[i]),
-              textAlign: pw.TextAlign.center,
+              textAlign: pw.TextAlign.left,
+              maxLines: 2,
+              softWrap: true,
+              overflow: pw.TextOverflow.clip,
               style: pw.TextStyle(
-                fontSize: 8,
+                fontSize: 9,
                 color: PdfColors.white,
                 fontWeight: pw.FontWeight.bold,
               ),
@@ -1381,10 +1364,11 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
       return pw.Table(
         columnWidths: baseColumnWidths,
         border: pw.TableBorder(
-          bottom: pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-          left: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-          right: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
-          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey700, width: 0.6),
+          top: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
+          bottom: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
+          left: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
+          right: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
+          horizontalInside: const pw.BorderSide(color: PdfColors.blueGrey600, width: 0.5),
         ),
         children: [pw.TableRow(children: headerCells)],
       );
@@ -1398,7 +1382,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
         for (var colIdx = 0; colIdx < row.length; colIdx++) {
           cells.add(
             pw.Container(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
               alignment: pw.Alignment.centerLeft,
               decoration: pw.BoxDecoration(
                 color: rowIdx.isOdd ? PdfColors.grey200 : PdfColors.white,
@@ -1413,7 +1397,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
               ),
               child: pw.Text(
                 row[colIdx],
-                style: const pw.TextStyle(fontSize: 7.5),
+                style: const pw.TextStyle(fontSize: 8),
               ),
             ),
           );
@@ -1458,7 +1442,7 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
                 pw.Text('DFS-DIAMON GmbH', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
               ],
             ),
-            pw.SizedBox(height: 10),
+            pw.SizedBox(height: 6),
             _groupHeaderRow(),
             _columnHeaderRow(),
           ],

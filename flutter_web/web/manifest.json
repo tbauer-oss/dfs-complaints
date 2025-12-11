@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "DFS Complaint App",
-  "short_name": "DFS Complaints",
+  "name": "DFS Connect",
+  "short_name": "DFS Connect",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
