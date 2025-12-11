@@ -437,8 +437,51 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       case 'green':
         return Colors.green.shade700;
       default:
-        return theme.colorScheme.outline;
+        return theme.colorScheme.outlineVariant;
     }
+  }
+
+  (Color baseColor, String label, IconData icon) _riskPresentation(
+    String? level,
+    ThemeData theme,
+  ) {
+    switch (level) {
+      case 'red':
+        return (_riskColor(level, theme), 'Kritisch', Icons.error_outline);
+      case 'yellow':
+        return (_riskColor(level, theme), 'Beobachten', Icons.warning_amber_rounded);
+      case 'green':
+        return (_riskColor(level, theme), 'Stabil', Icons.check_circle_outline);
+      default:
+        return (_riskColor(level, theme), 'Offen', Icons.help_outline);
+    }
+  }
+
+  Widget _riskBadge(String? level, ThemeData theme) {
+    final (color, label, icon) = _riskPresentation(level, theme);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        border: Border.all(color: color.withOpacity(0.35)),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<List<String>?> _openMultiSelectDialog({
@@ -681,14 +724,18 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       );
     }
 
-    const columnWidths = [110.0, 180.0, 220.0, 150.0, 160.0, 220.0, 140.0];
+    const columnWidths = [110.0, 180.0, 220.0, 150.0, 170.0, 240.0, 140.0];
     final minWidth = columnWidths.reduce((a, b) => a + b);
 
     Widget headerCell(String label, double width) => SizedBox(
           width: width,
           child: Text(
             label,
-            style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         );
 
@@ -697,50 +744,63 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
           child: child,
         );
 
-    Widget riskRow(FmeaRiskEntry r) {
+    Widget riskRow(FmeaRiskEntry r, bool shaded) {
       final color = _riskColor(r.riskLevel, theme);
+      final textStyle = theme.textTheme.bodyMedium;
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
+          color: shaded ? theme.colorScheme.surfaceVariant.withOpacity(0.25) : null,
           border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            cell(Text(r.riskNumber), columnWidths[0]),
-            cell(Text(r.category.isEmpty ? '—' : r.category), columnWidths[1]),
-            cell(Text(r.hazard.isEmpty ? '—' : r.hazard), columnWidths[2]),
+            cell(Text(r.riskNumber, style: textStyle?.copyWith(fontWeight: FontWeight.w700)), columnWidths[0]),
+            cell(Text(r.category.isEmpty ? '—' : r.category, style: textStyle), columnWidths[1]),
+            cell(Text(r.hazard.isEmpty ? '—' : r.hazard, style: textStyle), columnWidths[2]),
             cell(
-              Text(r.riskScore != null ? '${r.severity ?? '-'}×${r.occurrence ?? '-'}' : '—'),
-              columnWidths[3],
-            ),
-            cell(
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(radius: 6, backgroundColor: color),
-                  const SizedBox(width: 6),
-                  Text(r.riskLevel?.toUpperCase() ?? 'n/a'),
+                  Text(
+                    r.riskScore != null ? '${r.severity ?? '-'}×${r.occurrence ?? '-'}' : '—',
+                    style: textStyle?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  if (r.riskScore != null)
+                    Text('Score: ${r.riskScore}', style: theme.textTheme.labelSmall),
                 ],
               ),
-              columnWidths[4],
+              columnWidths[3],
             ),
+            cell(_riskBadge(r.riskLevel, theme), columnWidths[4]),
             cell(
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: [
                   if (r.linkedComplaints.isNotEmpty)
-                    Chip(label: Text('Reklamationen: ${r.linkedComplaints.length}')),
-                  if (r.linkedCapas.isNotEmpty) Chip(label: Text('CAPA: ${r.linkedCapas.length}')),
+                    Chip(
+                      label: Text('Reklamationen: ${r.linkedComplaints.length}'),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  if (r.linkedCapas.isNotEmpty)
+                    Chip(
+                      label: Text('CAPA: ${r.linkedCapas.length}'),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   Chip(
-                    backgroundColor:
-                        r.residualRiskOk ? Colors.green.shade100 : theme.colorScheme.errorContainer,
+                    backgroundColor: r.residualRiskOk
+                        ? theme.colorScheme.tertiaryContainer
+                        : theme.colorScheme.errorContainer,
                     label: Text(r.residualRiskOk ? 'Restrisiko ok' : 'Restrisiko kritisch'),
+                    visualDensity: VisualDensity.compact,
                   ),
                   if (r.newHazard)
                     Chip(
                       backgroundColor: theme.colorScheme.errorContainer,
                       label: const Text('Neue Gefährdung'),
+                      visualDensity: VisualDensity.compact,
                     ),
                 ],
               ),
@@ -782,8 +842,14 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
               child: Column(
                 children: [
                   Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                      border: Border(
+                        bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+                      ),
+                    ),
                     child: Row(
                       children: [
                         headerCell('Risiko-Nr.', columnWidths[0]),
@@ -796,7 +862,6 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1),
                   SizedBox(
                     height: bodyHeight,
                     child: Scrollbar(
@@ -807,7 +872,11 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         child: SingleChildScrollView(
                           controller: _riskVertical,
                           child: Column(
-                            children: risks.map(riskRow).toList(),
+                            children: risks
+                                .asMap()
+                                .entries
+                                .map((entry) => riskRow(entry.value, entry.key.isEven))
+                                .toList(),
                           ),
                         ),
                       ),
@@ -831,6 +900,16 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             Text('Risiken', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(width: 8),
             Chip(label: Text('${_selected?.risks.length ?? 0} Einträge')),
+            const SizedBox(width: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _riskBadge('red', theme),
+                _riskBadge('yellow', theme),
+                _riskBadge('green', theme),
+              ],
+            ),
             const Spacer(),
             if (widget.canEdit)
               FilledButton.icon(
@@ -897,9 +976,11 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                       final row = links[idx];
                       final complaints = (row['linkedComplaints'] as List?)?.length ?? 0;
                       final capas = (row['linkedCapas'] as List?)?.length ?? 0;
-                      final badgeColor = _riskColor(row['riskLevel'] as String?, theme);
                       return ListTile(
-                        leading: CircleAvatar(backgroundColor: badgeColor, radius: 10),
+                        leading: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: _riskBadge(row['riskLevel'] as String?, theme),
+                        ),
                         title: Text('${row['mdrTd'] ?? ''} · ${row['riskNumber'] ?? ''}'),
                         subtitle: Text(row['hazard']?.toString() ?? ''),
                         trailing: Wrap(spacing: 6, children: [
