@@ -15,6 +15,7 @@ import 'utils/lang_utils.dart';
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
+import 'pages/help_center_page.dart';
 import 'pages/rep_login_page.dart';
 import 'pages/rep_dashboard_page.dart' hide ThemeAction;
 import 'pages/legal_privacy_page.dart';
@@ -456,6 +457,11 @@ class _MyAppState extends State<MyApp> {
                           appBar: AppBar(
                             title: Text(t.appTitle),
                             actions: [
+                              IconButton(
+                                tooltip: t.help_center_title,
+                                icon: const Icon(Icons.help_outline),
+                                onPressed: () => _navKey.currentState?.pushNamed('/help'),
+                              ),
                               LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
                               w.ThemeAction(),
                             ],
@@ -514,6 +520,11 @@ class _MyAppState extends State<MyApp> {
                         appBar: AppBar(
                           title: Text(t.appTitle),
                           actions: [
+                            IconButton(
+                              tooltip: t.help_center_title,
+                              icon: const Icon(Icons.help_outline),
+                              onPressed: () => _navKey.currentState?.pushNamed('/help'),
+                            ),
                             LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
                             w.ThemeAction(),
                           ],
@@ -680,6 +691,19 @@ class _MyAppState extends State<MyApp> {
               '/repLogin': (_) => RepLoginPage(api: api),
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
+              '/help': (ctx) {
+                    final args = ModalRoute.of(ctx)?.settings.arguments;
+                    String? section;
+                    String? topic;
+                    if (args is Map<String, String>) {
+                      section = args['section'];
+                      topic = args['topic'];
+                    }
+                    return HelpCenterPage(
+                      initialSectionId: section,
+                      initialTopicId: topic,
+                    );
+                  },
               '/admin/wiki': (_) => AdminPage.wiki(
                     api: api,
                     portalProfile: api.portalProfile,
@@ -722,6 +746,19 @@ class _MyAppState extends State<MyApp> {
                 return MaterialPageRoute(
                   builder: (_) => RepDashboardPage(api: api),
                   settings: const RouteSettings(name: '/rep'),
+                );
+              }
+
+              if (name.startsWith('/help')) {
+                final uri = Uri.tryParse(name);
+                final section = uri?.queryParameters['section'];
+                final topic = uri?.queryParameters['topic'];
+                return MaterialPageRoute(
+                  builder: (_) => HelpCenterPage(
+                    initialSectionId: section,
+                    initialTopicId: topic,
+                  ),
+                  settings: settings,
                 );
               }
 

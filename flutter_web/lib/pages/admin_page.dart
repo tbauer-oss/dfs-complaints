@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../api/client.dart';
+import '../models/capa_report.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
 import '../models/customer_news_entry.dart';
@@ -636,6 +637,10 @@ class _AdminPageState extends State<AdminPage> {
   bool _showBulkAssignAll = false;
   bool _showBulkAssignOpen = false;
 
+  List<CapaReport> _capaReports = const [];
+  bool _capaReportsLoading = false;
+  String? _capaReportsErr;
+
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
   final Set<String> _archivedTileIds = <String>{};
@@ -844,6 +849,7 @@ class _AdminPageState extends State<AdminPage> {
     _refreshAllComplaints();
     _refreshOpen();
     _refreshCapaDashboard();
+    _refreshCapaReports();
     _refreshReps();
     _loadCatalogConfigAdmin();
     _loadProducts();
@@ -1445,6 +1451,25 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _refreshCapaReports() async {
+    setState(() {
+      _capaReportsLoading = true;
+      _capaReportsErr = null;
+    });
+
+    try {
+      final list = await widget.api.adminCapas();
+      if (!mounted) return;
+      setState(() => _capaReports = list);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _capaReportsErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _capaReportsLoading = false);
+    }
+  }
+
   Future<void> _refreshAllComplaints() async {
     setState(() {
       _err = null;
@@ -1470,6 +1495,13 @@ class _AdminPageState extends State<AdminPage> {
       if (!mounted) return;
       setState(() => _loadAllComplaints = false);
     }
+  }
+
+  Future<void> _reloadComplaintList() async {
+    await Future.wait([
+      _refreshAllComplaints(),
+      _refreshCapaReports(),
+    ]);
   }
 
   Future<void> _loadProducts() async {
@@ -4561,7 +4593,7 @@ class _AdminPageState extends State<AdminPage> {
           tooltip: 'Alles neu laden',
           onPressed: () async {
             await _refreshAll();
-            await _refreshAllComplaints();
+            await _reloadComplaintList();
             await _refreshOpen();
             await _refreshNews();
             await _refreshFaq();
@@ -4593,7 +4625,7 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     if (shouldRefreshComplaints) {
-      _refreshAllComplaints();
+      _reloadComplaintList();
     }
   }
 
@@ -7107,6 +7139,43 @@ class _AdminPageState extends State<AdminPage> {
     String fallbackDash(String value) => value.trim().isEmpty ? '—' : value.trim();
 
     String formatDate(DateTime? value) => value == null ? '—' : DateFormat('dd.MM.yyyy').format(value.toLocal());
+
+    Map<String, CapaReport> buildCapaMap() {
+      final map = <String, CapaReport>{};
+      for (final capa in _capaReports) {
+        final key = capa.complaintId.trim();
+        if (key.isEmpty) continue;
+        final existing = map[key];
+        if (existing == null || capa.updatedAt.isAfter(existing.updatedAt)) {
+          map[key] = capa;
+        }
+      }
+      return map;
+    }
+
+    String immediateText(CapaReport? report) {
+      if (report == null) return '—';
+      final details = report.sections.immediateDetails.trim();
+      final actions = report.sections.immediateActions
+          .map((a) => a.action.trim())
+          .where((a) => a.isNotEmpty)
+          .toList();
+      final segments = <String>[];
+      if (details.isNotEmpty) segments.add(details);
+      if (actions.isNotEmpty) segments.add(actions.join(' • '));
+      return segments.isEmpty ? '—' : segments.join(' — ');
+    }
+
+    String summaryText(CapaReport? report) {
+      if (report == null) return '—';
+      final number = report.effectiveNumber.trim();
+      final title = report.title.trim();
+      if (number.isNotEmpty && title.isNotEmpty) return '$number – $title';
+      if (number.isNotEmpty) return number;
+      if (title.isNotEmpty) return title;
+      return '—';
+    }
+
     final prepared = _allComplaints.map((c) {
       final receivedDate = c.createdAt.toLocal();
       final closedDate = closedDateFor(c) ?? parseDate(c.payload?['closedAt']);
@@ -7233,11 +7302,16 @@ class _AdminPageState extends State<AdminPage> {
       return false;
     }
 
+    final capaMap = buildCapaMap();
+
     return prepared.map((entry) {
       final c = entry.complaint;
       final customer = entry.customer;
       final recurrence = hasRecurrence(entry);
       final prrc = (c.prrcClassification ?? '').trim();
+      final capa = capaMap[c.ticket];
+      final immediate = immediateText(capa);
+      final corrective = summaryText(capa);
 
       return ComplaintListItem(
         internalNumber: (c.internalNo ?? '').trim().isEmpty ? '—' : (c.internalNo ?? ''),
@@ -7264,8 +7338,8 @@ class _AdminPageState extends State<AdminPage> {
         prrcClassification: prrc.isEmpty ? 'N/A' : prrc,
         internalAssessment: c.internalEvaluationTextDe ?? payloadValue(c, ['internalAssessment', 'bewertung']),
         suspectedCause: c.internalEvaluationCause ?? payloadValue(c, ['suspectedCause', 'ursache']),
-        immediateActions: fallbackDash(payloadValue(c, ['immediateActions', 'soforthandlung', 'soforthandlungen'])),
-        correctiveActions: fallbackDash(payloadValue(c, ['correctiveActions', 'capa', 'korrekturmassnahmen'])),
+        immediateActions: immediate,
+        correctiveActions: corrective,
         recurrence: recurrence,
         severity: fallbackDash(payloadValue(c, ['severity', 'kritikalitaet', 'schweregrad'])),
         notes: (c.adminNotes ?? payloadValue(c, ['notes', 'bemerkungen'])),
@@ -7288,9 +7362,9 @@ class _AdminPageState extends State<AdminPage> {
           api: widget.api,
           complaints: _complaintListItems(),
           customerLookup: _companyByEmail,
-          errorMessage: _complaintListErr,
-          isLoading: _loadAllComplaints,
-          onReload: _refreshAllComplaints,
+          errorMessage: _complaintListErr ?? _capaReportsErr,
+          isLoading: _loadAllComplaints || _capaReportsLoading,
+          onReload: _reloadComplaintList,
           onInlineUpdateActions: _updateComplaintActions,
           showPrrcColumn: true,
           onUpdatePrrcClassification:
@@ -10663,7 +10737,7 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                     IconButton(
                       tooltip: 'Neu laden',
-                      onPressed: _loadAllComplaints ? null : _refreshAllComplaints,
+                      onPressed: _loadAllComplaints ? null : _reloadComplaintList,
                       icon: const Icon(Icons.refresh),
                     ),
                   ],
@@ -10717,7 +10791,7 @@ class _AdminPageState extends State<AdminPage> {
                               _selectedAllTickets.remove(c.ticket);
                               _selectedOpenTickets.remove(c.ticket);
                             });
-                            _refreshAllComplaints();
+                            _reloadComplaintList();
                             _refreshOpen();
                           },
                         );
@@ -10736,9 +10810,9 @@ class _AdminPageState extends State<AdminPage> {
       api: widget.api,
       complaints: _complaintListItems(),
       customerLookup: _companyByEmail,
-      errorMessage: _complaintListErr,
-      isLoading: _loadAllComplaints,
-      onReload: _refreshAllComplaints,
+      errorMessage: _complaintListErr ?? _capaReportsErr,
+      isLoading: _loadAllComplaints || _capaReportsLoading,
+      onReload: _reloadComplaintList,
       onUpdatePrrcClassification: canEdit ? _updatePrrcClassification : null,
       showPrrcColumn: true,
       prrcReadOnly: !canEdit,
@@ -10884,7 +10958,7 @@ class _AdminPageState extends State<AdminPage> {
                               _selectedOpenTickets.remove(c.ticket);
                               _selectedAllTickets.remove(c.ticket);
                             });
-                            _refreshAllComplaints();
+                            _reloadComplaintList();
                           },
                         );
                       },
