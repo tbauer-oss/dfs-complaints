@@ -107,6 +107,26 @@ class LegalFooter extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
+            // Hilfe / Support (interne Route)
+            InkWell(
+              onTap: () => Navigator.of(context).pushNamed('/help'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.help_outline, size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    t.help_center_title,
+                    style: TextStyle(
+                      color: scheme.primary,
+                      decoration: TextDecoration.underline,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
             // Datenschutz (interne Route) – mit demselben Icon wie vorher
             InkWell(
               onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),

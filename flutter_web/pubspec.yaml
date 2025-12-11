@@ -32,6 +32,7 @@ flutter:
     - assets/dfs_logo.png
     - assets/dfs_logo.svg
     - lib/data/dfs_products.csv
+    - assets/help/
   generate: true
 
 flutter_intl:
