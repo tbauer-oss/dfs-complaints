@@ -10,6 +10,9 @@ class CustomerNewsEntry {
   final DateTime updatedAt;
   final String? linkLabel;
   final String? linkUrl;
+  final List<String> audienceEmails;
+  final List<String> audienceDepartments;
+  final List<String> audienceRoles;
 
   const CustomerNewsEntry({
     required this.id,
@@ -22,6 +25,9 @@ class CustomerNewsEntry {
     required this.updatedAt,
     this.linkLabel,
     this.linkUrl,
+    this.audienceEmails = const [],
+    this.audienceDepartments = const [],
+    this.audienceRoles = const [],
   });
 
   factory CustomerNewsEntry.fromJson(Map<String, dynamic> json) {
@@ -50,6 +56,27 @@ class CustomerNewsEntry {
       linkUrl: (json['linkUrl'] ?? '').toString().trim().isEmpty ? null : json['linkUrl'].toString(),
       publishedAt: _parseTs(json['publishedAt']),
       updatedAt: _parseTs(json['updatedAt'] ?? json['createdAt']),
+      audienceEmails: (json['audience'] is Map && (json['audience']['emails'] is List)
+              ? (json['audience']['emails'] as List)
+              : const [])
+          .map((e) => (e ?? '').toString())
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => e.trim())
+          .toList(),
+      audienceDepartments: (json['audience'] is Map && (json['audience']['departments'] is List)
+              ? (json['audience']['departments'] as List)
+              : const [])
+          .map((e) => (e ?? '').toString())
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => e.trim())
+          .toList(),
+      audienceRoles: (json['audience'] is Map && (json['audience']['roles'] is List)
+              ? (json['audience']['roles'] as List)
+              : const [])
+          .map((e) => (e ?? '').toString())
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => e.trim())
+          .toList(),
     );
   }
 
@@ -63,6 +90,9 @@ class CustomerNewsEntry {
     DateTime? updatedAt,
     String? linkLabel,
     String? linkUrl,
+    List<String>? audienceEmails,
+    List<String>? audienceDepartments,
+    List<String>? audienceRoles,
   }) {
     return CustomerNewsEntry(
       id: id,
@@ -75,6 +105,9 @@ class CustomerNewsEntry {
       updatedAt: updatedAt ?? this.updatedAt,
       linkLabel: linkLabel ?? this.linkLabel,
       linkUrl: linkUrl ?? this.linkUrl,
+      audienceEmails: audienceEmails ?? this.audienceEmails,
+      audienceDepartments: audienceDepartments ?? this.audienceDepartments,
+      audienceRoles: audienceRoles ?? this.audienceRoles,
     );
   }
 }
