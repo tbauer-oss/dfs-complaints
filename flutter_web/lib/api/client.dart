@@ -1398,6 +1398,32 @@ class ApiClient {
     throw ApiError(500, 'Ungültige Antwort für Reklamations-Update');
   }
 
+  Future<List<Complaint>> adminComplaints({bool details = false, bool openOnly = false}) async {
+    final params = <String, String>{};
+    if (details) params['details'] = '1';
+    if (openOnly) params['open'] = '1';
+    final query = params.isEmpty
+        ? ''
+        : '?${params.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
+    final r = await http.get(
+      _u('/api/admin/complaints$query'),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <dynamic>[] : jsonDecode(r.body);
+    final list = decoded is List
+        ? decoded
+        : decoded is Map && decoded['items'] is List
+            ? decoded['items'] as List
+            : const [];
+    return list
+        .whereType<Map>()
+        .map((e) => Complaint.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
   // ---------- Admin: Secret prüfen (für Dialog) ----------
   Future<bool> validateAdminSecret(String secret) async {
     if (secret.trim().isEmpty) return false;
