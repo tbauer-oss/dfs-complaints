@@ -567,17 +567,30 @@ class _MyAppState extends State<MyApp> {
                                               onOpenResetPassword: () => _openResetPassword(ctx),
                                             ),
                                             const SizedBox(height: 18),
-                                            if (!_showInternal)
-                                              Align(
-                                                alignment: Alignment.center,
-                                                child: TextButton.icon(
-                                                  onPressed: () => setState(() => _showInternal = true),
-                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                                                  label: const Text('DFS intern anzeigen'),
+                                            Align(
+                                              alignment: Alignment.center,
+                                              child: TextButton.icon(
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor: scheme.onSurfaceVariant,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                ),
+                                                onPressed: () => setState(() => _showInternal = !_showInternal),
+                                                icon: Icon(
+                                                  _showInternal
+                                                      ? Icons.keyboard_arrow_up_rounded
+                                                      : Icons.keyboard_arrow_down_rounded,
+                                                  size: 22,
+                                                ),
+                                                label: Text(
+                                                  _showInternal ? 'DFS intern ausblenden' : 'DFS intern anzeigen',
+                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
                                                 ),
                                               ),
+                                            ),
                                             AnimatedSize(
-                                              duration: const Duration(milliseconds: 250),
+                                              duration: const Duration(milliseconds: 220),
                                               curve: Curves.easeInOut,
                                               child: _showInternal
                                                   ? Container(
