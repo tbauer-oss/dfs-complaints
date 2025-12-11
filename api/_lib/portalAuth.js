@@ -17,6 +17,9 @@ export const PORTAL_ROLES = {
   prrc: 'prrc',
 };
 
+export const DFS_PORTAL_EMAIL_FORBIDDEN_MSG =
+  'Diese E-Mail gehört zu einem internen DFS-Account und kann nicht als Kundenkonto verwendet werden.';
+
 // Hinterlegte Admin-E-Mails (Superuser) – Initialpasswort = ADMIN_SECRET
 export const ADMIN_EMAILS = new Set([
   'tobias.bauer@dfs-diamon.de',
@@ -37,6 +40,19 @@ export function normalizeStatus(status, revoked = false) {
   if (revoked) return 'inactive';
   const lc = String(status || '').trim().toLowerCase();
   return lc === 'inactive' ? 'inactive' : 'active';
+}
+
+export async function isPortalEmail(email) {
+  const mail = String(email || '').trim().toLowerCase();
+  if (!mail) return false;
+  if (ADMIN_EMAILS.has(mail)) return true;
+
+  try {
+    const portal = await portalUserByEmail(mail);
+    return !!portal;
+  } catch {
+    return false;
+  }
 }
 
 export function canWrite(role) {

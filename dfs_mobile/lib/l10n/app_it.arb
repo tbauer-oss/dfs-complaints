@@ -308,6 +308,7 @@
   "login_failed": "Accesso non riuscito",
   "login_failed_check_credentials": "Accesso non riuscito. Controlla email e password.",
   "login_failed_with_error": "Accesso non riuscito: {error}",
+  "dfs_portal_email_forbidden": "Questa e-mail appartiene a un account DFS interno e non può essere utilizzata come account cliente.",
   "account_blocked": "Account bloccato. Contatta il tuo referente.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "stay_signed_in": "Rimanere connesso?",

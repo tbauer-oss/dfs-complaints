@@ -306,6 +306,7 @@
   "login_failed": "Error al iniciar sesión",
   "login_failed_check_credentials": "Error al iniciar sesión. Verifique su correo y contraseña.",
   "login_failed_with_error": "Error de inicio de sesión: {error}",
+  "dfs_portal_email_forbidden": "Este correo electrónico pertenece a una cuenta interna de DFS y no puede utilizarse como cuenta de cliente.",
   "account_blocked": "Cuenta bloqueada. Contacte con su persona de contacto.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "stay_signed_in": "¿Mantener la sesión iniciada?",

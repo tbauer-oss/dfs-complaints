@@ -346,6 +346,7 @@
   "login_failed": "Login fehlgeschlagen",
   "login_failed_check_credentials": "Anmeldung fehlgeschlagen. Bitte E-Mail/Passwort prüfen.",
   "login_failed_with_error": "Login fehlgeschlagen: {error}",
+  "dfs_portal_email_forbidden": "Diese E-Mail gehört zu einem internen DFS-Account und kann nicht als Kundenkonto verwendet werden.",
   "account_blocked": "Account gesperrt. Bitte wenden Sie sich an Ihren Ansprechpartner.",
   "@login_failed_with_error": { "placeholders": { "error": { "type": "String" } } },
   "stay_signed_in": "Angemeldet bleiben?",
