@@ -42,6 +42,15 @@ class _AuthPageState extends State<AuthPage> {
   String _selectedLang = 'de';
   bool _staySignedIn = true;
 
+  String? _mapPortalEmailError(String? backendMessage, AppLocalizations t) {
+    if (backendMessage == null || backendMessage.isEmpty) return null;
+    final lower = backendMessage.toLowerCase();
+    if (lower.contains('internen dfs-account') || lower.contains('internal dfs account')) {
+      return t.dfs_portal_email_forbidden;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -359,13 +368,15 @@ class _AuthPageState extends State<AuthPage> {
         if (result.ok) {
           widget.onLoggedIn();
         } else {
+          final portalMsg = _mapPortalEmailError(result.message, t);
           final err = result.revoked
               ? t.account_blocked
-              : (result.statusCode == 401
-                  ? t.login_failed_check_credentials
-                  : (result.message?.isNotEmpty == true
-                      ? result.message!
-                      : t.login_failed));
+              : portalMsg ??
+                  (result.statusCode == 401
+                      ? t.login_failed_check_credentials
+                      : (result.message?.isNotEmpty == true
+                          ? result.message!
+                          : t.login_failed));
           setState(() => _err = err);
         }
         return;
@@ -421,7 +432,12 @@ class _AuthPageState extends State<AuthPage> {
         } else if (errStr.contains('pending') || errStr.contains('resent')) {
           setState(() => _err = t.register_pending_resent);
         } else {
-          setState(() => _err = t.register_failed(errStr));
+          final portalMsg = _mapPortalEmailError(errStr, t);
+          if (portalMsg != null) {
+            setState(() => _err = portalMsg);
+          } else {
+            setState(() => _err = t.register_failed(errStr));
+          }
         }
       }
     } catch (e) {

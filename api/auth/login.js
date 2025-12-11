@@ -6,18 +6,16 @@ import jwt from 'jsonwebtoken';
 import {
   handlePreflight, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
-import { portalUserByEmail, portalUserSave, recordUserLogin, userByEmail } from '../_lib/store.js';
+import { recordUserLogin, userByEmail } from '../_lib/store.js';
 import {
-  ADMIN_EMAILS,
+  DFS_PORTAL_EMAIL_FORBIDDEN_MSG,
   ensureInitialAdmins,
+  isPortalEmail,
   normalizeRole,
   normalizeStatus,
-  PORTAL_ROLES,
 } from '../_lib/portalAuth.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS direkt beantworten (204)
   if (handlePreflight(req, res)) return;
@@ -33,37 +31,11 @@ export default async function handler(req, res) {
 
     await ensureInitialAdmins();
 
-    const preferPortal = ADMIN_EMAILS.has(email);
-    let u = preferPortal ? await portalUserByEmail(email) : null;
-    let isPortalAccount = preferPortal && !!u;
-
-    if (!u && !preferPortal) {
-      u = await userByEmail(email);
+    if (await isPortalEmail(email)) {
+      return bad(res, DFS_PORTAL_EMAIL_FORBIDDEN_MSG, 403);
     }
 
-    if (!u) {
-      const portal = await portalUserByEmail(email);
-      if (portal) {
-        u = portal;
-        isPortalAccount = true;
-      }
-    }
-
-    // Auto-Provision der hinterlegten Admin-E-Mails (Passwort = ADMIN_SECRET)
-    if (!u && ADMIN_EMAILS.has(email)) {
-      const passhash = ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '';
-      u = {
-        email,
-        passhash,
-        role: PORTAL_ROLES.superuser,
-        portalStatus: 'active',
-        displayName: email.split('@')[0],
-        createdAt: Date.now(),
-      };
-      await portalUserSave(u);
-      isPortalAccount = true;
-    }
-
+    const u = await userByEmail(email);
     if (!u) return bad(res, 'invalid credentials', 401);
 
     // Achtung: Feldname muss zu deinem Store passen (passhash vs passwordHash)
@@ -87,9 +59,7 @@ export default async function handler(req, res) {
 
     // Meta protokollieren (letzter Login + evtl. App-Version)
     try {
-      if (!isPortalAccount) {
-        await recordUserLogin(email, { appVersion: body?.appVersion, appBuild: body?.appBuild });
-      }
+      await recordUserLogin(email, { appVersion: body?.appVersion, appBuild: body?.appBuild });
     } catch (e) {
       console.warn('[auth/login] recordUserLogin failed:', e?.message || e);
     }

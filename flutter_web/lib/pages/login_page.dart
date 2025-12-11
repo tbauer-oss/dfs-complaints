@@ -83,6 +83,15 @@ class _RepLoginPageState extends State<RepLoginPage> {
   bool _busy = false;
   String? _err;
 
+  String? _mapPortalEmailError(String? backendMessage) {
+    if (backendMessage == null || backendMessage.isEmpty) return null;
+    final lower = backendMessage.toLowerCase();
+    if (lower.contains('internen dfs-account') || lower.contains('internal dfs account')) {
+      return context.t.dfs_portal_email_forbidden;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,13 +122,15 @@ class _RepLoginPageState extends State<RepLoginPage> {
     try {
       final result = await widget.api.login(loginEmail, loginPw);
       if (!result.ok) {
+        final portalMsg = _mapPortalEmailError(result.message);
         final err = result.revoked
             ? t.account_blocked
-            : (result.statusCode == 401
-                ? t.login_failed_check_credentials
-                : (result.message?.isNotEmpty == true
-                    ? result.message!
-                    : t.login_failed));
+            : portalMsg ??
+                (result.statusCode == 401
+                    ? t.login_failed_check_credentials
+                    : (result.message?.isNotEmpty == true
+                        ? result.message!
+                        : t.login_failed));
         setState(() => _err = err);
         return;
       }
