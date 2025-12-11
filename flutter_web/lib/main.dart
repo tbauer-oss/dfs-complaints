@@ -353,7 +353,7 @@ class _MyAppState extends State<MyApp> {
     }
 
     // Web-Tab-Titel setzen (failsafe)
-    try { html.document.title = 'DFS Complaints'; } catch (_) {}
+    try { html.document.title = 'DFS-Connect'; } catch (_) {}
 
     // prefs global verfügbar machen
     return AppPrefsScope(
@@ -363,7 +363,7 @@ class _MyAppState extends State<MyApp> {
           final prefs = AppPrefsScope.of(scopeCtx);
 
           return MaterialApp(
-            title: 'DFS Complaints',
+            title: 'DFS-Connect',
             debugShowCheckedModeBanner: false,
             navigatorKey: _navKey,
 
