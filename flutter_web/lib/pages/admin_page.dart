@@ -372,6 +372,10 @@ class _AdminPageState extends State<AdminPage> {
   List<CustomerNewsEntry> _portalFeed = [];
   bool _portalFeedLoading = false;
   String? _portalFeedErr;
+  bool _portalFeedModalOpen = false;
+  int _portalFeedPulse = 0;
+  Timer? _portalFeedPulseTimer;
+  final Set<String> _portalNewsAckBusy = {};
   bool _portalUsersLoading = false;
   bool _portalUsersLoaded = false;
   String? _portalUsersErr;
@@ -869,6 +873,9 @@ class _AdminPageState extends State<AdminPage> {
     _loadProducts();
     _refreshFaq();
     _loadPortalFeed();
+    _portalFeedPulseTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
+      if (mounted) setState(() => _portalFeedPulse++);
+    });
     if (_isSuperuser) _refreshPortalUsers();
   }
 
@@ -900,6 +907,7 @@ class _AdminPageState extends State<AdminPage> {
     _portalUserPasswordCtrl.dispose();
     _portalUserPasswordRepeatCtrl.dispose();
     _portalUserDepartmentCtrl.dispose();
+    _portalFeedPulseTimer?.cancel();
     super.dispose();
   }
 
@@ -5930,144 +5938,354 @@ class _AdminPageState extends State<AdminPage> {
     final cs = theme.colorScheme;
     if ((widget.api.portalToken ?? '').isEmpty) return const SizedBox.shrink();
 
-    Widget badge(String text, IconData icon) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: cs.secondaryContainer,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [Icon(icon, size: 16, color: cs.onSecondaryContainer), const SizedBox(width: 6), Text(text)],
-          ),
-        );
+    if (!_portalFeedLoading && _portalFeed.isEmpty && _portalFeedErr == null) {
+      _loadPortalFeed();
+    }
 
-    Widget buildEntry(CustomerNewsEntry entry) {
+    final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
+    final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
+    final unreadNews = manualNews.where((e) => !e.acknowledged).toList();
+    final showBanner = _portalFeedLoading || _portalFeedErr != null || tasks.isNotEmpty || manualNews.isNotEmpty;
+    if (!showBanner) return const SizedBox.shrink();
+
+    Widget pulseDot({required Color color, required bool active, String? tooltip}) {
+      final opacity = active ? 1.0 : 0.25;
+      return Tooltip(
+        message: tooltip ?? '',
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 480),
+          opacity: opacity,
+          child: Container(
+            height: 12,
+            width: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [if (active) BoxShadow(color: color.withOpacity(.5), blurRadius: 12)],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final taskBlink = tasks.isNotEmpty && (_portalFeedPulse % 2 == 0);
+    final newsBlink = unreadNews.isNotEmpty && (_portalFeedPulse % 3 != 0);
+    final accent = cs.primaryContainer.withOpacity(.2);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Material(
+        color: cs.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _openPortalFeedModal,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.dashboard_customize_outlined, color: cs.primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text('DFS Portal-News', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(width: 8),
+                          if (_portalFeedLoading)
+                            const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                          if (_portalFeedErr != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Icon(Icons.error_outline, color: cs.error, size: 18),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Personalisierte Aufgaben & Hinweise – Klick für Details',
+                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                pulseDot(
+                  color: cs.error,
+                  active: taskBlink,
+                  tooltip: tasks.isEmpty ? 'Keine offenen Aufgaben' : 'Offene Aufgaben für dich',
+                ),
+                const SizedBox(width: 8),
+                pulseDot(
+                  color: cs.secondary,
+                  active: newsBlink,
+                  tooltip: unreadNews.isEmpty ? 'Keine neuen Hinweise' : 'Neue/unbestätigte Hinweise',
+                ),
+                const SizedBox(width: 10),
+                Icon(Icons.keyboard_arrow_right_rounded, color: cs.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _acknowledgePortalNews(CustomerNewsEntry entry) async {
+    if (_portalNewsAckBusy.contains(entry.id) || entry.kind == 'task' || entry.acknowledged) return;
+    setState(() => _portalNewsAckBusy.add(entry.id));
+    try {
+      await widget.api.acknowledgePortalNews(entry.id);
+      await _loadPortalFeed(refresh: true);
+      if (_isPortalNewsScope) _refreshNews();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Konnte Hinweis nicht bestätigen: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _portalNewsAckBusy.remove(entry.id));
+    }
+  }
+
+  Widget _portalFeedModalList({required List<CustomerNewsEntry> items, required bool isTaskList}) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    if (items.isEmpty) {
       return Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(.4),
+          color: cs.surfaceVariant.withOpacity(.25),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                badge(_newsCategoryLabel(entry.category), Icons.label_important_outline),
-                const SizedBox(width: 8),
-                if (entry.pinned) badge('Hervorgehoben', Icons.push_pin_outlined),
-                const Spacer(),
-                Text(DateFormat('dd.MM. HH:mm').format(entry.publishedAt.toLocal()),
-                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-              ],
+            Icon(isTaskList ? Icons.task_alt_outlined : Icons.mark_email_unread_outlined, color: cs.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                isTaskList ? 'Keine offenen Aufgaben' : 'Keine neuen Hinweise',
+                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(entry.title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(entry.summary, maxLines: 3, overflow: TextOverflow.ellipsis),
           ],
         ),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: cs.outlineVariant.withOpacity(.6)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    Widget tile(CustomerNewsEntry entry) {
+      final isAcknowledged = entry.acknowledged || isTaskList;
+      return InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          if (entry.linkUrl != null && entry.linkUrl!.isNotEmpty) {
+            html.window.open(entry.linkUrl!, '_self');
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
+            boxShadow: [BoxShadow(color: cs.shadow.withOpacity(.04), blurRadius: 12, offset: const Offset(0, 6))],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: cs.primaryContainer,
-                    foregroundColor: cs.onPrimaryContainer,
-                    child: const Icon(Icons.security),
-                  ),
+                  Icon(isTaskList ? Icons.pending_actions_outlined : Icons.campaign_outlined,
+                      color: isTaskList ? cs.error : cs.secondary),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('DFS Portal-News', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 2),
-                        Text('Personalisierte Hinweise für dein Konto',
-                            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                        Text(entry.title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Text(
+                          entry.summary,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                        ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Neu laden',
-                    onPressed: _portalFeedLoading ? null : () => _loadPortalFeed(refresh: true),
-                    icon: const Icon(Icons.refresh),
-                  ),
+                  const SizedBox(width: 12),
+                  if (!isTaskList)
+                    FilledButton.tonal(
+                      onPressed: isAcknowledged || _portalNewsAckBusy.contains(entry.id)
+                          ? null
+                          : () => _acknowledgePortalNews(entry),
+                      child: Text(isAcknowledged ? 'Bestätigt' : 'Gelesen / Bestätigt'),
+                    ),
                 ],
               ),
-              const SizedBox(height: 12),
-              if (_portalFeedLoading)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2.2),
-                      ),
-                      const SizedBox(width: 10),
-                      Text('Aktualisiere persönliche Ereignisse …',
-                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
-                    ],
-                  ),
-                )
-              else if (_portalFeedErr != null)
-                Text('Konnte Portal-News nicht laden: $_portalFeedErr',
-                    style: TextStyle(color: cs.error, fontWeight: FontWeight.w600))
-              else if (_portalFeed.isEmpty)
-                Text('Keine neuen Portal-News für dich.', style: theme.textTheme.bodyMedium)
-              else ...[
-                ..._portalFeed.take(3).map(buildEntry),
-                if (_portalFeed.length > 3)
-                  Text('… ${_portalFeed.length - 3} weitere Einträge', style: theme.textTheme.bodySmall),
-              ],
               const SizedBox(height: 8),
               Row(
                 children: [
-                  FilledButton.tonalIcon(
-                    onPressed: _isSuperuser
-                        ? () {
-                            setState(() {
-                              _newsScope = 'portal';
-                              _view = _AdminView.news;
-                            });
-                            if (_newsEntriesPortal.isEmpty) _refreshNews();
-                          }
-                        : null,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Portal-News verwalten'),
+                  Chip(
+                    label: Text(_newsCategoryLabel(entry.category)),
+                    avatar: Icon(isTaskList ? Icons.task_alt : Icons.mark_email_read_outlined, size: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                   ),
-                  const SizedBox(width: 10),
-                  TextButton.icon(
-                    onPressed: _portalFeedLoading ? null : () => _loadPortalFeed(refresh: true),
-                    icon: const Icon(Icons.notifications_active_outlined),
-                    label: const Text('Feed aktualisieren'),
-                  ),
+                  const SizedBox(width: 8),
+                  Text(DateFormat('dd.MM. HH:mm').format(entry.publishedAt.toLocal()),
+                      style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  const Spacer(),
+                  if (_isSuperuser && entry.acknowledgedBy.isNotEmpty)
+                    Tooltip(
+                      message: 'Bereits bestätigt: ${entry.acknowledgedBy.map((e) => e.email ?? e.name ?? '').where((v) => v.isNotEmpty).join(', ')}',
+                      child: Chip(
+                        label: Text('${entry.acknowledgedBy.length} bestätigt'),
+                        avatar: const Icon(Icons.verified_user_outlined, size: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
+                    ),
                 ],
               ),
             ],
           ),
         ),
-      ),
+      );
+    }
+
+    return Column(
+      children: items.map(tile).toList(),
     );
+  }
+
+  Future<void> _openPortalFeedModal() async {
+    if (!_portalFeedLoading && _portalFeed.isEmpty) {
+      await _loadPortalFeed(refresh: true);
+    }
+    setState(() => _portalFeedModalOpen = true);
+    await showDialog(
+      context: context,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
+        final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
+        final unreadNews = manualNews.where((e) => !e.acknowledged).length;
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(Icons.security, color: cs.onPrimaryContainer),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Portal-News & Aufgaben',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Offene Aufgaben (Blink A) und neue Hinweise (Blink B) – nur für dich und deine Abteilung.',
+                              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  if (_portalFeedLoading)
+                    const LinearProgressIndicator(minHeight: 3)
+                  else if (_portalFeedErr != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text('Konnte Portal-News nicht laden: $_portalFeedErr',
+                          style: TextStyle(color: cs.error)),
+                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Chip(
+                        label: Text('${tasks.length} offene Aufgaben'),
+                        avatar: const Icon(Icons.bolt_outlined, size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                      Chip(
+                        label: Text('$unreadNews neue Hinweise'),
+                        avatar: const Icon(Icons.mark_email_unread_outlined, size: 18),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _portalFeedLoading ? null : () => _loadPortalFeed(refresh: true),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Aktualisieren'),
+                      ),
+                      if (_isSuperuser)
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            setState(() {
+                              _newsScope = 'portal';
+                              _view = _AdminView.news;
+                            });
+                          },
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Portal-Hinweise verwalten'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Offene Aufgaben', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 10),
+                  _portalFeedModalList(items: tasks, isTaskList: true),
+                  const SizedBox(height: 18),
+                  Text('News / Hinweise', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 10),
+                  _portalFeedModalList(items: manualNews, isTaskList: false),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (mounted) setState(() => _portalFeedModalOpen = false);
   }
 
   // ------------------ Kachel-Menü (neues Design) ------------------
@@ -8063,6 +8281,12 @@ class _AdminPageState extends State<AdminPage> {
         chips.add(Chip(
           avatar: const Icon(Icons.verified_user_outlined, size: 18),
           label: Text('Rollen: ${entry.audienceRoles.join(', ')}'),
+        ));
+      }
+      if (entry.acknowledgedBy.isNotEmpty) {
+        chips.add(Chip(
+          avatar: const Icon(Icons.rule_folder_outlined, size: 18),
+          label: Text('${entry.acknowledgedBy.length} bestätigt'),
         ));
       }
     }

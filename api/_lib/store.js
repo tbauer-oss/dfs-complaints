@@ -526,6 +526,26 @@ function _parseTs(value, fallback) {
   return fallback;
 }
 
+function _normalizeAcknowledgements(raw) {
+  if (!raw) return [];
+  const list = Array.isArray(raw) ? raw : [raw];
+  const safe = new Map();
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object') continue;
+    const email = _text(entry.email ?? entry.mail ?? '', 180).toLowerCase();
+    const name = _text(entry.name ?? entry.displayName ?? '', 240);
+    const at = _parseTs(entry.at, Date.now()) ?? Date.now();
+    if (!email && !name) continue;
+    const key = email || name || crypto.randomUUID();
+    safe.set(key, {
+      email: email || null,
+      name: name || null,
+      at,
+    });
+  }
+  return Array.from(safe.values());
+}
+
 function _normalizeStoredNews(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const now = Date.now();
@@ -539,6 +559,8 @@ function _normalizeStoredNews(raw) {
   const publishedAt = _parseTs(raw.publishedAt, createdAt) ?? createdAt;
   const linkUrl = _safeUrl(raw.linkUrl ?? '');
   const linkLabel = _text(raw.linkLabel ?? '', 160);
+  const audience = _normalizeNewsAudience(raw.audience ?? null);
+  const acknowledgedBy = _normalizeAcknowledgements(raw.acknowledgedBy ?? raw.acknowledged ?? []);
   return {
     id,
     title,
@@ -551,6 +573,9 @@ function _normalizeStoredNews(raw) {
     createdAt,
     updatedAt,
     publishedAt,
+    audience,
+    acknowledgedBy,
+    kind: raw.kind || 'news',
   };
 }
 
@@ -612,6 +637,7 @@ function _normalizeNewsPayload(input = {}, existing = null) {
   const linkLabel = _text(input.linkLabel ?? '', 160);
   const linkUrl = _safeUrl((input.linkUrl ?? base.linkUrl) ?? '');
   const audience = _normalizeNewsAudience(input.audience ?? base.audience ?? null);
+  const acknowledgedBy = _normalizeAcknowledgements(input.acknowledgedBy ?? base.acknowledgedBy ?? base.acknowledged ?? []);
   return {
     id: (input.id ?? base.id ?? '').toString().trim() || `news_${now}_${Math.random().toString(36).slice(2, 8)}`,
     title,
@@ -625,6 +651,7 @@ function _normalizeNewsPayload(input = {}, existing = null) {
     updatedAt: now,
     publishedAt: published,
     audience,
+    acknowledgedBy,
   };
 }
 
@@ -658,6 +685,20 @@ function _newsAudienceMatchesUser(audience, user) {
   if (hasDepartments && departments.length && departments.some((dep) => audience.departments.includes(dep))) return true;
   if (hasRoles && role && audience.roles.includes(role)) return true;
   return false;
+}
+
+function _hasAcknowledged(entry, user) {
+  if (!entry || !user) return false;
+  const email = _nm(user.email);
+  const name = (user.displayName || user.name || '').toString().trim().toLowerCase();
+  if (!email && !name) return false;
+  return (entry.acknowledgedBy || []).some((ack) => {
+    const ackEmail = (ack?.email || '').toString().trim().toLowerCase();
+    const ackName = (ack?.name || '').toString().trim().toLowerCase();
+    if (email && ackEmail && ackEmail === email) return true;
+    if (name && ackName && ackName === name) return true;
+    return false;
+  });
 }
 
 export async function customerNewsList({ limit = 0, includeDrafts = false } = {}) {
@@ -754,7 +795,13 @@ export async function portalNewsList({ limit = 0, includeDrafts = false } = {}) 
 
 export async function portalNewsForUser(user, { limit = 0, includeDrafts = false } = {}) {
   const list = await portalNewsList({ includeDrafts });
-  const targetedNews = list.filter((item) => _newsAudienceMatchesUser(item.audience, user));
+  const targetedNews = list
+    .filter((item) => _newsAudienceMatchesUser(item.audience, user))
+    .map((item) => ({
+      ...item,
+      kind: item.kind || 'news',
+      acknowledged: _hasAcknowledged(item, user),
+    }));
   const personalEvents = await _personalEventsForUser(user);
   const combined = _sortNews([...targetedNews, ...personalEvents]);
   if (limit && limit > 0) {
@@ -882,6 +929,9 @@ function _eventFromComplaint(c, { reason = '' } = {}) {
     updatedAt: c.updatedAt || Date.now(),
     publishedAt: c.updatedAt || c.createdAt || Date.now(),
     audience: null,
+    kind: 'task',
+    acknowledged: false,
+    acknowledgedBy: [],
   };
 }
 
@@ -905,6 +955,9 @@ function _eventFromCapa(capa, { reason = '' } = {}) {
     updatedAt: capa.updatedAt || Date.now(),
     publishedAt: capa.updatedAt || capa.createdAt || Date.now(),
     audience: null,
+    kind: 'task',
+    acknowledged: false,
+    acknowledgedBy: [],
   };
 }
 
@@ -989,6 +1042,31 @@ export async function portalNewsDelete(id) {
   const next = list.filter((item) => item.id !== target);
   await _persistPortalNews(next);
   return next.length !== list.length;
+}
+
+export async function portalNewsAcknowledge(id, user) {
+  const list = await _loadPortalNews();
+  const targetId = (id ?? '').toString().trim();
+  if (!targetId) throw new Error('id required');
+  const idx = list.findIndex((item) => item.id === targetId);
+  if (idx < 0) throw new Error('news entry not found');
+
+  const existing = list[idx];
+  const email = _nm(user?.email);
+  const name = _text(user?.displayName ?? user?.name ?? '', 240);
+  const acknowledgedBy = _normalizeAcknowledgements([
+    ...(existing.acknowledgedBy || []),
+    { email, name, at: Date.now() },
+  ]);
+
+  const updated = {
+    ...existing,
+    acknowledgedBy,
+    updatedAt: Date.now(),
+  };
+  list[idx] = updated;
+  await _persistPortalNews(list);
+  return updated;
 }
 
 /* ============== FAQ / Knowledge Base ============== */

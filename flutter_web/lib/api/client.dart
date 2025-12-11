@@ -534,6 +534,23 @@ class ApiClient {
     return items;
   }
 
+  Future<void> acknowledgePortalNews(String id) async {
+    final headers = {
+      'Content-Type': 'application/json',
+      if (portalToken != null && portalToken!.isNotEmpty) 'Authorization': 'Bearer ${portalToken!}',
+    };
+
+    final r = await http.post(
+      _u('/api/portal/news/ack'),
+      headers: headers,
+      body: jsonEncode({'id': id}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    clearPortalNewsCache();
+  }
+
   Future<FaqData> fetchFaq({bool refresh = false}) async {
     final cacheValid = _faqCache != null &&
         _faqLoadedAt != null &&
