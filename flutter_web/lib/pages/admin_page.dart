@@ -6154,7 +6154,7 @@ class _AdminPageState extends State<AdminPage> {
                       hasNewCustomerMessage: false,
                       onClosed: () {
                         Navigator.of(ctx).pop();
-                        _load();
+                        _reloadComplaintList();
                       },
                       onChanged: (updated) => setState(() => _applyUpdate(updated)),
                       hasRep: _reps.any((r) => r.email.toLowerCase() == c.repEmail?.toLowerCase()),
