@@ -10,6 +10,12 @@ class CustomerNewsEntry {
   final DateTime updatedAt;
   final String? linkLabel;
   final String? linkUrl;
+  final List<String> audienceEmails;
+  final List<String> audienceDepartments;
+  final List<String> audienceRoles;
+  final String kind;
+  final bool acknowledged;
+  final List<NewsAcknowledgement> acknowledgedBy;
 
   const CustomerNewsEntry({
     required this.id,
@@ -22,6 +28,12 @@ class CustomerNewsEntry {
     required this.updatedAt,
     this.linkLabel,
     this.linkUrl,
+    this.audienceEmails = const [],
+    this.audienceDepartments = const [],
+    this.audienceRoles = const [],
+    this.kind = 'news',
+    this.acknowledged = false,
+    this.acknowledgedBy = const [],
   });
 
   factory CustomerNewsEntry.fromJson(Map<String, dynamic> json) {
@@ -50,6 +62,35 @@ class CustomerNewsEntry {
       linkUrl: (json['linkUrl'] ?? '').toString().trim().isEmpty ? null : json['linkUrl'].toString(),
       publishedAt: _parseTs(json['publishedAt']),
       updatedAt: _parseTs(json['updatedAt'] ?? json['createdAt']),
+      audienceEmails: (json['audience'] is Map && (json['audience']['emails'] is List)
+              ? (json['audience']['emails'] as List)
+              : const [])
+          .map((e) => (e ?? '').toString())
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => e.trim())
+          .toList(),
+      audienceDepartments: (json['audience'] is Map && (json['audience']['departments'] is List)
+              ? (json['audience']['departments'] as List)
+              : const [])
+          .map((e) => (e ?? '').toString())
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => e.trim())
+          .toList(),
+      audienceRoles: (json['audience'] is Map && (json['audience']['roles'] is List)
+              ? (json['audience']['roles'] as List)
+              : const [])
+          .map((e) => (e ?? '').toString())
+          .where((e) => e.trim().isNotEmpty)
+          .map((e) => e.trim())
+          .toList(),
+      kind: (json['kind'] ?? 'news').toString(),
+      acknowledged: json['acknowledged'] == true,
+      acknowledgedBy: (json['acknowledgedBy'] is List
+              ? (json['acknowledgedBy'] as List)
+              : const [])
+          .whereType<Map>()
+          .map(NewsAcknowledgement.fromJson)
+          .toList(),
     );
   }
 
@@ -63,6 +104,12 @@ class CustomerNewsEntry {
     DateTime? updatedAt,
     String? linkLabel,
     String? linkUrl,
+    List<String>? audienceEmails,
+    List<String>? audienceDepartments,
+    List<String>? audienceRoles,
+    String? kind,
+    bool? acknowledged,
+    List<NewsAcknowledgement>? acknowledgedBy,
   }) {
     return CustomerNewsEntry(
       id: id,
@@ -75,6 +122,38 @@ class CustomerNewsEntry {
       updatedAt: updatedAt ?? this.updatedAt,
       linkLabel: linkLabel ?? this.linkLabel,
       linkUrl: linkUrl ?? this.linkUrl,
+      audienceEmails: audienceEmails ?? this.audienceEmails,
+      audienceDepartments: audienceDepartments ?? this.audienceDepartments,
+      audienceRoles: audienceRoles ?? this.audienceRoles,
+      kind: kind ?? this.kind,
+      acknowledged: acknowledged ?? this.acknowledged,
+      acknowledgedBy: acknowledgedBy ?? this.acknowledgedBy,
+    );
+  }
+}
+
+class NewsAcknowledgement {
+  final String? email;
+  final String? name;
+  final DateTime at;
+
+  const NewsAcknowledgement({this.email, this.name, required this.at});
+
+  factory NewsAcknowledgement.fromJson(Map<dynamic, dynamic> json) {
+    DateTime _parse(dynamic v) {
+      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v, isUtc: true).toLocal();
+      if (v is double) return DateTime.fromMillisecondsSinceEpoch(v.toInt(), isUtc: true).toLocal();
+      if (v is String && v.trim().isNotEmpty) {
+        final parsed = DateTime.tryParse(v);
+        if (parsed != null) return parsed.toLocal();
+      }
+      return DateTime.now();
+    }
+
+    return NewsAcknowledgement(
+      email: (json['email'] ?? json['mail'])?.toString(),
+      name: (json['name'] ?? json['displayName'])?.toString(),
+      at: _parse(json['at']),
     );
   }
 }
