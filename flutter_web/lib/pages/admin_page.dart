@@ -4616,6 +4616,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.complaintList  => 'Reklamationsliste',
       _AdminView.capaReports    => 'CAPA / 8D-Reports',
       _AdminView.capaDashboard  => 'CAPA-Dashboard',
+      _AdminView.fmea           => 'FMEA',
       _AdminView.prrc           => 'PRRC-Einstufungen',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.portalUsers    => 'User-Datenbank',
