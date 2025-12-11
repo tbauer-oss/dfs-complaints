@@ -273,6 +273,65 @@ class _AdminPageState extends State<AdminPage> {
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
+  bool get _isPortalSuperuser => _portalRole == PORTAL_ROLES['superuser'];
+  bool get _isPortalReadonly => _portalRole == PORTAL_ROLES['readonly'];
+  bool get _isPortalSales => _portalIsSales;
+
+  Map<String, dynamic>? get _portalProfile =>
+      widget.portalProfile ?? widget.api.portalProfile;
+
+  MyRep? get _portalRep {
+    final rep = _portalProfile?['rep'];
+    if (rep is Map) {
+      return MyRep.fromJson(rep.cast<String, dynamic>());
+    }
+    return null;
+  }
+
+  String? get _portalCompanyName {
+    String pickFrom(Map<dynamic, dynamic> map, List<String> keys) {
+      for (final key in keys) {
+        final v = map[key];
+        final s = (v ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      return '';
+    }
+
+    final profile = _portalProfile;
+    if (profile == null) return null;
+
+    final customer = profile['customer'];
+    if (customer is Map) {
+      final fromCustomer = pickFrom(customer, const [
+        'company',
+        'companyName',
+        'customerCompany',
+        'firm',
+        'organisation',
+        'organization',
+        'customer',
+        'kunde',
+      ]);
+      if (fromCustomer.isNotEmpty) return fromCustomer;
+    }
+
+    final direct = pickFrom(profile, const [
+      'company',
+      'companyName',
+      'customerCompany',
+      'customerName',
+      'customer',
+      'organisation',
+      'organization',
+      'org',
+    ]);
+
+    return direct.isEmpty ? null : direct;
+  }
+
+  DfsProduct? _fetchProduct(String articleNumber) =>
+      _productByArticle(articleNumber);
 
   String get _portalDisplayName {
     String s(Object? v) => (v ?? '').toString().trim();
@@ -6340,6 +6399,26 @@ class _AdminPageState extends State<AdminPage> {
         final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
         final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
         final unreadNews = manualNews.where((e) => !e.acknowledged).length;
+
+        Widget pulseDot({required Color color, required bool active}) {
+          final opacity = active ? 1.0 : 0.25;
+          return AnimatedOpacity(
+            duration: const Duration(milliseconds: 480),
+            opacity: opacity,
+            child: Container(
+              height: 12,
+              width: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [if (active) BoxShadow(color: color.withOpacity(.5), blurRadius: 12)],
+              ),
+            ),
+          );
+        }
+
+        final taskBlink = tasks.isNotEmpty && (_portalFeedPulse % 2 == 0);
+        final newsBlink = unreadNews > 0 && (_portalFeedPulse % 3 != 0);
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: ConstrainedBox(
@@ -20621,6 +20700,12 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
                       c: c,
                       portalRole: _portalRole,
                       portalIsSales: _portalIsSales,
+                      hasRep: _portalRep != null,
+                      repName: _portalRep?.displayName,
+                      productLookup: _fetchProduct,
+                      companyHint: _portalCompanyName,
+                      initiallyExpanded: true,
+                      showEditToggle: false,
                       hasNewCustomerMessage: false,
                       onClosed: () {
                         Navigator.of(ctx).pop();
