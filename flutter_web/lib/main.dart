@@ -569,23 +569,18 @@ class _MyAppState extends State<MyApp> {
                                             const SizedBox(height: 18),
                                             Align(
                                               alignment: Alignment.center,
-                                              child: TextButton.icon(
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: scheme.onSurfaceVariant,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                ),
-                                                onPressed: () => setState(() => _showInternal = !_showInternal),
-                                                icon: Icon(
-                                                  _showInternal
-                                                      ? Icons.keyboard_arrow_up_rounded
-                                                      : Icons.keyboard_arrow_down_rounded,
-                                                  size: 22,
-                                                ),
-                                                label: Text(
-                                                  _showInternal ? 'DFS intern ausblenden' : 'DFS intern anzeigen',
-                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                        fontWeight: FontWeight.w600,
-                                                      ),
+                                              child: Tooltip(
+                                                message: 'Weitere Optionen',
+                                                child: IconButton(
+                                                  iconSize: 22,
+                                                  visualDensity: VisualDensity.compact,
+                                                  color: scheme.onSurfaceVariant,
+                                                  onPressed: () => setState(() => _showInternal = !_showInternal),
+                                                  icon: Icon(
+                                                    _showInternal
+                                                        ? Icons.keyboard_arrow_up_rounded
+                                                        : Icons.more_horiz_rounded,
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -620,20 +615,32 @@ class _MyAppState extends State<MyApp> {
                                                       child: Column(
                                                         crossAxisAlignment: CrossAxisAlignment.center,
                                                         children: [
-                                                          Container(
-                                                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
-                                                            decoration: BoxDecoration(
-                                                              color: scheme.surface.withOpacity(0.7),
-                                                              borderRadius: BorderRadius.circular(30),
-                                                              border: Border.all(color: scheme.primary.withOpacity(0.4)),
-                                                            ),
-                                                            child: Text(
-                                                              'DFS',
-                                                              style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                                    letterSpacing: 0.8,
-                                                                    fontWeight: FontWeight.w700,
-                                                                    color: scheme.primary,
-                                                                  ),
+                                                          Tooltip(
+                                                            message: 'Weitere Optionen',
+                                                            child: GestureDetector(
+                                                              behavior: HitTestBehavior.opaque,
+                                                              onLongPress: () =>
+                                                                  setState(() => _showInternal = !_showInternal),
+                                                              onSecondaryTap: () =>
+                                                                  setState(() => _showInternal = !_showInternal),
+                                                              child: Container(
+                                                                padding: const EdgeInsets.symmetric(
+                                                                    vertical: 6, horizontal: 14),
+                                                                decoration: BoxDecoration(
+                                                                  color: scheme.surface.withOpacity(0.7),
+                                                                  borderRadius: BorderRadius.circular(30),
+                                                                  border:
+                                                                      Border.all(color: scheme.primary.withOpacity(0.4)),
+                                                                ),
+                                                                child: Text(
+                                                                  'DFS',
+                                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                                                                        letterSpacing: 0.8,
+                                                                        fontWeight: FontWeight.w700,
+                                                                        color: scheme.primary,
+                                                                      ),
+                                                                ),
+                                                              ),
                                                             ),
                                                           ),
                                                           const SizedBox(height: 12),
