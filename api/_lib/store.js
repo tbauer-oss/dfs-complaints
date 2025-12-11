@@ -5,6 +5,7 @@ import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
 import {
+  hasDepartmentOverlap,
   normalizeDepartments,
   normalizeEvaluationText,
   normalizeInternalEvaluationCause,
@@ -58,6 +59,7 @@ const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
 const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
+const KEY_PORTAL_NEWS = `${P}portal:news`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
 
@@ -74,6 +76,7 @@ const mem = {
   adminPushTokens: [],
   gateCodes: new Map(),
   customerNews: [],
+  portalNews: [],
   faqCategories: [],
   faqItems: [],
   downloads: [],
@@ -523,6 +526,26 @@ function _parseTs(value, fallback) {
   return fallback;
 }
 
+function _normalizeAcknowledgements(raw) {
+  if (!raw) return [];
+  const list = Array.isArray(raw) ? raw : [raw];
+  const safe = new Map();
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object') continue;
+    const email = _text(entry.email ?? entry.mail ?? '', 180).toLowerCase();
+    const name = _text(entry.name ?? entry.displayName ?? '', 240);
+    const at = _parseTs(entry.at, Date.now()) ?? Date.now();
+    if (!email && !name) continue;
+    const key = email || name || crypto.randomUUID();
+    safe.set(key, {
+      email: email || null,
+      name: name || null,
+      at,
+    });
+  }
+  return Array.from(safe.values());
+}
+
 function _normalizeStoredNews(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const now = Date.now();
@@ -536,6 +559,8 @@ function _normalizeStoredNews(raw) {
   const publishedAt = _parseTs(raw.publishedAt, createdAt) ?? createdAt;
   const linkUrl = _safeUrl(raw.linkUrl ?? '');
   const linkLabel = _text(raw.linkLabel ?? '', 160);
+  const audience = _normalizeNewsAudience(raw.audience ?? null);
+  const acknowledgedBy = _normalizeAcknowledgements(raw.acknowledgedBy ?? raw.acknowledged ?? []);
   return {
     id,
     title,
@@ -548,6 +573,9 @@ function _normalizeStoredNews(raw) {
     createdAt,
     updatedAt,
     publishedAt,
+    audience,
+    acknowledgedBy,
+    kind: raw.kind || 'news',
   };
 }
 
@@ -608,6 +636,8 @@ function _normalizeNewsPayload(input = {}, existing = null) {
   const created = base.createdAt ?? now;
   const linkLabel = _text(input.linkLabel ?? '', 160);
   const linkUrl = _safeUrl((input.linkUrl ?? base.linkUrl) ?? '');
+  const audience = _normalizeNewsAudience(input.audience ?? base.audience ?? null);
+  const acknowledgedBy = _normalizeAcknowledgements(input.acknowledgedBy ?? base.acknowledgedBy ?? base.acknowledged ?? []);
   return {
     id: (input.id ?? base.id ?? '').toString().trim() || `news_${now}_${Math.random().toString(36).slice(2, 8)}`,
     title,
@@ -620,7 +650,55 @@ function _normalizeNewsPayload(input = {}, existing = null) {
     createdAt: created,
     updatedAt: now,
     publishedAt: published,
+    audience,
+    acknowledgedBy,
   };
+}
+
+function _normalizeNewsAudience(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const emails = _uniqueStrings([...(raw.emails || []), raw.email, raw.to])
+    .map((entry) => (entry ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+  const departments = normalizeDepartments(raw.departments || raw.department || []);
+  const roles = _uniqueStrings(raw.roles || raw.role || [])
+    .map((entry) => (entry ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+  if (!emails.length && !departments.length && !roles.length) return null;
+  return { emails, departments, roles };
+}
+
+function _newsAudienceMatchesUser(audience, user) {
+  if (!audience) return true;
+  const email = (user?.email || '').toString().trim().toLowerCase();
+  const departments = normalizeDepartments(
+    user?.assignedDepartments || user?.departments || user?.department || []
+  );
+  const role = (user?.role || '').toString().trim().toLowerCase();
+
+  const hasEmails = Array.isArray(audience.emails) && audience.emails.length > 0;
+  const hasDepartments = Array.isArray(audience.departments) && audience.departments.length > 0;
+  const hasRoles = Array.isArray(audience.roles) && audience.roles.length > 0;
+  if (!hasEmails && !hasDepartments && !hasRoles) return true;
+
+  if (hasEmails && email && audience.emails.some((target) => target === email)) return true;
+  if (hasDepartments && departments.length && departments.some((dep) => audience.departments.includes(dep))) return true;
+  if (hasRoles && role && audience.roles.includes(role)) return true;
+  return false;
+}
+
+function _hasAcknowledged(entry, user) {
+  if (!entry || !user) return false;
+  const email = _nm(user.email);
+  const name = (user.displayName || user.name || '').toString().trim().toLowerCase();
+  if (!email && !name) return false;
+  return (entry.acknowledgedBy || []).some((ack) => {
+    const ackEmail = (ack?.email || '').toString().trim().toLowerCase();
+    const ackName = (ack?.name || '').toString().trim().toLowerCase();
+    if (email && ackEmail && ackEmail === email) return true;
+    if (name && ackName && ackName === name) return true;
+    return false;
+  });
 }
 
 export async function customerNewsList({ limit = 0, includeDrafts = false } = {}) {
@@ -659,6 +737,336 @@ export async function customerNewsDelete(id) {
   const next = list.filter((item) => item.id !== target);
   await _persistCustomerNews(next);
   return next.length !== list.length;
+}
+
+/* ============== Portal News (Mitarbeiter) ============== */
+
+async function _loadPortalNews() {
+  if (mem.portalNews?.length > 0) return mem.portalNews;
+  const r = getRedis();
+  let list = [];
+  if (r) {
+    const raw = await rget(KEY_PORTAL_NEWS);
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (raw && typeof raw === 'object') {
+      list = raw.items || raw.list || [];
+    }
+  } else if (Array.isArray(global.__DFS_PORTAL_NEWS__)) {
+    list = global.__DFS_PORTAL_NEWS__;
+  }
+
+  if (!Array.isArray(list)) list = mem.portalNews;
+
+  const normalized = [];
+  for (const entry of list || []) {
+    const norm = _normalizeNewsPayload(entry);
+    if (norm) normalized.push(norm);
+  }
+  mem.portalNews = normalized.map((item) => ({ ...item }));
+  return normalized;
+}
+
+async function _persistPortalNews(list) {
+  const safeList = _sortNews(list).map((item) => ({ ...item }));
+  mem.portalNews = safeList.map((item) => ({ ...item }));
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_PORTAL_NEWS, safeList);
+  } else {
+    global.__DFS_PORTAL_NEWS__ = safeList;
+  }
+  return safeList;
+}
+
+export async function portalNewsList({ limit = 0, includeDrafts = false } = {}) {
+  const list = await _loadPortalNews();
+  const now = Date.now();
+  const filtered = includeDrafts
+    ? list
+    : list.filter((item) => !item.draft && (item.publishedAt ?? now) <= now);
+  const sorted = _sortNews(filtered);
+  if (limit && limit > 0) {
+    const max = Math.min(Number(limit) || 0, 200);
+    return sorted.slice(0, max || sorted.length);
+  }
+  return sorted;
+}
+
+export async function portalNewsForUser(user, { limit = 0, includeDrafts = false } = {}) {
+  const list = await portalNewsList({ includeDrafts });
+  const targetedNews = list
+    .filter((item) => _newsAudienceMatchesUser(item.audience, user))
+    .map((item) => ({
+      ...item,
+      kind: item.kind || 'news',
+      acknowledged: _hasAcknowledged(item, user),
+    }));
+  const personalEvents = await _personalEventsForUser(user);
+  const combined = _sortNews([...targetedNews, ...personalEvents]);
+  if (limit && limit > 0) {
+    const max = Math.min(Number(limit) || 0, 200);
+    return combined.slice(0, max || combined.length);
+  }
+  return combined;
+}
+
+function _namesFromUser(user = {}) {
+  const names = new Set();
+  const display = (user.displayName || user.name || '').toString().trim().toLowerCase();
+  if (display) names.add(display);
+  const email = (user.email || '').toString();
+  if (email.includes('@')) names.add(email.split('@')[0].toLowerCase());
+  return Array.from(names).filter(Boolean);
+}
+
+function _userDepartments(user = {}) {
+  return normalizeDepartments(user?.assignedDepartments || user?.departments || user?.department || []);
+}
+
+function _complaintDepartments(complaint = {}) {
+  return normalizeDepartments(complaint?.internalDepartments || complaint?.departments || complaint?.department || []);
+}
+
+function _hasDepartment(departments, target) {
+  const wanted = (target || '').toString().trim().toLowerCase();
+  if (!wanted) return false;
+  return normalizeDepartments(departments).some((dep) => dep.toLowerCase() === wanted);
+}
+
+function _isComplaintOpen(complaint = {}) {
+  const status = Number(complaint?.status || 0);
+  const decision = (complaint?.decision || '').toString();
+  if (decision === 'rejected') return false;
+  return status !== Status.CLOSED;
+}
+
+function _complaintMatchesDepartment(complaint, departments) {
+  if (!Array.isArray(departments) || departments.length === 0) return false;
+  if (!_isComplaintOpen(complaint)) return false;
+  const depList = _complaintDepartments(complaint);
+  if (depList.length === 0) return false;
+  return hasDepartmentOverlap(depList, departments);
+}
+
+function _complaintNeedsSalesFollowup(complaint, departments) {
+  if (!_hasDepartment(departments, 'vertrieb')) return false;
+  if (!_isComplaintOpen(complaint)) return false;
+  const missingOrderOrInvoice = !((complaint?.orderNumber || '').toString().trim() || (complaint?.invoiceNumber || '').toString().trim());
+  const missingAgentCode = !(complaint?.salesAgentCode || '').toString().trim();
+  return missingOrderOrInvoice || missingAgentCode;
+}
+
+function _capaDepartment(capa = {}) {
+  return (capa?.sections?.d1?.area || capa?.sections?.area || capa?.department || '').toString().trim();
+}
+
+function _isCapaOpen(capa = {}) {
+  const status = (capa?.status || '').toString().trim().toLowerCase();
+  return ['open', 'inprogress', 'in_progress', 'in progress'].includes(status);
+}
+
+function _capaMatchesDepartment(capa, departments) {
+  if (!Array.isArray(departments) || departments.length === 0) return false;
+  if (!_isCapaOpen(capa)) return false;
+  const capaDept = _capaDepartment(capa);
+  if (!capaDept) return false;
+  return departments.some((dep) => dep.toLowerCase() === capaDept.toLowerCase());
+}
+
+function _complaintMatchesUser(c, user) {
+  const email = _nm(user?.email);
+  const names = _namesFromUser(user);
+  if (!email && names.length === 0) return false;
+
+  const complaintEmails = _emailsFromComplaint(c);
+  if (email && complaintEmails.some((e) => e === email)) return true;
+
+  const payload = c?.payload || {};
+  const rawNames = [
+    c?.contact,
+    payload.name,
+    payload.contact,
+    payload.reporter,
+    payload.reporterName,
+    payload.customerName,
+  ]
+    .map((n) => (n ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+
+  return names.some((n) => rawNames.some((val) => val.includes(n) || n.includes(val)));
+}
+
+function _statusLabel(status) {
+  switch (status) {
+    case Status.RECEIVED: return 'eingegangen';
+    case Status.IN_PROGRESS: return 'in Bearbeitung';
+    case Status.NEEDS_INFO: return 'Rückfrage';
+    case Status.REWORK: return 'Nacharbeit';
+    case Status.CLOSED: return 'geschlossen';
+    default: return 'aktualisiert';
+  }
+}
+
+function _eventFromComplaint(c, { reason = '' } = {}) {
+  const title = `Reklamation ${c.ticket || ''}`.trim();
+  const statusLabel = _statusLabel(c.status);
+  const summary = [c.product, c.description, statusLabel, reason]
+    .map((p) => (p || '').toString().trim())
+    .filter(Boolean)
+    .join(' · ');
+  const safeTitle = title.length > 0 ? title : 'Reklamation';
+  return {
+    id: `complaint_${c.ticket || crypto.randomUUID()}`,
+    title: safeTitle,
+    summary: summary || 'Aktualisierung in deiner Reklamation',
+    category: 'internal',
+    linkLabel: 'Reklamation öffnen',
+    linkUrl: c.ticket ? `/admin?ticket=${c.ticket}` : null,
+    pinned: false,
+    draft: false,
+    createdAt: c.createdAt || Date.now(),
+    updatedAt: c.updatedAt || Date.now(),
+    publishedAt: c.updatedAt || c.createdAt || Date.now(),
+    audience: null,
+    kind: 'task',
+    acknowledged: false,
+    acknowledgedBy: [],
+  };
+}
+
+function _eventFromCapa(capa, { reason = '' } = {}) {
+  const summaryParts = [
+    capa.title,
+    capa.status ? `Status: ${capa.status}` : '',
+    capa.capaNumber,
+    reason,
+  ].map((p) => (p || '').toString().trim()).filter(Boolean);
+  return {
+    id: `capa_${capa.id || capa.capaNumber || crypto.randomUUID()}`,
+    title: capa.capaNumber ? `CAPA ${capa.capaNumber}` : 'CAPA Update',
+    summary: summaryParts.join(' · ') || 'Neue CAPA-Aktivität',
+    category: 'internal',
+    linkLabel: 'CAPA öffnen',
+    linkUrl: capa.id ? `/admin?capa=${capa.id}` : null,
+    pinned: false,
+    draft: false,
+    createdAt: capa.createdAt || Date.now(),
+    updatedAt: capa.updatedAt || Date.now(),
+    publishedAt: capa.updatedAt || capa.createdAt || Date.now(),
+    audience: null,
+    kind: 'task',
+    acknowledged: false,
+    acknowledgedBy: [],
+  };
+}
+
+async function _personalEventsForUser(user = {}) {
+  const email = _nm(user?.email);
+  const names = _namesFromUser(user);
+  const departments = _userDepartments(user);
+  if (!email && names.length === 0 && departments.length === 0) return [];
+
+  const events = new Map();
+  const addEvent = (entry) => {
+    if (!entry?.id) return;
+    if (!events.has(entry.id)) events.set(entry.id, entry);
+  };
+
+  try {
+    const complaints = await complaintsAll();
+    for (const c of complaints || []) {
+      const isPersonal = _complaintMatchesUser(c, user);
+      const deptMatch = _complaintMatchesDepartment(c, departments);
+      const salesFollowup = _complaintNeedsSalesFollowup(c, departments);
+      if (!isPersonal && !deptMatch && !salesFollowup) continue;
+
+      const complaintDeps = _complaintDepartments(c);
+      const overlappingDeps = complaintDeps.filter((dep) =>
+        departments.some((userDep) => userDep.toLowerCase() === dep.toLowerCase())
+      );
+      const reasonParts = [];
+      if (deptMatch && overlappingDeps.length > 0) {
+        reasonParts.push(`Offene Aufgabe für ${overlappingDeps.join(', ')}`);
+      } else if (deptMatch) {
+        reasonParts.push('Offene Aufgabe für deine Abteilung');
+      }
+      if (salesFollowup) {
+        reasonParts.push('Rechnungs-/Auftragsnummer oder Bearbeiterkürzel fehlen');
+      }
+      addEvent(_eventFromComplaint(c, { reason: reasonParts.join(' · ') }));
+    }
+  } catch (e) {
+    console.warn('[portal feed] complaint aggregation failed', e?.message || e);
+  }
+
+  try {
+    const capas = await capaAll();
+    for (const capa of capas || []) {
+      const responsible = (capa.responsibleUserId || '').toString().trim().toLowerCase();
+      const responsibleName = responsible.includes('@') ? responsible.split('@')[0] : responsible;
+      const matchesEmail = email && responsible === email;
+      const matchesName = names.some((n) => responsibleName && (responsibleName.includes(n) || n.includes(responsibleName)));
+      const deptMatch = _capaMatchesDepartment(capa, departments);
+      if (!matchesEmail && !matchesName && !deptMatch) continue;
+
+      const reason = deptMatch ? `Offene CAPA in ${_capaDepartment(capa) || 'deiner Abteilung'}` : '';
+      addEvent(_eventFromCapa(capa, { reason }));
+    }
+  } catch (e) {
+    console.warn('[portal feed] capa aggregation failed', e?.message || e);
+  }
+
+  return Array.from(events.values());
+}
+
+export async function portalNewsUpsert(data) {
+  const list = await _loadPortalNews();
+  const targetId = (data?.id ?? '').toString().trim();
+  const idx = targetId ? list.findIndex((item) => item.id === targetId) : -1;
+  const existing = idx >= 0 ? list[idx] : null;
+  const normalized = _normalizeNewsPayload(data, existing);
+  if (idx >= 0) {
+    list[idx] = normalized;
+  } else {
+    list.push(normalized);
+  }
+  await _persistPortalNews(list);
+  return normalized;
+}
+
+export async function portalNewsDelete(id) {
+  const list = await _loadPortalNews();
+  const target = (id ?? '').toString().trim();
+  if (!target) return false;
+  const next = list.filter((item) => item.id !== target);
+  await _persistPortalNews(next);
+  return next.length !== list.length;
+}
+
+export async function portalNewsAcknowledge(id, user) {
+  const list = await _loadPortalNews();
+  const targetId = (id ?? '').toString().trim();
+  if (!targetId) throw new Error('id required');
+  const idx = list.findIndex((item) => item.id === targetId);
+  if (idx < 0) throw new Error('news entry not found');
+
+  const existing = list[idx];
+  const email = _nm(user?.email);
+  const name = _text(user?.displayName ?? user?.name ?? '', 240);
+  const acknowledgedBy = _normalizeAcknowledgements([
+    ...(existing.acknowledgedBy || []),
+    { email, name, at: Date.now() },
+  ]);
+
+  const updated = {
+    ...existing,
+    acknowledgedBy,
+    updatedAt: Date.now(),
+  };
+  list[idx] = updated;
+  await _persistPortalNews(list);
+  return updated;
 }
 
 /* ============== FAQ / Knowledge Base ============== */

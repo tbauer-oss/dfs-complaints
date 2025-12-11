@@ -268,6 +268,9 @@ class ApiClient {
   List<CustomerNewsEntry>? _newsCache;
   DateTime? _newsLoadedAt;
   static const Duration _newsCacheTtl = Duration(minutes: 1);
+  List<CustomerNewsEntry>? _portalNewsCache;
+  DateTime? _portalNewsLoadedAt;
+  static const Duration _portalNewsCacheTtl = Duration(minutes: 1);
   FaqData? _faqCache;
   DateTime? _faqLoadedAt;
   static const Duration _faqCacheTtl = Duration(minutes: 1);
@@ -290,6 +293,10 @@ class ApiClient {
   }
 
   void clearCustomerNewsCache() => _invalidateNewsCache();
+  void clearPortalNewsCache() {
+    _portalNewsCache = null;
+    _portalNewsLoadedAt = null;
+  }
 
   Map<String, dynamic>? get appMeta => _appMeta;
   String get appVersion => _appMeta?['version']?.toString() ?? '';
@@ -490,6 +497,58 @@ class ApiClient {
     _newsCache = items;
     _newsLoadedAt = DateTime.now();
     return items;
+  }
+
+  Future<List<CustomerNewsEntry>> fetchPortalNews({bool refresh = false}) async {
+    final cacheValid =
+        _portalNewsCache != null && _portalNewsLoadedAt != null &&
+        DateTime.now().difference(_portalNewsLoadedAt!) < _portalNewsCacheTtl;
+    if (!refresh && cacheValid) return _portalNewsCache!;
+
+    final headers = {
+      'Content-Type': 'application/json',
+      if (portalToken != null && portalToken!.isNotEmpty) 'Authorization': 'Bearer ${portalToken!}',
+    };
+
+    final r = await http.get(
+      _u('/api/portal/news'),
+      headers: headers,
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    dynamic decoded = jsonDecode(r.body);
+    if (decoded is Map<String, dynamic> && decoded['items'] is List) {
+      decoded = decoded['items'];
+    }
+    final List<CustomerNewsEntry> items = [];
+    if (decoded is List) {
+      for (final entry in decoded) {
+        if (entry is Map<String, dynamic>) {
+          items.add(CustomerNewsEntry.fromJson(entry));
+        }
+      }
+    }
+    _portalNewsCache = items;
+    _portalNewsLoadedAt = DateTime.now();
+    return items;
+  }
+
+  Future<void> acknowledgePortalNews(String id) async {
+    final headers = {
+      'Content-Type': 'application/json',
+      if (portalToken != null && portalToken!.isNotEmpty) 'Authorization': 'Bearer ${portalToken!}',
+    };
+
+    final r = await http.post(
+      _u('/api/portal/news/ack'),
+      headers: headers,
+      body: jsonEncode({'id': id}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    clearPortalNewsCache();
   }
 
   Future<FaqData> fetchFaq({bool refresh = false}) async {
