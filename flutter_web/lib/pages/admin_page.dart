@@ -273,6 +273,9 @@ class _AdminPageState extends State<AdminPage> {
   final Map<String, String> _portalTilePermissions = {};
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
+  bool get _isPortalSuperuser => _portalRole == PORTAL_ROLES['superuser'];
+  bool get _isPortalReadonly => _portalRole == PORTAL_ROLES['readonly'];
+  bool get _isPortalSales => _portalIsSales;
 
   String get _portalDisplayName {
     String s(Object? v) => (v ?? '').toString().trim();
@@ -6132,6 +6135,66 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _openComplaintDialog(AdminComplaint c) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200, maxHeight: 900),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Reklamation ${c.ticket}',
+                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: _ComplaintEditor(
+                      api: _api,
+                      portalApi: widget.api,
+                      c: c,
+                      portalRole: _portalRole,
+                      portalIsSales: _portalIsSales,
+                      hasRep: _portalRep != null,
+                      repName: _portalRep?.name,
+                      productLookup: _fetchProduct,
+                      companyHint: _portalCustomer?.company,
+                      initiallyExpanded: true,
+                      showEditToggle: false,
+                      onClosed: () {
+                        Navigator.of(ctx).pop();
+                        _load();
+                      },
+                      onChanged: (updated) => setState(() => _applyUpdate(updated)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openCapaById(String id) async {
     if (id.trim().isEmpty) return;
     _handleNavigation(_AdminView.capaReports);
@@ -6340,6 +6403,26 @@ class _AdminPageState extends State<AdminPage> {
         final tasks = _portalFeed.where((e) => e.kind == 'task').toList();
         final manualNews = _portalFeed.where((e) => e.kind != 'task').toList();
         final unreadNews = manualNews.where((e) => !e.acknowledged).length;
+
+        Widget pulseDot({required Color color, required bool active}) {
+          final opacity = active ? 1.0 : 0.25;
+          return AnimatedOpacity(
+            duration: const Duration(milliseconds: 480),
+            opacity: opacity,
+            child: Container(
+              height: 12,
+              width: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [if (active) BoxShadow(color: color.withOpacity(.5), blurRadius: 12)],
+              ),
+            ),
+          );
+        }
+
+        final taskBlink = tasks.isNotEmpty && (_portalFeedPulse % 2 == 0);
+        final newsBlink = unreadNews > 0 && (_portalFeedPulse % 3 != 0);
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           child: ConstrainedBox(
