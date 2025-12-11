@@ -7,9 +7,10 @@ import 'package:intl/intl.dart';
 import '../api/client.dart';
 import '../models/capa_report.dart';
 import '../models/complaint.dart';
+import '../models/dfs_product.dart';
 import '../models/fmea.dart';
 import '../models/portal_user.dart';
-import '../models/wiki_article.dart';
+import '../services/dfs_product_service.dart';
 
 class AdminFmeaPage extends StatefulWidget {
   final ApiClient api;
@@ -38,12 +39,12 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   List<Map<String, dynamic>> _links = const [];
   bool _loadingLinks = false;
   bool _onlyUnlinked = false;
-  List<WikiArticle> _articles = const [];
   List<String> _productGroups = const [];
   List<PortalUserSummary> _portalUsers = const [];
   List<Complaint> _complaints = const [];
   List<CapaReport> _capas = const [];
   bool _loadingRefs = false;
+  final _productService = DfsProductService();
 
   final _mdrTdCtrl = TextEditingController();
   final _productGroupCtrl = TextEditingController();
@@ -60,17 +61,12 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   bool get _readOnly => !widget.canEdit;
 
   List<String> get _mdrOptions {
-    final fromArticles = _articles.map((a) => a.title).where((t) => t.trim().isNotEmpty);
-    final merged = {..._fallbackMdrOptions, ...fromArticles};
-    final list = merged.toList()..sort();
-    return list;
+    final merged = {..._fallbackMdrOptions, ..._productGroupOptions};
+    return merged.toList()..sort();
   }
 
   List<String> get _productGroupOptions {
-    final fromArticles = _articles.expand((a) => a.productGroups).where((p) => p.trim().isNotEmpty);
-    final merged = {..._productGroups, ...fromArticles};
-    final list = merged.toList()..sort();
-    return list;
+    return _productGroups;
   }
 
   List<PortalUserSummary> get _superusers =>
@@ -143,21 +139,19 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     });
     try {
       final results = await Future.wait([
-        widget.api.adminWikiArticles(status: 'active'),
         widget.api.fetchPortalUsers(),
         widget.api.adminComplaints(details: true),
         widget.api.adminCapas(),
+        _productService.loadProducts(),
       ]);
-      final articleList = results[0] as List<WikiArticle>;
-      final users = results[1] as List<PortalUserSummary>;
-      final complaints = results[2] as List<Complaint>;
-      final capas = results[3] as List<CapaReport>;
+      final users = results[0] as List<PortalUserSummary>;
+      final complaints = results[1] as List<Complaint>;
+      final capas = results[2] as List<CapaReport>;
+      final products = results[3] as List<DfsProduct>;
       final groups = {
-        ..._productGroups,
-        ...articleList.expand((a) => a.productGroups.where((p) => p.trim().isNotEmpty)),
-      }..removeWhere((element) => element.trim().isEmpty);
+        ...products.map((p) => p.productGroup.trim()).where((g) => g.isNotEmpty),
+      };
       setState(() {
-        _articles = articleList;
         _portalUsers = users;
         _complaints = complaints;
         _capas = capas;
