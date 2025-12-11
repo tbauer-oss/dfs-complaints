@@ -218,6 +218,7 @@ class _MyAppState extends State<MyApp> {
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
   bool _rememberPortal = true;
+  bool _showInternal = false;
   Map<String, dynamic>? _appMeta;
 
   // ---- Helpers ----
@@ -566,111 +567,126 @@ class _MyAppState extends State<MyApp> {
                                               onOpenResetPassword: () => _openResetPassword(ctx),
                                             ),
                                             const SizedBox(height: 18),
-                                            Container(
-                                              width: double.infinity,
-                                              padding: const EdgeInsets.all(22),
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  colors: [
-                                                    scheme.primary.withOpacity(isDark ? 0.18 : 0.22),
-                                                    scheme.surfaceVariant.withOpacity(isDark ? 0.45 : 0.35),
-                                                  ],
+                                            if (!_showInternal)
+                                              Align(
+                                                alignment: Alignment.center,
+                                                child: TextButton.icon(
+                                                  onPressed: () => setState(() => _showInternal = true),
+                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                                  label: const Text('DFS intern anzeigen'),
                                                 ),
-                                                borderRadius: BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: scheme.outlineVariant.withOpacity(isDark ? 0.7 : 0.9),
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
-                                                    blurRadius: 20,
-                                                    offset: const Offset(0, 12),
-                                                  ),
-                                                ],
                                               ),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.center,
-                                                children: [
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
-                                                    decoration: BoxDecoration(
-                                                      color: scheme.surface.withOpacity(0.7),
-                                                      borderRadius: BorderRadius.circular(30),
-                                                      border: Border.all(color: scheme.primary.withOpacity(0.4)),
-                                                    ),
-                                                    child: Text(
-                                                      'DFS',
-                                                      style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                            letterSpacing: 0.8,
-                                                            fontWeight: FontWeight.w700,
-                                                            color: scheme.primary,
+                                            AnimatedSize(
+                                              duration: const Duration(milliseconds: 250),
+                                              curve: Curves.easeInOut,
+                                              child: _showInternal
+                                                  ? Container(
+                                                      width: double.infinity,
+                                                      padding: const EdgeInsets.all(22),
+                                                      decoration: BoxDecoration(
+                                                        gradient: LinearGradient(
+                                                          begin: Alignment.topLeft,
+                                                          end: Alignment.bottomRight,
+                                                          colors: [
+                                                            scheme.primary.withOpacity(isDark ? 0.18 : 0.22),
+                                                            scheme.surfaceVariant.withOpacity(isDark ? 0.45 : 0.35),
+                                                          ],
+                                                        ),
+                                                        borderRadius: BorderRadius.circular(20),
+                                                        border: Border.all(
+                                                          color: scheme.outlineVariant.withOpacity(isDark ? 0.7 : 0.9),
+                                                        ),
+                                                        boxShadow: [
+                                                          BoxShadow(
+                                                            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
+                                                            blurRadius: 20,
+                                                            offset: const Offset(0, 12),
                                                           ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 12),
-                                                  Text(
-                                                    t.quick_access_title,
-                                                    style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                                                          fontWeight: FontWeight.w800,
-                                                          color: scheme.onSurface,
-                                                        ),
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  Text(
-                                                    t.quick_access_subtitle,
-                                                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                                                          color: scheme.onSurfaceVariant,
-                                                        ),
-                                                    textAlign: TextAlign.center,
-                                                  ),
-                                                  const SizedBox(height: 18),
-                                                  Wrap(
-                                                    spacing: 12,
-                                                    runSpacing: 12,
-                                                    alignment: WrapAlignment.center,
-                                                    children: [
-                                                      FilledButton(
-                                                        onPressed: () => _openRepArea(ctx),
-                                                        style: FilledButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                                          shape: const StadiumBorder(),
-                                                          backgroundColor: scheme.primary,
-                                                          foregroundColor: scheme.onPrimary,
-                                                          elevation: 0,
-                                                        ),
-                                                        child: Row(
-                                                          mainAxisSize: MainAxisSize.min,
-                                                          children: [
-                                                            Text(t.rep_area ?? 'Vertreterbereich'),
-                                                            const SizedBox(width: 8),
-                                                            const Icon(Icons.chevron_right_rounded, size: 20),
-                                                          ],
-                                                        ),
+                                                        ],
                                                       ),
-                                                      OutlinedButton(
-                                                        onPressed: () => _openAdmin(ctx),
-                                                        style: OutlinedButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                                          shape: const StadiumBorder(),
-                                                          side: BorderSide(color: scheme.outlineVariant.withOpacity(0.9)),
-                                                          foregroundColor: scheme.onSurface,
-                                                        ),
-                                                        child: Row(
-                                                          mainAxisSize: MainAxisSize.min,
-                                                          children: [
-                                                            Text(t.admin_area ?? 'DFS Portal'),
-                                                            const SizedBox(width: 8),
-                                                            Icon(Icons.arrow_outward_rounded, color: scheme.primary, size: 20),
-                                                          ],
-                                                        ),
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                                        children: [
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
+                                                            decoration: BoxDecoration(
+                                                              color: scheme.surface.withOpacity(0.7),
+                                                              borderRadius: BorderRadius.circular(30),
+                                                              border: Border.all(color: scheme.primary.withOpacity(0.4)),
+                                                            ),
+                                                            child: Text(
+                                                              'DFS',
+                                                              style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                                                                    letterSpacing: 0.8,
+                                                                    fontWeight: FontWeight.w700,
+                                                                    color: scheme.primary,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 12),
+                                                          Text(
+                                                            t.quick_access_title,
+                                                            style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                                                                  fontWeight: FontWeight.w800,
+                                                                  color: scheme.onSurface,
+                                                                ),
+                                                            textAlign: TextAlign.center,
+                                                          ),
+                                                          const SizedBox(height: 8),
+                                                          Text(
+                                                            t.quick_access_subtitle,
+                                                            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                                                  color: scheme.onSurfaceVariant,
+                                                                ),
+                                                            textAlign: TextAlign.center,
+                                                          ),
+                                                          const SizedBox(height: 18),
+                                                          Wrap(
+                                                            spacing: 12,
+                                                            runSpacing: 12,
+                                                            alignment: WrapAlignment.center,
+                                                            children: [
+                                                              FilledButton(
+                                                                onPressed: () => _openRepArea(ctx),
+                                                                style: FilledButton.styleFrom(
+                                                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                                                                  shape: const StadiumBorder(),
+                                                                  backgroundColor: scheme.primary,
+                                                                  foregroundColor: scheme.onPrimary,
+                                                                  elevation: 0,
+                                                                ),
+                                                                child: Row(
+                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  children: [
+                                                                    Text(t.rep_area ?? 'Vertreterbereich'),
+                                                                    const SizedBox(width: 8),
+                                                                    const Icon(Icons.chevron_right_rounded, size: 20),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                              OutlinedButton(
+                                                                onPressed: () => _openAdmin(ctx),
+                                                                style: OutlinedButton.styleFrom(
+                                                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+                                                                  shape: const StadiumBorder(),
+                                                                  side: BorderSide(color: scheme.outlineVariant.withOpacity(0.9)),
+                                                                  foregroundColor: scheme.onSurface,
+                                                                ),
+                                                                child: Row(
+                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  children: [
+                                                                    Text(t.admin_area ?? 'DFS Portal'),
+                                                                    const SizedBox(width: 8),
+                                                                    Icon(Icons.arrow_outward_rounded, color: scheme.primary, size: 20),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ],
                                                       ),
-                                                    ],
-                                                  ),
-                                                ],
-                                              ),
+                                                    )
+                                                  : const SizedBox.shrink(),
                                             ),
                                           ],
                                         ),
