@@ -1,5 +1,5 @@
 name: dfs_customer_complaint
-description: DFS Customer Complaint Web App
+description: DFS Connect
 environment:
   sdk: '>=3.4.0 <4.0.0'
 
