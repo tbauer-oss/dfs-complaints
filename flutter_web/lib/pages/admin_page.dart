@@ -5970,73 +5970,115 @@ class _AdminPageState extends State<AdminPage> {
 
     final taskBlink = tasks.isNotEmpty && (_portalFeedPulse % 2 == 0);
     final newsBlink = unreadNews.isNotEmpty && (_portalFeedPulse % 3 != 0);
-    final accent = cs.primaryContainer.withOpacity(.2);
+    final baseGradient = LinearGradient(
+      colors: [
+        cs.primaryContainer.withOpacity(.55),
+        cs.surfaceVariant.withOpacity(.55),
+      ],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Material(
-        color: cs.surface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: baseGradient,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(color: cs.shadow.withOpacity(.12), blurRadius: 16, offset: const Offset(0, 8)),
+          ],
+          border: Border.all(color: cs.outlineVariant.withOpacity(.35)),
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: _openPortalFeedModal,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(12),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: _openPortalFeedModal,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(cs.primary.withOpacity(.16), cs.surface),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.dashboard_customize_outlined, color: cs.onPrimaryContainer),
                   ),
-                  child: Icon(Icons.dashboard_customize_outlined, color: cs.primary),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text('DFS Portal-News', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-                          const SizedBox(width: 8),
-                          if (_portalFeedLoading)
-                            const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                          if (_portalFeedErr != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: Icon(Icons.error_outline, color: cs.error, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'DFS Portal-News',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
+                              ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Personalisierte Aufgaben & Hinweise – Klick für Details',
-                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                    ],
+                            const SizedBox(width: 8),
+                            if (_portalFeedLoading)
+                              const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                            if (_portalFeedErr != null)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Icon(Icons.error_outline, color: cs.error, size: 18),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.auto_awesome, size: 18, color: cs.onSurfaceVariant.withOpacity(.8)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Personalisierte Aufgaben und Hinweise – klick für Details',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                pulseDot(
-                  color: cs.error,
-                  active: taskBlink,
-                  tooltip: tasks.isEmpty ? 'Keine offenen Aufgaben' : 'Offene Aufgaben für dich',
-                ),
-                const SizedBox(width: 8),
-                pulseDot(
-                  color: cs.secondary,
-                  active: newsBlink,
-                  tooltip: unreadNews.isEmpty ? 'Keine neuen Hinweise' : 'Neue/unbestätigte Hinweise',
-                ),
-                const SizedBox(width: 10),
-                Icon(Icons.keyboard_arrow_right_rounded, color: cs.onSurfaceVariant),
-              ],
+                  const SizedBox(width: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: cs.surface.withOpacity(.6),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: cs.outlineVariant.withOpacity(.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        pulseDot(
+                          color: cs.error,
+                          active: taskBlink,
+                          tooltip: tasks.isEmpty ? 'Keine offenen Aufgaben' : 'Offene Aufgaben für dich',
+                        ),
+                        const SizedBox(width: 10),
+                        pulseDot(
+                          color: cs.secondary,
+                          active: newsBlink,
+                          tooltip: unreadNews.isEmpty ? 'Keine neuen Hinweise' : 'Neue/unbestätigte Hinweise',
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -6058,6 +6100,102 @@ class _AdminPageState extends State<AdminPage> {
       );
     } finally {
       if (mounted) setState(() => _portalNewsAckBusy.remove(entry.id));
+    }
+  }
+
+  Future<void> _openComplaintByTicket(String ticket) async {
+    if (ticket.trim().isEmpty) return;
+    _handleNavigation(_AdminView.complaintList);
+    try {
+      final raw = await _api.fetchComplaintRawByTicket(ticket.trim());
+      final complaint = AdminComplaint.fromJson(raw);
+      if (!mounted) return;
+      setState(() {
+        final idx = _allComplaints.indexWhere((c) => c.ticket == complaint.ticket);
+        if (idx >= 0) {
+          _allComplaints[idx] = complaint;
+        } else {
+          _allComplaints = List<AdminComplaint>.from(_allComplaints)..add(complaint);
+        }
+
+        final openIdx = _openComplaints.indexWhere((c) => c.ticket == complaint.ticket);
+        if (openIdx >= 0) {
+          _openComplaints[openIdx] = complaint;
+        }
+      });
+      await _openComplaintDialog(complaint);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ticket $ticket konnte nicht geöffnet werden: $e')),
+      );
+    }
+  }
+
+  Future<void> _openCapaById(String id) async {
+    if (id.trim().isEmpty) return;
+    _handleNavigation(_AdminView.capaReports);
+    CapaReport? target = _capaReports.firstWhereOrNull(
+      (c) => c.id == id || c.capaNumber == id || c.complaintId == id,
+    );
+    if (target == null) {
+      try {
+        final list = await widget.api.adminCapas();
+        if (!mounted) return;
+        setState(() => _capaReports = list);
+        target = list.firstWhereOrNull(
+          (c) => c.id == id || c.capaNumber == id || c.complaintId == id,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('CAPA $id konnte nicht geladen werden: $e')),
+        );
+        return;
+      }
+    }
+
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Keine CAPA für $id gefunden')),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CapaDetailPage(
+        api: widget.api,
+        initialReport: target,
+        canWrite: _isPortalSuperuser && !_isPortalReadonly,
+      ),
+    ));
+    if (mounted) {
+      _refreshCapaReports();
+    }
+  }
+
+  Future<void> _handlePortalEntryTap(CustomerNewsEntry entry, {required bool isTask}) async {
+    final url = entry.linkUrl ?? '';
+    if (_portalFeedModalOpen) {
+      Navigator.of(context).pop();
+    }
+
+    if (isTask) {
+      final uri = url.trim().isEmpty ? null : Uri.tryParse(url);
+      final ticket = uri?.queryParameters['ticket'] ?? RegExp('ticket=([^&]+)').firstMatch(url)?.group(1);
+      final capaId = uri?.queryParameters['capa'] ?? RegExp('capa=([^&]+)').firstMatch(url)?.group(1);
+      if (ticket != null && ticket.isNotEmpty) {
+        await _openComplaintByTicket(ticket);
+        return;
+      }
+      if (capaId != null && capaId.isNotEmpty) {
+        await _openCapaById(capaId);
+        return;
+      }
+    }
+
+    if (url.isNotEmpty) {
+      html.window.open(url, '_blank');
     }
   }
 
@@ -6090,40 +6228,52 @@ class _AdminPageState extends State<AdminPage> {
     Widget tile(CustomerNewsEntry entry) {
       final isAcknowledged = entry.acknowledged || isTaskList;
       return InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          if (entry.linkUrl != null && entry.linkUrl!.isNotEmpty) {
-            html.window.open(entry.linkUrl!, '_self');
-          }
-        },
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _handlePortalEntryTap(entry, isTask: isTaskList),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: cs.surface,
-            borderRadius: BorderRadius.circular(12),
+            color: Color.alphaBlend(cs.surface.withOpacity(.9), cs.background),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: cs.outlineVariant.withOpacity(.5)),
-            boxShadow: [BoxShadow(color: cs.shadow.withOpacity(.04), blurRadius: 12, offset: const Offset(0, 6))],
+            boxShadow: [
+              BoxShadow(color: cs.shadow.withOpacity(.05), blurRadius: 14, offset: const Offset(0, 8)),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(isTaskList ? Icons.pending_actions_outlined : Icons.campaign_outlined,
-                      color: isTaskList ? cs.error : cs.secondary),
-                  const SizedBox(width: 10),
+                  Container(
+                    height: 36,
+                    width: 36,
+                    decoration: BoxDecoration(
+                      color: (isTaskList ? cs.errorContainer : cs.secondaryContainer).withOpacity(.6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isTaskList ? Icons.pending_actions_outlined : Icons.campaign_outlined,
+                      color: isTaskList ? cs.onErrorContainer : cs.onSecondaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(entry.title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 4),
+                        Text(
+                          entry.title,
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 0.1),
+                        ),
+                        const SizedBox(height: 6),
                         Text(
                           entry.summary,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant, height: 1.35),
                         ),
                       ],
                     ),
@@ -6134,21 +6284,25 @@ class _AdminPageState extends State<AdminPage> {
                       onPressed: isAcknowledged || _portalNewsAckBusy.contains(entry.id)
                           ? null
                           : () => _acknowledgePortalNews(entry),
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
                       child: Text(isAcknowledged ? 'Bestätigt' : 'Gelesen / Bestätigt'),
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Chip(
                     label: Text(_newsCategoryLabel(entry.category)),
                     avatar: Icon(isTaskList ? Icons.task_alt : Icons.mark_email_read_outlined, size: 18),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  const SizedBox(width: 8),
-                  Text(DateFormat('dd.MM. HH:mm').format(entry.publishedAt.toLocal()),
-                      style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  const SizedBox(width: 10),
+                  Text(
+                    DateFormat('dd.MM. HH:mm').format(entry.publishedAt.toLocal()),
+                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
                   const Spacer(),
                   if (_isSuperuser && entry.acknowledgedBy.isNotEmpty)
                     Tooltip(
@@ -6156,7 +6310,8 @@ class _AdminPageState extends State<AdminPage> {
                       child: Chip(
                         label: Text('${entry.acknowledgedBy.length} bestätigt'),
                         avatar: const Icon(Icons.verified_user_outlined, size: 18),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
                 ],
@@ -6190,93 +6345,131 @@ class _AdminPageState extends State<AdminPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: cs.primaryContainer,
-                          borderRadius: BorderRadius.circular(14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(Icons.security, color: cs.onPrimaryContainer),
                         ),
-                        child: Icon(Icons.security, color: cs.onPrimaryContainer),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Portal-News & Aufgaben',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Offene Aufgaben (Blink A) und neue Hinweise (Blink B) – nur für dich und deine Abteilung.',
-                              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                            ),
-                          ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Portal-News & Aufgaben',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 0.1),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Offene Aufgaben (Blink A) und neue Hinweise (Blink B) – nur für dich und deine Abteilung.',
+                                style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  if (_portalFeedLoading)
-                    const LinearProgressIndicator(minHeight: 3)
-                  else if (_portalFeedErr != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Text('Konnte Portal-News nicht laden: $_portalFeedErr',
-                          style: TextStyle(color: cs.error)),
+                        IconButton(
+                          tooltip: 'Schließen',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Chip(
-                        label: Text('${tasks.length} offene Aufgaben'),
-                        avatar: const Icon(Icons.bolt_outlined, size: 18),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceVariant.withOpacity(.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cs.outlineVariant.withOpacity(.6)),
                       ),
-                      const SizedBox(width: 8),
-                      Chip(
-                        label: Text('$unreadNews neue Hinweise'),
-                        avatar: const Icon(Icons.mark_email_unread_outlined, size: 18),
+                      child: Row(
+                        children: [
+                          Row(
+                            children: [
+                              pulseDot(color: cs.error, active: taskBlink),
+                              const SizedBox(width: 8),
+                              Text('Offene Aufgaben: ${tasks.length}'),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+                          Row(
+                            children: [
+                              pulseDot(color: cs.secondary, active: newsBlink),
+                              const SizedBox(width: 8),
+                              Text('Neue Hinweise: $unreadNews'),
+                            ],
+                          ),
+                          const Spacer(),
+                          if (_isSuperuser)
+                            TextButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                setState(() {
+                                  _newsScope = 'portal';
+                                  _view = _AdminView.news;
+                                });
+                              },
+                              icon: const Icon(Icons.edit_note_outlined),
+                              label: const Text('News verwalten'),
+                            ),
+                        ],
                       ),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _portalFeedLoading ? null : () => _loadPortalFeed(refresh: true),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Aktualisieren'),
+                    ),
+                    const SizedBox(height: 10),
+                    if (_portalFeedLoading)
+                      const LinearProgressIndicator(minHeight: 3)
+                    else if (_portalFeedErr != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text('Konnte Portal-News nicht laden: $_portalFeedErr',
+                            style: TextStyle(color: cs.error)),
                       ),
-                      if (_isSuperuser)
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            setState(() {
-                              _newsScope = 'portal';
-                              _view = _AdminView.news;
-                            });
-                          },
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Portal-Hinweise verwalten'),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Offene Aufgaben', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 10),
-                  _portalFeedModalList(items: tasks, isTaskList: true),
-                  const SizedBox(height: 18),
-                  Text('News / Hinweise', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 10),
-                  _portalFeedModalList(items: manualNews, isTaskList: false),
+                    const SizedBox(height: 10),
+                    Text('Offene Aufgaben', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 10),
+                    _portalFeedModalList(items: tasks, isTaskList: true),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Text('News / Hinweise',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                        const SizedBox(width: 8),
+                        if (unreadNews > 0)
+                          Chip(
+                            label: Text('$unreadNews neu'),
+                            backgroundColor: cs.secondaryContainer,
+                            avatar: Icon(Icons.brightness_1, size: 12, color: cs.secondary),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                          ),
+                        const Spacer(),
+                        if (_isSuperuser)
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              setState(() {
+                                _newsScope = 'portal';
+                                _view = _AdminView.news;
+                              });
+                            },
+                            icon: const Icon(Icons.add_circle_outline),
+                            label: const Text('Hinweis anlegen'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _portalFeedModalList(items: manualNews, isTaskList: false),
                   ],
                 ),
               ),
