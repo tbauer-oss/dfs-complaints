@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../models/help_content.dart';
 import '../services/help_center_loader.dart';
 import '../services/app_prefs_scope.dart';
+import '../services/app_prefs.dart';
 import '../widgets/lang_action.dart';
 import '../widgets/theme_action.dart';
 
@@ -29,6 +30,7 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _loader = HelpCenterLoader();
   final _searchCtrl = TextEditingController();
+  AppPrefs? _prefs;
 
   HelpCenterContent? _content;
   String? _selectedSectionId;
@@ -45,6 +47,7 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
 
   @override
   void dispose() {
+    _prefs?.removeListener(_handlePrefsChanged);
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -52,6 +55,12 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final prefs = AppPrefsScope.of(context);
+    if (_prefs != prefs) {
+      _prefs?.removeListener(_handlePrefsChanged);
+      _prefs = prefs..addListener(_handlePrefsChanged);
+    }
+
     final lang = Localizations.localeOf(context).languageCode;
     if (lang != _currentLang) {
       _currentLang = lang;
@@ -205,6 +214,17 @@ class _HelpCenterPageState extends State<HelpCenterPage> {
                   },
                 ),
     );
+  }
+
+  void _handlePrefsChanged() {
+    final langCode = _prefs?.locale?.languageCode;
+    if (langCode == null) return;
+
+    final normalized = langCode.toLowerCase();
+    if (normalized != _currentLang) {
+      _currentLang = normalized;
+      _loadContent();
+    }
   }
 
   Widget _buildSidebar(AppLocalizations t, {required bool drawerMode}) {
