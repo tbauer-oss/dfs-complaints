@@ -58,6 +58,7 @@ const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
 const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
+const KEY_PORTAL_NEWS = `${P}portal:news`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
 
@@ -74,6 +75,7 @@ const mem = {
   adminPushTokens: [],
   gateCodes: new Map(),
   customerNews: [],
+  portalNews: [],
   faqCategories: [],
   faqItems: [],
   downloads: [],
@@ -608,6 +610,7 @@ function _normalizeNewsPayload(input = {}, existing = null) {
   const created = base.createdAt ?? now;
   const linkLabel = _text(input.linkLabel ?? '', 160);
   const linkUrl = _safeUrl((input.linkUrl ?? base.linkUrl) ?? '');
+  const audience = _normalizeNewsAudience(input.audience ?? base.audience ?? null);
   return {
     id: (input.id ?? base.id ?? '').toString().trim() || `news_${now}_${Math.random().toString(36).slice(2, 8)}`,
     title,
@@ -620,7 +623,40 @@ function _normalizeNewsPayload(input = {}, existing = null) {
     createdAt: created,
     updatedAt: now,
     publishedAt: published,
+    audience,
   };
+}
+
+function _normalizeNewsAudience(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const emails = _uniqueStrings([...(raw.emails || []), raw.email, raw.to])
+    .map((entry) => (entry ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+  const departments = normalizeDepartments(raw.departments || raw.department || []);
+  const roles = _uniqueStrings(raw.roles || raw.role || [])
+    .map((entry) => (entry ?? '').toString().trim().toLowerCase())
+    .filter(Boolean);
+  if (!emails.length && !departments.length && !roles.length) return null;
+  return { emails, departments, roles };
+}
+
+function _newsAudienceMatchesUser(audience, user) {
+  if (!audience) return true;
+  const email = (user?.email || '').toString().trim().toLowerCase();
+  const departments = normalizeDepartments(
+    user?.assignedDepartments || user?.departments || user?.department || []
+  );
+  const role = (user?.role || '').toString().trim().toLowerCase();
+
+  const hasEmails = Array.isArray(audience.emails) && audience.emails.length > 0;
+  const hasDepartments = Array.isArray(audience.departments) && audience.departments.length > 0;
+  const hasRoles = Array.isArray(audience.roles) && audience.roles.length > 0;
+  if (!hasEmails && !hasDepartments && !hasRoles) return true;
+
+  if (hasEmails && email && audience.emails.some((target) => target === email)) return true;
+  if (hasDepartments && departments.length && departments.some((dep) => audience.departments.includes(dep))) return true;
+  if (hasRoles && role && audience.roles.includes(role)) return true;
+  return false;
 }
 
 export async function customerNewsList({ limit = 0, includeDrafts = false } = {}) {
@@ -658,6 +694,94 @@ export async function customerNewsDelete(id) {
   if (!target) return false;
   const next = list.filter((item) => item.id !== target);
   await _persistCustomerNews(next);
+  return next.length !== list.length;
+}
+
+/* ============== Portal News (Mitarbeiter) ============== */
+
+async function _loadPortalNews() {
+  if (mem.portalNews?.length > 0) return mem.portalNews;
+  const r = getRedis();
+  let list = [];
+  if (r) {
+    const raw = await rget(KEY_PORTAL_NEWS);
+    if (Array.isArray(raw)) {
+      list = raw;
+    } else if (raw && typeof raw === 'object') {
+      list = raw.items || raw.list || [];
+    }
+  } else if (Array.isArray(global.__DFS_PORTAL_NEWS__)) {
+    list = global.__DFS_PORTAL_NEWS__;
+  }
+
+  if (!Array.isArray(list)) list = mem.portalNews;
+
+  const normalized = [];
+  for (const entry of list || []) {
+    const norm = _normalizeNewsPayload(entry);
+    if (norm) normalized.push(norm);
+  }
+  mem.portalNews = normalized.map((item) => ({ ...item }));
+  return normalized;
+}
+
+async function _persistPortalNews(list) {
+  const safeList = _sortNews(list).map((item) => ({ ...item }));
+  mem.portalNews = safeList.map((item) => ({ ...item }));
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_PORTAL_NEWS, safeList);
+  } else {
+    global.__DFS_PORTAL_NEWS__ = safeList;
+  }
+  return safeList;
+}
+
+export async function portalNewsList({ limit = 0, includeDrafts = false } = {}) {
+  const list = await _loadPortalNews();
+  const now = Date.now();
+  const filtered = includeDrafts
+    ? list
+    : list.filter((item) => !item.draft && (item.publishedAt ?? now) <= now);
+  const sorted = _sortNews(filtered);
+  if (limit && limit > 0) {
+    const max = Math.min(Number(limit) || 0, 200);
+    return sorted.slice(0, max || sorted.length);
+  }
+  return sorted;
+}
+
+export async function portalNewsForUser(user, { limit = 0, includeDrafts = false } = {}) {
+  const list = await portalNewsList({ includeDrafts });
+  const filtered = list.filter((item) => _newsAudienceMatchesUser(item.audience, user));
+  if (limit && limit > 0) {
+    const max = Math.min(Number(limit) || 0, 200);
+    return filtered.slice(0, max || filtered.length);
+  }
+  return filtered;
+}
+
+export async function portalNewsUpsert(data) {
+  const list = await _loadPortalNews();
+  const targetId = (data?.id ?? '').toString().trim();
+  const idx = targetId ? list.findIndex((item) => item.id === targetId) : -1;
+  const existing = idx >= 0 ? list[idx] : null;
+  const normalized = _normalizeNewsPayload(data, existing);
+  if (idx >= 0) {
+    list[idx] = normalized;
+  } else {
+    list.push(normalized);
+  }
+  await _persistPortalNews(list);
+  return normalized;
+}
+
+export async function portalNewsDelete(id) {
+  const list = await _loadPortalNews();
+  const target = (id ?? '').toString().trim();
+  if (!target) return false;
+  const next = list.filter((item) => item.id !== target);
+  await _persistPortalNews(next);
   return next.length !== list.length;
 }
 
