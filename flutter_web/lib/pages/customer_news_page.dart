@@ -63,6 +63,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         return t.newsCatShortage;
       case 'app':
         return t.newsCatApp;
+      case 'document':
+        return t.newsCatDocument;
+      case 'qmh':
+        return t.newsCatQmh;
       default:
         return t.newsCatGeneral;
     }

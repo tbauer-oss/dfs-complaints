@@ -756,6 +756,8 @@
   "newsCatRegulatory": "Actualizaciones regulatorias",
   "newsCatProduct": "Novedades de producto",
   "newsCatShortage": "Limitaciones temporales",
+  "newsCatDocument": "Nuevo documento",
+  "newsCatQmh": "QMH",
   "newsCatGeneral": "General",
   "customerNewsHeroFreshLabel": "Nuevas ideas (30 días)",
   "kb_title": "Base de conocimientos – Reclamaciones e instrumentos",

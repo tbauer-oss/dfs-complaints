@@ -763,6 +763,8 @@ class _AdminPageState extends State<AdminPage> {
     'product': 'Produkte',
     'shortage': 'Einschränkungen',
     'app': 'App-Versionen',
+    'document': 'Neues Dokument',
+    'qmh': 'QMH',
     'general': 'Allgemein',
   };
 
@@ -2585,17 +2587,97 @@ class _AdminPageState extends State<AdminPage> {
     final summaryCtrl = TextEditingController(text: entry?.summary ?? '');
     final linkLabelCtrl = TextEditingController(text: entry?.linkLabel ?? '');
     final linkUrlCtrl = TextEditingController(text: entry?.linkUrl ?? '');
-    final audienceEmailsCtrl = TextEditingController(
-        text: _isPortalNewsScope ? entry?.audienceEmails.join(', ') ?? '' : '');
-    final audienceDepartmentsCtrl = TextEditingController(
-        text: _isPortalNewsScope ? entry?.audienceDepartments.join(', ') ?? '' : '');
-    final audienceRolesCtrl = TextEditingController(
-        text: _isPortalNewsScope ? entry?.audienceRoles.join(', ') ?? '' : '');
+    final selectedAudienceEmails = {...(entry?.audienceEmails ?? const <String>[])};
+    final selectedAudienceDepartments = {...(entry?.audienceDepartments ?? const <String>[])};
+    final selectedAudienceRoles = {...(entry?.audienceRoles ?? const <String>[])};
     String category = entry?.category ?? 'general';
     bool pinned = entry?.pinned ?? false;
     bool draft = entry?.draft ?? false;
     DateTime publishedAt = entry?.publishedAt ?? DateTime.now();
     final fmt = DateFormat('dd.MM.yyyy HH:mm');
+
+    if (_isPortalNewsScope && !_portalUsersLoaded && !_portalUsersLoading) {
+      await _refreshPortalUsers();
+    }
+
+    List<String> _sortedUnique(Iterable<String> input) {
+      final list = input
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList();
+      list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      return list;
+    }
+
+    final emailOptions = _sortedUnique(_portalUsers.map((u) => u.email));
+    final departmentOptions = _sortedUnique(
+      _portalUsers.expand((u) => u.assignedDepartments).followedBy(kInternalDepartments),
+    );
+    final roleOptions = _sortedUnique(
+      _portalUsers.map((u) => u.role).followedBy(PORTAL_ROLES.values),
+    );
+
+    Widget _audienceSelector({
+      required StateSetter setModalState,
+      required String label,
+      required String hint,
+      required IconData icon,
+      required List<String> options,
+      required Set<String> selected,
+    }) {
+      final available = options.where((o) => !selected.contains(o)).toList();
+      final chips = selected
+          .map(
+            (value) => InputChip(
+              label: Text(value),
+              onDeleted: () => setModalState(() => selected.remove(value)),
+            ),
+          )
+          .toList();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<String>(
+            value: null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
+              prefixIcon: Icon(icon),
+              helperText: 'Mehrfachauswahl möglich',
+            ),
+            hint: Text(hint),
+            items: available
+                .map((value) => DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    ))
+                .toList(),
+            onChanged: available.isEmpty
+                ? null
+                : (value) {
+                    if (value == null) return;
+                    setModalState(() => selected.add(value));
+                  },
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: chips.isNotEmpty
+                ? chips
+                : [
+                    Text(
+                      'Keine Auswahl getroffen',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+          ),
+        ],
+      );
+    }
 
     Future<void> pickDateTime(void Function(void Function()) setStateDialog) async {
       final pickedDate = await showDatePicker(
@@ -2678,37 +2760,43 @@ class _AdminPageState extends State<AdminPage> {
                               style: Theme.of(context).textTheme.titleMedium),
                         ),
                         const SizedBox(height: 6),
-                        TextField(
-                          controller: audienceEmailsCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'E-Mail Ziele (kommagetrennt)',
-                            hintText: 'anna@dfs.de, max@dfs.de',
-                            border: OutlineInputBorder(),
-                          ),
+                        _audienceSelector(
+                          setModalState: setModalState,
+                          label: 'E-Mail Zielgruppe',
+                          hint: emailOptions.isEmpty
+                              ? 'Keine Nutzer-E-Mails geladen'
+                              : 'E-Mail auswählen und hinzufügen',
+                          icon: Icons.mail_outline,
+                          options: emailOptions,
+                          selected: selectedAudienceEmails,
                         ),
                         const SizedBox(height: 8),
-                        TextField(
-                          controller: audienceDepartmentsCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Abteilungen (kommagetrennt)',
-                            hintText: 'QM, Vertrieb, CAPA',
-                            border: OutlineInputBorder(),
-                          ),
+                        _audienceSelector(
+                          setModalState: setModalState,
+                          label: 'Abteilungen',
+                          hint: departmentOptions.isEmpty
+                              ? 'Keine Abteilungen hinterlegt'
+                              : 'Abteilung auswählen',
+                          icon: Icons.apartment_outlined,
+                          options: departmentOptions,
+                          selected: selectedAudienceDepartments,
                         ),
                         const SizedBox(height: 8),
-                        TextField(
-                          controller: audienceRolesCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Rollen (kommagetrennt)',
-                            hintText: 'superuser, admin, user',
-                            border: OutlineInputBorder(),
-                          ),
+                        _audienceSelector(
+                          setModalState: setModalState,
+                          label: 'Rollen',
+                          hint: roleOptions.isEmpty
+                              ? 'Keine Rollen verfügbar'
+                              : 'Rolle auswählen',
+                          icon: Icons.verified_user_outlined,
+                          options: roleOptions,
+                          selected: selectedAudienceRoles,
                         ),
                         const SizedBox(height: 6),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            'Leer lassen = sichtbar für alle Mitarbeitenden.',
+                            'Leer lassen = sichtbar für alle Mitarbeitenden. Dropdowns basieren auf vorhandenen Nutzerdaten.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
@@ -2760,14 +2848,10 @@ class _AdminPageState extends State<AdminPage> {
 
     Map<String, dynamic>? audience;
     if (_isPortalNewsScope) {
-      List<String> _split(TextEditingController ctrl) => ctrl.text
-          .split(RegExp(r'[,;\n]'))
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-      final emails = _split(audienceEmailsCtrl);
-      final departments = _split(audienceDepartmentsCtrl);
-      final roles = _split(audienceRolesCtrl);
+      final emails = selectedAudienceEmails.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      final departments =
+          selectedAudienceDepartments.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      final roles = selectedAudienceRoles.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
       if (emails.isNotEmpty || departments.isNotEmpty || roles.isNotEmpty) {
         audience = {
           if (emails.isNotEmpty) 'emails': emails,
@@ -8624,10 +8708,21 @@ class _AdminPageState extends State<AdminPage> {
         ));
       }
       if (entry.acknowledgedBy.isNotEmpty) {
-        chips.add(Chip(
-          avatar: const Icon(Icons.rule_folder_outlined, size: 18),
-          label: Text('${entry.acknowledgedBy.length} bestätigt'),
-        ));
+        final ackNames = entry.acknowledgedBy
+            .map((ack) => ack.name?.trim().isNotEmpty == true
+                ? ack.name!
+                : (ack.email ?? ack.id ?? '').toString())
+            .where((v) => v.trim().isNotEmpty)
+            .toList();
+        chips.add(
+          Tooltip(
+            message: ackNames.isEmpty ? 'Bestätigt' : 'Bestätigt von: ${ackNames.join(', ')}',
+            child: Chip(
+              avatar: const Icon(Icons.rule_folder_outlined, size: 18),
+              label: Text('${entry.acknowledgedBy.length} bestätigt'),
+            ),
+          ),
+        );
       }
     }
 

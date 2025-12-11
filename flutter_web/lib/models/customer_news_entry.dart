@@ -133,11 +133,12 @@ class CustomerNewsEntry {
 }
 
 class NewsAcknowledgement {
+  final String? id;
   final String? email;
   final String? name;
   final DateTime at;
 
-  const NewsAcknowledgement({this.email, this.name, required this.at});
+  const NewsAcknowledgement({this.id, this.email, this.name, required this.at});
 
   factory NewsAcknowledgement.fromJson(Map<dynamic, dynamic> json) {
     DateTime _parse(dynamic v) {
@@ -151,6 +152,7 @@ class NewsAcknowledgement {
     }
 
     return NewsAcknowledgement(
+      id: json['id']?.toString(),
       email: (json['email'] ?? json['mail'])?.toString(),
       name: (json['name'] ?? json['displayName'])?.toString(),
       at: _parse(json['at']),

@@ -343,6 +343,8 @@ const NEWS_CATEGORY_CODES = [
   'product',
   'shortage',
   'app',
+  'document',
+  'qmh',
   'general',
 ];
 export const CUSTOMER_NEWS_CATEGORY_CODES = [...NEWS_CATEGORY_CODES];
@@ -534,12 +536,14 @@ function _normalizeAcknowledgements(raw) {
     if (!entry || typeof entry !== 'object') continue;
     const email = _text(entry.email ?? entry.mail ?? '', 180).toLowerCase();
     const name = _text(entry.name ?? entry.displayName ?? '', 240);
+    const id = _text(entry.id ?? entry.userId ?? '', 120);
     const at = _parseTs(entry.at, Date.now()) ?? Date.now();
-    if (!email && !name) continue;
-    const key = email || name || crypto.randomUUID();
+    if (!email && !name && !id) continue;
+    const key = email || id || name || crypto.randomUUID();
     safe.set(key, {
       email: email || null,
       name: name || null,
+      id: id || null,
       at,
     });
   }
@@ -690,11 +694,14 @@ function _newsAudienceMatchesUser(audience, user) {
 function _hasAcknowledged(entry, user) {
   if (!entry || !user) return false;
   const email = _nm(user.email);
+  const userId = _nm(user.id || user.userId);
   const name = (user.displayName || user.name || '').toString().trim().toLowerCase();
-  if (!email && !name) return false;
+  if (!email && !name && !userId) return false;
   return (entry.acknowledgedBy || []).some((ack) => {
     const ackEmail = (ack?.email || '').toString().trim().toLowerCase();
+    const ackId = (ack?.id || '').toString().trim().toLowerCase();
     const ackName = (ack?.name || '').toString().trim().toLowerCase();
+    if (userId && ackId && ackId === userId) return true;
     if (email && ackEmail && ackEmail === email) return true;
     if (name && ackName && ackName === name) return true;
     return false;
@@ -1053,10 +1060,11 @@ export async function portalNewsAcknowledge(id, user) {
 
   const existing = list[idx];
   const email = _nm(user?.email);
+  const userId = _nm(user?.id || user?.userId);
   const name = _text(user?.displayName ?? user?.name ?? '', 240);
   const acknowledgedBy = _normalizeAcknowledgements([
     ...(existing.acknowledgedBy || []),
-    { email, name, at: Date.now() },
+    { email, name, id: userId, at: Date.now() },
   ]);
 
   const updated = {
