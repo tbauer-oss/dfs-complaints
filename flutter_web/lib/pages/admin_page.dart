@@ -19145,11 +19145,14 @@ class _PrrcDashboardPageState extends State<PrrcDashboardPage> {
   final _commentCtrl = TextEditingController();
   final _reportCheckCommentCtrl = TextEditingController();
   static const List<String> _prrcCommentPresets = [
+    'Laborprodukt - keine Bewertung erforderlich',
+    'Subcontractor-Produkt - keine Bewertung erforderlich',
     'Kein regulatorisches Risiko erkennbar',
     'Weitere Unterlagen angefordert',
     'Interne Abstimmung erforderlich',
+    'Produkt- / Chargensperre - weitere interne Prüfungen erforderlich',
     'Bewertung abgeschlossen – keine Meldung notwendig',
-    'Behördliche Prüfung wird vorbereitet',
+    'Behördliche Prüfung wird vorbereitet (FSN/FSCN, Rückruf, etc.)',
   ];
 
   late final AdminApi _api;
