@@ -36,6 +36,7 @@ import 'admin_downloads_page.dart';
 import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
+import 'admin_fmea_page.dart';
 
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
@@ -72,6 +73,7 @@ enum _AdminView {
   complaintList,
   capaReports,
   capaDashboard,
+  fmea,
   prrc,
   pending,
   portalUsers,
@@ -150,6 +152,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'capaReports',
     'capaDashboard',
+    'fmea',
     'prrc',
     'stats',
     'pending',
@@ -177,6 +180,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'capaReports',
     'capaDashboard',
+    'fmea',
     'prrc',
     'stats',
     'pending',
@@ -201,6 +205,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'fmea',
     'stats',
     'pending',
     'appMeta',
@@ -5332,6 +5337,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'capaReports';
       case _AdminView.capaDashboard:
         return 'capaDashboard';
+      case _AdminView.fmea:
+        return 'fmea';
       case _AdminView.prrc:
         return 'prrc';
       case _AdminView.open:
@@ -5386,16 +5393,17 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.systemHealth,
       };
     }
-      return const {
-        _AdminView.menu,
-        _AdminView.open,
-        _AdminView.all,
-        _AdminView.complaintList,
-        _AdminView.capaReports,
-        _AdminView.capaDashboard,
-        _AdminView.prrc,
-        _AdminView.pending,
-        _AdminView.users,
+    return const {
+      _AdminView.menu,
+      _AdminView.open,
+      _AdminView.all,
+      _AdminView.complaintList,
+      _AdminView.capaReports,
+      _AdminView.capaDashboard,
+      _AdminView.fmea,
+      _AdminView.prrc,
+      _AdminView.pending,
+      _AdminView.users,
       _AdminView.reps,
       _AdminView.news,
       _AdminView.downloads,
@@ -5464,6 +5472,11 @@ class _AdminPageState extends State<AdminPage> {
             label: 'CAPA-Dashboard',
             icon: Icons.dashboard_customize_outlined,
             view: _AdminView.capaDashboard,
+          ),
+          _AdminNavItem(
+            label: 'FMEA',
+            icon: Icons.analytics_outlined,
+            view: _AdminView.fmea,
           ),
           _AdminNavItem(
             label: 'PRRC-Einstufungen',
@@ -5711,8 +5724,8 @@ class _AdminPageState extends State<AdminPage> {
       ),
       const _AdminMenuSectionState(
         title: 'Qualitätsmanagement',
-        subtitle: 'CAPA / 8D-Reports verwalten',
-        tileIds: ['capaDashboard', 'capaReports'],
+        subtitle: 'FMEA, CAPA / 8D-Reports verwalten',
+        tileIds: ['capaDashboard', 'capaReports', 'fmea'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5760,6 +5773,7 @@ class _AdminPageState extends State<AdminPage> {
     _ensureMenuTilePresent('prrc');
     _ensureMenuTilePresent('capaReports');
     _ensureMenuTilePresent('capaDashboard');
+    _ensureMenuTilePresent('fmea');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
   }
@@ -5780,6 +5794,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('prrc');
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
+        _ensureMenuTilePresent('fmea');
       }
 
       final remoteLayout = config['menuLayout'];
@@ -5793,6 +5808,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('prrc');
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
+        _ensureMenuTilePresent('fmea');
       }
 
       final navOrder = config['navOrder'];
@@ -7382,6 +7398,19 @@ class _AdminPageState extends State<AdminPage> {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'fmea':
+        return AdminTilePro(
+          label: 'FMEA',
+          subtitle: 'Risiken je MDR-TD verwalten',
+          icon: Icons.analytics_outlined,
+          colorA: AdminPalette.amberA,
+          colorB: AdminPalette.amberB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.fmea),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'prrc':
         return AdminTilePro(
           label: 'PRRC-Einstufungen',
@@ -8320,6 +8349,11 @@ class _AdminPageState extends State<AdminPage> {
         return AdminCapaDashboardPage(
           api: widget.api,
           canWrite: _canWriteTile('capaReports'),
+        );
+      case _AdminView.fmea:
+        return AdminFmeaPage(
+          api: widget.api,
+          canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case _AdminView.prrc:
         return _buildPrrcPanel();

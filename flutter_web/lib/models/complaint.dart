@@ -34,6 +34,7 @@ class Complaint {
   // ⬇️ NEU: interne Reklamationsnummer
   final String? internalNo;
   final List<ComplaintUpload> uploads;
+  final List<String> fmeaRiskNumbers;
 
   Complaint({
     required this.ticket,
@@ -66,8 +67,10 @@ class Complaint {
     this.salesCompletedBy,
     this.internalNo, // ⬅️ NEU
     List<ComplaintUpload>? uploads,
+    List<String>? fmeaRiskNumbers,
   })  : internalDepartments = List.unmodifiable(internalDepartments ?? const <String>[]),
-        uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]);
+        uploads = List.unmodifiable(uploads ?? const <ComplaintUpload>[]),
+        fmeaRiskNumbers = List.unmodifiable(fmeaRiskNumbers ?? const <String>[]);
 
   String get articleLabel {
     final p = payload;
@@ -232,6 +235,7 @@ class Complaint {
       salesCompletedBy: j['salesCompletedBy']?.toString(),
       internalNo: _parseInternal(j), // ⬅️ NEU
       uploads: _parseUploads(j['uploads']),
+      fmeaRiskNumbers: _parseStringList(j['fmeaRiskNumbers']),
     );
   }
 

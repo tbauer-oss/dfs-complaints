@@ -385,6 +385,7 @@ class CapaReport {
   final DateTime updatedAt;
   final String responsibleUserId;
   final String complaintId;
+  final List<String> fmeaRiskNumbers;
   final CapaSections sections;
 
   CapaReport({
@@ -396,9 +397,11 @@ class CapaReport {
     DateTime? updatedAt,
     this.responsibleUserId = '',
     this.complaintId = '',
+    List<String>? fmeaRiskNumbers,
     this.sections = const CapaSections(),
   })  : createdAt = createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-        updatedAt = updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        updatedAt = updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+        fmeaRiskNumbers = List.unmodifiable(fmeaRiskNumbers ?? const <String>[]);
 
   factory CapaReport.fromJson(Map<String, dynamic> json) => CapaReport(
         id: (json['id'] ?? '').toString(),
@@ -409,8 +412,16 @@ class CapaReport {
         updatedAt: _parseDate(json['updatedAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
         responsibleUserId: (json['responsibleUserId'] ?? '').toString(),
         complaintId: (json['complaintId'] ?? '').toString(),
+        fmeaRiskNumbers: _parseStringList(json['fmeaRiskNumbers']),
         sections: CapaSections.fromJson((json['sections'] as Map?)?.cast<String, dynamic>() ?? const {}),
       );
+
+  static List<String> _parseStringList(dynamic value) {
+    if (value is List) {
+      return value.map((e) => e.toString()).where((e) => e.isNotEmpty).toList(growable: false);
+    }
+    return const <String>[];
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id.isEmpty ? null : id,
@@ -421,6 +432,7 @@ class CapaReport {
         'updatedAt': updatedAt.millisecondsSinceEpoch,
         'responsibleUserId': responsibleUserId,
         'complaintId': complaintId,
+        'fmeaRiskNumbers': fmeaRiskNumbers,
         'sections': sections.toJson(),
       }..removeWhere((key, value) => value == null);
 
@@ -433,6 +445,7 @@ class CapaReport {
     DateTime? updatedAt,
     String? responsibleUserId,
     String? complaintId,
+    List<String>? fmeaRiskNumbers,
     CapaSections? sections,
   }) =>
       CapaReport(
@@ -444,6 +457,7 @@ class CapaReport {
         updatedAt: updatedAt ?? this.updatedAt,
         responsibleUserId: responsibleUserId ?? this.responsibleUserId,
         complaintId: complaintId ?? this.complaintId,
+        fmeaRiskNumbers: fmeaRiskNumbers ?? this.fmeaRiskNumbers,
         sections: sections ?? this.sections,
       );
 
