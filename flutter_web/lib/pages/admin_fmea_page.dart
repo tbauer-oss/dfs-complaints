@@ -39,6 +39,8 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   bool _loadingRefs = false;
   final _productService = DfsProductService();
 
+  bool _headerExpanded = false;
+
   final _mdrTdCtrl = TextEditingController();
   final _productGroupCtrl = TextEditingController();
   final _medicalProductCtrl = TextEditingController();
@@ -163,6 +165,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   void _setSelection(FmeaRecord? record) {
     setState(() {
       _selected = record;
+      _headerExpanded = false;
       _mdrTdCtrl.text = record?.mdrTd ?? '';
       _productGroupCtrl.text = record?.productGroup ?? '';
       _medicalProductCtrl.text = record?.medicalProduct ?? '';
@@ -546,6 +549,23 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   Widget _buildHeaderForm() {
     final theme = Theme.of(context);
     final spacing = const SizedBox(height: 12);
+    final summaryChips = [
+      if (_mdrTdCtrl.text.trim().isNotEmpty)
+        Chip(
+          label: Text(_mdrTdCtrl.text.trim()),
+          visualDensity: VisualDensity.compact,
+        ),
+      if (_revisionCtrl.text.trim().isNotEmpty)
+        Chip(
+          label: Text('Revision ${_revisionCtrl.text.trim()}'),
+          visualDensity: VisualDensity.compact,
+        ),
+      if (_moderatorCtrl.text.trim().isNotEmpty)
+        Chip(
+          label: Text('Moderator: ${_moderatorCtrl.text.trim()}'),
+          visualDensity: VisualDensity.compact,
+        ),
+    ];
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: theme.colorScheme.outlineVariant)),
@@ -554,161 +574,219 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Kopfdaten', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            spacing,
-            Wrap(
-              spacing: 16,
-              runSpacing: 12,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 260,
-                  child: DropdownButtonFormField<String>(
-                    value: _mdrOptions.contains(_mdrTdCtrl.text.trim()) ? _mdrTdCtrl.text.trim() : null,
-                    decoration: const InputDecoration(labelText: 'MDR-TD / Medizinprodukt'),
-                    items: {
-                      ..._mdrOptions,
-                      if (_mdrTdCtrl.text.trim().isNotEmpty) _mdrTdCtrl.text.trim(),
-                    }
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                    onChanged: _readOnly
-                        ? null
-                        : (val) {
-                            setState(() {
-                              _mdrTdCtrl.text = val ?? '';
-                              if ((_medicalProductCtrl.text).isEmpty) {
-                                _medicalProductCtrl.text = val ?? '';
-                              }
-                            });
-                          },
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String>(
-                    value: _productGroupOptions.contains(_productGroupCtrl.text.trim())
-                        ? _productGroupCtrl.text.trim()
-                        : null,
-                    decoration: const InputDecoration(labelText: 'Produktgruppe'),
-                    items: {
-                      ..._productGroupOptions,
-                      if (_productGroupCtrl.text.trim().isNotEmpty) _productGroupCtrl.text.trim(),
-                    }
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                    onChanged: _readOnly
-                        ? null
-                        : (val) => setState(() => _productGroupCtrl.text = val ?? ''),
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: TextField(
-                    controller: _medicalProductCtrl,
-                    decoration: const InputDecoration(labelText: 'Medizinprodukt'),
-                    readOnly: _readOnly,
-                  ),
-                ),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String>(
-                    value: _superusers.any((u) => u.email == _moderatorCtrl.text.trim())
-                        ? _moderatorCtrl.text.trim()
-                        : null,
-                    decoration: const InputDecoration(labelText: 'FMEA-Moderator'),
-                    items: _superusers
-                        .map((u) => DropdownMenuItem(
-                              value: u.email,
-                              child: Text('${u.label} (${u.email})'),
-                            ))
-                        .toList(),
-                    onChanged: _readOnly
-                        ? null
-                        : (val) => setState(() => _moderatorCtrl.text = val ?? ''),
-                  ),
-                ),
-                SizedBox(
-                  width: 120,
-                  child: TextField(
-                    controller: _revisionCtrl,
-                    decoration: const InputDecoration(labelText: 'Revision'),
-                    keyboardType: TextInputType.number,
-                    readOnly: _readOnly,
-                  ),
-                ),
-              ],
-            ),
-            spacing,
-            Wrap(
-              spacing: 16,
-              runSpacing: 12,
-              children: [
-                FilterChip(
-                  label: const Text('PRRC-Freigabe erteilt'),
-                  selected: _prrcApproved,
-                  onSelected: _readOnly
-                      ? null
-                      : (v) {
-                          setState(() => _prrcApproved = v);
-                          if (v && _prrcDate == null) _prrcDate = DateTime.now();
-                        },
-                ),
-                SizedBox(
-                  width: 240,
-                  child: DropdownButtonFormField<String>(
-                    value: _prrcUsers.any((u) => u.email == _prrcNameCtrl.text.trim())
-                        ? _prrcNameCtrl.text.trim()
-                        : null,
-                    decoration: const InputDecoration(labelText: 'PRRC-Name'),
-                    items: _prrcUsers
-                        .map((u) => DropdownMenuItem(
-                              value: u.email,
-                              child: Text('${u.label} (${u.email})'),
-                            ))
-                        .toList(),
-                    onChanged: _readOnly
-                        ? null
-                        : (val) => setState(() => _prrcNameCtrl.text = val ?? ''),
-                  ),
-                ),
-                SizedBox(
-                  width: 180,
-                  child: InkWell(
-                    onTap: _readOnly
-                        ? null
-                        : () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: _prrcDate ?? DateTime.now(),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2100),
-                            );
-                            if (picked != null) setState(() => _prrcDate = picked);
-                          },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'PRRC-Datum'),
-                      child: Text(_prrcDate == null ? '—' : _dateFmt.format(_prrcDate!)),
+                Text('Kopfdaten', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(width: 12),
+                if (!_headerExpanded && summaryChips.isNotEmpty)
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: summaryChips,
                     ),
                   ),
+                if (_headerExpanded) const Spacer(),
+                TextButton.icon(
+                  onPressed: () => setState(() => _headerExpanded = !_headerExpanded),
+                  icon: Icon(_headerExpanded ? Icons.unfold_less : Icons.unfold_more),
+                  label: Text(_headerExpanded ? 'Einklappen' : 'Einblenden'),
                 ),
-                if (!_readOnly)
-                  TextButton.icon(
-                    onPressed: () => setState(() => _prrcDate = null),
-                    icon: const Icon(Icons.clear),
-                    label: const Text('Datum leeren'),
-                  ),
               ],
             ),
-            spacing,
-            if (!_readOnly)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.icon(
-                  onPressed: _saving ? null : _saveHeader,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Kopfdaten speichern'),
+            AnimatedCrossFade(
+              crossFadeState: _headerExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+              duration: const Duration(milliseconds: 200),
+              firstChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  spacing,
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: 260,
+                        child: DropdownButtonFormField<String>(
+                          value: _mdrOptions.contains(_mdrTdCtrl.text.trim()) ? _mdrTdCtrl.text.trim() : null,
+                          decoration: const InputDecoration(labelText: 'MDR-TD / Medizinprodukt'),
+                          items: {
+                            ..._mdrOptions,
+                            if (_mdrTdCtrl.text.trim().isNotEmpty) _mdrTdCtrl.text.trim(),
+                          }
+                              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                              .toList(),
+                          onChanged: _readOnly
+                              ? null
+                              : (val) {
+                                  setState(() {
+                                    _mdrTdCtrl.text = val ?? '';
+                                    if ((_medicalProductCtrl.text).isEmpty) {
+                                      _medicalProductCtrl.text = val ?? '';
+                                    }
+                                  });
+                                },
+                        ),
+                      ),
+                      SizedBox(
+                        width: 240,
+                        child: DropdownButtonFormField<String>(
+                          value: _productGroupOptions.contains(_productGroupCtrl.text.trim()) ? _productGroupCtrl.text.trim() : null,
+                          decoration: const InputDecoration(labelText: 'Produktgruppe'),
+                          items: {
+                            ..._productGroupOptions,
+                            if (_productGroupCtrl.text.trim().isNotEmpty) _productGroupCtrl.text.trim(),
+                          }
+                              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                              .toList(),
+                          onChanged: _readOnly ? null : (val) => setState(() => _productGroupCtrl.text = val ?? ''),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 260,
+                        child: TextFormField(
+                          controller: _medicalProductCtrl,
+                          decoration: const InputDecoration(labelText: 'Medizinprodukt'),
+                          readOnly: _readOnly,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 200,
+                        child: TextFormField(
+                          controller: _moderatorCtrl,
+                          decoration: const InputDecoration(labelText: 'FMEA-Moderator'),
+                          readOnly: _readOnly,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 120,
+                        child: TextFormField(
+                          controller: _revisionCtrl,
+                          decoration: const InputDecoration(labelText: 'Revision'),
+                          readOnly: _readOnly,
+                          onChanged: (v) => setState(() => _revisionCtrl.text = _normalizedRevision(v)),
+                        ),
+                      ),
+                      if (!_readOnly)
+                        FilledButton.icon(
+                          onPressed: _saving ? null : _saveHeader,
+                          icon: const Icon(Icons.save_outlined),
+                          label: const Text('Kopfdaten speichern'),
+                        ),
+                    ],
+                  ),
+                  spacing,
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: 250,
+                        child: DropdownButtonFormField<String>(
+                          value: _superusers.any((u) => u.email == _moderatorCtrl.text.trim())
+                              ? _moderatorCtrl.text.trim()
+                              : null,
+                          decoration: const InputDecoration(labelText: 'FMEA-Moderator'),
+                          items: _superusers
+                              .map((u) => DropdownMenuItem(
+                                    value: u.email,
+                                    child: Text('${u.label} (${u.email})'),
+                                  ))
+                              .toList(),
+                          onChanged: _readOnly
+                              ? null
+                              : (val) => setState(() {
+                                    _moderatorCtrl.text = val ?? '';
+                                  }),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 240,
+                        child: CheckboxListTile(
+                          value: _prrcApproved,
+                          onChanged: _readOnly
+                              ? null
+                              : (val) => setState(() {
+                                    _prrcApproved = val ?? false;
+                                    if (val == true && _prrcDate == null) {
+                                      _prrcDate = DateTime.now();
+                                    }
+                                  }),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('PRRC bestätigt'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 240,
+                        child: DropdownButtonFormField<String>(
+                          value: _prrcUsers.any((u) => u.email == _prrcNameCtrl.text.trim())
+                              ? _prrcNameCtrl.text.trim()
+                              : null,
+                          decoration: const InputDecoration(labelText: 'PRRC-Name'),
+                          items: _prrcUsers
+                              .map((u) => DropdownMenuItem(
+                                    value: u.email,
+                                    child: Text('${u.label} (${u.email})'),
+                                  ))
+                              .toList(),
+                          onChanged: _readOnly
+                              ? null
+                              : (val) => setState(() => _prrcNameCtrl.text = val ?? ''),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 180,
+                        child: InkWell(
+                          onTap: _readOnly
+                              ? null
+                              : () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: _prrcDate ?? DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (picked != null) setState(() => _prrcDate = picked);
+                                },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(labelText: 'PRRC-Datum'),
+                            child: Text(_prrcDate == null ? '—' : _dateFmt.format(_prrcDate!)),
+                          ),
+                        ),
+                      ),
+                      if (!_readOnly)
+                        TextButton.icon(
+                          onPressed: () => setState(() => _prrcDate = null),
+                          icon: const Icon(Icons.clear),
+                          label: const Text('Datum leeren'),
+                        ),
+                    ],
+                  ),
+                  spacing,
+                  if (!_readOnly)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _saveHeader,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Kopfdaten speichern'),
+                      ),
+                    ),
+                ],
+              ),
+              secondChild: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    summaryChips.isEmpty ? 'Keine Kopfdaten hinterlegt' : 'Kopfdaten eingeklappt',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
                 ),
               ),
+            ),
           ],
         ),
       ),
