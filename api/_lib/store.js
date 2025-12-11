@@ -3267,7 +3267,10 @@ function normalizeFmeaRecord(raw = {}) {
   base.productGroup = (base.productGroup || '').toString();
   base.medicalProduct = (base.medicalProduct || '').toString();
   base.moderator = (base.moderator || '').toString();
-  base.revision = (base.revision || '').toString();
+  const revisionNumber = Number(base.revision);
+  base.revision = Number.isFinite(revisionNumber) && revisionNumber > 0
+    ? Math.round(revisionNumber).toString()
+    : '1';
   base.prrcApproved = base.prrcApproved === true || base.prrcApproved === 'true' || base.prrcApproved === 1;
   base.prrcName = (base.prrcName || '').toString();
   base.prrcDate = base.prrcDate ? normalizeDateValue(base.prrcDate) : null;
