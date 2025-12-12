@@ -1637,57 +1637,116 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             Navigator.pop(ctx, _buildResult());
           }
 
-          return AlertDialog(
-            title: Text(existing == null ? 'Risiko hinzufügen' : 'Risiko bearbeiten'),
-            content: LayoutBuilder(
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+            child: LayoutBuilder(
               builder: (context, constraints) {
-                final dialogHeight = math.min(constraints.maxHeight, 720.0);
+                final media = MediaQuery.of(context);
+                final maxWidth = math.min(media.size.width * 0.95, 1200.0);
+                final minWidth = math.min(media.size.width * 0.7, maxWidth);
+                final maxHeight = media.size.height * 0.9;
+
+                final isLast = currentStep == steps.length - 1;
+
                 return ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 920),
+                  constraints: BoxConstraints(
+                    minWidth: minWidth,
+                    maxWidth: maxWidth,
+                    maxHeight: maxHeight,
+                  ),
                   child: SizedBox(
-                    height: dialogHeight,
-                    child: Stepper(
-                      type: StepperType.horizontal,
-                      currentStep: currentStep,
-                      onStepTapped: (idx) {
-                        if (_validateUntil(idx, setStateDialog)) {
-                          setStateDialog(() => currentStep = idx);
-                        }
-                      },
-                      controlsBuilder: (context, details) {
-                        final isLast = currentStep == steps.length - 1;
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Row(
-                            children: [
-                              TextButton(
-                                onPressed: () async {
-                                  if (await _confirmAbort()) {
-                                    Navigator.pop(ctx, null);
+                    width: maxWidth,
+                    height: maxHeight,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                          child: Text(
+                            existing == null ? 'Risiko hinzufügen' : 'Risiko bearbeiten',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        Expanded(
+                          child: Scrollbar(
+                            thumbVisibility: true,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                              child: Stepper(
+                                type: StepperType.horizontal,
+                                physics: const NeverScrollableScrollPhysics(),
+                                currentStep: currentStep,
+                                onStepTapped: (idx) {
+                                  if (_validateUntil(idx, setStateDialog)) {
+                                    setStateDialog(() => currentStep = idx);
                                   }
                                 },
-                                child: const Text('Abbrechen'),
+                                controlsBuilder: (context, details) => const SizedBox.shrink(),
+                                steps: steps
+                                    .map(
+                                      (s) => Step(
+                                        title: DefaultTextStyle.merge(
+                                          style: const TextStyle(
+                                            overflow: TextOverflow.visible,
+                                          ),
+                                          child: s.title,
+                                        ),
+                                        content: s.content,
+                                        isActive: s.isActive,
+                                        state: s.state,
+                                      ),
+                                    )
+                                    .toList(),
                               ),
-                              const Spacer(),
-                              if (currentStep > 0)
-                                OutlinedButton(
-                                  onPressed: () => setStateDialog(() => currentStep -= 1),
-                                  child: const Text('Zurück'),
-                                ),
-                              const SizedBox(width: 8),
-                              TextButton(
-                                onPressed: _saveDraft,
-                                child: const Text('Zwischenspeichern'),
-                              ),
-                              const SizedBox(width: 8),
-                              isLast
-                                  ? FilledButton(onPressed: _finish, child: const Text('Speichern'))
-                                  : FilledButton(onPressed: _nextStep, child: const Text('Weiter')),
-                            ],
+                            ),
                           ),
-                        );
-                      },
-                      steps: steps,
+                        ),
+                        const Divider(height: 1),
+                        SafeArea(
+                          top: false,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).dialogBackgroundColor,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.06),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, -2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () async {
+                                    if (await _confirmAbort()) {
+                                      Navigator.pop(ctx, null);
+                                    }
+                                  },
+                                  child: const Text('Abbrechen'),
+                                ),
+                                const Spacer(),
+                                if (currentStep > 0)
+                                  OutlinedButton(
+                                    onPressed: () => setStateDialog(() => currentStep -= 1),
+                                    child: const Text('Zurück'),
+                                  ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: _saveDraft,
+                                  child: const Text('Zwischenspeichern'),
+                                ),
+                                const SizedBox(width: 8),
+                                isLast
+                                    ? FilledButton(onPressed: _finish, child: const Text('Speichern'))
+                                    : FilledButton(onPressed: _nextStep, child: const Text('Weiter')),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
