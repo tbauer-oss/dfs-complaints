@@ -1191,10 +1191,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       return form.validate();
     }
 
-    bool _validateUntil(int index) {
+    bool _validateUntil(int index, {void Function(VoidCallback)? setStepperState}) {
       for (var i = 0; i <= index; i++) {
         if (!_validateStep(i)) {
-          setStateDialog(() => currentStep = i);
+          setStepperState?.call(() => currentStep = i);
           return false;
         }
       }
@@ -1628,12 +1628,12 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
           }
 
           Future<void> _saveDraft() async {
-            if (!_validateUntil(currentStep)) return;
+            if (!_validateUntil(currentStep, setStepperState: setStateDialog)) return;
             Navigator.pop(ctx, _buildResult());
           }
 
           Future<void> _finish() async {
-            if (!_validateUntil(steps.length - 1)) return;
+            if (!_validateUntil(steps.length - 1, setStepperState: setStateDialog)) return;
             Navigator.pop(ctx, _buildResult());
           }
 
@@ -1646,7 +1646,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                   type: StepperType.horizontal,
                   currentStep: currentStep,
                   onStepTapped: (idx) {
-                    if (_validateUntil(idx)) {
+                    if (_validateUntil(idx, setStepperState: setStateDialog)) {
                       setStateDialog(() => currentStep = idx);
                     }
                   },
