@@ -1,5 +1,5 @@
 name: dfs_mobile
-description: "A new Flutter project."
+description: "DFS Connect App"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -68,4 +68,5 @@ flutter:
 
 flutter_intl:
   enabled: true
+
 
