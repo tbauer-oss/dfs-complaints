@@ -40,10 +40,13 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   bool _loadingRefs = false;
   final _productService = DfsProductService();
   final _searchCtrl = TextEditingController();
+  final _fmeaSearchCtrl = TextEditingController();
   String _selectedCategory = 'all';
   final _activeFilters = <String>{};
 
   bool _headerExpanded = false;
+  bool _sidebarCollapsed = true;
+  FmeaRiskEntry? _selectedRiskEntry;
 
   final _mdrTdCtrl = TextEditingController();
   final _productGroupCtrl = TextEditingController();
@@ -88,6 +91,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     _revisionCtrl.dispose();
     _prrcNameCtrl.dispose();
     _searchCtrl.dispose();
+    _fmeaSearchCtrl.dispose();
     _riskHorizontal.dispose();
     _riskVertical.dispose();
     super.dispose();
@@ -170,6 +174,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   void _setSelection(FmeaRecord? record) {
     setState(() {
       _selected = record;
+      _selectedRiskEntry = null;
       _headerExpanded = false;
       _mdrTdCtrl.text = record?.mdrTd ?? '';
       _productGroupCtrl.text = record?.productGroup ?? '';
@@ -428,7 +433,11 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     if (_selected == null) return;
     try {
       final refreshed = await widget.api.adminFetchFmea(_selected!.id);
-      setState(() => _selected = refreshed);
+      setState(() {
+        _selected = refreshed;
+        _selectedRiskEntry = null;
+        _syncSelectedRisk();
+      });
       await _loadFmeas();
       await _loadLinks();
     } catch (e) {
@@ -547,6 +556,17 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       ].join(' ').toLowerCase();
       return searchable.contains(query);
     }).toList();
+  }
+
+  void _syncSelectedRisk() {
+    final visible = _filteredRisks;
+    if (visible.isEmpty) {
+      _selectedRiskEntry = null;
+      return;
+    }
+    if (_selectedRiskEntry == null || !visible.any((r) => r.id == _selectedRiskEntry!.id)) {
+      _selectedRiskEntry = visible.first;
+    }
   }
 
   Map<String, int> _countByLevel(List<FmeaRiskEntry> risks, {required bool after}) {
@@ -936,134 +956,6 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     );
   }
 
-  Widget _buildRiskTable() {
-    final theme = Theme.of(context);
-    final risks = _filteredRisks;
-    if (risks.isEmpty) {
-      return Center(
-        child: Text('Keine Risiken gefunden', style: theme.textTheme.bodyMedium),
-      );
-    }
-
-    return ListView.separated(
-      itemCount: risks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (ctx, idx) {
-        final r = risks[idx];
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-          child: ExpansionTile(
-            tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            leading: _riskBadge(r.riskLevelAfter ?? r.riskLevel, theme),
-            title: Row(
-              children: [
-                Text(r.riskNumber, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(width: 12),
-                if (r.category.isNotEmpty)
-                  Chip(
-                    label: Text(r.category),
-                    visualDensity: VisualDensity.compact,
-                    side: BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(r.hazard.isEmpty ? 'Keine Gefährdung' : r.hazard, style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Vor:'),
-                        const SizedBox(width: 6),
-                        _riskBadge(r.riskLevel, theme),
-                        const SizedBox(width: 8),
-                        Text('${r.severity ?? '-'}×${r.occurrence ?? '-'}'),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Nach:'),
-                        const SizedBox(width: 6),
-                        _riskBadge(r.riskLevelAfter, theme),
-                        const SizedBox(width: 8),
-                        Text('${r.severityAfter ?? '-'}×${r.occurrenceAfter ?? '-'}'),
-                      ],
-                    ),
-                    if (r.linkedComplaints.isNotEmpty)
-                      Chip(
-                        label: Text('Reklamationen: ${r.linkedComplaints.length}'),
-                        avatar: const Icon(Icons.confirmation_num_outlined, size: 16),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    if (r.linkedCapas.isNotEmpty)
-                      Chip(
-                        label: Text('CAPA: ${r.linkedCapas.length}'),
-                        avatar: const Icon(Icons.fact_check_outlined, size: 16),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    if (!r.residualRiskOk)
-                      Chip(
-                        label: const Text('Restrisiko kritisch'),
-                        backgroundColor: theme.colorScheme.errorContainer,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    if (r.newHazard)
-                      Chip(
-                        label: const Text('Neue Gefährdung'),
-                        backgroundColor: theme.colorScheme.tertiaryContainer,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            children: [
-              _RiskDetailRow(label: 'Gefährdungssituation', value: r.hazardSituation),
-              _RiskDetailRow(label: 'Schaden', value: r.harm),
-              _RiskDetailRow(label: 'Ursachen', value: r.causes),
-              _RiskDetailRow(label: 'Maßnahmen (geplant)', value: r.proposedAction),
-              _RiskDetailRow(label: 'Maßnahmen (durchgeführt)', value: r.actionTaken),
-              _RiskDetailRow(label: 'RNA', value: r.riskBenefitAnalysis),
-              _RiskDetailRow(label: 'Nachweise', value: r.documents.isEmpty ? 'Keine Nachweise' : r.documents),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _readOnly ? null : () => _updateRisk(r),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Bearbeiten'),
-                    ),
-                    if (!_readOnly)
-                      OutlinedButton.icon(
-                        onPressed: () => _deleteRisk(r),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Löschen'),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildOverviewTab(ThemeData theme) {
     final risks = _currentRisks;
     final pre = _countByLevel(risks, after: false);
@@ -1236,27 +1128,72 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     );
   }
 
-  Widget _buildRiskTab(ThemeData theme) {
+  Widget _buildRiskTab(ThemeData theme, {required bool isDesktop}) {
     final categories = _categoryOptions;
-    return Row(
-      children: [
-        SizedBox(
-          width: 240,
-          child: Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant),
-            ),
+    final visibleRisks = _filteredRisks;
+    final selectedRisk = _selectedRiskEntry != null &&
+            visibleRisks.any((r) => r.id == _selectedRiskEntry!.id)
+        ? _selectedRiskEntry
+        : (visibleRisks.isNotEmpty ? visibleRisks.first : null);
+
+    Widget badgeRow(String label, String? level, int? severity, int? occurrence) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: theme.textTheme.labelMedium),
+          const SizedBox(width: 6),
+          _riskBadge(level, theme),
+          const SizedBox(width: 8),
+          Text('${severity ?? '-'}×${occurrence ?? '-'}'),
+        ],
+      );
+    }
+
+    Widget filterGroup(String title, List<Widget> children) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: children),
+          ],
+        ),
+      );
+    }
+
+    Widget filterPane() {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text('Kategorien', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                Row(
+                  children: [
+                    Text(
+                      'Kategorien (${_currentRisks.length})',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    Chip(label: Text('Gefiltert: ${visibleRisks.length}')),
+                  ],
                 ),
-                const Divider(height: 1),
-                Expanded(
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 260,
                   child: ListView.builder(
                     itemCount: categories.length,
                     itemBuilder: (ctx, idx) {
@@ -1275,160 +1212,371 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                   : r.category.trim() == cat)
                           .length;
                       return ListTile(
+                        dense: true,
                         title: Text(label),
                         trailing: Chip(label: Text('$count')),
                         selected: isSelected,
-                        onTap: () => setState(() => _selectedCategory = cat),
+                        onTap: () => setState(() {
+                          _selectedCategory = cat;
+                          _syncSelectedRisk();
+                        }),
                       );
                     },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                filterGroup('Einstufung VOR', [
+                  FilterChip(
+                    label: const Text('Rot'),
+                    selected: _activeFilters.contains('pre:red'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('pre:red') : _activeFilters.remove('pre:red');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('Gelb'),
+                    selected: _activeFilters.contains('pre:yellow'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('pre:yellow') : _activeFilters.remove('pre:yellow');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('Grün'),
+                    selected: _activeFilters.contains('pre:green'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('pre:green') : _activeFilters.remove('pre:green');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                ]),
+                filterGroup('Einstufung NACH', [
+                  FilterChip(
+                    label: const Text('Rot'),
+                    selected: _activeFilters.contains('post:red'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('post:red') : _activeFilters.remove('post:red');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('Gelb'),
+                    selected: _activeFilters.contains('post:yellow'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('post:yellow') : _activeFilters.remove('post:yellow');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('Grün'),
+                    selected: _activeFilters.contains('post:green'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('post:green') : _activeFilters.remove('post:green');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                ]),
+                filterGroup('Flags', [
+                  FilterChip(
+                    label: const Text('Neue Gefährdung'),
+                    selected: _activeFilters.contains('newHazard'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('newHazard') : _activeFilters.remove('newHazard');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('Restrisiko nein'),
+                    selected: _activeFilters.contains('residualBad'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('residualBad') : _activeFilters.remove('residualBad');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('Nachweise fehlen'),
+                    selected: _activeFilters.contains('missingDocs'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('missingDocs') : _activeFilters.remove('missingDocs');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                ]),
+                filterGroup('Verknüpfungen', [
+                  FilterChip(
+                    label: const Text('Reklamation verknüpft'),
+                    selected: _activeFilters.contains('linkedComplaint'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('linkedComplaint') : _activeFilters.remove('linkedComplaint');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                  FilterChip(
+                    label: const Text('CAPA verknüpft'),
+                    selected: _activeFilters.contains('linkedCapa'),
+                    onSelected: (v) => setState(() {
+                      v ? _activeFilters.add('linkedCapa') : _activeFilters.remove('linkedCapa');
+                      _syncSelectedRisk();
+                    }),
+                  ),
+                ]),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() {
+                      _activeFilters.clear();
+                      _searchCtrl.clear();
+                      _syncSelectedRisk();
+                    }),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Filter zurücksetzen'),
                   ),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Text('Risiken', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 8),
-                  Chip(label: Text('${_filteredRisks.length} gefiltert')), 
-                  const SizedBox(width: 8),
-                  Chip(label: Text('${_currentRisks.length} gesamt')),
-                  const Spacer(),
-                  SizedBox(
-                    width: 260,
-                    child: TextField(
-                      controller: _searchCtrl,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Suche in Gefährdungen / Maßnahmen',
-                        isDense: true,
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
+      );
+    }
+
+    Widget detailPane() {
+      if (selectedRisk == null) {
+        return Center(
+          child: Text('Keine Risiken gefunden', style: theme.textTheme.bodyMedium),
+        );
+      }
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Risiko ${selectedRisk.riskNumber}',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(width: 12),
+                Chip(label: Text(selectedRisk.category.isEmpty ? 'Ohne Kategorie' : selectedRisk.category)),
+                const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: _readOnly ? null : () => _updateRisk(selectedRisk),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Bearbeiten'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            badgeRow('Vor Maßnahme', selectedRisk.riskLevel, selectedRisk.severity, selectedRisk.occurrence),
+            const SizedBox(height: 8),
+            badgeRow('Nach Maßnahme', selectedRisk.riskLevelAfter, selectedRisk.severityAfter, selectedRisk.occurrenceAfter),
+            const SizedBox(height: 12),
+            _RiskDetailRow(label: 'Gefährdung', value: selectedRisk.hazard),
+            _RiskDetailRow(label: 'Gefährdungssituation', value: selectedRisk.hazardSituation),
+            _RiskDetailRow(label: 'Schaden', value: selectedRisk.harm),
+            _RiskDetailRow(label: 'Ursachen', value: selectedRisk.causes),
+            _RiskDetailRow(label: 'Maßnahmen (geplant)', value: selectedRisk.proposedAction),
+            _RiskDetailRow(label: 'Maßnahmen (durchgeführt)', value: selectedRisk.actionTaken),
+            _RiskDetailRow(label: 'Nachweise', value: selectedRisk.documents.isEmpty ? 'Keine Nachweise' : selectedRisk.documents),
+            _RiskDetailRow(label: 'RNA', value: selectedRisk.riskBenefitAnalysis),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (selectedRisk.linkedComplaints.isNotEmpty)
+                  Chip(label: Text('Reklamationen: ${selectedRisk.linkedComplaints.length}')),
+                if (selectedRisk.linkedCapas.isNotEmpty)
+                  Chip(label: Text('CAPA: ${selectedRisk.linkedCapas.length}')),
+                if (!selectedRisk.residualRiskOk)
+                  Chip(
+                    label: const Text('Restrisiko kritisch'),
+                    backgroundColor: theme.colorScheme.errorContainer,
                   ),
-                  const SizedBox(width: 8),
-                  if (widget.canEdit)
-                    FilledButton.icon(
-                      onPressed: _saving ? null : _addRisk,
-                      icon: const Icon(Icons.add_outlined),
-                      label: const Text('Risiko hinzufügen'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilterChip(
-                    label: const Text('Rot (vor)'),
-                    selected: _activeFilters.contains('pre:red'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('pre:red')
-                        : _activeFilters.remove('pre:red')),
-                  ),
-                  FilterChip(
-                    label: const Text('Gelb (vor)'),
-                    selected: _activeFilters.contains('pre:yellow'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('pre:yellow')
-                        : _activeFilters.remove('pre:yellow')),
-                  ),
-                  FilterChip(
-                    label: const Text('Grün (vor)'),
-                    selected: _activeFilters.contains('pre:green'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('pre:green')
-                        : _activeFilters.remove('pre:green')),
-                  ),
-                  FilterChip(
-                    label: const Text('Rot (nach)'),
-                    selected: _activeFilters.contains('post:red'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('post:red')
-                        : _activeFilters.remove('post:red')),
-                  ),
-                  FilterChip(
-                    label: const Text('Gelb (nach)'),
-                    selected: _activeFilters.contains('post:yellow'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('post:yellow')
-                        : _activeFilters.remove('post:yellow')),
-                  ),
-                  FilterChip(
-                    label: const Text('Grün (nach)'),
-                    selected: _activeFilters.contains('post:green'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('post:green')
-                        : _activeFilters.remove('post:green')),
-                  ),
-                  FilterChip(
+                if (selectedRisk.newHazard)
+                  Chip(
                     label: const Text('Neue Gefährdung'),
-                    selected: _activeFilters.contains('newHazard'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('newHazard')
-                        : _activeFilters.remove('newHazard')),
+                    backgroundColor: theme.colorScheme.tertiaryContainer,
                   ),
-                  FilterChip(
-                    label: const Text('Restrisiko nein'),
-                    selected: _activeFilters.contains('residualBad'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('residualBad')
-                        : _activeFilters.remove('residualBad')),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget listPane() {
+      if (visibleRisks.isEmpty) {
+        return Center(child: Text('Keine Risiken gefunden', style: theme.textTheme.bodyMedium));
+      }
+
+      return ListView.separated(
+        itemCount: visibleRisks.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (ctx, idx) {
+          final r = visibleRisks[idx];
+          final active = selectedRisk?.id == r.id;
+          return InkWell(
+            onTap: () => setState(() => _selectedRiskEntry = r),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: active ? theme.colorScheme.primaryContainer.withOpacity(0.4) : theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: active ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(r.riskNumber, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          r.hazard.isEmpty ? 'Keine Gefährdung' : r.hazard,
+                          style: theme.textTheme.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _riskBadge(r.riskLevelAfter ?? r.riskLevel, theme),
+                    ],
                   ),
-                  FilterChip(
-                    label: const Text('Nachweise fehlen'),
-                    selected: _activeFilters.contains('missingDocs'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('missingDocs')
-                        : _activeFilters.remove('missingDocs')),
-                  ),
-                  FilterChip(
-                    label: const Text('Verknüpft mit Reklamation'),
-                    selected: _activeFilters.contains('linkedComplaint'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('linkedComplaint')
-                        : _activeFilters.remove('linkedComplaint')),
-                  ),
-                  FilterChip(
-                    label: const Text('Verknüpft mit CAPA'),
-                    selected: _activeFilters.contains('linkedCapa'),
-                    onSelected: (v) => setState(() => v
-                        ? _activeFilters.add('linkedCapa')
-                        : _activeFilters.remove('linkedCapa')),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _activeFilters.clear();
-                      _searchCtrl.clear();
-                    }),
-                    child: const Text('Filter zurücksetzen'),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      badgeRow('Vor', r.riskLevel, r.severity, r.occurrence),
+                      badgeRow('Nach', r.riskLevelAfter, r.severityAfter, r.occurrenceAfter),
+                      Chip(
+                        label: Text(r.category.isEmpty ? 'Ohne Kategorie' : r.category),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      if (r.linkedComplaints.isNotEmpty)
+                        Chip(
+                          label: Text('Reklamation: ${r.linkedComplaints.length}'),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      if (r.linkedCapas.isNotEmpty)
+                        Chip(
+                          label: Text('CAPA: ${r.linkedCapas.length}'),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      if (!r.residualRiskOk)
+                        Chip(
+                          label: const Text('Restrisiko nein'),
+                          backgroundColor: theme.colorScheme.errorContainer,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      if (r.newHazard)
+                        Chip(
+                          label: const Text('Neue Gefährdung'),
+                          backgroundColor: theme.colorScheme.tertiaryContainer,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+          );
+        },
+      );
+    }
+
+    Widget workspace() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('Risiken (${_currentRisks.length})', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(width: 8),
+              Chip(label: Text('gefiltert: ${visibleRisks.length}')),
+              const Spacer(),
+              SizedBox(
+                width: isDesktop ? 320 : 240,
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Risiken durchsuchen',
+                    isDense: true,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: _buildRiskTable(),
-                  ),
+                  onChanged: (_) => setState(() => _syncSelectedRisk()),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: listPane(),
+                    ),
+                    const SizedBox(height: 12),
+                    Divider(color: theme.colorScheme.outlineVariant),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      flex: 2,
+                      child: Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: theme.colorScheme.outlineVariant),
+                        ),
+                        child: detailPane(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          SizedBox(width: 320, child: filterPane()),
+          const SizedBox(width: 12),
+          Expanded(child: workspace()),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        ExpansionTile(
+          initiallyExpanded: false,
+          leading: const Icon(Icons.tune),
+          title: const Text('Filter & Kategorien'),
+          children: [
+            SizedBox(height: 420, child: filterPane()),
+          ],
         ),
+        const SizedBox(height: 8),
+        Expanded(child: workspace()),
       ],
     );
   }
@@ -2279,159 +2427,264 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Text('FMEA', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(width: 12),
-              Chip(label: Text('${_fmeas.length} Dateien')),
-              const Spacer(),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-                ),
-              if (widget.canEdit)
-                FilledButton.icon(
-                  onPressed: _saving ? null : _createFmea,
-                  icon: const Icon(Icons.add_outlined),
-                  label: const Text('Neue FMEA'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 1200;
+        final sidebarWidth = _sidebarCollapsed ? 68.0 : math.min(340.0, constraints.maxWidth * 0.24);
+        final compactTheme = theme.copyWith(
+          textTheme: theme.textTheme.apply(fontSizeFactor: 1.08),
+          chipTheme: theme.chipTheme.copyWith(labelPadding: const EdgeInsets.symmetric(horizontal: 10)),
+          visualDensity: VisualDensity.standard,
+        );
+
+        final fmeaTitle = _selected == null
+            ? 'FMEA'
+            : '${_selected!.mdrTd.isNotEmpty ? _selected!.mdrTd : _selected!.title} | Rev. ${_selected!.revision.isEmpty ? '1' : _selected!.revision} | Moderator: ${_selected!.moderator.isEmpty ? '—' : _selected!.moderator}';
+        final visibleFmeas = _fmeaSearchCtrl.text.trim().isEmpty
+            ? _fmeas
+            : _fmeas
+                .where(
+                  (f) => f.mdrTd.toLowerCase().contains(_fmeaSearchCtrl.text.trim().toLowerCase()) ||
+                      f.title.toLowerCase().contains(_fmeaSearchCtrl.text.trim().toLowerCase()),
+                )
+                .toList();
+
+        return Theme(
+          data: compactTheme,
+          child: Container(
+            color: theme.colorScheme.surface,
+            child: Column(
               children: [
-                SizedBox(
-                  width: 320,
-                  child: Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant),
-                    ),
-                    child: Column(
+                Material(
+                  elevation: 3,
+                  color: theme.colorScheme.surface,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    constraints: const BoxConstraints(minHeight: 64),
+                    child: Row(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.assignment_outlined),
-                              const SizedBox(width: 8),
-                              Text('FMEAs', style: theme.textTheme.titleMedium),
-                              const Spacer(),
-                              IconButton(
-                                tooltip: 'Aktualisieren',
-                                onPressed: _loadingList ? null : _loadFmeas,
-                                icon: const Icon(Icons.refresh_outlined),
-                              ),
-                            ],
+                        IconButton(
+                          tooltip: _sidebarCollapsed ? 'Sidebar öffnen' : 'Sidebar einklappen',
+                          onPressed: () => setState(() => _sidebarCollapsed = !_sidebarCollapsed),
+                          icon: Icon(_sidebarCollapsed ? Icons.menu_open : Icons.menu),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('MDR-TD – Workspace', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                            Text(fmeaTitle, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const Spacer(),
+                        if (_error != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
                           ),
+                        FilledButton.tonalIcon(
+                          onPressed: () => setState(() => _headerExpanded = !_headerExpanded),
+                          icon: Icon(_headerExpanded ? Icons.unfold_less : Icons.unfold_more),
+                          label: Text(_headerExpanded ? 'Kopfdaten schließen' : 'Kopfdaten einblenden'),
                         ),
-                        const Divider(height: 1),
-                        Expanded(
-                          child: _loadingList
-                              ? const Center(child: CircularProgressIndicator())
-                              : ListView.builder(
-                                  itemCount: _fmeas.length,
-                                  itemBuilder: (ctx, idx) {
-                                    final f = _fmeas[idx];
-                                    final selected = _selected?.id == f.id;
-                                    return ListTile(
-                                      selected: selected,
-                                      onTap: () {
-                                        setState(() => _setSelection(f));
-                                      },
-                                      title: Text(f.mdrTd.isNotEmpty ? f.mdrTd : f.title),
-                                      subtitle: Text(
-                                        'Revision ${f.revision.isEmpty ? '–' : f.revision} · ${f.updatedAt != null ? _dateFmt.format(f.updatedAt!) : 'ohne Datum'}',
-                                      ),
-                                      trailing: CircleAvatar(
-                                        radius: 12,
-                                        backgroundColor: theme.colorScheme.primaryContainer,
-                                        foregroundColor: theme.colorScheme.onPrimaryContainer,
-                                        child: Text('${f.risks.length}'),
-                                      ),
-                                    );
-                                  },
-                                ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          tooltip: 'PDF exportieren',
+                          onPressed: _selected == null || _saving ? null : _exportPdf,
+                          icon: const Icon(Icons.picture_as_pdf_outlined),
                         ),
+                        IconButton(
+                          tooltip: 'Excel/CSV exportieren',
+                          onPressed: _selected == null || _saving ? null : _exportCsv,
+                          icon: const Icon(Icons.table_view_outlined),
+                        ),
+                        if (widget.canEdit)
+                          TextButton.icon(
+                            onPressed: _selected == null || _saving ? null : _deleteSelected,
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('FMEA löschen'),
+                          ),
+                        if (widget.canEdit)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: FilledButton.icon(
+                              onPressed: _selected == null || _saving ? null : _addRisk,
+                              icon: const Icon(Icons.add_outlined),
+                              label: const Text('Risiko hinzufügen'),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                AnimatedCrossFade(
+                  firstChild: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+                      color: theme.colorScheme.surface,
+                    ),
+                    child: _buildHeaderForm(),
+                  ),
+                  secondChild: const SizedBox.shrink(),
+                  duration: const Duration(milliseconds: 200),
+                  crossFadeState: _headerExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                ),
                 Expanded(
-                  child: _selected == null
-                      ? Center(
-                          child: Text(
-                            'Keine FMEA ausgewählt',
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                        )
-                      : DefaultTabController(
-                          length: 3,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildHeaderForm(),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TabBar(
-                                      tabs: const [
-                                        Tab(text: 'Übersicht'),
-                                        Tab(text: 'Risiken'),
-                                        Tab(text: 'Verknüpfungen'),
-                                      ],
-                                      labelColor: theme.colorScheme.primary,
-                                      unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  IconButton(
-                                    tooltip: 'PDF exportieren',
-                                    onPressed: _saving ? null : _exportPdf,
-                                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Excel/CSV exportieren',
-                                    onPressed: _saving ? null : _exportCsv,
-                                    icon: const Icon(Icons.table_view_outlined),
-                                  ),
-                                  if (widget.canEdit)
-                                    TextButton.icon(
-                                      onPressed: _saving ? null : _deleteSelected,
-                                      icon: const Icon(Icons.delete_outline),
-                                      label: const Text('FMEA löschen'),
-                                    ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: sidebarWidth,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceVariant,
+                          border: Border(right: BorderSide(color: theme.colorScheme.outlineVariant)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.assignment_outlined),
+                                if (!_sidebarCollapsed) ...[
+                                  const SizedBox(width: 8),
+                                  Text('FMEA-Liste', style: theme.textTheme.titleMedium),
                                 ],
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: 'Aktualisieren',
+                                  onPressed: _loadingList ? null : _loadFmeas,
+                                  icon: const Icon(Icons.refresh_outlined),
+                                ),
+                              ],
+                            ),
+                            if (!_sidebarCollapsed) ...[
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _fmeaSearchCtrl,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.search),
+                                  hintText: 'FMEA suchen',
+                                  isDense: true,
+                                ),
+                                onChanged: (_) => setState(() {}),
                               ),
                               const SizedBox(height: 8),
-                              Expanded(
-                                child: TabBarView(
-                                  children: [
-                                    _buildOverviewTab(theme),
-                                    _buildRiskTab(theme),
-                                    _buildLinksTab(theme),
-                                  ],
-                                ),
+                              TextButton.icon(
+                                onPressed: _saving ? null : _createFmea,
+                                icon: const Icon(Icons.add_circle_outline),
+                                label: const Text('Neue FMEA'),
                               ),
                             ],
-                          ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Material(
+                                  color: theme.colorScheme.surface,
+                                  child: _loadingList
+                                      ? const Center(child: CircularProgressIndicator())
+                                      : ListView.builder(
+                                          itemCount: visibleFmeas.length,
+                                          itemBuilder: (ctx, idx) {
+                                            final f = visibleFmeas[idx];
+                                            final selected = _selected?.id == f.id;
+                                            return ListTile(
+                                              dense: true,
+                                              contentPadding: EdgeInsets.symmetric(
+                                                horizontal: _sidebarCollapsed ? 8 : 12,
+                                                vertical: 4,
+                                              ),
+                                              leading: CircleAvatar(
+                                                radius: 14,
+                                                backgroundColor: selected
+                                                    ? theme.colorScheme.primaryContainer
+                                                    : theme.colorScheme.secondaryContainer,
+                                                foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                                child: Text('${f.risks.length}'),
+                                              ),
+                                              title: Text(
+                                                f.mdrTd.isNotEmpty ? f.mdrTd : f.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              subtitle: _sidebarCollapsed
+                                                  ? null
+                                                  : Text(
+                                                      'Rev. ${f.revision.isEmpty ? '–' : f.revision} · ${f.updatedAt != null ? _dateFmt.format(f.updatedAt!) : 'ohne Datum'}',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                              selected: selected,
+                                              onTap: () {
+                                                _setSelection(f);
+                                                _syncSelectedRisk();
+                                              },
+                                            );
+                                          },
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      Expanded(
+                        child: _selected == null
+                            ? Center(
+                                child: Text(
+                                  'Keine FMEA ausgewählt',
+                                  style: theme.textTheme.bodyLarge,
+                                ),
+                              )
+                            : DefaultTabController(
+                                length: 3,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TabBar(
+                                              tabs: const [
+                                                Tab(text: 'Übersicht'),
+                                                Tab(text: 'Risiken'),
+                                                Tab(text: 'Verknüpfungen'),
+                                              ],
+                                              labelColor: theme.colorScheme.primary,
+                                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Expanded(
+                                        child: TabBarView(
+                                          children: [
+                                            _buildOverviewTab(theme),
+                                            _buildRiskTab(theme, isDesktop: isDesktop),
+                                            _buildLinksTab(theme),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
