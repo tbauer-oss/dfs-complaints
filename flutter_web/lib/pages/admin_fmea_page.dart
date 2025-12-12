@@ -1669,40 +1669,35 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ),
                         const Divider(height: 1),
                         Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, constraints) => Scrollbar(
-                              thumbVisibility: true,
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                                  child: Stepper(
-                                    type: StepperType.horizontal,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    currentStep: currentStep,
-                                    onStepTapped: (idx) {
-                                      if (_validateUntil(idx, setStateDialog)) {
-                                        setStateDialog(() => currentStep = idx);
-                                      }
-                                    },
-                                    controlsBuilder: (context, details) => const SizedBox.shrink(),
-                                    steps: steps
-                                        .map(
-                                          (s) => Step(
-                                            title: DefaultTextStyle.merge(
-                                              style: const TextStyle(
-                                                overflow: TextOverflow.visible,
-                                              ),
-                                              child: s.title,
-                                            ),
-                                            content: s.content,
-                                            isActive: s.isActive,
-                                            state: s.state,
+                          child: Scrollbar(
+                            thumbVisibility: true,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                              child: Stepper(
+                                type: StepperType.horizontal,
+                                physics: const NeverScrollableScrollPhysics(),
+                                currentStep: currentStep,
+                                onStepTapped: (idx) {
+                                  if (_validateUntil(idx, setStateDialog)) {
+                                    setStateDialog(() => currentStep = idx);
+                                  }
+                                },
+                                controlsBuilder: (context, details) => const SizedBox.shrink(),
+                                steps: steps
+                                    .map(
+                                      (s) => Step(
+                                        title: DefaultTextStyle.merge(
+                                          style: const TextStyle(
+                                            overflow: TextOverflow.visible,
                                           ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
+                                          child: s.title,
+                                        ),
+                                        content: s.content,
+                                        isActive: s.isActive,
+                                        state: s.state,
+                                      ),
+                                    )
+                                    .toList(),
                               ),
                             ),
                           ),
