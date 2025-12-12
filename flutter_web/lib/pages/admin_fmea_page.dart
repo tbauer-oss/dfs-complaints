@@ -1637,8 +1637,12 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             Navigator.pop(ctx, _buildResult());
           }
 
+          final dialogTheme = Theme.of(context).dialogTheme;
+
           return AlertDialog(
             title: Text(existing == null ? 'Risiko hinzufügen' : 'Risiko bearbeiten'),
+            backgroundColor: dialogTheme.backgroundColor ?? Theme.of(context).colorScheme.surface,
+            surfaceTintColor: dialogTheme.surfaceTintColor ?? Colors.transparent,
             content: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 920, maxHeight: 760),
               child: SingleChildScrollView(
