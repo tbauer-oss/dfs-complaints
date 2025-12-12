@@ -1648,21 +1648,89 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
                 final isLast = currentStep == steps.length - 1;
 
-                final stepWidgets = steps
+          final theme = Theme.of(context);
+
+          Widget stepIndicator(int idx, Step step) {
+            final isCurrent = idx == currentStep;
+            final isComplete = currentStep > idx;
+            final bgColor = isCurrent
+                ? theme.colorScheme.primaryContainer.withOpacity(0.9)
+                : theme.colorScheme.surfaceVariant;
+            final borderColor = isComplete
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant;
+            final fgColor = isCurrent
+                ? theme.colorScheme.onPrimaryContainer
+                : theme.colorScheme.onSurfaceVariant;
+
+            return InkWell(
+              onTap: () {
+                if (_validateUntil(idx, setStateDialog)) {
+                  setStateDialog(() => currentStep = idx);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor:
+                          isComplete ? theme.colorScheme.primary : theme.colorScheme.surface,
+                      foregroundColor: isComplete
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSurface,
+                      child: isComplete
+                          ? const Icon(Icons.check, size: 18)
+                          : Text('${idx + 1}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 10),
+                    DefaultTextStyle.merge(
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
+                        overflow: TextOverflow.visible,
+                      ),
+                      child: step.title,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          Widget stepContentArea() {
+            return AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: IndexedStack(
+                index: currentStep,
+                children: steps
+                    .asMap()
+                    .entries
                     .map(
-                      (s) => Step(
-                        title: DefaultTextStyle.merge(
-                          style: const TextStyle(
-                            overflow: TextOverflow.visible,
-                          ),
-                          child: s.title,
+                      (entry) => Visibility(
+                        visible: entry.key == currentStep,
+                        maintainState: true,
+                        maintainAnimation: true,
+                        maintainSize: true,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: entry.value.content,
                         ),
-                        content: s.content,
-                        isActive: s.isActive,
-                        state: s.state,
                       ),
                     )
-                    .toList();
+                    .toList(),
+              ),
+            );
+          }
 
                 return ConstrainedBox(
                   constraints: BoxConstraints(
@@ -1689,17 +1757,21 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                             thumbVisibility: true,
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                              child: Stepper(
-                                type: StepperType.horizontal,
-                                physics: const NeverScrollableScrollPhysics(),
-                                currentStep: currentStep,
-                                onStepTapped: (idx) {
-                                  if (_validateUntil(idx, setStateDialog)) {
-                                    setStateDialog(() => currentStep = idx);
-                                  }
-                                },
-                                controlsBuilder: (context, details) => const SizedBox.shrink(),
-                                steps: stepWidgets,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: steps
+                                        .asMap()
+                                        .entries
+                                        .map((entry) => stepIndicator(entry.key, entry.value))
+                                        .toList(),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  stepContentArea(),
+                                ],
                               ),
                             ),
                           ),
