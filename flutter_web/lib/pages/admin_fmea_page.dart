@@ -1,6 +1,7 @@
 import 'dart:html' as html;
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -967,161 +968,286 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
         .toList();
     final missingSa = risks.where((r) => r.severityAfter == null || r.occurrenceAfter == null).toList();
     final categories = _categoryStats;
+    final uniqueComplaints = risks.expand((r) => r.linkedComplaints).toSet().length;
+    final uniqueCapas = risks.expand((r) => r.linkedCapas).toSet().length;
 
-    Widget statChip(String label, int value, Color color) => Chip(
-          label: Text(label),
-          avatar: CircleAvatar(
-            backgroundColor: color,
-            foregroundColor: theme.colorScheme.onPrimary,
-            child: Text('$value'),
+    Widget sectionTitle(String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(text, style: theme.textTheme.titleMedium),
+        );
+
+    Widget infoChip(String label, String value, {bool highlight = false}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: highlight ? theme.colorScheme.primary.withOpacity(0.04) : theme.colorScheme.surface,
+            border: Border.all(
+              color: highlight ? theme.colorScheme.primary.withOpacity(0.35) : theme.colorScheme.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: theme.textTheme.bodyLarge?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+              ),
+            ],
           ),
         );
 
-    Widget blockTitle(String text) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(text, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+    Widget kpiItem(String label, String value) => Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: theme.textTheme.headlineSmall?.copyWith(fontSize: 20, fontFeatures: const [FontFeature.tabularFigures()]),
+              ),
+            ],
+          ),
         );
 
-    Widget quickLink(String label, IconData icon, int tab) => OutlinedButton.icon(
-          onPressed: () => DefaultTabController.of(context)?.animateTo(tab),
-          icon: Icon(icon),
-          label: Text(label),
+    Widget statusRow(String label, int value, Color color) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+              Text('$value', style: theme.textTheme.bodyMedium?.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+            ],
+          ),
+        );
+
+    Widget statusTable(String title, Map<String, int> counts) => Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              statusRow('Rot', counts['red'] ?? 0, theme.colorScheme.error),
+              statusRow('Gelb', counts['yellow'] ?? 0, Colors.orange.shade700),
+              statusRow('Grün', counts['green'] ?? 0, Colors.green.shade700),
+            ],
+          ),
+        );
+
+    Widget badge(String label, int value, Color color) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+            color: theme.colorScheme.surface,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              Text(label, style: theme.textTheme.bodyMedium),
+              if (value > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text('$value', style: theme.textTheme.labelMedium),
+                ),
+              ],
+            ],
+          ),
+        );
+
+    Widget levelBadge(String label, int value, Color color) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withOpacity(0.4)),
+            color: color.withOpacity(0.06),
+          ),
+          child: Text('$label $value', style: theme.textTheme.labelMedium?.copyWith(color: color)),
         );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _KpiCard(
-                title: 'Risiken gesamt',
-                value: '${risks.length}',
-                icon: Icons.list_alt_outlined,
-                color: theme.colorScheme.primary,
-              ),
-              _KpiCard(
-                title: 'PRRC-Status',
-                value: _selected?.prrcApproved == true ? 'Freigegeben' : 'Offen',
-                subtitle: _selected?.prrcName ?? '–',
-                icon: Icons.verified_user_outlined,
-                color: _selected?.prrcApproved == true
-                    ? Colors.green.shade700
-                    : theme.colorScheme.outline,
-              ),
-              _KpiCard(
-                title: 'Letzte Änderung',
-                value: _selected?.updatedAt != null ? _dateFmt.format(_selected!.updatedAt!) : '–',
-                icon: Icons.event_outlined,
-                color: theme.colorScheme.primary,
-              ),
-              _KpiCard(
-                title: 'Kategorien',
-                value: '${_categoryOptions.where((c) => c != 'all').length}',
-                icon: Icons.label_important_outline,
-                color: Colors.teal,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          blockTitle('Statistiken'),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _RiskStatCard(title: 'Vor Maßnahmen', counts: pre, theme: theme),
-              _RiskStatCard(title: 'Nach Maßnahmen', counts: post, theme: theme),
-              _KpiCard(
-                title: 'Verbesserte Risiken',
-                value: '$_improvedRisks',
-                icon: Icons.trending_down,
-                color: Colors.indigo,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          blockTitle('Offene Punkte'),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              statChip('Restrisiko nein', openResidual.length, theme.colorScheme.error),
-              statChip('Neue Gefährdung', newHazards.length, Colors.orange.shade700),
-              statChip('Nachweise fehlen', missingEvidence.length, theme.colorScheme.primary),
-              statChip('S(n)/A(n) fehlen', missingSa.length, theme.colorScheme.outline),
-            ],
-          ),
-          const SizedBox(height: 12),
-          blockTitle('Risiken nach Kategorie'),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant),
+          sectionTitle('Stammdaten'),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
             ),
-            child: Column(
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text('Kategorie', style: theme.textTheme.labelLarge)),
-                      SizedBox(width: 80, child: Text('Anzahl', style: theme.textTheme.labelLarge)),
-                      SizedBox(width: 220, child: Text('Vor Maßnahmen', style: theme.textTheme.labelLarge)),
-                      SizedBox(width: 220, child: Text('Nach Maßnahmen', style: theme.textTheme.labelLarge)),
-                      SizedBox(width: 120, child: Text('Offen', style: theme.textTheme.labelLarge)),
-                    ],
-                  ),
+                infoChip('MDR-TD', _selected?.mdrTd.isNotEmpty == true ? _selected!.mdrTd : '—'),
+                infoChip('Revision', _selected?.revision.isNotEmpty == true ? _selected!.revision : '–'),
+                infoChip('Moderator', _selected?.moderator.isNotEmpty == true ? _selected!.moderator : '—'),
+                infoChip(
+                  'PRRC-Status',
+                  _selected?.prrcApproved == true ? 'Freigegeben' : 'Offen',
+                  highlight: true,
                 ),
-                const Divider(height: 1),
-                ...categories.map(
-                  (row) => ListTile(
-                    dense: true,
-                    title: Text(row['category'] as String),
-                    trailing: Wrap(spacing: 12, children: [
-                      SizedBox(width: 80, child: Text('${row['total']}', textAlign: TextAlign.right)),
-                      SizedBox(
-                        width: 220,
-                        child: Wrap(spacing: 6, children: [
-                          statChip('Rot ${row['pre']['red']}', row['pre']['red'] as int, theme.colorScheme.error),
-                          statChip('Gelb ${row['pre']['yellow']}', row['pre']['yellow'] as int, Colors.orange.shade700),
-                          statChip('Grün ${row['pre']['green']}', row['pre']['green'] as int, Colors.green.shade700),
-                        ]),
-                      ),
-                      SizedBox(
-                        width: 220,
-                        child: Wrap(spacing: 6, children: [
-                          statChip('Rot ${row['post']['red']}', row['post']['red'] as int, theme.colorScheme.error),
-                          statChip('Gelb ${row['post']['yellow']}', row['post']['yellow'] as int, Colors.orange.shade700),
-                          statChip('Grün ${row['post']['green']}', row['post']['green'] as int, Colors.green.shade700),
-                        ]),
-                      ),
-                      SizedBox(
-                        width: 120,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Chip(label: Text('${row['open']} offene')),
-                        ),
-                      ),
-                    ]),
-                  ),
+                infoChip(
+                  'Letzte Änderung',
+                  _selected?.updatedAt != null ? _dateFmt.format(_selected!.updatedAt!) : '–',
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          blockTitle('Schnellzugriff'),
-          Wrap(
-            spacing: 8,
+          const SizedBox(height: 18),
+          sectionTitle('KPI-Zusammenfassung'),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                kpiItem('Risiken gesamt', '${risks.length}'),
+                kpiItem('Kategorien', '${categories.length}'),
+                kpiItem('Verknüpfte Reklamationen', '$uniqueComplaints'),
+                kpiItem('Verknüpfte CAPAs', '$uniqueCapas'),
+                kpiItem('Verbesserte Risiken', '$_improvedRisks'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          sectionTitle('Risikostatus vor/nach Maßnahmen'),
+          Row(
             children: [
-              quickLink('Zu Risiken', Icons.table_rows_outlined, 1),
-              quickLink('Zu Verknüpfungen', Icons.link_outlined, 2),
-              OutlinedButton.icon(onPressed: _exportPdf, icon: const Icon(Icons.picture_as_pdf), label: const Text('PDF Export')),
-              OutlinedButton.icon(onPressed: _exportCsv, icon: const Icon(Icons.table_chart_outlined), label: const Text('Excel Export')),
+              Expanded(child: statusTable('Vor Maßnahmen', pre)),
+              const SizedBox(width: 12),
+              Expanded(child: statusTable('Nach Maßnahmen', post)),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Verbesserte Risiken: $_improvedRisks',
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 18),
+          sectionTitle('Offene Punkte'),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              badge('Restrisiko nein', openResidual.length, theme.colorScheme.error),
+              badge('Neue Gefährdung', newHazards.length, Colors.orange.shade700),
+              badge('Nachweise fehlen', missingEvidence.length, theme.colorScheme.primary),
+              badge('S(n)/A(n) fehlen', missingSa.length, theme.colorScheme.outline),
+            ],
+          ),
+          const SizedBox(height: 18),
+          sectionTitle('Risiken nach Kategorie'),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text('Kategorie', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 80, child: Text('Anzahl', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 180, child: Text('Vor Maßnahmen', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 180, child: Text('Nach Maßnahmen', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 120, child: Text('Offene Punkte', style: theme.textTheme.labelLarge)),
+                    ],
+                  ),
+                ),
+                ...categories.map(
+                  (row) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.6))),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            row['category'] as String,
+                            style: theme.textTheme.bodyLarge,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 80,
+                          child: Text(
+                            '${row['total']}',
+                            textAlign: TextAlign.right,
+                            style: theme.textTheme.bodyLarge?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 180,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              levelBadge('Rot', row['pre']['red'] as int, theme.colorScheme.error),
+                              levelBadge('Gelb', row['pre']['yellow'] as int, Colors.orange.shade700),
+                              levelBadge('Grün', row['pre']['green'] as int, Colors.green.shade700),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 180,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              levelBadge('Rot', row['post']['red'] as int, theme.colorScheme.error),
+                              levelBadge('Gelb', row['post']['yellow'] as int, Colors.orange.shade700),
+                              levelBadge('Grün', row['post']['green'] as int, Colors.green.shade700),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 120,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: badge('Offen', row['open'] as int, theme.colorScheme.primary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1129,6 +1255,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   }
 
   Widget _buildRiskTab(ThemeData theme, {required bool isDesktop}) {
+
     final categories = _categoryOptions;
     final visibleRisks = _filteredRisks;
     final selectedRisk = _selectedRiskEntry != null &&
@@ -2609,10 +2736,35 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 1100;
+        final baseTextTheme = theme.textTheme;
+        final fmeaTextTheme = baseTextTheme.copyWith(
+          headlineSmall: baseTextTheme.headlineSmall?.copyWith(fontSize: 22, fontWeight: FontWeight.w700),
+          titleLarge: baseTextTheme.titleLarge?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+          titleMedium: baseTextTheme.titleMedium?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
+          titleSmall: baseTextTheme.titleSmall?.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+          bodyLarge: baseTextTheme.bodyLarge?.copyWith(fontSize: 14),
+          bodyMedium: baseTextTheme.bodyMedium?.copyWith(fontSize: 13),
+          bodySmall: baseTextTheme.bodySmall?.copyWith(fontSize: 12),
+          labelLarge: baseTextTheme.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+          labelMedium: baseTextTheme.labelMedium?.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
+        );
+
         final compactTheme = theme.copyWith(
-          textTheme: theme.textTheme.apply(fontSizeFactor: 1.12),
-          chipTheme: theme.chipTheme.copyWith(labelPadding: const EdgeInsets.symmetric(horizontal: 10)),
-          visualDensity: VisualDensity.standard,
+          textTheme: fmeaTextTheme,
+          chipTheme: theme.chipTheme.copyWith(labelPadding: const EdgeInsets.symmetric(horizontal: 8)),
+          visualDensity: VisualDensity.compact,
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              textStyle: fmeaTextTheme.labelLarge,
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              textStyle: fmeaTextTheme.labelLarge,
+            ),
+          ),
         );
 
         final fmeaTitle = _selected == null
@@ -2712,6 +2864,11 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                 runSpacing: 8,
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
+                                  FilledButton.icon(
+                                    onPressed: _selected == null || _saving ? null : _addRisk,
+                                    icon: const Icon(Icons.add_outlined),
+                                    label: const Text('+ Risiko'),
+                                  ),
                                   OutlinedButton.icon(
                                     onPressed: _selected == null || _saving ? null : _exportPdf,
                                     icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -2722,22 +2879,20 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                     icon: const Icon(Icons.table_view_outlined),
                                     label: const Text('Excel'),
                                   ),
-                                  if (widget.canEdit)
-                                    OutlinedButton.icon(
-                                      onPressed: _selected == null || _saving ? null : _deleteSelected,
-                                      icon: const Icon(Icons.delete_outline),
-                                      label: const Text('Löschen'),
-                                    ),
-                                  FilledButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _addRisk,
-                                    icon: const Icon(Icons.add_outlined),
-                                    label: const Text('+ Risiko'),
-                                  ),
                                   FilledButton.tonalIcon(
                                     onPressed: _selected == null ? null : _openHeaderDrawer,
                                     icon: const Icon(Icons.info_outline),
                                     label: const Text('Kopfdaten'),
                                   ),
+                                  if (widget.canEdit)
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: theme.colorScheme.error,
+                                      ),
+                                      onPressed: _selected == null || _saving ? null : _deleteSelected,
+                                      icon: const Icon(Icons.delete_outline),
+                                      label: const Text('Löschen'),
+                                    ),
                                 ],
                               ),
                             ],
@@ -2783,100 +2938,6 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       },
     );
   }
-}
-
-class _KpiCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String? subtitle;
-  final IconData icon;
-  final Color color;
-
-  const _KpiCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: color),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(value, style: theme.textTheme.headlineMedium?.copyWith(color: theme.colorScheme.onSurface)),
-          if (subtitle != null)
-            Text(
-              subtitle!,
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RiskStatCard extends StatelessWidget {
-  final String title;
-  final Map<String, int> counts;
-  final ThemeData theme;
-
-  const _RiskStatCard({required this.title, required this.counts, required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget row(String label, int count, Color color) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(radius: 8, backgroundColor: color),
-            const SizedBox(width: 6),
-            Text('$label: $count'),
-          ],
-        );
-
-    return Container(
-      width: 240,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          row('Rot', counts['red'] ?? 0, theme.colorScheme.error),
-          row('Gelb', counts['yellow'] ?? 0, Colors.orange.shade700),
-          row('Grün', counts['green'] ?? 0, Colors.green.shade700),
-        ],
-      ),
-    );
-  }
-}
 
 class _RiskDetailRow extends StatelessWidget {
   final String label;
