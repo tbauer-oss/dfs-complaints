@@ -52,6 +52,7 @@ android {
             // optional debug-spezifisches
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -63,6 +64,25 @@ android {
     }
 }
 
+    androidComponents {
+        onVariants { variant ->
+            variant.outputs.forEach { output ->
+                // Output filename ist je nach AGP-Version unterschiedlich zugänglich
+                val appName = "DFS-Connect"
+                val buildType = variant.buildType
+                val versionName = variant.versionName.orNull ?: "0.0.0"
+                val versionCode = variant.versionCode.orNull ?: 0
+
+                // Für APK:
+                val fileName = "$appName-$buildType-v$versionName($versionCode).apk"
+
+                // Setzen (funktioniert i.d.R. ab AGP 7+ / 8+)
+                output.outputFileName.set(fileName)
+            }
+        }
+    }
+}
+
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
     implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
@@ -70,6 +90,7 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
+
 
 
 
