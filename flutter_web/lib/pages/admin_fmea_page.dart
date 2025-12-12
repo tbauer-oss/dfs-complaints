@@ -1648,6 +1648,22 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
                 final isLast = currentStep == steps.length - 1;
 
+                final stepWidgets = steps
+                    .map(
+                      (s) => Step(
+                        title: DefaultTextStyle.merge(
+                          style: const TextStyle(
+                            overflow: TextOverflow.visible,
+                          ),
+                          child: s.title,
+                        ),
+                        content: s.content,
+                        isActive: s.isActive,
+                        state: s.state,
+                      ),
+                    )
+                    .toList();
+
                 return ConstrainedBox(
                   constraints: BoxConstraints(
                     minWidth: minWidth,
@@ -1683,21 +1699,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                   }
                                 },
                                 controlsBuilder: (context, details) => const SizedBox.shrink(),
-                                steps: steps
-                                    .map(
-                                      (s) => Step(
-                                        title: DefaultTextStyle.merge(
-                                          style: const TextStyle(
-                                            overflow: TextOverflow.visible,
-                                          ),
-                                          child: s.title,
-                                        ),
-                                        content: s.content,
-                                        isActive: s.isActive,
-                                        state: s.state,
-                                      ),
-                                    )
-                                    .toList(),
+                                steps: stepWidgets,
                               ),
                             ),
                           ),
