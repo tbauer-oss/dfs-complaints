@@ -2778,159 +2778,161 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             initialIndex: 1,
             child: Scaffold(
               backgroundColor: theme.colorScheme.surface,
-              appBar: PreferredSize(
-                preferredSize: const Size.fromHeight(112),
-                child: Material(
-                  elevation: 2,
-                  color: theme.colorScheme.surface,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Qualitätsmanagement > FMEA',
-                                    style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    fmeaTitle,
-                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                  if (_selected != null)
-                                    Text(
-                                      'Moderator: ${_selected!.moderator.isEmpty ? '—' : _selected!.moderator}',
-                                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Row(
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    Material(
+                      elevation: 2,
+                      color: theme.colorScheme.surface,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Flexible(
-                                      child: DropdownButtonFormField<String>(
-                                        value: _selected?.id,
-                                        decoration: const InputDecoration(
-                                          labelText: 'FMEA auswählen',
-                                          isDense: true,
-                                        ),
-                                        items: _fmeas
-                                            .map(
-                                              (f) => DropdownMenuItem(
-                                                value: f.id,
-                                                child: Text(
-                                                  f.mdrTd.isNotEmpty ? f.mdrTd : f.title,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (value) {
-                                          final target = _fmeas.firstWhereOrNull((f) => f.id == value);
-                                          if (target != null) {
-                                            _setSelection(target);
-                                            _syncSelectedRisk();
-                                          }
-                                        },
-                                      ),
+                                    Text(
+                                      'Qualitätsmanagement > FMEA',
+                                      style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                                     ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      tooltip: 'FMEA-Liste aktualisieren',
-                                      onPressed: _loadingList ? null : _loadFmeas,
-                                      icon: const Icon(Icons.refresh_outlined),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      fmeaTitle,
+                                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                                     ),
-                                    if (widget.canEdit)
-                                      IconButton(
-                                        tooltip: 'Neue FMEA',
-                                        onPressed: _saving ? null : _createFmea,
-                                        icon: const Icon(Icons.add_circle_outline),
+                                    if (_selected != null)
+                                      Text(
+                                        'Moderator: ${_selected!.moderator.isEmpty ? '—' : _selected!.moderator}',
+                                        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                                       ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  FilledButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _addRisk,
-                                    icon: const Icon(Icons.add_outlined),
-                                    label: const Text('+ Risiko'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _exportPdf,
-                                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                                    label: const Text('PDF'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _exportCsv,
-                                    icon: const Icon(Icons.table_view_outlined),
-                                    label: const Text('Excel'),
-                                  ),
-                                  FilledButton.tonalIcon(
-                                    onPressed: _selected == null ? null : _openHeaderDrawer,
-                                    icon: const Icon(Icons.info_outline),
-                                    label: const Text('Kopfdaten'),
-                                  ),
-                                  if (widget.canEdit)
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: theme.colorScheme.error,
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: DropdownButtonFormField<String>(
+                                          value: _selected?.id,
+                                          decoration: const InputDecoration(
+                                            labelText: 'FMEA auswählen',
+                                            isDense: true,
+                                          ),
+                                          items: _fmeas
+                                              .map(
+                                                (f) => DropdownMenuItem(
+                                                  value: f.id,
+                                                  child: Text(
+                                                    f.mdrTd.isNotEmpty ? f.mdrTd : f.title,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (value) {
+                                            final target = _fmeas.firstWhereOrNull((f) => f.id == value);
+                                            if (target != null) {
+                                              _setSelection(target);
+                                              _syncSelectedRisk();
+                                            }
+                                          },
+                                        ),
                                       ),
-                                      onPressed: _selected == null || _saving ? null : _deleteSelected,
-                                      icon: const Icon(Icons.delete_outline),
-                                      label: const Text('Löschen'),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        tooltip: 'FMEA-Liste aktualisieren',
+                                        onPressed: _loadingList ? null : _loadFmeas,
+                                        icon: const Icon(Icons.refresh_outlined),
+                                      ),
+                                      if (widget.canEdit)
+                                        IconButton(
+                                          tooltip: 'Neue FMEA',
+                                          onPressed: _saving ? null : _createFmea,
+                                          icon: const Icon(Icons.add_circle_outline),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    FilledButton.icon(
+                                      onPressed: _selected == null || _saving ? null : _addRisk,
+                                      icon: const Icon(Icons.add_outlined),
+                                      label: const Text('+ Risiko'),
                                     ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TabBar(
-                              isScrollable: true,
-                              labelColor: theme.colorScheme.primary,
-                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                              indicatorColor: theme.colorScheme.primary,
-                              labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-                              tabs: const [
-                                Tab(text: 'Übersicht'),
-                                Tab(text: 'Risiken'),
-                                Tab(text: 'Verknüpfungen'),
+                                    OutlinedButton.icon(
+                                      onPressed: _selected == null || _saving ? null : _exportPdf,
+                                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                                      label: const Text('PDF'),
+                                    ),
+                                    OutlinedButton.icon(
+                                      onPressed: _selected == null || _saving ? null : _exportCsv,
+                                      icon: const Icon(Icons.table_view_outlined),
+                                      label: const Text('Excel'),
+                                    ),
+                                    FilledButton.tonalIcon(
+                                      onPressed: _selected == null ? null : _openHeaderDrawer,
+                                      icon: const Icon(Icons.info_outline),
+                                      label: const Text('Kopfdaten'),
+                                    ),
+                                    if (widget.canEdit)
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: theme.colorScheme.error,
+                                        ),
+                                        onPressed: _selected == null || _saving ? null : _deleteSelected,
+                                        icon: const Icon(Icons.delete_outline),
+                                        label: const Text('Löschen'),
+                                      ),
+                                  ],
+                                ),
                               ],
                             ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TabBar(
+                                isScrollable: true,
+                                labelColor: theme.colorScheme.primary,
+                                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                indicatorColor: theme.colorScheme.primary,
+                                labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+                                tabs: const [
+                                  Tab(text: 'Übersicht'),
+                                  Tab(text: 'Risiken'),
+                                  Tab(text: 'Verknüpfungen'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: _buildOverviewTab(theme),
+                          ),
+                          _buildRiskTab(theme, isDesktop: isDesktop),
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: _buildLinksTab(theme),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-              body: TabBarView(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: _buildOverviewTab(theme),
-                  ),
-                  _buildRiskTab(theme, isDesktop: isDesktop),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: _buildLinksTab(theme),
-                  ),
-                ],
               ),
             ),
           ),
