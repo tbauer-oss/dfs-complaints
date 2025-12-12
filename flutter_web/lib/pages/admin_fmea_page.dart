@@ -46,6 +46,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
   FmeaRiskEntry? _selectedRiskEntry;
   bool _showAfterValues = true;
+  bool _headerExpanded = false;
 
   final _mdrTdCtrl = TextEditingController();
   final _productGroupCtrl = TextEditingController();
