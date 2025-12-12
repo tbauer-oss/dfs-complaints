@@ -350,7 +350,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
             Icon(Icons.health_and_safety, size: 48, color: Colors.white.withOpacity(0.95)),
             const SizedBox(height: 16),
             Text(
-              'DFS Complaints',
+              'DFS Connect',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -615,7 +615,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
-                                              'DFS Complaints • ISO 13485 • MDR',
+                                              'DFS Connect • ISO 13485 • MDR',
                                               style: TextStyle(
                                                 color: Colors.white.withOpacity(0.95),
                                                 fontWeight: FontWeight.w600,
