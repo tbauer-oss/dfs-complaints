@@ -451,14 +451,42 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   ) {
     switch (level) {
       case 'red':
-        return (_riskColor(level, theme), 'Kritisch', Icons.error_outline);
+        return (
+          _riskColor(level, theme),
+          'Nicht akzeptabel',
+          Icons.error_outline,
+        );
       case 'yellow':
-        return (_riskColor(level, theme), 'Beobachten', Icons.warning_amber_rounded);
+        return (
+          _riskColor(level, theme),
+          'Maßnahmen prüfen',
+          Icons.warning_amber_rounded,
+        );
       case 'green':
-        return (_riskColor(level, theme), 'Stabil', Icons.check_circle_outline);
+        return (
+          _riskColor(level, theme),
+          'Akzeptabel',
+          Icons.check_circle_outline,
+        );
       default:
         return (_riskColor(level, theme), 'Offen', Icons.help_outline);
     }
+  }
+
+  int? _riskScore(int? severity, int? occurrence) {
+    if (severity == null || occurrence == null) return null;
+    return severity * occurrence;
+  }
+
+  String? _riskLevelFromScore(int? score) {
+    if (score == null) return null;
+    if (score >= 15) return 'red';
+    if (score >= 8) return 'yellow';
+    return 'green';
+  }
+
+  String? _riskLevelFromValues(int? severity, int? occurrence) {
+    return _riskLevelFromScore(_riskScore(severity, occurrence));
   }
 
   Widget _riskBadge(String? level, ThemeData theme) {
@@ -1172,8 +1200,12 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
         processReference: processCtrl.text.trim(),
         severity: severity,
         occurrence: occurrence,
+        riskScore: _riskScore(severity, occurrence),
+        riskLevel: _riskLevelFromValues(severity, occurrence),
         severityAfter: severityAfter,
         occurrenceAfter: occurrenceAfter,
+        riskScoreAfter: _riskScore(severityAfter, occurrenceAfter),
+        riskLevelAfter: _riskLevelFromValues(severityAfter, occurrenceAfter),
         proposedAction: proposedCtrl.text.trim(),
         actionTaken: actionCtrl.text.trim(),
         documents: documentsCtrl.text.trim(),
@@ -1228,6 +1260,11 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             for (final c in _capas)
               (c.id.isNotEmpty ? c.id : c.capaNumber): (c.capaNumber.isNotEmpty ? c.capaNumber : c.id),
           };
+          final beforeScore = _riskScore(severity, occurrence) ?? existing?.riskScore;
+          final beforeLevel = _riskLevelFromScore(_riskScore(severity, occurrence)) ?? existing?.riskLevel;
+          final afterScore = _riskScore(severityAfter, occurrenceAfter) ?? existing?.riskScoreAfter;
+          final afterLevel =
+              _riskLevelFromScore(_riskScore(severityAfter, occurrenceAfter)) ?? existing?.riskLevelAfter;
           final steps = [
             Step(
               isActive: currentStep >= 0,
@@ -1382,11 +1419,13 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        _riskBadge(existing?.riskLevel, Theme.of(context)),
+                        _riskBadge(beforeLevel, Theme.of(context)),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Risikoeinstufung wird automatisch berechnet.',
+                            beforeScore != null
+                                ? 'Score: $beforeScore (S×A) – Einstufung wird live berechnet.'
+                                : 'Bitte S und A wählen, die Einstufung wird dann automatisch berechnet.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
@@ -1466,11 +1505,13 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        _riskBadge(existing?.riskLevelAfter, Theme.of(context)),
+                        _riskBadge(afterLevel, Theme.of(context)),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Einstufung nach Maßnahme wird automatisch berechnet.',
+                            afterScore != null
+                                ? 'Score(n): $afterScore (S×A) – Einstufung wird live berechnet.'
+                                : 'Bitte S(n) und A(n) wählen, die Einstufung wird dann automatisch berechnet.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
@@ -1648,21 +1689,89 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
                 final isLast = currentStep == steps.length - 1;
 
-                final stepWidgets = steps
+          final theme = Theme.of(context);
+
+          Widget stepIndicator(int idx, Step step) {
+            final isCurrent = idx == currentStep;
+            final isComplete = currentStep > idx;
+            final bgColor = isCurrent
+                ? theme.colorScheme.primaryContainer.withOpacity(0.9)
+                : theme.colorScheme.surfaceVariant;
+            final borderColor = isComplete
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant;
+            final fgColor = isCurrent
+                ? theme.colorScheme.onPrimaryContainer
+                : theme.colorScheme.onSurfaceVariant;
+
+            return InkWell(
+              onTap: () {
+                if (_validateUntil(idx, setStateDialog)) {
+                  setStateDialog(() => currentStep = idx);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor:
+                          isComplete ? theme.colorScheme.primary : theme.colorScheme.surface,
+                      foregroundColor: isComplete
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSurface,
+                      child: isComplete
+                          ? const Icon(Icons.check, size: 18)
+                          : Text('${idx + 1}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 10),
+                    DefaultTextStyle.merge(
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
+                        overflow: TextOverflow.visible,
+                      ),
+                      child: step.title,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          Widget stepContentArea() {
+            return AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: IndexedStack(
+                index: currentStep,
+                children: steps
+                    .asMap()
+                    .entries
                     .map(
-                      (s) => Step(
-                        title: DefaultTextStyle.merge(
-                          style: const TextStyle(
-                            overflow: TextOverflow.visible,
-                          ),
-                          child: s.title,
+                      (entry) => Visibility(
+                        visible: entry.key == currentStep,
+                        maintainState: true,
+                        maintainAnimation: true,
+                        maintainSize: true,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: entry.value.content,
                         ),
-                        content: s.content,
-                        isActive: s.isActive,
-                        state: s.state,
                       ),
                     )
-                    .toList();
+                    .toList(),
+              ),
+            );
+          }
 
                 return ConstrainedBox(
                   constraints: BoxConstraints(
@@ -1689,17 +1798,21 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                             thumbVisibility: true,
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                              child: Stepper(
-                                type: StepperType.horizontal,
-                                physics: const NeverScrollableScrollPhysics(),
-                                currentStep: currentStep,
-                                onStepTapped: (idx) {
-                                  if (_validateUntil(idx, setStateDialog)) {
-                                    setStateDialog(() => currentStep = idx);
-                                  }
-                                },
-                                controlsBuilder: (context, details) => const SizedBox.shrink(),
-                                steps: stepWidgets,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: steps
+                                        .asMap()
+                                        .entries
+                                        .map((entry) => stepIndicator(entry.key, entry.value))
+                                        .toList(),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  stepContentArea(),
+                                ],
                               ),
                             ),
                           ),
