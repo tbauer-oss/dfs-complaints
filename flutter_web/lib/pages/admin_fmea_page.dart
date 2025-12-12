@@ -39,6 +39,9 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   List<CapaReport> _capas = const [];
   bool _loadingRefs = false;
   final _productService = DfsProductService();
+  final _searchCtrl = TextEditingController();
+  String _selectedCategory = 'all';
+  final _activeFilters = <String>{};
 
   bool _headerExpanded = false;
 
@@ -84,6 +87,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     _moderatorCtrl.dispose();
     _revisionCtrl.dispose();
     _prrcNameCtrl.dispose();
+    _searchCtrl.dispose();
     _riskHorizontal.dispose();
     _riskVertical.dispose();
     super.dispose();
@@ -489,6 +493,116 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     return _riskLevelFromScore(_riskScore(severity, occurrence));
   }
 
+  List<FmeaRiskEntry> get _currentRisks => _selected?.risks ?? const [];
+
+  List<String> get _categoryOptions {
+    final categories = _currentRisks
+        .map((r) => r.category.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['all', 'uncategorized', ...categories];
+  }
+
+  List<FmeaRiskEntry> get _filteredRisks {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    return _currentRisks.where((r) {
+      if (_selectedCategory == 'uncategorized' && r.category.trim().isNotEmpty) return false;
+      if (_selectedCategory != 'all' &&
+          _selectedCategory != 'uncategorized' &&
+          r.category.trim() != _selectedCategory) {
+        return false;
+      }
+
+      final preLevels = ['pre:red', 'pre:yellow', 'pre:green'];
+      final postLevels = ['post:red', 'post:yellow', 'post:green'];
+
+      for (final key in preLevels) {
+        if (_activeFilters.contains(key) && r.riskLevel != key.split(':').last) return false;
+      }
+      for (final key in postLevels) {
+        if (_activeFilters.contains(key) && r.riskLevelAfter != key.split(':').last) return false;
+      }
+
+      if (_activeFilters.contains('newHazard') && !r.newHazard) return false;
+      if (_activeFilters.contains('residualBad') && r.residualRiskOk) return false;
+      if (_activeFilters.contains('missingDocs')) {
+        final missingRatingAfter = r.severityAfter == null || r.occurrenceAfter == null;
+        final missingDocs = r.documents.trim().isEmpty;
+        if (!missingDocs && !missingRatingAfter) return false;
+      }
+      if (_activeFilters.contains('linkedComplaint') && r.linkedComplaints.isEmpty) return false;
+      if (_activeFilters.contains('linkedCapa') && r.linkedCapas.isEmpty) return false;
+
+      if (query.isEmpty) return true;
+      final searchable = [
+        r.hazard,
+        r.hazardSituation,
+        r.harm,
+        r.causes,
+        r.proposedAction,
+        r.actionTaken,
+        r.riskBenefitAnalysis,
+      ].join(' ').toLowerCase();
+      return searchable.contains(query);
+    }).toList();
+  }
+
+  Map<String, int> _countByLevel(List<FmeaRiskEntry> risks, {required bool after}) {
+    final counts = {'red': 0, 'yellow': 0, 'green': 0};
+    for (final r in risks) {
+      final level = after ? r.riskLevelAfter : r.riskLevel;
+      if (level != null && counts.containsKey(level)) counts[level] = counts[level]! + 1;
+    }
+    return counts;
+  }
+
+  int get _improvedRisks {
+    return _currentRisks.where((r) {
+      final before = r.riskLevel;
+      final after = r.riskLevelAfter;
+      if (before == null || after == null) return false;
+      const order = {'red': 3, 'yellow': 2, 'green': 1};
+      return (order[after] ?? 0) < (order[before] ?? 0);
+    }).length;
+  }
+
+  List<Map<String, dynamic>> get _categoryStats {
+    final stats = <String, Map<String, dynamic>>{};
+    for (final r in _currentRisks) {
+      final key = r.category.trim().isEmpty ? 'Ohne Kategorie' : r.category.trim();
+      stats.putIfAbsent(key, () => {
+            'total': 0,
+            'pre': {'red': 0, 'yellow': 0, 'green': 0},
+            'post': {'red': 0, 'yellow': 0, 'green': 0},
+            'open': 0,
+          });
+      stats[key]!['total'] = (stats[key]!['total'] as int) + 1;
+      if (r.riskLevel != null && (stats[key]!['pre'] as Map).containsKey(r.riskLevel)) {
+        (stats[key]!['pre'] as Map)[r.riskLevel] = ((stats[key]!['pre'] as Map)[r.riskLevel] as int) + 1;
+      }
+      if (r.riskLevelAfter != null && (stats[key]!['post'] as Map).containsKey(r.riskLevelAfter)) {
+        (stats[key]!['post'] as Map)[r.riskLevelAfter] =
+            ((stats[key]!['post'] as Map)[r.riskLevelAfter] as int) + 1;
+      }
+      if (!r.residualRiskOk || r.newHazard) {
+        stats[key]!['open'] = (stats[key]!['open'] as int) + 1;
+      }
+    }
+    final list = stats.entries
+        .map((e) => {
+              'category': e.key,
+              'total': e.value['total'] as int,
+              'pre': Map<String, int>.from(e.value['pre'] as Map),
+              'post': Map<String, int>.from(e.value['post'] as Map),
+              'open': e.value['open'] as int,
+            })
+        .toList();
+    list.sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
+    return list;
+  }
+
   Widget _riskBadge(String? level, ThemeData theme) {
     final (color, label, icon) = _riskPresentation(level, theme);
     return Container(
@@ -824,220 +938,495 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
   Widget _buildRiskTable() {
     final theme = Theme.of(context);
-    final risks = _selected?.risks ?? const [];
+    final risks = _filteredRisks;
     if (risks.isEmpty) {
       return Center(
-        child: Text('Keine Risiken erfasst', style: theme.textTheme.bodyMedium),
+        child: Text('Keine Risiken gefunden', style: theme.textTheme.bodyMedium),
       );
     }
 
-    const columnWidths = [110.0, 180.0, 220.0, 150.0, 170.0, 240.0, 140.0];
-    final minWidth = columnWidths.reduce((a, b) => a + b);
-
-    Widget headerCell(String label, double width) => SizedBox(
-          width: width,
-          child: Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+    return ListView.separated(
+      itemCount: risks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (ctx, idx) {
+        final r = risks[idx];
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
           ),
-        );
-
-    Widget cell(Widget child, double width) => SizedBox(
-          width: width,
-          child: child,
-        );
-
-    Widget riskRow(FmeaRiskEntry r, bool shaded) {
-      final color = _riskColor(r.riskLevel, theme);
-      final textStyle = theme.textTheme.bodyMedium;
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: shaded ? theme.colorScheme.surfaceVariant.withOpacity(0.25) : null,
-          border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            cell(Text(r.riskNumber, style: textStyle?.copyWith(fontWeight: FontWeight.w700)), columnWidths[0]),
-            cell(Text(r.category.isEmpty ? '—' : r.category, style: textStyle), columnWidths[1]),
-            cell(Text(r.hazard.isEmpty ? '—' : r.hazard, style: textStyle), columnWidths[2]),
-            cell(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    r.riskScore != null ? '${r.severity ?? '-'}×${r.occurrence ?? '-'}' : '—',
-                    style: textStyle?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  if (r.riskScore != null)
-                    Text('Score: ${r.riskScore}', style: theme.textTheme.labelSmall),
-                ],
-              ),
-              columnWidths[3],
-            ),
-            cell(_riskBadge(r.riskLevel, theme), columnWidths[4]),
-            cell(
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  if (r.linkedComplaints.isNotEmpty)
-                    Chip(
-                      label: Text('Reklamationen: ${r.linkedComplaints.length}'),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  if (r.linkedCapas.isNotEmpty)
-                    Chip(
-                      label: Text('CAPA: ${r.linkedCapas.length}'),
-                      visualDensity: VisualDensity.compact,
-                    ),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            leading: _riskBadge(r.riskLevelAfter ?? r.riskLevel, theme),
+            title: Row(
+              children: [
+                Text(r.riskNumber, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(width: 12),
+                if (r.category.isNotEmpty)
                   Chip(
-                    backgroundColor: r.residualRiskOk
-                        ? theme.colorScheme.tertiaryContainer
-                        : theme.colorScheme.errorContainer,
-                    label: Text(r.residualRiskOk ? 'Restrisiko ok' : 'Restrisiko kritisch'),
+                    label: Text(r.category),
                     visualDensity: VisualDensity.compact,
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
                   ),
-                  if (r.newHazard)
-                    Chip(
-                      backgroundColor: theme.colorScheme.errorContainer,
-                      label: const Text('Neue Gefährdung'),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ),
-              columnWidths[5],
+              ],
             ),
-            cell(
-              Row(
-                children: [
-                  IconButton(
-                    tooltip: 'Bearbeiten',
-                    icon: const Icon(Icons.edit_outlined),
-                    onPressed: _readOnly ? null : () => _updateRisk(r),
-                  ),
-                  IconButton(
-                    tooltip: 'Löschen',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: _readOnly ? null : () => _deleteRisk(r),
-                  ),
-                ],
-              ),
-              columnWidths[6],
-            ),
-          ],
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        final bodyHeight = math.max(0.0, constraints.maxHeight - 56);
-        return Scrollbar(
-          controller: _riskHorizontal,
-          thumbVisibility: true,
-          child: SingleChildScrollView(
-            controller: _riskHorizontal,
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: minWidth),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceVariant,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                      border: Border(
-                        bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-                      ),
-                    ),
-                    child: Row(
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(r.hazard.isEmpty ? 'Keine Gefährdung' : r.hazard, style: theme.textTheme.bodyMedium),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        headerCell('Risiko-Nr.', columnWidths[0]),
-                        headerCell('Kategorie', columnWidths[1]),
-                        headerCell('Gefährdung', columnWidths[2]),
-                        headerCell('S×A', columnWidths[3]),
-                        headerCell('Einstufung', columnWidths[4]),
-                        headerCell('Links / Status', columnWidths[5]),
-                        headerCell('Aktionen', columnWidths[6]),
+                        const Text('Vor:'),
+                        const SizedBox(width: 6),
+                        _riskBadge(r.riskLevel, theme),
+                        const SizedBox(width: 8),
+                        Text('${r.severity ?? '-'}×${r.occurrence ?? '-'}'),
                       ],
                     ),
-                  ),
-                  SizedBox(
-                    height: bodyHeight,
-                    child: Scrollbar(
-                      controller: _riskVertical,
-                      thumbVisibility: true,
-                      child: GestureDetector(
-                        onPanUpdate: _panRiskTable,
-                        child: SingleChildScrollView(
-                          controller: _riskVertical,
-                          child: Column(
-                            children: risks
-                                .asMap()
-                                .entries
-                                .map((entry) => riskRow(entry.value, entry.key.isEven))
-                                .toList(),
-                          ),
-                        ),
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Nach:'),
+                        const SizedBox(width: 6),
+                        _riskBadge(r.riskLevelAfter, theme),
+                        const SizedBox(width: 8),
+                        Text('${r.severityAfter ?? '-'}×${r.occurrenceAfter ?? '-'}'),
+                      ],
                     ),
-                  ),
-                ],
-              ),
+                    if (r.linkedComplaints.isNotEmpty)
+                      Chip(
+                        label: Text('Reklamationen: ${r.linkedComplaints.length}'),
+                        avatar: const Icon(Icons.confirmation_num_outlined, size: 16),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (r.linkedCapas.isNotEmpty)
+                      Chip(
+                        label: Text('CAPA: ${r.linkedCapas.length}'),
+                        avatar: const Icon(Icons.fact_check_outlined, size: 16),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (!r.residualRiskOk)
+                      Chip(
+                        label: const Text('Restrisiko kritisch'),
+                        backgroundColor: theme.colorScheme.errorContainer,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (r.newHazard)
+                      Chip(
+                        label: const Text('Neue Gefährdung'),
+                        backgroundColor: theme.colorScheme.tertiaryContainer,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ],
             ),
+            children: [
+              _RiskDetailRow(label: 'Gefährdungssituation', value: r.hazardSituation),
+              _RiskDetailRow(label: 'Schaden', value: r.harm),
+              _RiskDetailRow(label: 'Ursachen', value: r.causes),
+              _RiskDetailRow(label: 'Maßnahmen (geplant)', value: r.proposedAction),
+              _RiskDetailRow(label: 'Maßnahmen (durchgeführt)', value: r.actionTaken),
+              _RiskDetailRow(label: 'RNA', value: r.riskBenefitAnalysis),
+              _RiskDetailRow(label: 'Nachweise', value: r.documents.isEmpty ? 'Keine Nachweise' : r.documents),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _readOnly ? null : () => _updateRisk(r),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Bearbeiten'),
+                    ),
+                    if (!_readOnly)
+                      OutlinedButton.icon(
+                        onPressed: () => _deleteRisk(r),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Löschen'),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildRiskTab(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Text('Risiken', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(width: 8),
-            Chip(label: Text('${_selected?.risks.length ?? 0} Einträge')),
-            const SizedBox(width: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+  Widget _buildOverviewTab(ThemeData theme) {
+    final risks = _currentRisks;
+    final pre = _countByLevel(risks, after: false);
+    final post = _countByLevel(risks, after: true);
+    final openResidual = risks.where((r) => !r.residualRiskOk).toList();
+    final newHazards = risks.where((r) => r.newHazard).toList();
+    final missingEvidence = risks
+        .where((r) => r.documents.trim().isEmpty || r.severityAfter == null || r.occurrenceAfter == null)
+        .toList();
+    final missingSa = risks.where((r) => r.severityAfter == null || r.occurrenceAfter == null).toList();
+    final categories = _categoryStats;
+
+    Widget statChip(String label, int value, Color color) => Chip(
+          label: Text(label),
+          avatar: CircleAvatar(
+            backgroundColor: color,
+            foregroundColor: theme.colorScheme.onPrimary,
+            child: Text('$value'),
+          ),
+        );
+
+    Widget blockTitle(String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(text, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        );
+
+    Widget quickLink(String label, IconData icon, int tab) => OutlinedButton.icon(
+          onPressed: () => DefaultTabController.of(context)?.animateTo(tab),
+          icon: Icon(icon),
+          label: Text(label),
+        );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _KpiCard(
+                title: 'Risiken gesamt',
+                value: '${risks.length}',
+                icon: Icons.list_alt_outlined,
+                color: theme.colorScheme.primary,
+              ),
+              _KpiCard(
+                title: 'PRRC-Status',
+                value: _selected?.prrcApproved == true ? 'Freigegeben' : 'Offen',
+                subtitle: _selected?.prrcName ?? '–',
+                icon: Icons.verified_user_outlined,
+                color: _selected?.prrcApproved == true
+                    ? Colors.green.shade700
+                    : theme.colorScheme.outline,
+              ),
+              _KpiCard(
+                title: 'Letzte Änderung',
+                value: _selected?.updatedAt != null ? _dateFmt.format(_selected!.updatedAt!) : '–',
+                icon: Icons.event_outlined,
+                color: theme.colorScheme.primary,
+              ),
+              _KpiCard(
+                title: 'Kategorien',
+                value: '${_categoryOptions.where((c) => c != 'all').length}',
+                icon: Icons.label_important_outline,
+                color: Colors.teal,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          blockTitle('Statistiken'),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _RiskStatCard(title: 'Vor Maßnahmen', counts: pre, theme: theme),
+              _RiskStatCard(title: 'Nach Maßnahmen', counts: post, theme: theme),
+              _KpiCard(
+                title: 'Verbesserte Risiken',
+                value: '$_improvedRisks',
+                icon: Icons.trending_down,
+                color: Colors.indigo,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          blockTitle('Offene Punkte'),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              statChip('Restrisiko nein', openResidual.length, theme.colorScheme.error),
+              statChip('Neue Gefährdung', newHazards.length, Colors.orange.shade700),
+              statChip('Nachweise fehlen', missingEvidence.length, theme.colorScheme.primary),
+              statChip('S(n)/A(n) fehlen', missingSa.length, theme.colorScheme.outline),
+            ],
+          ),
+          const SizedBox(height: 12),
+          blockTitle('Risiken nach Kategorie'),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Column(
               children: [
-                _riskBadge('red', theme),
-                _riskBadge('yellow', theme),
-                _riskBadge('green', theme),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text('Kategorie', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 80, child: Text('Anzahl', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 220, child: Text('Vor Maßnahmen', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 220, child: Text('Nach Maßnahmen', style: theme.textTheme.labelLarge)),
+                      SizedBox(width: 120, child: Text('Offen', style: theme.textTheme.labelLarge)),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                ...categories.map(
+                  (row) => ListTile(
+                    dense: true,
+                    title: Text(row['category'] as String),
+                    trailing: Wrap(spacing: 12, children: [
+                      SizedBox(width: 80, child: Text('${row['total']}', textAlign: TextAlign.right)),
+                      SizedBox(
+                        width: 220,
+                        child: Wrap(spacing: 6, children: [
+                          statChip('Rot ${row['pre']['red']}', row['pre']['red'] as int, theme.colorScheme.error),
+                          statChip('Gelb ${row['pre']['yellow']}', row['pre']['yellow'] as int, Colors.orange.shade700),
+                          statChip('Grün ${row['pre']['green']}', row['pre']['green'] as int, Colors.green.shade700),
+                        ]),
+                      ),
+                      SizedBox(
+                        width: 220,
+                        child: Wrap(spacing: 6, children: [
+                          statChip('Rot ${row['post']['red']}', row['post']['red'] as int, theme.colorScheme.error),
+                          statChip('Gelb ${row['post']['yellow']}', row['post']['yellow'] as int, Colors.orange.shade700),
+                          statChip('Grün ${row['post']['green']}', row['post']['green'] as int, Colors.green.shade700),
+                        ]),
+                      ),
+                      SizedBox(
+                        width: 120,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Chip(label: Text('${row['open']} offene')),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
               ],
             ),
-            const Spacer(),
-            if (widget.canEdit)
-              FilledButton.icon(
-                onPressed: _saving ? null : _addRisk,
-                icon: const Icon(Icons.add_outlined),
-                label: const Text('Risiko hinzufügen'),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Expanded(
+          ),
+          const SizedBox(height: 12),
+          blockTitle('Schnellzugriff'),
+          Wrap(
+            spacing: 8,
+            children: [
+              quickLink('Zu Risiken', Icons.table_rows_outlined, 1),
+              quickLink('Zu Verknüpfungen', Icons.link_outlined, 2),
+              OutlinedButton.icon(onPressed: _exportPdf, icon: const Icon(Icons.picture_as_pdf), label: const Text('PDF Export')),
+              OutlinedButton.icon(onPressed: _exportCsv, icon: const Icon(Icons.table_chart_outlined), label: const Text('Excel Export')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiskTab(ThemeData theme) {
+    final categories = _categoryOptions;
+    return Row(
+      children: [
+        SizedBox(
+          width: 240,
           child: Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: _buildRiskTable(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text('Kategorien', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: categories.length,
+                    itemBuilder: (ctx, idx) {
+                      final cat = categories[idx];
+                      final isSelected = _selectedCategory == cat;
+                      final label = cat == 'all'
+                          ? 'Alle'
+                          : cat == 'uncategorized'
+                              ? 'Ohne Kategorie'
+                              : cat;
+                      final count = _currentRisks
+                          .where((r) => cat == 'all'
+                              ? true
+                              : cat == 'uncategorized'
+                                  ? r.category.trim().isEmpty
+                                  : r.category.trim() == cat)
+                          .length;
+                      return ListTile(
+                        title: Text(label),
+                        trailing: Chip(label: Text('$count')),
+                        selected: isSelected,
+                        onTap: () => setState(() => _selectedCategory = cat),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text('Risiken', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  Chip(label: Text('${_filteredRisks.length} gefiltert')), 
+                  const SizedBox(width: 8),
+                  Chip(label: Text('${_currentRisks.length} gesamt')),
+                  const Spacer(),
+                  SizedBox(
+                    width: 260,
+                    child: TextField(
+                      controller: _searchCtrl,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Suche in Gefährdungen / Maßnahmen',
+                        isDense: true,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (widget.canEdit)
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _addRisk,
+                      icon: const Icon(Icons.add_outlined),
+                      label: const Text('Risiko hinzufügen'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('Rot (vor)'),
+                    selected: _activeFilters.contains('pre:red'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('pre:red')
+                        : _activeFilters.remove('pre:red')),
+                  ),
+                  FilterChip(
+                    label: const Text('Gelb (vor)'),
+                    selected: _activeFilters.contains('pre:yellow'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('pre:yellow')
+                        : _activeFilters.remove('pre:yellow')),
+                  ),
+                  FilterChip(
+                    label: const Text('Grün (vor)'),
+                    selected: _activeFilters.contains('pre:green'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('pre:green')
+                        : _activeFilters.remove('pre:green')),
+                  ),
+                  FilterChip(
+                    label: const Text('Rot (nach)'),
+                    selected: _activeFilters.contains('post:red'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('post:red')
+                        : _activeFilters.remove('post:red')),
+                  ),
+                  FilterChip(
+                    label: const Text('Gelb (nach)'),
+                    selected: _activeFilters.contains('post:yellow'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('post:yellow')
+                        : _activeFilters.remove('post:yellow')),
+                  ),
+                  FilterChip(
+                    label: const Text('Grün (nach)'),
+                    selected: _activeFilters.contains('post:green'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('post:green')
+                        : _activeFilters.remove('post:green')),
+                  ),
+                  FilterChip(
+                    label: const Text('Neue Gefährdung'),
+                    selected: _activeFilters.contains('newHazard'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('newHazard')
+                        : _activeFilters.remove('newHazard')),
+                  ),
+                  FilterChip(
+                    label: const Text('Restrisiko nein'),
+                    selected: _activeFilters.contains('residualBad'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('residualBad')
+                        : _activeFilters.remove('residualBad')),
+                  ),
+                  FilterChip(
+                    label: const Text('Nachweise fehlen'),
+                    selected: _activeFilters.contains('missingDocs'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('missingDocs')
+                        : _activeFilters.remove('missingDocs')),
+                  ),
+                  FilterChip(
+                    label: const Text('Verknüpft mit Reklamation'),
+                    selected: _activeFilters.contains('linkedComplaint'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('linkedComplaint')
+                        : _activeFilters.remove('linkedComplaint')),
+                  ),
+                  FilterChip(
+                    label: const Text('Verknüpft mit CAPA'),
+                    selected: _activeFilters.contains('linkedCapa'),
+                    onSelected: (v) => setState(() => v
+                        ? _activeFilters.add('linkedCapa')
+                        : _activeFilters.remove('linkedCapa')),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _activeFilters.clear();
+                      _searchCtrl.clear();
+                    }),
+                    child: const Text('Filter zurücksetzen'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: _buildRiskTable(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1986,7 +2375,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           ),
                         )
                       : DefaultTabController(
-                          length: 2,
+                          length: 3,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -1997,6 +2386,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                   Expanded(
                                     child: TabBar(
                                       tabs: const [
+                                        Tab(text: 'Übersicht'),
                                         Tab(text: 'Risiken'),
                                         Tab(text: 'Verknüpfungen'),
                                       ],
@@ -2027,6 +2417,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                               Expanded(
                                 child: TabBarView(
                                   children: [
+                                    _buildOverviewTab(theme),
                                     _buildRiskTab(theme),
                                     _buildLinksTab(theme),
                                   ],
@@ -2037,6 +2428,127 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final String? subtitle;
+  final IconData icon;
+  final Color color;
+
+  const _KpiCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: color),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(value, style: theme.textTheme.headlineMedium?.copyWith(color: theme.colorScheme.onSurface)),
+          if (subtitle != null)
+            Text(
+              subtitle!,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RiskStatCard extends StatelessWidget {
+  final String title;
+  final Map<String, int> counts;
+  final ThemeData theme;
+
+  const _RiskStatCard({required this.title, required this.counts, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(String label, int count, Color color) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(radius: 8, backgroundColor: color),
+            const SizedBox(width: 6),
+            Text('$label: $count'),
+          ],
+        );
+
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          row('Rot', counts['red'] ?? 0, theme.colorScheme.error),
+          row('Gelb', counts['yellow'] ?? 0, Colors.orange.shade700),
+          row('Grün', counts['green'] ?? 0, Colors.green.shade700),
+        ],
+      ),
+    );
+  }
+}
+
+class _RiskDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _RiskDetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 220, child: Text(label, style: theme.textTheme.labelLarge)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              style: theme.textTheme.bodyMedium,
             ),
           ),
         ],
