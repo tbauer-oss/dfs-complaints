@@ -2938,6 +2938,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       },
     );
   }
+}
 
 class _RiskDetailRow extends StatelessWidget {
   final String label;
@@ -2966,3 +2967,4 @@ class _RiskDetailRow extends StatelessWidget {
     );
   }
 }
+
