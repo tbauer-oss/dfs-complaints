@@ -1191,10 +1191,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       return form.validate();
     }
 
-    bool _validateUntil(int index, {void Function(VoidCallback)? setStepperState}) {
+    bool _validateUntil(int index) {
       for (var i = 0; i <= index; i++) {
         if (!_validateStep(i)) {
-          setStepperState?.call(() => currentStep = i);
+          setStateDialog(() => currentStep = i);
           return false;
         }
       }
@@ -1628,68 +1628,70 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
           }
 
           Future<void> _saveDraft() async {
-            if (!_validateUntil(currentStep, setStepperState: setStateDialog)) return;
+            if (!_validateUntil(currentStep)) return;
             Navigator.pop(ctx, _buildResult());
           }
 
           Future<void> _finish() async {
-            if (!_validateUntil(steps.length - 1, setStepperState: setStateDialog)) return;
+            if (!_validateUntil(steps.length - 1)) return;
             Navigator.pop(ctx, _buildResult());
           }
 
-          final dialogTheme = Theme.of(context).dialogTheme;
-
           return AlertDialog(
             title: Text(existing == null ? 'Risiko hinzufügen' : 'Risiko bearbeiten'),
-            backgroundColor: dialogTheme.backgroundColor ?? Theme.of(context).colorScheme.surface,
-            surfaceTintColor: dialogTheme.surfaceTintColor ?? Colors.transparent,
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 920, maxHeight: 760),
-              child: SingleChildScrollView(
-                child: Stepper(
-                  type: StepperType.horizontal,
-                  currentStep: currentStep,
-                  onStepTapped: (idx) {
-                    if (_validateUntil(idx, setStepperState: setStateDialog)) {
-                      setStateDialog(() => currentStep = idx);
-                    }
-                  },
-                  controlsBuilder: (context, details) {
-                    final isLast = currentStep == steps.length - 1;
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Row(
-                        children: [
-                          TextButton(
-                            onPressed: () async {
-                              if (await _confirmAbort()) {
-                                Navigator.pop(ctx, null);
-                              }
-                            },
-                            child: const Text('Abbrechen'),
+            content: LayoutBuilder(
+              builder: (context, constraints) {
+                final dialogHeight = math.min(constraints.maxHeight, 720.0);
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: SizedBox(
+                    height: dialogHeight,
+                    child: Stepper(
+                      type: StepperType.horizontal,
+                      currentStep: currentStep,
+                      onStepTapped: (idx) {
+                        if (_validateUntil(idx)) {
+                          setStateDialog(() => currentStep = idx);
+                        }
+                      },
+                      controlsBuilder: (context, details) {
+                        final isLast = currentStep == steps.length - 1;
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Row(
+                            children: [
+                              TextButton(
+                                onPressed: () async {
+                                  if (await _confirmAbort()) {
+                                    Navigator.pop(ctx, null);
+                                  }
+                                },
+                                child: const Text('Abbrechen'),
+                              ),
+                              const Spacer(),
+                              if (currentStep > 0)
+                                OutlinedButton(
+                                  onPressed: () => setStateDialog(() => currentStep -= 1),
+                                  child: const Text('Zurück'),
+                                ),
+                              const SizedBox(width: 8),
+                              TextButton(
+                                onPressed: _saveDraft,
+                                child: const Text('Zwischenspeichern'),
+                              ),
+                              const SizedBox(width: 8),
+                              isLast
+                                  ? FilledButton(onPressed: _finish, child: const Text('Speichern'))
+                                  : FilledButton(onPressed: _nextStep, child: const Text('Weiter')),
+                            ],
                           ),
-                          const Spacer(),
-                          if (currentStep > 0)
-                            OutlinedButton(
-                              onPressed: () => setStateDialog(() => currentStep -= 1),
-                              child: const Text('Zurück'),
-                            ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: _saveDraft,
-                            child: const Text('Zwischenspeichern'),
-                          ),
-                          const SizedBox(width: 8),
-                          isLast
-                              ? FilledButton(onPressed: _finish, child: const Text('Speichern'))
-                              : FilledButton(onPressed: _nextStep, child: const Text('Weiter')),
-                        ],
-                      ),
-                    );
-                  },
-                  steps: steps,
-                ),
-              ),
+                        );
+                      },
+                      steps: steps,
+                    ),
+                  ),
+                );
+              },
             ),
           );
         },
