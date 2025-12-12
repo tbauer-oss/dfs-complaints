@@ -2,6 +2,7 @@ import 'dart:html' as html;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api/client.dart';
@@ -1093,7 +1094,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     String? selectedCategory = categoryOptions.contains(existing?.category)
         ? existing?.category
         : null;
+    int currentStep = existing == null ? 0 : 1;
+    final stepKeys = List.generate(5, (_) => GlobalKey<FormState>());
     final catCtrl = TextEditingController(text: existing?.category ?? '');
+    final riskNumberCtrl = TextEditingController(text: existing?.riskNumber ?? '');
     final hazardCtrl = TextEditingController(text: existing?.hazard ?? '');
     final situationCtrl = TextEditingController(text: existing?.hazardSituation ?? '');
     final harmCtrl = TextEditingController(text: existing?.harm ?? '');
@@ -1112,6 +1116,106 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     int? occurrenceAfter = existing?.occurrenceAfter;
     bool newHazard = existing?.newHazard ?? false;
     bool residualOk = existing?.residualRiskOk ?? true;
+    final initialComplaints = List<String>.from(linkedComplaints);
+    final initialCapas = List<String>.from(linkedCapas);
+    final initialCategory = catCtrl.text;
+    final initialRiskNumber = riskNumberCtrl.text;
+    final initialHazard = hazardCtrl.text;
+    final initialSituation = situationCtrl.text;
+    final initialHarm = harmCtrl.text;
+    final initialCauses = causeCtrl.text;
+    final initialProposed = proposedCtrl.text;
+    final initialAction = actionCtrl.text;
+    final initialDocuments = documentsCtrl.text;
+    final initialArea = areaCtrl.text;
+    final initialProcess = processCtrl.text;
+    final initialBenefit = benefitCtrl.text;
+    final initialNewHazard = newHazard;
+    final initialResidualOk = residualOk;
+    final equalList = const ListEquality<String>();
+
+    String? _required(String value) => value.trim().isEmpty ? 'Pflichtfeld' : null;
+
+    bool _hasUnsavedChanges() {
+      return catCtrl.text != initialCategory ||
+          riskNumberCtrl.text != initialRiskNumber ||
+          hazardCtrl.text != initialHazard ||
+          situationCtrl.text != initialSituation ||
+          harmCtrl.text != initialHarm ||
+          causeCtrl.text != initialCauses ||
+          proposedCtrl.text != initialProposed ||
+          actionCtrl.text != initialAction ||
+          documentsCtrl.text != initialDocuments ||
+          areaCtrl.text != initialArea ||
+          processCtrl.text != initialProcess ||
+          benefitCtrl.text != initialBenefit ||
+          newHazard != initialNewHazard ||
+          residualOk != initialResidualOk ||
+          severity != existing?.severity ||
+          occurrence != existing?.occurrence ||
+          severityAfter != existing?.severityAfter ||
+          occurrenceAfter != existing?.occurrenceAfter ||
+          !equalList.equals(linkedComplaints, initialComplaints) ||
+          !equalList.equals(linkedCapas, initialCapas);
+    }
+
+    FmeaRiskEntry _buildResult() {
+      return FmeaRiskEntry(
+        id: existing?.id ?? '',
+        riskNumber: (riskNumberCtrl.text.trim().isEmpty ? existing?.riskNumber : riskNumberCtrl.text.trim()) ?? '',
+        category: catCtrl.text.trim(),
+        hazard: hazardCtrl.text.trim(),
+        hazardSituation: situationCtrl.text.trim(),
+        harm: harmCtrl.text.trim(),
+        causes: causeCtrl.text.trim(),
+        affectedArea: areaCtrl.text.trim(),
+        processReference: processCtrl.text.trim(),
+        severity: severity,
+        occurrence: occurrence,
+        severityAfter: severityAfter,
+        occurrenceAfter: occurrenceAfter,
+        proposedAction: proposedCtrl.text.trim(),
+        actionTaken: actionCtrl.text.trim(),
+        documents: documentsCtrl.text.trim(),
+        riskBenefitAnalysis: benefitCtrl.text.trim(),
+        newHazard: newHazard,
+        residualRiskOk: residualOk,
+        linkedComplaints: linkedComplaints,
+        linkedCapas: linkedCapas,
+      );
+    }
+
+    bool _validateStep(int index) {
+      final form = stepKeys[index].currentState;
+      if (form == null) return true;
+      return form.validate();
+    }
+
+    bool _validateUntil(int index) {
+      for (var i = 0; i <= index; i++) {
+        if (!_validateStep(i)) {
+          setStateDialog(() => currentStep = i);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    Future<bool> _confirmAbort() async {
+      if (!_hasUnsavedChanges()) return true;
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Änderungen verwerfen?'),
+          content: const Text('Nicht gespeicherte Änderungen gehen verloren. Fortfahren?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Zurück')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Verwerfen')),
+          ],
+        ),
+      );
+      return discard == true;
+    }
 
     final res = await showDialog<FmeaRiskEntry?>(
       context: context,
@@ -1124,13 +1228,15 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             for (final c in _capas)
               (c.id.isNotEmpty ? c.id : c.capaNumber): (c.capaNumber.isNotEmpty ? c.capaNumber : c.id),
           };
-          return AlertDialog(
-            title: Text(existing == null ? 'Risiko hinzufügen' : 'Risiko bearbeiten'),
-            content: SizedBox(
-              width: 540,
-              child: SingleChildScrollView(
+          final steps = [
+            Step(
+              isActive: currentStep >= 0,
+              state: currentStep > 0 ? StepState.complete : StepState.indexed,
+              title: const Text('Basis'),
+              content: Form(
+                key: stepKeys[0],
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (categoryOptions.isNotEmpty)
                       DropdownButtonFormField<String>(
@@ -1149,7 +1255,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           });
                         },
                       ),
-                    TextField(
+                    TextFormField(
                       controller: catCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Kategorie eingeben',
@@ -1159,30 +1265,95 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         selectedCategory = categoryOptions.contains(val) ? val : null;
                       }),
                     ),
-                    TextField(
-                      controller: hazardCtrl,
-                      decoration: const InputDecoration(labelText: 'Gefährdung'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: riskNumberCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Risiko-Nr.',
+                        helperText: 'Automatisch, wenn leer – manuell überschreibbar',
+                      ),
                     ),
-                    TextField(
-                      controller: situationCtrl,
-                      decoration: const InputDecoration(labelText: 'Gefährdungssituation'),
-                    ),
-                    TextField(
-                      controller: harmCtrl,
-                      decoration: const InputDecoration(labelText: 'Schaden'),
-                    ),
-                    TextField(
-                      controller: causeCtrl,
-                      decoration: const InputDecoration(labelText: 'Ursachen'),
-                    ),
-                    TextField(
-                      controller: areaCtrl,
-                      decoration: const InputDecoration(labelText: 'Gefährdeter Bereich / Beteiligte'),
-                    ),
-                    TextField(
+                    const SizedBox(height: 8),
+                    TextFormField(
                       controller: processCtrl,
                       decoration: const InputDecoration(labelText: 'Prozessbezug'),
                     ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: areaCtrl,
+                      decoration: const InputDecoration(labelText: 'Gefährdeter Bereich / Beteiligte'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Step(
+              isActive: currentStep >= 1,
+              state: currentStep > 1 ? StepState.complete : StepState.indexed,
+              title: const Text('Risiko-Beschreibung'),
+              content: Form(
+                key: stepKeys[1],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: hazardCtrl,
+                      minLines: 4,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        labelText: 'Gefährdung',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
+                      validator: (val) => _required(val ?? ''),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: situationCtrl,
+                      minLines: 6,
+                      maxLines: 12,
+                      decoration: const InputDecoration(
+                        labelText: 'Gefährdungssituation',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
+                      validator: (val) => _required(val ?? ''),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: harmCtrl,
+                      minLines: 4,
+                      maxLines: 10,
+                      decoration: const InputDecoration(
+                        labelText: 'Schaden',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: causeCtrl,
+                      minLines: 4,
+                      maxLines: 10,
+                      decoration: const InputDecoration(
+                        labelText: 'Ursachen',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Step(
+              isActive: currentStep >= 2,
+              state: currentStep > 2 ? StepState.complete : StepState.indexed,
+              title: const Text('Bewertung'),
+              content: Form(
+                key: stepKeys[2],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Row(
                       children: [
                         Expanded(
@@ -1208,14 +1379,65 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ),
                       ],
                     ),
-                    TextField(
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _riskBadge(existing?.riskLevel, Theme.of(context)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Risikoeinstufung wird automatisch berechnet.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Step(
+              isActive: currentStep >= 3,
+              state: currentStep > 3 ? StepState.complete : StepState.indexed,
+              title: const Text('Maßnahmen'),
+              content: Form(
+                key: stepKeys[3],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
                       controller: proposedCtrl,
-                      decoration: const InputDecoration(labelText: 'Vorgeschlagene Maßnahme'),
+                      minLines: 3,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        labelText: 'Vorgeschlagene Maßnahme',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
                     ),
-                    TextField(
+                    const SizedBox(height: 10),
+                    TextFormField(
                       controller: actionCtrl,
-                      decoration: const InputDecoration(labelText: 'Getroffene Maßnahme'),
+                      minLines: 3,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        labelText: 'Getroffene Maßnahme',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
                     ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: documentsCtrl,
+                      minLines: 2,
+                      maxLines: 6,
+                      decoration: const InputDecoration(
+                        labelText: 'Nachweise / Dokumente (Links/IDs)',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -1241,14 +1463,25 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ),
                       ],
                     ),
-                    TextField(
-                      controller: documentsCtrl,
-                      decoration: const InputDecoration(labelText: 'Nachweise / Dokumente (Links/IDs)'),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _riskBadge(existing?.riskLevelAfter, Theme.of(context)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Einstufung nach Maßnahme wird automatisch berechnet.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
                     ),
-                    TextField(
-                      controller: benefitCtrl,
-                      decoration: const InputDecoration(labelText: 'Risiko-Nutzen-Analyse'),
-                      maxLines: 2,
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      value: residualOk,
+                      onChanged: (v) => setStateDialog(() => residualOk = v ?? true),
+                      title: const Text('Restrisiko beherrschbar?'),
+                      controlAffinity: ListTileControlAffinity.leading,
                     ),
                     CheckboxListTile(
                       value: newHazard,
@@ -1256,12 +1489,30 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                       title: const Text('Neue Gefährdung?'),
                       controlAffinity: ListTileControlAffinity.leading,
                     ),
-                    CheckboxListTile(
-                      value: residualOk,
-                      onChanged: (v) => setStateDialog(() => residualOk = v ?? true),
-                      title: const Text('Restrisiko beherrschbar?'),
-                      controlAffinity: ListTileControlAffinity.leading,
+                  ],
+                ),
+              ),
+            ),
+            Step(
+              isActive: currentStep >= 4,
+              state: currentStep > 4 ? StepState.complete : StepState.indexed,
+              title: const Text('Analyse & Links'),
+              content: Form(
+                key: stepKeys[4],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: benefitCtrl,
+                      minLines: 4,
+                      maxLines: 12,
+                      decoration: const InputDecoration(
+                        labelText: 'Risiko-Nutzen-Analyse',
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (_) => setStateDialog(() {}),
                     ),
+                    const SizedBox(height: 10),
                     InputDecorator(
                       decoration: const InputDecoration(labelText: 'Verknüpfte Reklamations-Tickets'),
                       child: Column(
@@ -1343,44 +1594,105 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Card(
+                      elevation: 0,
+                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Vorschau', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 6),
+                            Text('Gefährdung: ${hazardCtrl.text.isEmpty ? '—' : hazardCtrl.text}'),
+                            Text('Situation: ${situationCtrl.text.isEmpty ? '—' : situationCtrl.text}'),
+                            Text('Maßnahmen: ${actionCtrl.text.isEmpty ? '—' : actionCtrl.text}'),
+                            Text('Nachweise: ${documentsCtrl.text.isEmpty ? '—' : documentsCtrl.text}'),
+                            Text('RNA: ${benefitCtrl.text.isEmpty ? '—' : benefitCtrl.text}'),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(
-                    ctx,
-                    FmeaRiskEntry(
-                      id: existing?.id ?? '',
-                      riskNumber: existing?.riskNumber ?? '',
-                      category: catCtrl.text.trim(),
-                      hazard: hazardCtrl.text.trim(),
-                      hazardSituation: situationCtrl.text.trim(),
-                      harm: harmCtrl.text.trim(),
-                      causes: causeCtrl.text.trim(),
-                      affectedArea: areaCtrl.text.trim(),
-                      processReference: processCtrl.text.trim(),
-                      severity: severity,
-                      occurrence: occurrence,
-                      severityAfter: severityAfter,
-                      occurrenceAfter: occurrenceAfter,
-                      proposedAction: proposedCtrl.text.trim(),
-                      actionTaken: actionCtrl.text.trim(),
-                      documents: documentsCtrl.text.trim(),
-                      riskBenefitAnalysis: benefitCtrl.text.trim(),
-                      newHazard: newHazard,
-                      residualRiskOk: residualOk,
-                      linkedComplaints: linkedComplaints,
-                      linkedCapas: linkedCapas,
+          ];
+
+          void _nextStep() {
+            if (!_validateStep(currentStep)) return;
+            if (currentStep < steps.length - 1) {
+              setStateDialog(() => currentStep += 1);
+            }
+          }
+
+          Future<void> _saveDraft() async {
+            if (!_validateUntil(currentStep)) return;
+            Navigator.pop(ctx, _buildResult());
+          }
+
+          Future<void> _finish() async {
+            if (!_validateUntil(steps.length - 1)) return;
+            Navigator.pop(ctx, _buildResult());
+          }
+
+          return AlertDialog(
+            title: Text(existing == null ? 'Risiko hinzufügen' : 'Risiko bearbeiten'),
+            content: LayoutBuilder(
+              builder: (context, constraints) {
+                final dialogHeight = math.min(constraints.maxHeight, 720.0);
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: SizedBox(
+                    height: dialogHeight,
+                    child: Stepper(
+                      type: StepperType.horizontal,
+                      currentStep: currentStep,
+                      onStepTapped: (idx) {
+                        if (_validateUntil(idx)) {
+                          setStateDialog(() => currentStep = idx);
+                        }
+                      },
+                      controlsBuilder: (context, details) {
+                        final isLast = currentStep == steps.length - 1;
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Row(
+                            children: [
+                              TextButton(
+                                onPressed: () async {
+                                  if (await _confirmAbort()) {
+                                    Navigator.pop(ctx, null);
+                                  }
+                                },
+                                child: const Text('Abbrechen'),
+                              ),
+                              const Spacer(),
+                              if (currentStep > 0)
+                                OutlinedButton(
+                                  onPressed: () => setStateDialog(() => currentStep -= 1),
+                                  child: const Text('Zurück'),
+                                ),
+                              const SizedBox(width: 8),
+                              TextButton(
+                                onPressed: _saveDraft,
+                                child: const Text('Zwischenspeichern'),
+                              ),
+                              const SizedBox(width: 8),
+                              isLast
+                                  ? FilledButton(onPressed: _finish, child: const Text('Speichern'))
+                                  : FilledButton(onPressed: _nextStep, child: const Text('Weiter')),
+                            ],
+                          ),
+                        );
+                      },
+                      steps: steps,
                     ),
-                  );
-                },
-                child: const Text('Speichern'),
-              ),
-            ],
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -1397,6 +1709,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     areaCtrl.dispose();
     processCtrl.dispose();
     benefitCtrl.dispose();
+    riskNumberCtrl.dispose();
     return res;
   }
 
