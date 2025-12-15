@@ -712,24 +712,26 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                RawAutocomplete<PortalUserSummary>(
-                  textEditingController: userCtrl,
-                  focusNode: userFocus,
-                  optionsBuilder: (t) {
-                    final query = t.text.toLowerCase();
-                    return _dfsUsers.where((u) => u.displayName.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
-                  },
-                  displayStringForOption: (o) => '${o.displayName} (${o.email})',
-                  fieldViewBuilder: (context, controller, focusNode, onSubmit) {
-                    controller.value = TextEditingValue(text: selectedUser?.displayName ?? controller.text);
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: const InputDecoration(labelText: 'DFS-Mitarbeiter'),
-                      onChanged: (_) => setModalState(() {}),
-                    );
-                  },
-                  onSelected: (opt) {
+                DropdownButtonFormField<String>(
+                  value: selectedUser?.email.isNotEmpty == true ? selectedUser!.email : null,
+                  decoration: InputDecoration(
+                    labelText: 'DFS-Mitarbeiter',
+                    helperText: _dfsUsers.isEmpty ? 'Keine aktiven DFS-Profile gefunden' : null,
+                  ),
+                  items: _dfsUsers
+                      .map((u) => DropdownMenuItem(
+                            value: u.email,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(u.displayName),
+                                Text(u.email, style: Theme.of(context).textTheme.bodySmall),
+                              ],
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (email) {
+                    final opt = _dfsUsers.firstWhere((u) => u.email == email);
                     final observedOrgUnits = {
                       ..._orgUnits,
                       ...opt.assignedDepartments,
@@ -744,32 +746,6 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
                       }
                     });
                   },
-                  optionsViewBuilder: (context, onSelected, options) => Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 240, maxWidth: 420),
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          children: options
-                              .map((o) => ListTile(
-                                    title: Text(o.displayName),
-                                    subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(o.email),
-                                        if (o.assignedDepartments.isNotEmpty)
-                                          Text(o.assignedDepartments.join(', ')),
-                                      ],
-                                    ),
-                                    onTap: () => onSelected(o),
-                                  ))
-                              .toList(),
-                        ),
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Anzeigename')),
@@ -884,7 +860,7 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
             FilledButton(
-              onPressed: uploading
+              onPressed: uploading || selectedUser == null
                   ? null
                   : () async {
                       try {
