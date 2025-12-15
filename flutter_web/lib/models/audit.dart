@@ -315,6 +315,22 @@ class Audit {
   final int? openFindings;
   final int? overdueActions;
 
+  String get displayPeriod {
+    String fmt(DateTime d) {
+      final day = d.day.toString().padLeft(2, '0');
+      final month = d.month.toString().padLeft(2, '0');
+      final year = d.year.toString();
+      return '$day.$month.$year';
+    }
+
+    if (plannedStart != null && plannedEnd != null) {
+      return '${fmt(plannedStart!)} – ${fmt(plannedEnd!)}';
+    }
+    if (plannedStart != null) return fmt(plannedStart!);
+    if (plannedEnd != null) return fmt(plannedEnd!);
+    return '-';
+  }
+
   const Audit({
     required this.id,
     required this.auditNumber,
