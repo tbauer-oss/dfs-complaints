@@ -3483,6 +3483,9 @@ async function syncFmeaRiskLinks(fmea, risk, prevRisk) {
 
 const AUDIT_TILE_ID = 'audits';
 
+const AUDIT_SEEDS_ENABLED =
+  String(process.env.AUDIT_ENABLE_SEEDS || process.env.ENABLE_AUDIT_SEEDS || '').toLowerCase() === 'true';
+
 const AUDIT_FINDING_SEVERITY = {
   CONFORMITY: 'Konformität',
   HINT: 'Hinweis',
@@ -3844,15 +3847,10 @@ export async function auditorUpdate(id, patch = {}) {
 export async function auditorDelete(id) {
   ensureAuditStores();
   for (const audit of mem.audits.values()) {
-    if (audit.leadAuditorId === id) {
-      const err = new Error('Auditor wird als Lead genutzt');
-      err.code = 'REFERENCED';
-      throw err;
-    }
-    if (Array.isArray(audit.coAuditorIds) && audit.coAuditorIds.includes(id)) {
-      const err = new Error('Auditor wird als Co-Auditor genutzt');
-      err.code = 'REFERENCED';
-      throw err;
+    const lead = audit.leadAuditorId === id ? null : audit.leadAuditorId;
+    const coAuditorIds = (audit.coAuditorIds || []).filter(co => co !== id);
+    if (lead !== audit.leadAuditorId || coAuditorIds.length !== (audit.coAuditorIds || []).length) {
+      await saveAuditInternal({ ...audit, leadAuditorId: lead, coAuditorIds }, { skipValidation: true });
     }
   }
   return mem.auditors.delete(id);
@@ -4053,6 +4051,7 @@ async function updateAuditStatusAfterChange(auditId) {
 }
 
 function ensureAuditSeeds() {
+  if (!AUDIT_SEEDS_ENABLED) return;
   ensureAuditStores();
   if (mem.audits.size > 0 || mem.auditors.size > 0) return;
 
