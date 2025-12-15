@@ -15460,7 +15460,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       portalRole: portalRole,
                       portalIsSales: portalIsSales,
                       productLookup: productLookup,
-                      productLookupService: parent?._productLookup,
+                      productLookupService: productLookupService,
                       companyHint: companyHint,
                       hasRep: hasRep,
                       repName: repName,
@@ -20366,8 +20366,11 @@ class PrrcDashboardPage extends StatefulWidget {
       return direct.isEmpty ? null : direct;
     }
 
-    DfsProduct? _fetchProduct(String articleNumber) => null;
+    final ProductLookup _productLookup = ProductLookup();
 
+    DfsProduct? _fetchProduct(String articleNumber) =>
+        _productLookup.byArticle(articleNumber);
+    
     String _statusFilter = 'all';
     String _categoryFilter = 'all';
     String _productGroupFilter = 'all';
@@ -20382,6 +20385,7 @@ class PrrcDashboardPage extends StatefulWidget {
     _api = AdminApi();
     _hydrateAuth();
     _resolveRole();
+    _productLookup.loadProducts();
     _load();
   }
 
