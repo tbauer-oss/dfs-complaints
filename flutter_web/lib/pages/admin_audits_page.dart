@@ -121,9 +121,9 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
     }
   }
 
-  int _countOpenFindings() => _audits.fold<int>(0, (p, a) => p + a.openFindings);
-  int _countOverdueActions() => _audits.fold<int>(0, (p, a) => p + a.overdueActions);
-  int _countCritical() => _audits.where((a) => a.status == 'nachauditRequired' || a.riskPriority == 5).length;
+  int _countOpenFindings() => _audits.fold<int>(0, (p, a) => p + (a.openFindings ?? 0));
+  int _countOverdueActions() => _audits.fold<int>(0, (p, a) => p + (a.overdueActions ?? 0));
+  int _countCritical() => _audits.where((a) => a.status == 'nachauditRequired').length;
 
   @override
   Widget build(BuildContext context) {
@@ -286,12 +286,15 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
                 (a) => DataRow(cells: [
                       DataCell(Text(a.auditNumber)),
                       DataCell(Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () => _openDetail(a)),
-                      DataCell(Text(a.cluster)),
+                      DataCell(Text(a.cluster ?? '-')),
                       DataCell(Text(a.displayPeriod)),
                       DataCell(_StatusChip(status: a.status)),
-                      DataCell(Text(_auditors.firstWhere((au) => au.id == a.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: '')).name)),
-                      DataCell(Text(a.openFindings.toString())),
-                      DataCell(Text(a.overdueActions.toString(), style: TextStyle(color: a.overdueActions > 0 ? Colors.red : null))),
+                      DataCell(Text(_auditors
+                          .firstWhere((au) => au.id == a.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: '', status: 'inactive'))
+                          .name)),
+                      DataCell(Text((a.openFindings ?? 0).toString())),
+                      DataCell(Text((a.overdueActions ?? 0).toString(),
+                          style: TextStyle(color: (a.overdueActions ?? 0) > 0 ? Colors.red : null))),
                     ],
                     onSelectChanged: (_) => _openDetail(a),
                   ),
@@ -308,17 +311,17 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final a = _audits[i];
-        final lead = _auditors.firstWhere((au) => au.id == a.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: ''));
+        final lead = _auditors.firstWhere((au) => au.id == a.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: '', status: 'inactive'));
         return Card(
           child: ListTile(
             title: Text('${a.auditNumber} · ${a.title}'),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${a.cluster} · ${a.displayPeriod}'),
+                Text('${a.cluster ?? '-'} · ${a.displayPeriod}'),
                 const SizedBox(height: 4),
                 Text('Lead: ${lead.name}'),
-                Text('Findings: ${a.openFindings}, Überfällig: ${a.overdueActions}')
+                Text('Findings: ${a.openFindings ?? 0}, Überfällig: ${a.overdueActions ?? 0}')
               ],
             ),
             trailing: _StatusChip(status: a.status),
@@ -350,7 +353,7 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
   void _openDetail(Audit audit) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _AuditDetailPage(api: widget.api, auditId: audit.id, auditNumber: audit.auditNumber),
+        builder: (_) => _AuditDetailPage(api: widget.api, audit: audit),
       ),
     );
   }
@@ -493,9 +496,9 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(a.email),
-                Text('Qualifiziert: ${a.qualifications['qualified'] == true ? 'Ja' : 'Nein'}'),
-                if (a.independenceRules.isNotEmpty)
-                  Text('Restriktionen: ${(a.independenceRules['restrictedOrgUnits'] as List?)?.join(', ') ?? '-'}'),
+                Text('Qualifiziert: ${a.isQualified ? 'Ja' : 'Nein'}'),
+                if (a.restrictedOrgUnits.isNotEmpty)
+                  Text('Restriktionen: ${a.restrictedOrgUnits.join(', ')}'),
                 if (due != null) Text('Re-Qual fällig: ${DateFormat('dd.MM.yyyy').format(due)}', style: TextStyle(color: warn ? Colors.red : null)),
               ],
             ),
@@ -510,7 +513,7 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
 
   Future<void> _editAuditor(Auditor auditor) async {
     final nameCtrl = TextEditingController(text: auditor.name);
-    final deptCtrl = TextEditingController(text: auditor.department ?? '');
+    final deptCtrl = TextEditingController(text: auditor.orgUnit ?? '');
     final updated = await showDialog<Auditor>(
       context: context,
       builder: (_) => AlertDialog(
@@ -535,7 +538,26 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
                 'orgUnit': deptCtrl.text.trim(),
               };
               try {
-                final saved = await widget.api.updateAuditor(auditor.id, body);
+                final saved = await widget.api.saveAuditor(
+                  Auditor(
+                    id: auditor.id,
+                    name: nameCtrl.text.trim(),
+                    email: auditor.email,
+                    status: auditor.status,
+                    orgUnit: deptCtrl.text.trim().isEmpty ? null : deptCtrl.text.trim(),
+                    role: auditor.role,
+                    restrictedProcessOwners: auditor.restrictedProcessOwners,
+                    restrictedOrgUnits: auditor.restrictedOrgUnits,
+                    internalAuditorTrainingDate: auditor.internalAuditorTrainingDate,
+                    experienceYears: auditor.experienceYears,
+                    standardsIso13485: auditor.standardsIso13485,
+                    standardsMdr: auditor.standardsMdr,
+                    standardsIso19011: auditor.standardsIso19011,
+                    lastRequalificationDate: auditor.lastRequalificationDate,
+                    requalificationDueDate: auditor.requalificationDueDate,
+                    evidenceAttachments: auditor.evidenceAttachments,
+                  ),
+                );
                 if (context.mounted) Navigator.pop(context, saved);
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -576,7 +598,7 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
       _error = null;
     });
     try {
-      final list = await widget.api.listAnnualReports(year: _year);
+      final list = await widget.api.listAnnualReports(_year);
       if (!mounted) return;
       setState(() {
         _reports = list;
@@ -594,7 +616,7 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
   Future<void> _generate() async {
     setState(() => _loading = true);
     try {
-      await widget.api.generateReport({'year': _year});
+      await widget.api.generateAnnualReport(_year);
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Jahresbericht erstellt')));
@@ -796,21 +818,40 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   Future<void> _save() async {
     setState(() => _busy = true);
     try {
-      final payload = {
-        'title': _title.text.trim(),
-        'site': _site.text.trim(),
-        'scopeText': _scope.text.trim(),
-        'cluster': _cluster,
-        'status': _status,
-        if (_start != null) 'plannedStart': _start!.toIso8601String(),
-        if (_end != null) 'plannedEnd': _end!.toIso8601String(),
-        if (_lead != null) 'leadAuditorId': _lead,
-      };
+      final existing = widget.existing;
+      final audit = Audit(
+        id: existing?.id ?? '',
+        auditNumber: existing?.auditNumber ?? 'TEMP-${DateTime.now().millisecondsSinceEpoch}',
+        year: existing?.year ?? DateTime.now().year,
+        cluster: _cluster,
+        auditType: existing?.auditType ?? 'System',
+        title: _title.text.trim(),
+        site: _site.text.trim().isEmpty ? null : _site.text.trim(),
+        plannedStart: _start,
+        plannedEnd: _end,
+        actualStart: existing?.actualStart,
+        actualEnd: existing?.actualEnd,
+        status: _status,
+        scopeText: _scope.text.trim().isEmpty ? null : _scope.text.trim(),
+        objectives: existing?.objectives ?? const [],
+        criteria: existing?.criteria ?? const [],
+        references: existing?.references ?? const [],
+        auditeesOrgUnits: existing?.auditeesOrgUnits ?? const [],
+        processOwners: existing?.processOwners ?? const [],
+        participants: existing?.participants ?? const [],
+        leadAuditorId: _lead,
+        coAuditorIds: existing?.coAuditorIds ?? const [],
+        linkedDocs: existing?.linkedDocs ?? const [],
+        findings: existing?.findings ?? const [],
+        actions: existing?.actions ?? const [],
+        openFindings: existing?.openFindings,
+        overdueActions: existing?.overdueActions,
+      );
       Audit saved;
-      if (widget.existing == null) {
-        saved = await widget.api.saveAudit(payload);
+      if (existing == null) {
+        saved = await widget.api.createAudit(audit);
       } else {
-        saved = await widget.api.updateAudit(widget.existing!.id, payload);
+        saved = await widget.api.updateAudit(audit);
       }
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
@@ -823,9 +864,8 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
 
 class _AuditDetailPage extends StatefulWidget {
   final AuditAdminApi api;
-  final String auditId;
-  final String auditNumber;
-  const _AuditDetailPage({required this.api, required this.auditId, required this.auditNumber});
+  final Audit audit;
+  const _AuditDetailPage({required this.api, required this.audit});
 
   @override
   State<_AuditDetailPage> createState() => _AuditDetailPageState();
@@ -859,10 +899,11 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       _error = null;
     });
     try {
-      final audit = await widget.api.getAudit(widget.auditId);
+      final audits = await widget.api.listAudits(year: widget.audit.year);
+      final audit = audits.firstWhere((a) => a.id == widget.audit.id, orElse: () => widget.audit);
       final auditors = await widget.api.listAuditors();
-      final findings = await widget.api.listFindings(widget.auditId);
-      final actions = await widget.api.listActions(widget.auditId);
+      final findings = await widget.api.listFindings(widget.audit.id);
+      final actions = await widget.api.listActions(widget.audit.id);
       if (!mounted) return;
       setState(() {
         _audit = audit;
@@ -882,7 +923,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
 
   @override
   Widget build(BuildContext context) {
-    final title = _audit?.title ?? widget.auditNumber;
+    final title = _audit?.title ?? widget.audit.auditNumber;
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -915,12 +956,13 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   Widget _buildPlan() {
     if (_audit == null) return const SizedBox();
     final audit = _audit!;
-    final lead = _auditors.firstWhere((a) => a.id == audit.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: ''));
+    final lead = _auditors
+        .firstWhere((a) => a.id == audit.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: '', status: 'inactive'));
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         ListTile(title: const Text('Auditnummer'), subtitle: Text(audit.auditNumber)),
-        ListTile(title: const Text('Quartal'), subtitle: Text(audit.cluster)),
+        ListTile(title: const Text('Quartal'), subtitle: Text(audit.cluster ?? '-')),
         ListTile(title: const Text('Zeitraum geplant'), subtitle: Text(audit.displayPeriod)),
         ListTile(title: const Text('Lead Auditor'), subtitle: Text(lead.name)),
         ListTile(title: const Text('Scope'), subtitle: Text(audit.scopeText ?? '-')),
@@ -1038,7 +1080,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   Future<void> _addFinding() async {
     final saved = await showDialog<AuditFinding>(
       context: context,
-      builder: (_) => _FindingDialog(api: widget.api, auditId: widget.auditId),
+      builder: (_) => _FindingDialog(api: widget.api, auditId: widget.audit.id),
     );
     if (saved != null) _load();
   }
@@ -1046,7 +1088,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   Future<void> _editFinding(AuditFinding f) async {
     final saved = await showDialog<AuditFinding>(
       context: context,
-      builder: (_) => _FindingDialog(api: widget.api, auditId: widget.auditId, existing: f),
+      builder: (_) => _FindingDialog(api: widget.api, auditId: widget.audit.id, existing: f),
     );
     if (saved != null) _load();
   }
@@ -1054,7 +1096,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   Future<void> _addAction() async {
     final saved = await showDialog<AuditAction>(
       context: context,
-      builder: (_) => _ActionDialog(api: widget.api, auditId: widget.auditId, findings: _findings),
+      builder: (_) => _ActionDialog(api: widget.api, auditId: widget.audit.id, findings: _findings),
     );
     if (saved != null) _load();
   }
@@ -1062,7 +1104,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   Future<void> _editAction(AuditAction a) async {
     final saved = await showDialog<AuditAction>(
       context: context,
-      builder: (_) => _ActionDialog(api: widget.api, auditId: widget.auditId, findings: _findings, existing: a),
+      builder: (_) => _ActionDialog(api: widget.api, auditId: widget.audit.id, findings: _findings, existing: a),
     );
     if (saved != null) _load();
   }
@@ -1146,19 +1188,20 @@ class _FindingDialogState extends State<_FindingDialog> {
   Future<void> _save() async {
     setState(() => _busy = true);
     try {
-      final payload = {
-        'auditId': widget.auditId,
-        'type': _type,
-        'description': _desc.text.trim(),
-        'requirementRef': _ref.text.trim(),
-        'status': _status,
-      };
-      AuditFinding saved;
-      if (widget.existing == null) {
-        saved = await widget.api.saveFinding(payload);
-      } else {
-        saved = await widget.api.updateFinding(widget.existing!.id, payload);
-      }
+      final saved = await widget.api.saveFinding(AuditFinding(
+        id: widget.existing?.id ?? '',
+        auditId: widget.auditId,
+        type: _type,
+        description: _desc.text.trim(),
+        requirementRef: _ref.text.trim().isEmpty ? null : _ref.text.trim(),
+        evidenceText: widget.existing?.evidenceText,
+        linkedComplaintIds: widget.existing?.linkedComplaintIds ?? const [],
+        linkedCapaIds: widget.existing?.linkedCapaIds ?? const [],
+        ownerOrgUnit: widget.existing?.ownerOrgUnit,
+        processOwner: widget.existing?.processOwner,
+        createdInMeeting: widget.existing?.createdInMeeting,
+        status: _status,
+      ));
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
       setState(() => _error = e.toString());
@@ -1269,20 +1312,24 @@ class _ActionDialogState extends State<_ActionDialog> {
   Future<void> _save() async {
     setState(() => _busy = true);
     try {
-      final payload = {
-        'auditId': widget.auditId,
-        'findingId': _findingId,
-        'description': _desc.text.trim(),
-        'actionType': _type,
-        'status': _status,
-        if (_due != null) 'dueDate': _due!.toIso8601String(),
-      };
-      AuditAction saved;
-      if (widget.existing == null) {
-        saved = await widget.api.saveAction(payload);
-      } else {
-        saved = await widget.api.updateAction(widget.existing!.id, payload);
-      }
+      final saved = await widget.api.saveAction(AuditAction(
+        id: widget.existing?.id ?? '',
+        auditId: widget.auditId,
+        findingId: _findingId?.isEmpty == true ? null : _findingId,
+        actionType: _type,
+        description: _desc.text.trim(),
+        responsibleUserId: widget.existing?.responsibleUserId,
+        responsibleOrgUnit: widget.existing?.responsibleOrgUnit,
+        dueDate: _due,
+        completedAt: widget.existing?.completedAt,
+        effectivenessCheckRequired: widget.existing?.effectivenessCheckRequired ?? false,
+        effectivenessCheckMethod: widget.existing?.effectivenessCheckMethod,
+        effectivenessCheckedAt: widget.existing?.effectivenessCheckedAt,
+        effectivenessResult: widget.existing?.effectivenessResult,
+        escalationLevel: widget.existing?.escalationLevel ?? 'none',
+        escalationReason: widget.existing?.escalationReason,
+        status: _status,
+      ));
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
       setState(() => _error = e.toString());
