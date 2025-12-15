@@ -134,20 +134,18 @@ class Auditor {
 
   bool get hasTraining => internalAuditorTrainingDate != null || trainingDate != null;
 
-  bool get experienceOk => (experienceYears ?? 0) >= 3;
-
-  bool get hasEvidence => evidenceAttachments.isNotEmpty;
-
-  bool get auditCountOk => coAuditCount >= 2 || leadAuditCount >= 1;
-
   bool get requalificationValid =>
       requalificationDueDate == null || !requalificationDueDate!.isBefore(DateTime.now());
 
-  bool get isQualified => hasTraining && auditCountOk && requalificationValid;
+  bool get experienceOk => (experienceYears ?? 0) >= 3;
+
+  /// Frontend-Logik an Backend angeglichen: Qualifiziert mit Training,
+  /// ausreichender Erfahrung (>= 3 Jahre) und gültiger Re-Qualifikation.
+  bool get isQualified => hasTraining && experienceOk && requalificationValid;
 
   String get qualificationStatus {
-    if (isQualified && hasEvidence && experienceOk) return 'qualifiziert';
-    if (hasTraining && !hasEvidence) return 'in Arbeit';
+    if (isQualified) return 'qualifiziert';
+    if (hasTraining) return 'in Arbeit';
     return 'nicht qualifiziert';
   }
 
