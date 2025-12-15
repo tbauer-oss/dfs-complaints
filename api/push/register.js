@@ -1,5 +1,5 @@
 // /api/push/register.js
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import jwt from 'jsonwebtoken';
 import {

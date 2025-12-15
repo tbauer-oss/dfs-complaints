@@ -1,5 +1,5 @@
 // /api/admin/audits.js – Auditplanung & Durchführung
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import crypto from 'node:crypto';
 

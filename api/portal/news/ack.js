@@ -1,5 +1,5 @@
 // api/portal/news/ack.js – Bestätigung für Mitarbeiter-News
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { bad, handlePreflight, methodNotAllowed, noContent, setCors } from '../../_lib/http.js';
 import { portalUserFromRequest } from '../../_lib/portalAuth.js';

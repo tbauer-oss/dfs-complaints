@@ -1,5 +1,5 @@
 // /api/gate/index.js
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { handlePreflight, ok, bad, methodNotAllowed, readJson, setCors } from '../_lib/http.js';
 import { consumeGateCodeOnce, issueGateToken, GateError } from '../_lib/gate-auth.js';

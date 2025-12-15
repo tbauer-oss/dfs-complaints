@@ -1,5 +1,5 @@
 // /api/admin/auditors.js – Auditorenverwaltung & Matrix
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import {
   handlePreflight,

@@ -2,7 +2,7 @@
 import { loadAppMeta, sanitizeAppMeta, updateAppMeta } from '../_lib/appMeta.js';
 import { requirePortalAccess } from './_guard.js';
 
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 // --- Utils ---
 const json = (res, code, data) => {

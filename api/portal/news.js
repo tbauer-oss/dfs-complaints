@@ -1,5 +1,5 @@
 // api/portal/news.js – Mitarbeiter-Newsfeed (DFS Portal)
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { bad, handlePreflight, methodNotAllowed, ok, setCors } from '../_lib/http.js';
 import { portalUserFromRequest } from '../_lib/portalAuth.js';

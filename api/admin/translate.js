@@ -1,5 +1,5 @@
 // api/admin/translate.js
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { translateTexts } from '../_lib/translate.js';
