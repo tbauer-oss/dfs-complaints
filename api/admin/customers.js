@@ -1,5 +1,5 @@
 // api/admin/customers.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 

@@ -1,5 +1,5 @@
 // api/_lib/repsStore.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { Redis } from '@upstash/redis';
 

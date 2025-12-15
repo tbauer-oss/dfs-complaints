@@ -1,5 +1,5 @@
 // /api/admin/fmea-export.js – Export als PDF oder CSV
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import PDFDocument from 'pdfkit';
 import { handlePreflight, setCors, bad } from '../_lib/http.js';

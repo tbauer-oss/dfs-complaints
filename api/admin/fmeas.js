@@ -1,5 +1,5 @@
 // /api/admin/fmeas.js – Verwaltung von FMEAs (Stammdaten ohne Risiko-Tabellen)
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';

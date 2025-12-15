@@ -1,5 +1,5 @@
 // api/admin/reps.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 // ---------------- CORS ----------------
 const PROD_FE  = 'https://dfs-complaints-web.vercel.app';

@@ -1,5 +1,5 @@
 // api/admin/health.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import {
   handlePreflight,

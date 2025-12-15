@@ -1,6 +1,6 @@
 // api/admin/downloads.js
 export const config = {
-  runtime: 'nodejs22.x',
+  runtime: 'nodejs',
   api: {
     // Wir lesen den Body selbst (siehe complaints), damit große Uploads sicher verarbeitet werden.
     bodyParser: false,

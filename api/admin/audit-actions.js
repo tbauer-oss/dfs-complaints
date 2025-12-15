@@ -1,5 +1,5 @@
 // /api/admin/audit-actions.js – Maßnahmenplan & Wirksamkeitsprüfung
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import {
   handlePreflight,

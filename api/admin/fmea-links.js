@@ -1,5 +1,5 @@
 // /api/admin/fmea-links.js – Übersicht aller FMEA-Verknüpfungen
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';

@@ -1,5 +1,5 @@
 // api/admin/complaints.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import {
   setCors,

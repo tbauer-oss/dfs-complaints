@@ -1,5 +1,5 @@
 // api/auth/login.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';

@@ -1,5 +1,5 @@
 // api/admin/prrc.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';

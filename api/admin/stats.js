@@ -1,5 +1,5 @@
 // api/admin/stats.js – Kennzahlen für Admin-Dashboard
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import {
   setCors,

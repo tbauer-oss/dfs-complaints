@@ -1,5 +1,5 @@
 // /api/admin/ui-config.js – Zentrales Admin-Dashboard (Kacheln/Layout)
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { loadPortalAdminUi, savePortalAdminUi } from '../_lib/store.js';
