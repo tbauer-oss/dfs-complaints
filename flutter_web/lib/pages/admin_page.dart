@@ -33,6 +33,7 @@ import 'product_catalog_page.dart';
 import 'admin_wiki_categories_page.dart';
 import 'admin_wiki_articles_page.dart';
 import 'rep_wiki_list_page.dart';
+import 'admin_audits_page.dart';
 import 'admin_downloads_page.dart';
 import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
@@ -76,6 +77,7 @@ enum _AdminView {
   capaDashboard,
   fmea,
   prrc,
+  audits,
   pending,
   portalUsers,
   users,
@@ -174,6 +176,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiCategories',
     'wikiArticles',
     'portalUsers',
+    'audits',
   ],
   'user': [
     'open',
@@ -201,6 +204,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'createCustomer',
     'wikiCategories',
     'wikiArticles',
+    'audits',
   ],
   'readonly': [
     'open',
@@ -213,6 +217,30 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'testMode',
     'activity',
     'systemHealth',
+  ],
+  'qm': [
+    'open',
+    'all',
+    'complaintList',
+    'capaReports',
+    'capaDashboard',
+    'fmea',
+    'prrc',
+    'stats',
+    'audits',
+  ],
+  'prrc': [
+    'open',
+    'all',
+    'complaintList',
+    'capaReports',
+    'prrc',
+    'stats',
+    'audits',
+  ],
+  'auditor': [
+    'audits',
+    'stats',
   ],
 };
 
@@ -4619,6 +4647,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.capaDashboard  => 'CAPA-Dashboard',
       _AdminView.fmea           => 'FMEA',
       _AdminView.prrc           => 'PRRC-Einstufungen',
+      _AdminView.audits         => 'Audits',
       _AdminView.pending        => 'Pending (Freigabe ausstehend)',
       _AdminView.portalUsers    => 'User-Datenbank',
       _AdminView.users          => 'Kundendatenbank',
@@ -5343,6 +5372,8 @@ class _AdminPageState extends State<AdminPage> {
         return 'fmea';
       case _AdminView.prrc:
         return 'prrc';
+      case _AdminView.audits:
+        return 'audits';
       case _AdminView.open:
         return 'open';
       case _AdminView.all:
@@ -5412,6 +5443,7 @@ class _AdminPageState extends State<AdminPage> {
       _AdminView.downloads,
       _AdminView.faq,
       _AdminView.wiki,
+      _AdminView.audits,
       _AdminView.products,
       _AdminView.catalogs,
       _AdminView.systemHealth,
@@ -5485,6 +5517,11 @@ class _AdminPageState extends State<AdminPage> {
             label: 'PRRC-Einstufungen',
             icon: Icons.health_and_safety_outlined,
             view: _AdminView.prrc,
+          ),
+          _AdminNavItem(
+            label: 'Audits',
+            icon: Icons.assignment_turned_in_outlined,
+            view: _AdminView.audits,
           ),
         ],
       ),
@@ -5677,6 +5714,8 @@ class _AdminPageState extends State<AdminPage> {
           return _AdminView.capaDashboard;
         case 'prrc':
           return _AdminView.prrc;
+        case 'audits':
+          return _AdminView.audits;
         case 'pending':
           return _AdminView.pending;
         case 'portalUsers':
@@ -8359,6 +8398,8 @@ class _AdminPageState extends State<AdminPage> {
           api: widget.api,
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
+      case _AdminView.audits:
+        return AdminAuditsPage(api: widget.api);
       case _AdminView.prrc:
         return _buildPrrcPanel();
       case _AdminView.pending:
