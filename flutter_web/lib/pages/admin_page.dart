@@ -211,6 +211,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'all',
     'complaintList',
     'fmea',
+    'audits',
     'stats',
     'pending',
     'appMeta',
@@ -5422,6 +5423,7 @@ class _AdminPageState extends State<AdminPage> {
         _AdminView.all,
         _AdminView.complaintList,
         _AdminView.fmea,
+        _AdminView.audits,
         _AdminView.pending,
         _AdminView.activity,
         _AdminView.systemHealth,
@@ -5767,7 +5769,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Qualitätsmanagement',
         subtitle: 'FMEA, CAPA / 8D-Reports verwalten',
-        tileIds: ['capaDashboard', 'capaReports', 'fmea'],
+        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'audits'],
       ),
       const _AdminMenuSectionState(
         title: 'Kunden',
@@ -5816,6 +5818,7 @@ class _AdminPageState extends State<AdminPage> {
     _ensureMenuTilePresent('capaReports');
     _ensureMenuTilePresent('capaDashboard');
     _ensureMenuTilePresent('fmea');
+    _ensureMenuTilePresent('audits');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
   }
@@ -5837,6 +5840,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('audits');
       }
 
       final remoteLayout = config['menuLayout'];
@@ -5851,6 +5855,7 @@ class _AdminPageState extends State<AdminPage> {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('audits');
       }
 
       final navOrder = config['navOrder'];
@@ -6097,10 +6102,16 @@ class _AdminPageState extends State<AdminPage> {
         return 'Reklamationsliste';
       case 'capaReports':
         return 'CAPA / 8D-Reports';
+      case 'capaDashboard':
+        return 'CAPA-Dashboard';
+      case 'fmea':
+        return 'FMEA';
       case 'prrc':
         return 'PRRC-Bewertung';
       case 'stats':
         return 'Statistik & KPIs';
+      case 'audits':
+        return 'Interne Audits';
       case 'pending':
         return 'Anträge prüfen';
       case 'users':
@@ -7619,6 +7630,19 @@ class _AdminPageState extends State<AdminPage> {
           compact: compact,
           count: _products.length,
           onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.products),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'audits':
+        return AdminTilePro(
+          label: 'Interne Audits',
+          subtitle: 'Planen, Maßnahmen, Nachverfolgung',
+          icon: Icons.assignment_turned_in_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.audits),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
