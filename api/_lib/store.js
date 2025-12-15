@@ -3576,7 +3576,8 @@ async function ensureAuditStoresReady() {
   ensureAuditStores();
   if (!auditStoresHydrated) await hydrateAuditStores();
   if (!auditSeedsApplied && AUDIT_SEEDS_ENABLED && mem.audits.size === 0 && mem.auditors.size === 0) {
-    ensureAuditSeeds();
+    // Seeds are strictly opt-in; avoid implicitly creating audits in production.
+    // To activate, set AUDIT_ENABLE_SEEDS=true explicitly in the environment.
     auditSeedsApplied = true;
   }
 }
