@@ -130,22 +130,37 @@ class Auditor {
       trainingType: qualifications?['trainingType']?.toString() ?? 'internal',
       restrictedProcessOwners: parseList(independence?['restrictedProcessOwners'] ?? json['restrictedProcessOwners']),
       restrictedOrgUnits: parseList(independence?['restrictedOrgUnits'] ?? json['restrictedOrgUnits']),
-      internalAuditorTrainingDate: parseDate(qualifications?['internalAuditorTrainingDate'] ?? json['internalAuditorTrainingDate']),
-      experienceYears: qualifications?['experienceYears'] is int
-          ? qualifications?['experienceYears'] as int
-          : int.tryParse(qualifications?['experienceYears']?.toString() ?? json['experienceYears']?.toString() ?? ''),
+        internalAuditorTrainingDate:
+            parseDate(qualifications?['internalAuditorTrainingDate'] ?? json['internalAuditorTrainingDate']),
+        experienceYears: qualifications?['experienceYears'] is int
+            ? qualifications?['experienceYears'] as int
+            : int.tryParse(
+                qualifications?['experienceYears']?.toString() ??
+                    json['experienceYears']?.toString() ??
+                    '',
+              ),
       standardsKnowledge: parseList(qualifications?['standardsKnowledge']),
       requalificationDueDate: parseDate(qualifications?['requalificationDueDate'] ?? json['requalificationDueDate']),
       evidenceAttachments: ((qualifications?['evidence'] as List?) ?? const [])
           .whereType<Map>()
           .map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>()))
           .toList(),
-      coAuditCount: qualifications?['coAuditCount'] is int
-          ? qualifications?['coAuditCount'] as int
-          : int.tryParse(qualifications?['coAuditCount']?.toString() ?? json['coAuditCount']?.toString() ?? '') ?? 0,
-      leadAuditCount: qualifications?['leadAuditCount'] is int
-          ? qualifications?['leadAuditCount'] as int
-          : int.tryParse(qualifications?['leadAuditCount']?.toString() ?? json['leadAuditCount']?.toString() ?? '') ?? 0,
+        coAuditCount: qualifications?['coAuditCount'] is int
+            ? qualifications?['coAuditCount'] as int
+            : int.tryParse(
+                  qualifications?['coAuditCount']?.toString() ??
+                      json['coAuditCount']?.toString() ??
+                      '',
+                ) ??
+                0,
+        leadAuditCount: qualifications?['leadAuditCount'] is int
+            ? qualifications?['leadAuditCount'] as int
+            : int.tryParse(
+                  qualifications?['leadAuditCount']?.toString() ??
+                      json['leadAuditCount']?.toString() ??
+                      '',
+                ) ??
+                0,
       trainingDate: parseDate(qualifications?['trainingDate'] ?? json['trainingDate']),
     );
   }
