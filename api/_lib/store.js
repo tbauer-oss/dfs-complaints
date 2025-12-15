@@ -1751,6 +1751,14 @@ function sanitizeNavOrder(raw) {
 }
 
 function sanitizePortalAdminUi(raw) {
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw.trim());
+    } catch (_) {
+      raw = {};
+    }
+  }
+
   const normalized = typeof raw === 'object' && raw ? raw : {};
   const result = {};
 
@@ -1768,10 +1776,17 @@ function sanitizePortalAdminUi(raw) {
 
 export async function loadPortalAdminUi() {
   const r = getRedis();
-  if (!r) throw new Error('portal admin UI config requires Redis/KV');
+  let stored = null;
 
-  const stored = await rget(KEY_PORTAL_ADMIN_UI);
-  return sanitizePortalAdminUi(stored || {});
+  if (r) {
+    stored = await rget(KEY_PORTAL_ADMIN_UI);
+  }
+
+  if (!stored && mem.adminUiConfig) return mem.adminUiConfig;
+
+  const sanitized = sanitizePortalAdminUi(stored || {});
+  mem.adminUiConfig = sanitized;
+  return sanitized;
 }
 
 export async function savePortalAdminUi(config) {
@@ -1796,6 +1811,7 @@ export async function savePortalAdminUi(config) {
 
   const persisted = await rset(KEY_PORTAL_ADMIN_UI, next);
   if (!persisted) throw new Error('failed to persist portal admin UI config');
+  mem.adminUiConfig = next;
   return next;
 }
 
