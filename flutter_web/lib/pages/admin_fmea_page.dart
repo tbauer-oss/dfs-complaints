@@ -1691,54 +1691,76 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
         );
       }
 
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Risiko ${selectedRisk.riskNumber}', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 900;
+
+                  final heading = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Risiko ${selectedRisk.riskNumber}', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _riskBadge(selectedRisk.riskLevelAfter ?? selectedRisk.riskLevel, theme),
+                          Chip(label: Text(selectedRisk.category.isEmpty ? 'Ohne Kategorie' : selectedRisk.category)),
+                          Chip(label: Text('S×A vor: ${selectedRisk.severity ?? '-'}×${selectedRisk.occurrence ?? '-'}')),
+                          Chip(label: Text('S×A nach: ${selectedRisk.severityAfter ?? '-'}×${selectedRisk.occurrenceAfter ?? '-'}')),
+                        ],
+                      ),
+                    ],
+                  );
+
+                  final actions = Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _readOnly ? null : () => _updateRisk(selectedRisk),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Bearbeiten'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: null,
+                        icon: const Icon(Icons.copy_outlined),
+                        label: const Text('Duplizieren'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _readOnly ? null : () => _deleteRisk(selectedRisk),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Löschen'),
+                      ),
+                    ],
+                  );
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _riskBadge(selectedRisk.riskLevelAfter ?? selectedRisk.riskLevel, theme),
-                        Chip(label: Text(selectedRisk.category.isEmpty ? 'Ohne Kategorie' : selectedRisk.category)),
-                        Chip(label: Text('S×A vor: ${selectedRisk.severity ?? '-'}×${selectedRisk.occurrence ?? '-'}')),
-                        Chip(label: Text('S×A nach: ${selectedRisk.severityAfter ?? '-'}×${selectedRisk.occurrenceAfter ?? '-'}')),
+                        heading,
+                        const SizedBox(height: 12),
+                        Align(alignment: Alignment.centerLeft, child: actions),
                       ],
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _readOnly ? null : () => _updateRisk(selectedRisk),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Bearbeiten'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.copy_outlined),
-                      label: const Text('Duplizieren'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _readOnly ? null : () => _deleteRisk(selectedRisk),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Löschen'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: heading),
+                      const SizedBox(width: 12),
+                      actions,
+                    ],
+                  );
+                },
+              ),
             const SizedBox(height: 12),
             detailSection('Beschreibung', [
               _RiskDetailRow(label: 'Gefährdung', value: selectedRisk.hazard),
