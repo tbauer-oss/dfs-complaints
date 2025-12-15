@@ -3746,6 +3746,11 @@ function formatAuditNumber(yearString, counter) {
   return `IA-${yearString}-${String(counter).padStart(2, '0')}`;
 }
 
+function isAuditNumberValid(value) {
+  if (!value || typeof value !== 'string') return false;
+  return /^IA-\d{2}-\d{2}$/.test(value.trim());
+}
+
 async function nextAuditNumber(year) {
   const y = String(year || new Date().getFullYear()).slice(-2);
   let counter = null;
@@ -4216,19 +4221,21 @@ async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
 }
 
 export async function auditSave(record = {}) {
-  const needsAuditNumber = !record.auditNumber && !record.auditNo;
-  let auditNumber = record.auditNumber || record.auditNo;
-  if (needsAuditNumber) {
-    const year = record?.plannedStart ? new Date(record.plannedStart).getFullYear() : new Date().getFullYear();
-    auditNumber = await nextAuditNumber(year);
-  }
-  return await saveAuditInternal({ ...record, auditNumber, auditNo: record.auditNo || auditNumber });
+  const plannedYear = record?.plannedStart ? new Date(record.plannedStart).getFullYear() : new Date().getFullYear();
+  const providedNumbers = [record.auditNumber, record.auditNo].filter(isAuditNumberValid);
+  const existingAuditNumber = providedNumbers[0] || null;
+
+  const auditNumber = existingAuditNumber || (await nextAuditNumber(plannedYear));
+  const auditNo = isAuditNumberValid(record.auditNo) ? record.auditNo.trim() : auditNumber;
+
+  return await saveAuditInternal({ ...record, auditNumber, auditNo });
 }
 
 export async function auditUpdate(id, patch = {}) {
   const current = await auditGet(id);
   if (!current) return null;
-  return await saveAuditInternal({ ...current, ...patch, id });
+  const { auditNumber: _auditNumber, auditNo: _auditNo, ...rest } = patch || {};
+  return await saveAuditInternal({ ...current, ...rest, id, auditNumber: current.auditNumber, auditNo: current.auditNo });
 }
 
 export async function auditPlanSave(id, planEntries = [], { updatedBy } = {}) {
