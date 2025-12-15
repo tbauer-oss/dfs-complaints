@@ -145,7 +145,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
       productLookup: _productLookup,
       articleNumber: article.text,
       clues: [desc.text, injuryDesc.text],
-      canEdit: widget.hasAccount,
+      canEdit: _account != null,
     );
   }
 
