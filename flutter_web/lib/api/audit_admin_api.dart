@@ -178,11 +178,13 @@ class AuditAdminApi {
   Future<List<PortalUserSummary>> listDfsEmployees() async {
     final users = await _client.fetchPortalUsers();
     return users
-        .where((u) =>
-            u.portalStatus.toLowerCase() == 'active' &&
-            (u.role.toLowerCase().contains('dfs') ||
-                u.role.toLowerCase().contains('qm') ||
-                u.role.toLowerCase().contains('admin')))
+        .where((u) {
+          final status = u.portalStatus.toLowerCase();
+          if (status != 'active') return false;
+          final role = u.role.toLowerCase();
+          if (role.contains('customer')) return false;
+          return true;
+        })
         .toList(growable: false);
   }
 
