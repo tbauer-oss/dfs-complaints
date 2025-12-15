@@ -810,7 +810,7 @@ class _MyAppState extends State<MyApp> {
                     api: api,
                     portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
-                    initialView: _AdminView.audits,
+                    initialView: AdminView.audits,
                     auditInitialTab: tab,
                     initialAuditReportYear: reportYear,
                   ),
