@@ -528,8 +528,10 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
         final observedOrgUnits = {
           ..._orgUnits,
           ..._auditors.map((a) => a.orgUnit ?? '').where((e) => e.isNotEmpty),
+          ..._dfsUsers.expand((u) => u.assignedDepartments).where((e) => e.isNotEmpty),
         }..removeWhere((e) => e.isEmpty);
-        _orgUnits = observedOrgUnits.toList(growable: false);
+        final sortedOrgUnits = observedOrgUnits.toList(growable: true)..sort();
+        _orgUnits = sortedOrgUnits;
         _loading = false;
       });
     } catch (e) {
@@ -626,6 +628,13 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
       orElse: () => const PortalUserSummary(email: '', displayName: '', role: '', portalStatus: ''),
     );
     if (selectedUser.email.isEmpty) selectedUser = null;
+    if ((selectedOrgUnit == null || selectedOrgUnit.isEmpty) &&
+        (selectedUser?.assignedDepartments.isNotEmpty ?? false)) {
+      selectedOrgUnit = selectedUser!.assignedDepartments.first;
+    }
+    if (selectedOrgUnit != null && selectedOrgUnit.isNotEmpty && !_orgUnits.contains(selectedOrgUnit)) {
+      setState(() => _orgUnits = {..._orgUnits, selectedOrgUnit!}.toList(growable: true)..sort());
+    }
     userCtrl.text = selectedUser?.displayName ?? auditor.name;
 
     final updated = await showDialog<Auditor>(
@@ -721,10 +730,18 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
                     );
                   },
                   onSelected: (opt) {
+                    final observedOrgUnits = {
+                      ..._orgUnits,
+                      ...opt.assignedDepartments,
+                    }..removeWhere((e) => e.isEmpty);
+                    setState(() => _orgUnits = observedOrgUnits.toList(growable: true)..sort());
                     setModalState(() {
                       selectedUser = opt;
                       nameCtrl.text = opt.displayName;
                       userCtrl.text = opt.displayName;
+                      if (opt.assignedDepartments.isNotEmpty) {
+                        selectedOrgUnit = opt.assignedDepartments.first;
+                      }
                     });
                   },
                   optionsViewBuilder: (context, onSelected, options) => Align(
@@ -738,7 +755,14 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
                           children: options
                               .map((o) => ListTile(
                                     title: Text(o.displayName),
-                                    subtitle: Text(o.email),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(o.email),
+                                        if (o.assignedDepartments.isNotEmpty)
+                                          Text(o.assignedDepartments.join(', ')),
+                                      ],
+                                    ),
                                     onTap: () => onSelected(o),
                                   ))
                               .toList(),
