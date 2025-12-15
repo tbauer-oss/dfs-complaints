@@ -14,7 +14,9 @@ import '../widgets/dialog_content_scroll.dart';
 
 class AdminAuditsPage extends StatefulWidget {
   final ApiClient api;
-  const AdminAuditsPage({super.key, required this.api});
+  final int initialTab;
+  final int? initialReportYear;
+  const AdminAuditsPage({super.key, required this.api, this.initialTab = 0, this.initialReportYear});
 
   @override
   State<AdminAuditsPage> createState() => _AdminAuditsPageState();
@@ -28,7 +30,8 @@ class _AdminAuditsPageState extends State<AdminAuditsPage> with SingleTickerProv
   void initState() {
     super.initState();
     _auditApi = AuditAdminApi(widget.api);
-    _tabs = TabController(length: 4, vsync: this);
+    final initial = widget.initialTab.clamp(0, 3).toInt();
+    _tabs = TabController(length: 4, vsync: this, initialIndex: initial);
   }
 
   @override
@@ -59,7 +62,7 @@ class _AdminAuditsPageState extends State<AdminAuditsPage> with SingleTickerProv
           _AuditOverviewTab(api: _auditApi),
           _AuditProgramTab(api: _auditApi),
           _AuditorMatrixTab(api: _auditApi),
-          _AnnualReportTab(api: _auditApi),
+          _AnnualReportTab(api: _auditApi, initialYear: widget.initialReportYear),
         ],
       ),
       backgroundColor: theme.colorScheme.surface,
@@ -391,21 +394,20 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
   }
 
   void _openProgram() {
-    final parent = DefaultTabController.maybeOf(context);
-    parent?.animateTo(1);
+    Navigator.of(context, rootNavigator: true).pushNamed('/admin/audits/program');
   }
 
   void _openReports() {
-    final parent = DefaultTabController.maybeOf(context);
-    parent?.animateTo(3);
+    Navigator.of(context, rootNavigator: true).pushNamed('/admin/audits/reports/${_year.toString()}');
   }
 
-  void _openDetail(Audit audit) {
-    Navigator.of(context).push(
+  Future<void> _openDetail(Audit audit) async {
+    final changed = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _AuditDetailPage(api: widget.api, audit: audit),
       ),
     );
+    if (changed == true) _load();
   }
 }
 
@@ -979,7 +981,8 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
 
 class _AnnualReportTab extends StatefulWidget {
   final AuditAdminApi api;
-  const _AnnualReportTab({required this.api});
+  final int? initialYear;
+  const _AnnualReportTab({required this.api, this.initialYear});
 
   @override
   State<_AnnualReportTab> createState() => _AnnualReportTabState();
@@ -989,11 +992,12 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
   bool _loading = false;
   String? _error;
   List<AuditAnnualReport> _reports = const [];
-  int _year = DateTime.now().year;
+  late int _year;
 
   @override
   void initState() {
     super.initState();
+    _year = widget.initialYear ?? DateTime.now().year;
     _load();
   }
 
@@ -1106,6 +1110,30 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   bool _busy = false;
   String? _error;
 
+  List<Auditor> get _eligibleAuditors {
+    final orgUnit = _orgUnit.text.trim().toLowerCase();
+    final scopeOrgUnits = {
+      ...?widget.existing?.auditeesOrgUnits,
+      if (orgUnit.isNotEmpty) _orgUnit.text.trim(),
+    }.where((e) => e.trim().isNotEmpty).map((e) => e.toLowerCase()).toSet();
+    final processOwners = widget.existing?.processOwners.map((e) => e.toLowerCase()) ?? const Iterable<String>.empty();
+    return widget.auditors.where((a) {
+      if (a.status.toLowerCase() != 'active') return false;
+      if (!a.isQualified) return false;
+      final auditorOrg = (a.orgUnit ?? '').toLowerCase();
+      if (orgUnit.isNotEmpty && auditorOrg == orgUnit) return false;
+      final restrictedOrgUnits = a.restrictedOrgUnits.map((e) => e.toLowerCase()).toList();
+      if (scopeOrgUnits.any(restrictedOrgUnits.contains)) return false;
+      final restrictedOwners = a.restrictedProcessOwners.map((e) => e.toLowerCase()).toList();
+      if (processOwners.any(restrictedOwners.contains)) return false;
+      return true;
+    }).toList();
+  }
+
+  bool _isLeadAllowed(String? id) => id == null || _eligibleAuditors.any((a) => a.id == id);
+
+  String _errorText(Object e) => e is ApiError ? e.message : e.toString();
+
   @override
   void initState() {
     super.initState();
@@ -1140,7 +1168,11 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
             const SizedBox(height: 12),
             TextField(controller: _scope, maxLines: 3, decoration: const InputDecoration(labelText: 'Scope / Umfang')),
             const SizedBox(height: 12),
-            TextField(controller: _orgUnit, decoration: const InputDecoration(labelText: 'OrgUnit / Bereich')),
+            TextField(
+              controller: _orgUnit,
+              decoration: const InputDecoration(labelText: 'OrgUnit / Bereich'),
+              onChanged: (_) => setState(() {}),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -1204,24 +1236,66 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              value: _lead,
-              decoration: const InputDecoration(labelText: 'Lead Auditor'),
-              onChanged: (v) {
-                final selected = widget.auditors.firstWhere((a) => a.id == v, orElse: () => const Auditor(id: '', name: '', email: '', status: 'inactive'));
-                if (_orgUnit.text.isNotEmpty && selected.orgUnit == _orgUnit.text) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unabhängigkeit verletzt: OrgUnit identisch.')));
-                  return;
-                }
-                setState(() => _lead = v);
-              },
-              items: [
-                const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
-                ...widget.auditors
-                    .where((a) => a.isQualified)
-                    .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.orgUnit ?? '-'})')))
-              ],
-            ),
+            Builder(builder: (context) {
+              var options = _eligibleAuditors;
+              final selected = widget.auditors.firstWhere(
+                (a) => a.id == _lead,
+                orElse: () => const Auditor(id: '', name: '', email: '', status: 'inactive'),
+              );
+              if (_lead != null && options.every((a) => a.id != selected.id)) {
+                options = [...options, selected];
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String?>(
+                    value: _lead,
+                    decoration: const InputDecoration(labelText: 'Lead Auditor'),
+                    onChanged: (v) {
+                      if (!_isLeadAllowed(v)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Unabhängigkeit verletzt oder Auditor nicht qualifiziert.')),
+                        );
+                        return;
+                      }
+                      setState(() => _lead = v);
+                    },
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
+                      ...options
+                          .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.orgUnit ?? '-'})')))
+                          .toList(),
+                    ],
+                  ),
+                  if (_eligibleAuditors.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              children: [
+                                const Text('Keine unabhängigen Auditoren verfügbar.'),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    Navigator.of(context, rootNavigator: true).pushNamed('/admin/audits/matrix');
+                                  },
+                                  child: const Text('Auditorenmatrix öffnen'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            }),
           ],
         ),
       ),
@@ -1236,6 +1310,10 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   }
 
   Future<void> _save() async {
+    if (!_isLeadAllowed(_lead)) {
+      setState(() => _error = 'Unabhängiger, qualifizierter Lead Auditor erforderlich.');
+      return;
+    }
     setState(() => _busy = true);
     try {
       final existing = widget.existing;
@@ -1277,7 +1355,8 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
       }
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _errorText(e));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_error!)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1311,6 +1390,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   final List<_AuditPlanEntry> _planEntries = [];
   _AuditReportDraft _reportDraft = _AuditReportDraft.empty();
   bool _loading = true;
+  bool _planSaving = false;
   String? _error;
 
   @override
@@ -1343,6 +1423,19 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         _auditors = auditors;
         _findings = findings;
         _actions = actions;
+        _planEntries
+          ..clear()
+          ..addAll((audit.planEntries.isNotEmpty ? audit.planEntries : const [])
+              .map((p) => _AuditPlanEntry(
+                    from: p.from,
+                    to: p.to,
+                    agenda: p.agenda,
+                    process: p.process,
+                    participants: p.participants,
+                    auditor: p.auditor,
+                    notes: p.notes,
+                  ))
+              .toList());
         if (_planEntries.isEmpty) {
           _planEntries.add(_AuditPlanEntry(
             from: '09:00',
@@ -1372,6 +1465,13 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
+        actions: [
+          IconButton(
+            tooltip: 'Audit löschen',
+            onPressed: _audit == null ? null : _confirmDelete,
+            icon: const Icon(Icons.delete_outline),
+          )
+        ],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
@@ -1426,7 +1526,84 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     );
   }
 
-  bool get _isClosed => (_audit?.status ?? '').toLowerCase() == 'closed';
+  bool get _isClosed {
+    final status = (_audit?.status ?? '').toLowerCase();
+    return status == 'closed' || status == 'archived';
+  }
+
+  _AuditPlanEntry _mapPlan(AuditPlanEntry p) => _AuditPlanEntry(
+        from: p.from,
+        to: p.to,
+        agenda: p.agenda,
+        process: p.process,
+        participants: p.participants,
+        auditor: p.auditor,
+        notes: p.notes,
+      );
+
+  AuditPlanEntry _mapPlanBack(_AuditPlanEntry p) => AuditPlanEntry(
+        from: p.from,
+        to: p.to,
+        agenda: p.agenda,
+        process: p.process,
+        participants: p.participants,
+        auditor: p.auditor,
+        notes: p.notes,
+      );
+
+  Audit _auditWith({String? status, List<AuditPlanEntry>? plan}) {
+    final current = _audit!;
+    return Audit(
+      id: current.id,
+      auditNumber: current.auditNumber,
+      year: current.year,
+      cluster: current.cluster,
+      auditType: current.auditType,
+      title: current.title,
+      site: current.site,
+      plannedStart: current.plannedStart,
+      plannedEnd: current.plannedEnd,
+      actualStart: current.actualStart,
+      actualEnd: current.actualEnd,
+      status: status ?? current.status,
+      scopeText: current.scopeText,
+      objectives: current.objectives,
+      criteria: current.criteria,
+      references: current.references,
+      auditeesOrgUnits: current.auditeesOrgUnits,
+      processOwners: current.processOwners,
+      participants: current.participants,
+      leadAuditorId: current.leadAuditorId,
+      coAuditorIds: current.coAuditorIds,
+      linkedDocs: current.linkedDocs,
+      findings: current.findings,
+      actions: current.actions,
+      openFindings: current.openFindings,
+      overdueActions: current.overdueActions,
+      planEntries: plan ?? _planEntries.map(_mapPlanBack).toList(),
+    );
+  }
+
+  Future<void> _savePlan() async {
+    if (_audit == null || _planSaving) return;
+    setState(() => _planSaving = true);
+    try {
+      final saved = await widget.api.updateAudit(_auditWith(plan: _planEntries.map(_mapPlanBack).toList()));
+      if (!mounted) return;
+      setState(() {
+        _audit = saved;
+        _planEntries
+          ..clear()
+          ..addAll(saved.planEntries.map(_mapPlan));
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Auditplan gespeichert.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _planSaving = false);
+    }
+  }
 
   Widget _buildSchedule() {
     return ListView(
@@ -1442,6 +1619,14 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
                 icon: const Icon(Icons.add),
                 label: const Text('Zeile hinzufügen'),
               ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: _isClosed || _planEntries.isEmpty || _planSaving ? null : _savePlan,
+              icon: _planSaving
+                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save_outlined),
+              label: const Text('Plan speichern'),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -1462,8 +1647,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
               rows: _planEntries
                   .map(
                     (e) => DataRow(cells: [
-                          DataCell(_EditableCell(initialValue: e.from, enabled: !_isClosed, onSaved: (v) => e.from = v)),
-                          DataCell(_EditableCell(initialValue: e.to, enabled: !_isClosed, onSaved: (v) => e.to = v)),
+                          DataCell(_TimeCell(initialValue: e.from, enabled: !_isClosed, onChanged: (v) => setState(() => e.from = v))),
+                          DataCell(_TimeCell(initialValue: e.to, enabled: !_isClosed, onChanged: (v) => setState(() => e.to = v))),
                           DataCell(_EditableCell(initialValue: e.agenda, enabled: !_isClosed, onSaved: (v) => e.agenda = v)),
                           DataCell(_EditableCell(initialValue: e.process, enabled: !_isClosed, onSaved: (v) => e.process = v)),
                           DataCell(_EditableCell(initialValue: e.participants, enabled: !_isClosed, onSaved: (v) => e.participants = v)),
@@ -1490,6 +1675,60 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         ),
       ],
     );
+  }
+
+  Future<void> _archiveAudit() async {
+    if (_audit == null) return;
+    try {
+      final saved = await widget.api.updateAudit(_auditWith(status: 'archived'));
+      if (!mounted) return;
+      setState(() => _audit = saved);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Audit archiviert.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    if (_audit == null) return;
+    final hasBlocking = _findings.isNotEmpty || _actions.isNotEmpty;
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(hasBlocking ? 'Löschen nicht möglich' : 'Audit löschen?'),
+        content: Text(hasBlocking
+            ? 'Das Audit enthält bereits Findings oder Maßnahmen und kann nicht gelöscht werden.'
+            : 'Möchten Sie dieses Audit endgültig löschen?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+          if (hasBlocking)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+                _archiveAudit();
+              },
+              child: const Text('Archivieren'),
+            )
+          else
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Löschen'),
+            ),
+        ],
+      ),
+    );
+    if (shouldDelete == true) {
+      try {
+        await widget.api.deleteAudit(_audit!.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Audit gelöscht.')));
+        Navigator.of(context).pop(true);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
   }
 
   Widget _buildReport() {
@@ -1975,6 +2214,42 @@ class _KpiCard extends StatelessWidget {
           Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
+    );
+  }
+}
+
+class _TimeCell extends StatelessWidget {
+  final String initialValue;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  const _TimeCell({required this.initialValue, required this.enabled, required this.onChanged});
+
+  TimeOfDay _parse(String value) {
+    final parts = value.split(':');
+    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return TimeOfDay(hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
+  }
+
+  String _format(TimeOfDay time) =>
+      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final display = initialValue.isEmpty ? '--:--' : initialValue;
+    return TextButton(
+      onPressed: !enabled
+          ? null
+          : () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: initialValue.isEmpty ? TimeOfDay.now() : _parse(initialValue),
+              );
+              if (picked != null) onChanged(_format(picked));
+            },
+      style: TextButton.styleFrom(padding: EdgeInsets.zero),
+      child: Text(display),
     );
   }
 }

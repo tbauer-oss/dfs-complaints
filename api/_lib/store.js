@@ -3643,6 +3643,9 @@ function normalizeAuditProgram(record = {}) {
 function normalizeAudit(record = {}) {
   const now = nowIso();
   const programId = record.programId || null;
+  const planEntries = Array.isArray(record.planEntries || record.plan)
+      ? (record.planEntries || record.plan).map(normalizeAuditPlanEntry)
+      : [];
   const normalized = {
     id: record.id || crypto.randomUUID(),
     programId,
@@ -3665,6 +3668,7 @@ function normalizeAudit(record = {}) {
     participants: normalizeAuditStringArray(record.participants),
     leadAuditorId: record.leadAuditorId || null,
     coAuditorIds: normalizeAuditStringArray(record.coAuditorIds),
+    planEntries,
     status: record.status || 'planned',
     riskPriority: record.riskPriority || null,
     linkedDocs: Array.isArray(record.linkedDocs) ? record.linkedDocs : [],
@@ -3675,6 +3679,18 @@ function normalizeAudit(record = {}) {
     updatedBy: record.updatedBy,
   };
   return normalized;
+}
+
+function normalizeAuditPlanEntry(entry = {}) {
+  return {
+    from: normalizeAuditString(entry.from),
+    to: normalizeAuditString(entry.to),
+    agenda: normalizeAuditString(entry.agenda),
+    process: normalizeAuditString(entry.process),
+    participants: normalizeAuditString(entry.participants),
+    auditor: normalizeAuditString(entry.auditor),
+    notes: normalizeAuditString(entry.notes),
+  };
 }
 
 function normalizeFinding(record = {}) {
