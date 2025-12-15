@@ -23,6 +23,7 @@ import '../utils/attachment_preview.dart';
 import '../utils/charge_input_formatter.dart';
 import '../utils/gs1_data_matrix_parser.dart';
 import '../widgets/attachment_editor_page.dart';
+import '../widgets/fmea_risk_check_dialog.dart';
 import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
 
@@ -135,6 +136,17 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   void _handleDescriptionChanged() {
     _markDirty();
     _updateAutoHelp();
+  }
+
+  Future<void> _openFmeaCheck() async {
+    await openFmeaRiskCheckDialog(
+      context: context,
+      api: widget.api,
+      productLookup: _productLookup,
+      articleNumber: article.text,
+      clues: [desc.text, injuryDesc.text],
+      canEdit: widget.hasAccount,
+    );
   }
 
   void _handleArticleChanged() {
@@ -2171,7 +2183,14 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           automaticallyImplyLeading: false,
           title: Text(t.reportComplaint),
           leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: _handleBack),
-          actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
+          actions: [
+            IconButton(
+              tooltip: 'Zur FMEA',
+              onPressed: _openFmeaCheck,
+              icon: const Icon(Icons.health_and_safety_outlined),
+            ),
+            TextButton(onPressed: _handleCancel, child: Text(t.cancel)),
+          ],
         ),
         body: body,
       ),

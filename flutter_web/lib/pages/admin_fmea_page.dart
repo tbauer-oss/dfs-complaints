@@ -17,7 +17,8 @@ import '../services/dfs_product_service.dart';
 class AdminFmeaPage extends StatefulWidget {
   final ApiClient api;
   final bool canEdit;
-  const AdminFmeaPage({super.key, required this.api, required this.canEdit});
+  final String? initialMdrTd;
+  const AdminFmeaPage({super.key, required this.api, required this.canEdit, this.initialMdrTd});
 
   @override
   State<AdminFmeaPage> createState() => _AdminFmeaPageState();
@@ -111,6 +112,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
           (f) => f.id == selected!.id,
           orElse: () => selected!,
         );
+      }
+      final initialMdr = widget.initialMdrTd?.toLowerCase().trim();
+      if (selected == null && (initialMdr?.isNotEmpty ?? false)) {
+        selected = list.firstWhereOrNull((f) => f.mdrTd.toLowerCase().trim() == initialMdr);
       }
       selected ??= list.isNotEmpty ? list.first : null;
       _setSelection(selected);
