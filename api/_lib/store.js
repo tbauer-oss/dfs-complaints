@@ -3534,6 +3534,13 @@ async function hydrateAuditStores() {
   const r = getRedis();
   if (!r) return;
 
+  const AUDITOR_PREFIX = `${P}audit:auditor:`;
+  const PROGRAM_PREFIX = `${P}audit:program:`;
+  const AUDIT_PREFIX = `${P}audit:`;
+  const FINDING_PREFIX = `${P}audit:finding:`;
+  const ACTION_PREFIX = `${P}audit:action:`;
+  const REPORT_PREFIX = `${P}audit:annualReport:`;
+
   const [auditorKeys, programKeys, auditKeys, findingKeys, actionKeys, reportKeys, counters] = await Promise.all([
     rkeys(`${P}audit:auditor:*`),
     rkeys(`${P}audit:program:*`),
@@ -3544,33 +3551,40 @@ async function hydrateAuditStores() {
     rget(KEY_AUDIT_COUNTERS),
   ]);
 
-  const load = async (keys, normalize, target) => {
+  const load = async (keys, normalize, target, deriveIdFromKey = null) => {
     for (const key of keys) {
       const raw = await rget(key);
-      if (!raw) continue;
-      const normalized = normalize(raw);
+      if (!raw || typeof raw !== 'object') continue;
+      const record = { ...raw };
+      if (!record.id && typeof deriveIdFromKey === 'function') {
+        record.id = deriveIdFromKey(key);
+      }
+      const normalized = normalize(record);
       target.set(normalized.id, normalized);
     }
   };
 
-  await load(auditorKeys, normalizeAuditor, mem.auditors);
-  await load(programKeys, normalizeAuditProgram, mem.auditPrograms);
+  const idFromSuffix = (prefix) => (key) => (key.startsWith(prefix) ? key.slice(prefix.length) : undefined);
+
+  await load(auditorKeys, normalizeAuditor, mem.auditors, idFromSuffix(AUDITOR_PREFIX));
+  await load(programKeys, normalizeAuditProgram, mem.auditPrograms, idFromSuffix(PROGRAM_PREFIX));
   await load(
     auditKeys.filter(
       k =>
-        !k.startsWith(`${P}audit:auditor:`) &&
-        !k.startsWith(`${P}audit:program:`) &&
-        !k.startsWith(`${P}audit:finding:`) &&
-        !k.startsWith(`${P}audit:action:`) &&
-        !k.startsWith(`${P}audit:annualReport:`) &&
+        !k.startsWith(AUDITOR_PREFIX) &&
+        !k.startsWith(PROGRAM_PREFIX) &&
+        !k.startsWith(FINDING_PREFIX) &&
+        !k.startsWith(ACTION_PREFIX) &&
+        !k.startsWith(REPORT_PREFIX) &&
         !k.startsWith(KEY_AUDIT_COUNTERS),
     ),
     normalizeAudit,
     mem.audits,
+    idFromSuffix(AUDIT_PREFIX),
   );
-  await load(findingKeys, normalizeFinding, mem.auditFindings);
-  await load(actionKeys, normalizeAction, mem.auditActions);
-  await load(reportKeys, normalizeAnnualReport, mem.auditAnnualReports);
+  await load(findingKeys, normalizeFinding, mem.auditFindings, idFromSuffix(FINDING_PREFIX));
+  await load(actionKeys, normalizeAction, mem.auditActions, idFromSuffix(ACTION_PREFIX));
+  await load(reportKeys, normalizeAnnualReport, mem.auditAnnualReports, idFromSuffix(REPORT_PREFIX));
 
   if (counters && typeof counters === 'object') {
     mem.auditCounters = counters;
