@@ -3528,9 +3528,10 @@ const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
 // every PATCH/PUT to write fresh keys like dfs:audit:auditor:<uuid>. The UI
 // sends full audit payloads, so each edit overwrote Redis with partially
 // normalized auditor data and produced phantom auditors. To keep audit updates
-// deterministic we still avoid persisting audits themselves, but we do persist
-// auditors so validation works across lambda instances.
-const AUDITOR_REDIS_ENABLED = true;
+// deterministic we still avoid persisting audits themselves. Auditor writes are
+// opt-in so we don't unintentionally create records in Upstash.
+const AUDITOR_REDIS_ENABLED =
+  String(process.env.AUDITOR_REDIS_ENABLED || '').toLowerCase() === 'true';
 const AUDIT_REDIS_ENABLED = false;
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
