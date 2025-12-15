@@ -233,3 +233,37 @@ test('persists auditors to redis when a redis client is available', async () => 
     'redis set should include auditor key',
   );
 });
+
+test('hydrates lead auditor from redis when memory is cold', async () => {
+  const backing = new Map();
+  const fakeRedis = {
+    async set(key, value) {
+      backing.set(key, value);
+      return 'ok';
+    },
+    async get(key) {
+      return backing.get(key) || null;
+    },
+    async keys() {
+      return [];
+    },
+  };
+
+  const moduleKey = `../_lib/store.js?cold=${Date.now()}`;
+  const storeWarm = await import(moduleKey);
+  storeWarm.__setRedisClientForTests(fakeRedis);
+  const persistedLead = await storeWarm.auditorSave(buildQualifiedAuditor('Redis Lead Auditor'), { persist: true });
+
+  const storeCold = await import(moduleKey + '-again');
+  storeCold.__setRedisClientForTests(fakeRedis);
+
+  const audit = await storeCold.auditSave({
+    title: 'Cold Start Audit',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    leadAuditorId: persistedLead.id,
+  });
+
+  assert.equal(audit.leadAuditorId, persistedLead.id);
+});

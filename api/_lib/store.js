@@ -3645,6 +3645,19 @@ async function hydrateAuditStores() {
   }
 }
 
+async function hydrateAuditorsById(ids = []) {
+  const rAuditor = getAuditorRedisForRead();
+  if (!rAuditor || !Array.isArray(ids) || ids.length === 0) return;
+
+  for (const id of ids.filter(Boolean)) {
+    if (mem.auditors.has(id)) continue;
+    const raw = await rget(KEY_AUDITOR(id), rAuditor);
+    if (!raw || typeof raw !== 'object') continue;
+    const normalized = normalizeAuditor({ ...raw, id: raw.id || id });
+    mem.auditors.set(normalized.id, normalized);
+  }
+}
+
 async function ensureAuditStoresReady() {
   ensureAuditStores();
   if (!auditStoresHydrated) await hydrateAuditStores();
@@ -4156,6 +4169,8 @@ export async function auditGet(id) {
 async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAudit(record);
+  const auditorIdsToHydrate = [normalized.leadAuditorId, ...(normalized.coAuditorIds || [])].filter(Boolean);
+  if (auditorIdsToHydrate.length) await hydrateAuditorsById(auditorIdsToHydrate);
   const validationErrors = skipValidation ? [] : validateAuditorAssignments(normalized);
   if (!skipValidation && validationErrors.length > 0) {
     throw validationError(
