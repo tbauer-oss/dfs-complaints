@@ -38,7 +38,8 @@ class AuditAdminApi {
 
   Future<Map<String, dynamic>> _decode(http.Response r) async {
     if (r.statusCode < 200 || r.statusCode >= 300) {
-      throw ApiError(r.statusCode, _extractErrorMessage(r.body));
+      final parsed = _parseErrorBody(r.body);
+      throw ApiError(r.statusCode, parsed['message'] as String, (parsed['details'] as List).cast<String>());
     }
     if (r.body.isEmpty) return {};
     return (jsonDecode(r.body) as Map).cast<String, dynamic>();
@@ -52,15 +53,38 @@ class AuditAdminApi {
     return '$y-$m-$d';
   }
 
-  String _extractErrorMessage(String body) {
+  Map<String, dynamic> _parseErrorBody(String body) {
+    List<String> _details(dynamic raw) {
+      if (raw is List) {
+        return raw
+            .where((element) => element != null)
+            .map((element) {
+              if (element is String) return element;
+              if (element is Map) {
+                final field = element['field']?.toString() ?? '';
+                final issue = element['issue']?.toString() ?? '';
+                final msg = element['message']?.toString() ?? '';
+                final combined = msg.isNotEmpty ? msg : (issue.isNotEmpty ? issue : element.toString());
+                return field.isNotEmpty ? '$field: $combined' : combined;
+              }
+              return element.toString();
+            })
+            .toList();
+      }
+      return const <String>[];
+    }
+
     try {
       final j = jsonDecode(body);
-      if (j is Map && j['error'] is String) return j['error'] as String;
-      if (j is Map && j['message'] is String) return j['message'] as String;
-      return body.isNotEmpty ? body : 'Unknown error';
-    } catch (_) {
-      return body.isNotEmpty ? body : 'Unknown error';
-    }
+      if (j is Map) {
+        final msg = (j['error']?.toString() ?? j['message']?.toString() ?? '').trim();
+        return {
+          'message': msg.isNotEmpty ? msg : (body.isNotEmpty ? body : 'Unknown error'),
+          'details': _details(j['details']),
+        };
+      }
+    } catch (_) {}
+    return {'message': body.isNotEmpty ? body : 'Unknown error', 'details': const <String>[]};
   }
 
   // Audits ------------------------------------------------------------
