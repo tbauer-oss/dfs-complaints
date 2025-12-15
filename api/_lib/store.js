@@ -33,7 +33,13 @@ const REDIS_TOKEN =
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
 
 let _redis = null;
+let _redisOverride = null;
+export function __setRedisClientForTests(client = null) {
+  _redisOverride = client;
+  _redis = client;
+}
 function getRedis() {
+  if (_redisOverride) return _redisOverride;
   if (_redis) return _redis;
   if (!REDIS_URL || !REDIS_TOKEN) return null;
   _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
@@ -3533,7 +3539,7 @@ const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
 // enabled by default so existing auditors remain visible for validation unless
 // explicitly disabled.
 const AUDITOR_REDIS_WRITE_ENABLED =
-  String(process.env.AUDITOR_REDIS_ENABLED || '').toLowerCase() === 'true';
+  String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'true').toLowerCase() !== 'false';
 const AUDITOR_REDIS_READ_ENABLED =
   String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
 const AUDIT_REDIS_ENABLED = false;
@@ -3653,10 +3659,22 @@ function normalizeAuditString(value) {
   return (value ?? '').toString().trim();
 }
 
+function normalizeAuditId(value) {
+  const id = normalizeAuditString(value);
+  return id || null;
+}
+
 function normalizeAuditStringArray(arr) {
   return Array.isArray(arr)
     ? Array.from(new Set(arr.map(v => normalizeAuditString(v)).filter(Boolean)))
     : [];
+}
+
+function validationError(message, details = []) {
+  const err = new Error(message);
+  err.code = 'VALIDATION_ERROR';
+  err.details = details;
+  return err;
 }
 
 function parseDate(value) {
@@ -3794,16 +3812,54 @@ function normalizeAuditProgram(record = {}) {
 }
 
 function normalizeAudit(record = {}) {
-  if (record.leadAuditor || record.leadAuditor?.id) {
-    const err = new Error('Audit update must reference leadAuditorId only');
-    err.code = 'VALIDATION_ERROR';
-    throw err;
+  const validationIssues = [];
+
+  const leadCandidates = [];
+  if ('leadAuditorId' in record) leadCandidates.push(record.leadAuditorId);
+  if ('leadAuditor' in record) {
+    const lead = record.leadAuditor;
+    if (lead && typeof lead === 'object') {
+      if (lead.id) leadCandidates.push(lead.id);
+      else
+        validationIssues.push({ field: 'leadAuditor.id', issue: 'required', message: 'leadAuditor.id erforderlich' });
+    } else if (lead) {
+      leadCandidates.push(lead);
+    }
   }
-  if (record.coAuditors || record.coAuditor) {
-    const err = new Error('Audit update must reference coAuditorIds only');
-    err.code = 'VALIDATION_ERROR';
-    throw err;
+  const normalizedLead = leadCandidates.map(normalizeAuditId).filter(Boolean);
+  const uniqueLead = Array.from(new Set(normalizedLead));
+  if (uniqueLead.length > 1) {
+    validationIssues.push({
+      field: 'leadAuditorId',
+      issue: 'conflict',
+      message: 'Lead Auditor widersprüchlich (leadAuditor vs leadAuditorId)',
+      values: uniqueLead,
+    });
   }
+  const leadAuditorId = uniqueLead[0] || null;
+
+  const coAuditorIdsRaw = [];
+  if (Array.isArray(record.coAuditorIds)) coAuditorIdsRaw.push(...record.coAuditorIds);
+  if (Array.isArray(record.coAuditors)) {
+    for (const co of record.coAuditors) {
+      if (co && typeof co === 'object') {
+        if (co.id) coAuditorIdsRaw.push(co.id);
+        else validationIssues.push({ field: 'coAuditors[].id', issue: 'required', message: 'Co-Auditor ohne ID' });
+      } else if (co) {
+        coAuditorIdsRaw.push(co);
+      }
+    }
+  }
+  if (record.coAuditor) coAuditorIdsRaw.push(record.coAuditor);
+  const coAuditorIds = normalizeAuditStringArray(coAuditorIdsRaw);
+
+  if (validationIssues.length) {
+    throw validationError(
+      validationIssues.map(d => d.message || `${d.field || 'validation'} invalid`).join('; '),
+      validationIssues,
+    );
+  }
+
   const now = nowIso();
   const programId = record.programId || null;
   const planEntries = Array.isArray(record.planEntries || record.plan)
@@ -3830,8 +3886,8 @@ function normalizeAudit(record = {}) {
     auditeesOrgUnits: normalizeAuditStringArray(record.auditeesOrgUnits),
     processOwners: normalizeAuditStringArray(record.processOwners),
     participants: normalizeAuditStringArray(record.participants),
-    leadAuditorId: record.leadAuditorId || null,
-    coAuditorIds: normalizeAuditStringArray(record.coAuditorIds),
+    leadAuditorId,
+    coAuditorIds,
     planEntries,
     status: record.status || 'planned',
     riskPriority: record.riskPriority || null,
@@ -3923,30 +3979,41 @@ function normalizeAnnualReport(record = {}) {
 }
 
 function validateAuditorAssignments(audit) {
-  const errors = [];
-  if (!audit.leadAuditorId) errors.push('Lead Auditor erforderlich');
+  const details = [];
+  if (!audit.leadAuditorId) {
+    details.push({ field: 'leadAuditorId', issue: 'required', message: 'Lead Auditor erforderlich' });
+  }
   const lead = audit.leadAuditorId ? mem.auditors.get(audit.leadAuditorId) : null;
-  if (audit.leadAuditorId && !lead) errors.push('Lead Auditor nicht gefunden');
+  if (audit.leadAuditorId && !lead) {
+    details.push({
+      field: 'leadAuditorId',
+      issue: 'notFound',
+      message: 'Lead Auditor nicht gefunden',
+      value: audit.leadAuditorId,
+    });
+  }
   if (lead) {
-    if (!isAuditorQualified(lead)) errors.push('Lead Auditor nicht qualifiziert');
+    if (!isAuditorQualified(lead))
+      details.push({ field: 'leadAuditorId', issue: 'qualification', message: 'Lead Auditor nicht qualifiziert' });
     const conflict = auditorConflictsWithScope(lead, audit);
-    if (conflict) errors.push(`Lead Auditor Konflikt: ${conflict}`);
+    if (conflict) details.push({ field: 'leadAuditorId', issue: 'conflict', message: `Lead Auditor Konflikt: ${conflict}` });
   }
   for (const coId of audit.coAuditorIds || []) {
     if (!coId) {
-      errors.push('Leerer Co-Auditor-Eintrag nicht erlaubt');
+      details.push({ field: 'coAuditorIds', issue: 'empty', message: 'Leerer Co-Auditor-Eintrag nicht erlaubt' });
       continue;
     }
     const co = mem.auditors.get(coId);
     if (!co) {
-      errors.push(`Co-Auditor ${coId} nicht gefunden`);
+      details.push({ field: 'coAuditorIds', issue: 'notFound', message: `Co-Auditor ${coId} nicht gefunden`, value: coId });
       continue;
     }
-    if (!isAuditorQualified(co)) errors.push(`Co-Auditor ${co.name || coId} nicht qualifiziert`);
+    if (!isAuditorQualified(co))
+      details.push({ field: 'coAuditorIds', issue: 'qualification', message: `Co-Auditor ${co.name || coId} nicht qualifiziert` });
     const conflict = auditorConflictsWithScope(co, audit);
-    if (conflict) errors.push(`Co-Auditor Konflikt: ${conflict}`);
+    if (conflict) details.push({ field: 'coAuditorIds', issue: 'conflict', message: `Co-Auditor Konflikt: ${conflict}` });
   }
-  return errors;
+  return details;
 }
 
 function defaultDueDateForFinding(findingType, audit) {
@@ -4085,9 +4152,10 @@ async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
   const normalized = normalizeAudit(record);
   const validationErrors = skipValidation ? [] : validateAuditorAssignments(normalized);
   if (!skipValidation && validationErrors.length > 0) {
-    const err = new Error(validationErrors.join('; '));
-    err.code = 'VALIDATION_ERROR';
-    throw err;
+    throw validationError(
+      validationErrors.map(v => v.message || v.issue || 'validation error').join('; '),
+      validationErrors,
+    );
   }
   mem.audits.set(normalized.id, normalized);
   const r = getAuditRedis();

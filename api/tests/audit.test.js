@@ -8,6 +8,7 @@ import {
   auditSave,
   auditorSave,
   auditorAll,
+  __setRedisClientForTests,
   isAuditorQualified,
   auditUpdate,
 } from '../_lib/store.js';
@@ -28,6 +29,35 @@ function buildQualifiedAuditor(name = 'Test Auditor') {
       requalificationDueDate: isoDaysFromNow(100),
     },
   };
+}
+
+function createMockRes() {
+  const headers = new Map();
+  let body = '';
+  return {
+    statusCode: 200,
+    setHeader: (k, v) => headers.set(k, v),
+    getHeader: (k) => headers.get(k),
+    end: (chunk) => {
+      body = chunk?.toString?.() || '';
+    },
+    _getBody: () => body,
+    _headers: headers,
+  };
+}
+
+async function invokeAuditHandler(handler, { method = 'POST', body = {}, headers = {}, query = {} } = {}) {
+  const res = createMockRes();
+  const req = {
+    method,
+    headers: { 'content-type': 'application/json', ...headers },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+    query,
+  };
+  await handler(req, res);
+  const raw = res._getBody();
+  const parsed = raw ? JSON.parse(raw) : {};
+  return { res, parsed };
 }
 
 test('blocks auditor assignment when independence rules conflict', async () => {
@@ -106,7 +136,7 @@ test('nachaudit triggered for ineffective actions', async () => {
   assert.equal(updated.status, 'nachauditRequired');
 });
 
-test('rejects audit updates with unknown auditors and does not upsert new ones', async () => {
+test('maps auditor objects and still blocks unknown auditors without upserting', async () => {
   const beforeCount = (await auditorAll()).length;
   const lead = await auditorSave(buildQualifiedAuditor('Primary Lead'));
   const audit = await auditSave({
@@ -118,7 +148,12 @@ test('rejects audit updates with unknown auditors and does not upsert new ones',
     leadAuditorId: lead.id,
   });
 
-  await assert.rejects(() => auditUpdate(audit.id, { leadAuditor: { name: 'Illegal' } }), /leadAuditorId only/);
+  const updated = await auditUpdate(audit.id, { leadAuditor: { id: lead.id, name: 'Alias Lead' } });
+  assert.equal(updated.leadAuditorId, lead.id);
+
+  const withCo = await auditUpdate(audit.id, { coAuditors: [{ id: lead.id }] });
+  assert.deepEqual(withCo.coAuditorIds, [lead.id]);
+
   await assert.rejects(() => auditUpdate(audit.id, { leadAuditorId: 'does-not-exist' }), /nicht gefunden/);
   await assert.rejects(() => auditUpdate(audit.id, { coAuditorIds: ['unknown-co'] }), /nicht gefunden/);
 
@@ -143,5 +178,58 @@ test('enforces independence between auditor org unit and audit org unit', async 
         leadAuditorId: lead.id,
       }),
     /eigenen Bereich/,
+  );
+});
+
+test('POST handler accepts leadAuditorId and returns validation details for errors', async () => {
+  process.env.ADMIN_SECRET = 'test-secret';
+  const { default: handler } = await import('../admin/audits.js');
+  const lead = await auditorSave(buildQualifiedAuditor('Handler Lead'));
+
+  const validPayload = {
+    title: 'Handler Audit',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  };
+  const { res: okRes, parsed: okParsed } = await invokeAuditHandler(handler, {
+    method: 'POST',
+    body: validPayload,
+    headers: { 'x-admin-secret': 'test-secret' },
+  });
+  assert.equal(okRes.statusCode, 200);
+  assert.equal(okParsed.ok, true);
+  assert.equal(okParsed.audit.leadAuditorId, lead.id);
+
+  const invalidPayload = { ...validPayload, title: 'Bad Lead', leadAuditorId: 'unknown-lead' };
+  const { res: badRes, parsed: badParsed } = await invokeAuditHandler(handler, {
+    method: 'POST',
+    body: invalidPayload,
+    headers: { 'x-admin-secret': 'test-secret' },
+  });
+  assert.equal(badRes.statusCode, 400);
+  assert.ok(/Lead Auditor/.test(badParsed.error));
+  assert.ok(Array.isArray(badParsed.details));
+  assert.ok(badParsed.details.some(d => JSON.stringify(d).includes('leadAuditorId')));
+});
+
+test('persists auditors to redis when a redis client is available', async () => {
+  const calls = [];
+  const fakeRedis = {
+    async set(key, value) {
+      calls.push({ op: 'set', key, value });
+      return 'ok';
+    },
+    async get() { return null; },
+    async del() { return null; },
+  };
+  __setRedisClientForTests(fakeRedis);
+  const auditor = await auditorSave(buildQualifiedAuditor('Redis Auditor'));
+  __setRedisClientForTests(null);
+
+  assert.ok(
+    calls.some(c => c.op === 'set' && typeof c.key === 'string' && c.key.includes(auditor.id)),
+    'redis set should include auditor key',
   );
 });
