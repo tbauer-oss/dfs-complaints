@@ -384,7 +384,15 @@ async function rget(k) {
   try {
     const r = getRedis();
     if (!r) return null;
-    return await withRedisTimeout(r.get(k), `KV GET ${k}`);
+    const raw = await withRedisTimeout(r.get(k), `KV GET ${k}`);
+    if (typeof raw === 'string') {
+      try {
+        return JSON.parse(raw);
+      } catch (_) {
+        return raw;
+      }
+    }
+    return raw;
   } catch (e) {
     console.error('KV GET', k, e);
     return null;
@@ -394,7 +402,8 @@ async function rset(k, v) {
   try {
     const r = getRedis();
     if (!r) return null;
-    return await withRedisTimeout(r.set(k, v), `KV SET ${k}`);
+    const payload = typeof v === 'string' ? v : JSON.stringify(v);
+    return await withRedisTimeout(r.set(k, payload), `KV SET ${k}`);
   } catch (e) {
     console.error('KV SET', k, e);
     return null;
