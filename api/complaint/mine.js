@@ -1,4 +1,4 @@
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 import jwt from 'jsonwebtoken';
 import { setCors, noContent, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { complaintsByEmail } from '../_lib/store.js';

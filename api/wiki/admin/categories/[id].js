@@ -1,5 +1,5 @@
 // /api/wiki/admin/categories/[id].js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../../_lib/http.js';
 import { wikiSaveCategory, wikiDeleteCategory, wikiSetCategoryStatus } from '../../../_lib/wikiStore.js';

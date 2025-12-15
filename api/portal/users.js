@@ -1,5 +1,5 @@
 // api/portal/users.js – Benutzer- & Rollenverwaltung für DFS Portal
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';

@@ -1,5 +1,5 @@
 // api/portal/admin/news.js – Verwaltung für Mitarbeiter-News
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import {
   bad,

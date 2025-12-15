@@ -1,5 +1,5 @@
 // /api/wiki/[id].js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { normalizeLangValue } from '../_lib/store.js';

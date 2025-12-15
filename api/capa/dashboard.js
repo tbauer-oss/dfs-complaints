@@ -1,5 +1,5 @@
 // /api/capa/dashboard – Aggregated CAPA metrics for admin dashboard
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';

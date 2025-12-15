@@ -1,5 +1,5 @@
 // api/complaint/list.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { setCors, noContent, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { complaintsByEmail } from '../_lib/store.js';

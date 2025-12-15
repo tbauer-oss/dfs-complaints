@@ -1,5 +1,5 @@
 // api/customers/[id].js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { setCors } from '../_lib/cors.js';
 import { readJson } from '../_lib/http.js';

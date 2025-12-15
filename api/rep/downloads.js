@@ -1,5 +1,5 @@
 // api/rep/downloads.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';

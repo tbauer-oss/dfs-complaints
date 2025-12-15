@@ -1,5 +1,5 @@
 // /api/wiki/admin/articles/[id].js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../../_lib/http.js';
 import { wikiSaveArticle, wikiDeleteArticle, wikiGetArticle } from '../../../_lib/wikiStore.js';
