@@ -422,7 +422,7 @@ async function rdel(k) {
 
 // ===== Key-Scan kompatibel zu Upstash =====
 async function rkeys(pattern) {
-  const r = getRedis();
+  const r = getAuditRedis();
   if (!r) return [];
   if (typeof r.keys === 'function') {
     try { return await withRedisTimeout(r.keys(pattern), `KV KEYS ${pattern}`); } catch { /* continue */ }
@@ -451,7 +451,7 @@ async function rkeys(pattern) {
 const CATALOG_KEY = `${P}catalogs:config`;
 
 export async function catalogConfigGet() {
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) {
     const raw = await rget(CATALOG_KEY);
     if (raw && typeof raw === 'string') {
@@ -475,7 +475,7 @@ export async function catalogConfigSet(updates = {}) {
     else delete next[key];
   }
 
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) {
     if (Object.keys(next).length === 0) await rdel(CATALOG_KEY); else await rset(CATALOG_KEY, next);
   }
@@ -610,7 +610,7 @@ function _sortNews(list = []) {
 
 async function _loadCustomerNews() {
   let list = null;
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) {
     const raw = await rget(KEY_CUSTOMER_NEWS);
     if (Array.isArray(raw)) {
@@ -637,7 +637,7 @@ async function _loadCustomerNews() {
 async function _persistCustomerNews(list) {
   const safeList = _sortNews(list).map((item) => ({ ...item }));
   mem.customerNews = safeList.map((item) => ({ ...item }));
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) {
     await rset(KEY_CUSTOMER_NEWS, safeList);
   } else {
@@ -3508,6 +3508,20 @@ const KEY_AUDIT_ACTION = (id) => `${P}audit:action:${id}`;
 const KEY_AUDIT_REPORT = (id) => `${P}audit:annualReport:${id}`;
 const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
 
+// Redis previously acted as the primary store for auditors/audits which caused
+// every PATCH/PUT to write fresh keys like dfs:audit:auditor:<uuid>. The UI
+// sends full audit payloads, so each edit overwrote Redis with partially
+// normalized auditor data and produced phantom auditors. To make audit updates
+// deterministic we stop persisting audit entities to Redis entirely and keep
+// everything in-process (or downstream DB once available).
+const AUDIT_REDIS_ENABLED = false;
+const AUDIT_CACHE_TTL_SECONDS = 0;
+
+function getAuditRedis() {
+  if (!AUDIT_REDIS_ENABLED) return null;
+  return getRedis();
+}
+
 let auditStoresHydrated = false;
 let auditSeedsApplied = false;
 
@@ -3531,7 +3545,7 @@ function ensureAuditStores() {
 
 async function hydrateAuditStores() {
   auditStoresHydrated = true;
-  const r = getRedis();
+  const r = getAuditRedis();
   if (!r) return;
 
   const AUDITOR_PREFIX = `${P}audit:auditor:`;
@@ -3651,6 +3665,9 @@ function auditorConflictsWithScope(auditor, audit) {
   const restrictedProcessOwners = normalizeAuditStringArray(auditor?.independenceRules?.restrictedProcessOwners);
   const scopeOrgUnits = normalizeAuditStringArray(audit?.auditeesOrgUnits);
   const processOwners = normalizeAuditStringArray(audit?.processOwners);
+  if (auditor?.orgUnit && audit?.orgUnit && normalizeAuditString(auditor.orgUnit) === normalizeAuditString(audit.orgUnit)) {
+    return `Auditor ${auditor.name || auditor.id} darf Audit des eigenen Bereichs nicht durchführen`;
+  }
 
   const conflictOrg = scopeOrgUnits.find(org => restrictedOrgUnits.includes(org));
   if (conflictOrg) return `Konflikt mit Organisationsbereich ${conflictOrg}`;
@@ -3664,7 +3681,7 @@ function nextAuditNumber(year) {
   if (!mem.auditCounters[y]) mem.auditCounters[y] = 0;
   mem.auditCounters[y] += 1;
   const counter = String(mem.auditCounters[y]).padStart(2, '0');
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) rset(KEY_AUDIT_COUNTERS, mem.auditCounters);
   return `IA-${y}-${counter}`;
 }
@@ -3743,6 +3760,16 @@ function normalizeAuditProgram(record = {}) {
 }
 
 function normalizeAudit(record = {}) {
+  if (record.leadAuditor || record.leadAuditor?.id) {
+    const err = new Error('Audit update must reference leadAuditorId only');
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+  if (record.coAuditors || record.coAuditor) {
+    const err = new Error('Audit update must reference coAuditorIds only');
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
   const now = nowIso();
   const programId = record.programId || null;
   const planEntries = Array.isArray(record.planEntries || record.plan)
@@ -3756,6 +3783,7 @@ function normalizeAudit(record = {}) {
     auditType: normalizeAuditString(record.auditType || 'System'),
     title: normalizeAuditString(record.title || record.auditName),
     site: normalizeAuditString(record.site || record.location),
+    orgUnit: normalizeAuditString(record.orgUnit),
     plannedStart: parseDate(record.plannedStart),
     plannedEnd: parseDate(record.plannedEnd),
     actualStart: parseDate(record.actualStart),
@@ -3862,15 +3890,19 @@ function normalizeAnnualReport(record = {}) {
 
 function validateAuditorAssignments(audit) {
   const errors = [];
-  if (!audit.leadAuditorId) return errors;
-  const lead = mem.auditors.get(audit.leadAuditorId);
-  if (!lead) errors.push('Lead Auditor nicht gefunden');
-  else {
+  if (!audit.leadAuditorId) errors.push('Lead Auditor erforderlich');
+  const lead = audit.leadAuditorId ? mem.auditors.get(audit.leadAuditorId) : null;
+  if (audit.leadAuditorId && !lead) errors.push('Lead Auditor nicht gefunden');
+  if (lead) {
     if (!isAuditorQualified(lead)) errors.push('Lead Auditor nicht qualifiziert');
     const conflict = auditorConflictsWithScope(lead, audit);
     if (conflict) errors.push(`Lead Auditor Konflikt: ${conflict}`);
   }
   for (const coId of audit.coAuditorIds || []) {
+    if (!coId) {
+      errors.push('Leerer Co-Auditor-Eintrag nicht erlaubt');
+      continue;
+    }
     const co = mem.auditors.get(coId);
     if (!co) {
       errors.push(`Co-Auditor ${coId} nicht gefunden`);
@@ -3931,7 +3963,7 @@ export async function auditorSave(record = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAuditor(record);
   mem.auditors.set(normalized.id, normalized);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDITOR(normalized.id), normalized);
   return normalized;
 }
@@ -3942,7 +3974,7 @@ export async function auditorUpdate(id, patch = {}) {
   if (!current) return null;
   const merged = normalizeAuditor({ ...current, ...patch, id });
   mem.auditors.set(id, merged);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDITOR(id), merged);
   return merged;
 }
@@ -3957,7 +3989,7 @@ export async function auditorDelete(id) {
     }
   }
   const deleted = mem.auditors.delete(id);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rdel(KEY_AUDITOR(id));
   return deleted;
 }
@@ -3971,7 +4003,7 @@ export async function auditProgramSave(record = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAuditProgram(record);
   mem.auditPrograms.set(normalized.id, normalized);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_PROGRAM(normalized.id), normalized);
   return normalized;
 }
@@ -3982,7 +4014,7 @@ export async function auditProgramUpdate(id, patch = {}) {
   if (!current) return null;
   const merged = normalizeAuditProgram({ ...current, ...patch, id });
   mem.auditPrograms.set(id, merged);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_PROGRAM(id), merged);
   return merged;
 }
@@ -3990,7 +4022,7 @@ export async function auditProgramUpdate(id, patch = {}) {
 export async function auditProgramDelete(id) {
   await ensureAuditStoresReady();
   mem.auditPrograms.delete(id);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rdel(KEY_AUDIT_PROGRAM(id));
   for (const [auditId, audit] of mem.audits.entries()) {
     if (audit.programId === id) {
@@ -4024,7 +4056,7 @@ async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
     throw err;
   }
   mem.audits.set(normalized.id, normalized);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT(normalized.id), normalized);
   return normalized;
 }
@@ -4042,7 +4074,7 @@ export async function auditUpdate(id, patch = {}) {
 export async function auditDelete(id) {
   await ensureAuditStoresReady();
   mem.audits.delete(id);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rdel(KEY_AUDIT(id));
   for (const [fid, finding] of mem.auditFindings.entries()) {
     if (finding.auditId === id) {
@@ -4072,7 +4104,7 @@ export async function auditFindingSave(record = {}) {
   if (!audit) throw new Error('audit not found');
   const normalized = normalizeFinding(record);
   mem.auditFindings.set(normalized.id, normalized);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_FINDING(normalized.id), normalized);
   await updateAuditStatusAfterChange(audit.id);
   return normalized;
@@ -4084,7 +4116,7 @@ export async function auditFindingUpdate(id, patch = {}) {
   if (!current) return null;
   const merged = normalizeFinding({ ...current, ...patch, id });
   mem.auditFindings.set(id, merged);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_FINDING(id), merged);
   await updateAuditStatusAfterChange(merged.auditId);
   return merged;
@@ -4094,7 +4126,7 @@ export async function auditFindingDelete(id) {
   await ensureAuditStoresReady();
   const current = mem.auditFindings.get(id);
   mem.auditFindings.delete(id);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rdel(KEY_AUDIT_FINDING(id));
   if (current) await updateAuditStatusAfterChange(current.auditId);
 }
@@ -4129,7 +4161,7 @@ export async function auditActionSave(record = {}) {
   if (!record.auditId) throw new Error('auditId missing');
   const normalized = await applyActionDefaults(record);
   mem.auditActions.set(normalized.id, normalized);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_ACTION(normalized.id), normalized);
   await updateAuditStatusAfterChange(normalized.auditId);
   return normalized;
@@ -4141,7 +4173,7 @@ export async function auditActionUpdate(id, patch = {}) {
   if (!current) return null;
   const merged = await applyActionDefaults({ ...current, ...patch, id });
   mem.auditActions.set(id, merged);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_ACTION(id), merged);
   await updateAuditStatusAfterChange(merged.auditId);
   return merged;
@@ -4151,7 +4183,7 @@ export async function auditActionDelete(id) {
   await ensureAuditStoresReady();
   const current = mem.auditActions.get(id);
   mem.auditActions.delete(id);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rdel(KEY_AUDIT_ACTION(id));
   if (current) await updateAuditStatusAfterChange(current.auditId);
 }
@@ -4167,7 +4199,7 @@ export async function auditAnnualReportSave(record = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAnnualReport(record);
   mem.auditAnnualReports.set(normalized.id, normalized);
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) await rset(KEY_AUDIT_REPORT(normalized.id), normalized);
   return normalized;
 }
