@@ -12,13 +12,17 @@ class FmeaRiskEntry {
   final String processReference;
   final int? severity;
   final int? occurrence;
+  final int? detectability;
   final int? riskScore;
   final String? riskLevel;
   final String proposedAction;
   final String actionTaken;
   final String documents;
+  final bool missingDocuments;
+  final String? owner;
   final int? severityAfter;
   final int? occurrenceAfter;
+  final int? detectabilityAfter;
   final int? riskScoreAfter;
   final String? riskLevelAfter;
   final bool newHazard;
@@ -41,13 +45,17 @@ class FmeaRiskEntry {
     this.processReference = '',
     this.severity,
     this.occurrence,
+    this.detectability,
     this.riskScore,
     this.riskLevel,
     this.proposedAction = '',
     this.actionTaken = '',
     this.documents = '',
+    this.missingDocuments = false,
+    this.owner,
     this.severityAfter,
     this.occurrenceAfter,
+    this.detectabilityAfter,
     this.riskScoreAfter,
     this.riskLevelAfter,
     this.newHazard = false,
@@ -98,6 +106,7 @@ class FmeaRiskEntry {
       processReference: (json['processReference'] ?? '').toString(),
       severity: _parseInt(json['severity']),
       occurrence: _parseInt(json['occurrence']),
+      detectability: _parseInt(json['detectability']),
       riskScore: _parseInt(json['riskScore']),
       riskLevel: (json['riskLevel'] ?? '').toString().isEmpty
           ? null
@@ -105,8 +114,13 @@ class FmeaRiskEntry {
       proposedAction: (json['proposedAction'] ?? '').toString(),
       actionTaken: (json['actionTaken'] ?? '').toString(),
       documents: (json['documents'] ?? '').toString(),
+      missingDocuments: _parseBool(json['missingDocuments']),
+      owner: (json['owner'] ?? '').toString().isEmpty
+          ? null
+          : (json['owner'] ?? '').toString(),
       severityAfter: _parseInt(json['severityAfter']),
       occurrenceAfter: _parseInt(json['occurrenceAfter']),
+      detectabilityAfter: _parseInt(json['detectabilityAfter']),
       riskScoreAfter: _parseInt(json['riskScoreAfter']),
       riskLevelAfter: (json['riskLevelAfter'] ?? '').toString().isEmpty
           ? null
@@ -133,13 +147,17 @@ class FmeaRiskEntry {
         'processReference': processReference,
         'severity': severity,
         'occurrence': occurrence,
+        'detectability': detectability,
         'riskScore': riskScore,
         'riskLevel': riskLevel,
         'proposedAction': proposedAction,
         'actionTaken': actionTaken,
         'documents': documents,
+        'missingDocuments': missingDocuments,
+        'owner': owner,
         'severityAfter': severityAfter,
         'occurrenceAfter': occurrenceAfter,
+        'detectabilityAfter': detectabilityAfter,
         'riskScoreAfter': riskScoreAfter,
         'riskLevelAfter': riskLevelAfter,
         'newHazard': newHazard,
@@ -163,13 +181,17 @@ class FmeaRiskEntry {
     String? processReference,
     int? severity,
     int? occurrence,
+    int? detectability,
     int? riskScore,
     String? riskLevel,
     String? proposedAction,
     String? actionTaken,
     String? documents,
+    bool? missingDocuments,
+    String? owner,
     int? severityAfter,
     int? occurrenceAfter,
+    int? detectabilityAfter,
     int? riskScoreAfter,
     String? riskLevelAfter,
     bool? newHazard,
@@ -192,13 +214,17 @@ class FmeaRiskEntry {
       processReference: processReference ?? this.processReference,
       severity: severity ?? this.severity,
       occurrence: occurrence ?? this.occurrence,
+      detectability: detectability ?? this.detectability,
       riskScore: riskScore ?? this.riskScore,
       riskLevel: riskLevel ?? this.riskLevel,
       proposedAction: proposedAction ?? this.proposedAction,
       actionTaken: actionTaken ?? this.actionTaken,
       documents: documents ?? this.documents,
+      missingDocuments: missingDocuments ?? this.missingDocuments,
+      owner: owner ?? this.owner,
       severityAfter: severityAfter ?? this.severityAfter,
       occurrenceAfter: occurrenceAfter ?? this.occurrenceAfter,
+      detectabilityAfter: detectabilityAfter ?? this.detectabilityAfter,
       riskScoreAfter: riskScoreAfter ?? this.riskScoreAfter,
       riskLevelAfter: riskLevelAfter ?? this.riskLevelAfter,
       newHazard: newHazard ?? this.newHazard,
