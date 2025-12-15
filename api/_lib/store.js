@@ -4260,6 +4260,17 @@ export async function auditPlanSave(id, planEntries = [], { updatedBy } = {}) {
   return updated?.planEntries || [];
 }
 
+export async function auditPlanSave(id, planEntries = [], { updatedBy } = {}) {
+  const current = await auditGet(id);
+  if (!current) return null;
+  const normalizedPlan = Array.isArray(planEntries) ? planEntries.map(normalizeAuditPlanEntry) : [];
+  const updated = await saveAuditInternal(
+    { ...current, planEntries: normalizedPlan, updatedBy: updatedBy || current.updatedBy },
+    { skipValidation: true },
+  );
+  return updated?.planEntries || [];
+}
+
 export async function auditDelete(id) {
   await ensureAuditStoresReady();
   mem.audits.delete(id);
