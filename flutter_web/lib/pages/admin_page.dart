@@ -10543,9 +10543,7 @@ class _AdminPageState extends State<AdminPage> {
       value: tiles.contains(tileId),
       title: Text(_tileLabel(tileId)),
       subtitle: isDefault ? const Text('Standardmäßig sichtbar') : null,
-      onChanged: (value) {
-        setState(() => _updateRoleTileVisibility(role, tileId, value));
-      },
+      onChanged: (value) => _updateRoleTileVisibility(role, tileId, value),
     );
   }
 
