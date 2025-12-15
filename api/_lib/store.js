@@ -3529,6 +3529,7 @@ const KEY_AUDIT_FINDING = (id) => `${P}audit:finding:${id}`;
 const KEY_AUDIT_ACTION = (id) => `${P}audit:action:${id}`;
 const KEY_AUDIT_REPORT = (id) => `${P}audit:annualReport:${id}`;
 const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
+const KEY_AUDIT_COUNTER_YEAR = (year) => `${P}audit:counter:${year}`;
 
 // Redis previously acted as the primary store for auditors/audits which caused
 // every PATCH/PUT to write fresh keys like dfs:audit:auditor:<uuid>. The UI
@@ -3741,20 +3742,40 @@ function auditorConflictsWithScope(auditor, audit) {
   return null;
 }
 
-function nextAuditNumber(year) {
+function formatAuditNumber(yearString, counter) {
+  return `IA-${yearString}-${String(counter).padStart(2, '0')}`;
+}
+
+async function nextAuditNumber(year) {
   const y = String(year || new Date().getFullYear()).slice(-2);
-  if (!mem.auditCounters[y]) mem.auditCounters[y] = 0;
-  mem.auditCounters[y] += 1;
-  const counter = String(mem.auditCounters[y]).padStart(2, '0');
-  const r = getAuditRedis();
+  let counter = null;
+  const r = getRedis();
+  if (r) {
+    try {
+      const redisCounter = await withRedisTimeout(r.incr(KEY_AUDIT_COUNTER_YEAR(y)), `AUDIT COUNTER ${y}`);
+      if (typeof redisCounter === 'number') counter = redisCounter;
+    } catch (err) {
+      console.error('audit counter redis incr failed', err);
+    }
+  }
+
+  if (counter == null) {
+    if (!mem.auditCounters[y]) mem.auditCounters[y] = 0;
+    counter = mem.auditCounters[y] + 1;
+  }
+
+  mem.auditCounters[y] = counter;
+
   if (r) rset(KEY_AUDIT_COUNTERS, mem.auditCounters);
-  return `IA-${y}-${counter}`;
+
+  return formatAuditNumber(y, counter);
 }
 
 function applyAuditNumber(audit) {
   if (audit.auditNumber) return audit.auditNumber;
+  if (audit.auditNo) return audit.auditNo;
   const year = audit?.plannedStart ? new Date(audit.plannedStart).getFullYear() : new Date().getFullYear();
-  return nextAuditNumber(year);
+  return formatAuditNumber(String(year).slice(-2), (mem.auditCounters[String(year).slice(-2)] || 0) + 1);
 }
 
 function normalizeAuditor(record = {}) {
@@ -3878,10 +3899,12 @@ function normalizeAudit(record = {}) {
   const planEntries = Array.isArray(record.planEntries || record.plan)
       ? (record.planEntries || record.plan).map(normalizeAuditPlanEntry)
       : [];
+  const auditNumber = record.auditNumber || record.auditNo || applyAuditNumber(record);
   const normalized = {
     id: record.id || crypto.randomUUID(),
     programId,
-    auditNumber: record.auditNumber || applyAuditNumber(record),
+    auditNumber,
+    auditNo: record.auditNo || auditNumber,
     cluster: normalizeAuditString(record.cluster || 'Q1'),
     auditType: normalizeAuditString(record.auditType || 'System'),
     title: normalizeAuditString(record.title || record.auditName),
@@ -4185,7 +4208,13 @@ async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
 }
 
 export async function auditSave(record = {}) {
-  return await saveAuditInternal(record);
+  const needsAuditNumber = !record.auditNumber && !record.auditNo;
+  let auditNumber = record.auditNumber || record.auditNo;
+  if (needsAuditNumber) {
+    const year = record?.plannedStart ? new Date(record.plannedStart).getFullYear() : new Date().getFullYear();
+    auditNumber = await nextAuditNumber(year);
+  }
+  return await saveAuditInternal({ ...record, auditNumber, auditNo: record.auditNo || auditNumber });
 }
 
 export async function auditUpdate(id, patch = {}) {
