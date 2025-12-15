@@ -422,7 +422,7 @@ async function rdel(k) {
 
 // ===== Key-Scan kompatibel zu Upstash =====
 async function rkeys(pattern) {
-  const r = getAuditRedis();
+  const r = getRedis();
   if (!r) return [];
   if (typeof r.keys === 'function') {
     try { return await withRedisTimeout(r.keys(pattern), `KV KEYS ${pattern}`); } catch { /* continue */ }
