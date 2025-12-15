@@ -33,7 +33,13 @@ const REDIS_TOKEN =
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
 
 let _redis = null;
+let _redisOverride = null;
+export function __setRedisClientForTests(client = null) {
+  _redisOverride = client;
+  _redis = client;
+}
 function getRedis() {
+  if (_redisOverride) return _redisOverride;
   if (_redis) return _redis;
   if (!REDIS_URL || !REDIS_TOKEN) return null;
   _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
@@ -3533,7 +3539,7 @@ const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
 // enabled by default so existing auditors remain visible for validation unless
 // explicitly disabled.
 const AUDITOR_REDIS_WRITE_ENABLED =
-  String(process.env.AUDITOR_REDIS_ENABLED || '').toLowerCase() === 'true';
+  String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'true').toLowerCase() !== 'false';
 const AUDITOR_REDIS_READ_ENABLED =
   String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
 const AUDIT_REDIS_ENABLED = false;

@@ -8,6 +8,7 @@ import {
   auditSave,
   auditorSave,
   auditorAll,
+  __setRedisClientForTests,
   isAuditorQualified,
   auditUpdate,
 } from '../_lib/store.js';
@@ -211,4 +212,24 @@ test('POST handler accepts leadAuditorId and returns validation details for erro
   assert.ok(/Lead Auditor/.test(badParsed.error));
   assert.ok(Array.isArray(badParsed.details));
   assert.ok(badParsed.details.some(d => JSON.stringify(d).includes('leadAuditorId')));
+});
+
+test('persists auditors to redis when a redis client is available', async () => {
+  const calls = [];
+  const fakeRedis = {
+    async set(key, value) {
+      calls.push({ op: 'set', key, value });
+      return 'ok';
+    },
+    async get() { return null; },
+    async del() { return null; },
+  };
+  __setRedisClientForTests(fakeRedis);
+  const auditor = await auditorSave(buildQualifiedAuditor('Redis Auditor'));
+  __setRedisClientForTests(null);
+
+  assert.ok(
+    calls.some(c => c.op === 'set' && typeof c.key === 'string' && c.key.includes(auditor.id)),
+    'redis set should include auditor key',
+  );
 });
