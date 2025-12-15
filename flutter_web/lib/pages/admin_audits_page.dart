@@ -1,11 +1,16 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mime/mime.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/audit_admin_api.dart';
 import '../api/client.dart';
 import '../models/audit.dart';
+import '../models/portal_user.dart';
 import '../widgets/dialog_content_scroll.dart';
-import '../widgets/legal_footer.dart';
 
 class AdminAuditsPage extends StatefulWidget {
   final ApiClient api;
@@ -57,7 +62,6 @@ class _AdminAuditsPageState extends State<AdminAuditsPage> with SingleTickerProv
           _AnnualReportTab(api: _auditApi),
         ],
       ),
-      bottomNavigationBar: LegalFooter(api: widget.api),
       backgroundColor: theme.colorScheme.surface,
     );
   }
@@ -71,11 +75,53 @@ class _AuditOverviewTab extends StatefulWidget {
   State<_AuditOverviewTab> createState() => _AuditOverviewTabState();
 }
 
+class _AuditPlanEntry {
+  String from;
+  String to;
+  String agenda;
+  String process;
+  String participants;
+  String auditor;
+  String notes;
+
+  _AuditPlanEntry({
+    this.from = '',
+    this.to = '',
+    this.agenda = '',
+    this.process = '',
+    this.participants = '',
+    this.auditor = '',
+    this.notes = '',
+  });
+}
+
+class _AuditReportDraft {
+  String summary;
+  String scopeEvaluation;
+  String findings;
+  String conclusion;
+  bool followUpRecommended;
+  List<String> evidence;
+
+  _AuditReportDraft({
+    this.summary = '',
+    this.scopeEvaluation = '',
+    this.findings = '',
+    this.conclusion = '',
+    this.followUpRecommended = false,
+    this.evidence = const [],
+  });
+
+  factory _AuditReportDraft.empty() => _AuditReportDraft();
+}
+
 class _AuditOverviewTabState extends State<_AuditOverviewTab> {
   bool _loading = false;
   String? _error;
   List<Audit> _audits = const [];
   List<Auditor> _auditors = const [];
+  final Map<String, List<_AuditPlanEntry>> _plans = {};
+  final Map<String, _AuditReportDraft> _reports = {};
 
   int _year = DateTime.now().year;
   String? _quarter;
@@ -110,6 +156,10 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
       setState(() {
         _audits = audits;
         _auditors = auditors;
+        for (final a in audits) {
+          _plans.putIfAbsent(a.id, () => []);
+          _reports.putIfAbsent(a.id, () => _AuditReportDraft.empty());
+        }
         _loading = false;
       });
     } catch (e) {
@@ -450,6 +500,8 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
   bool _loading = true;
   String? _error;
   List<Auditor> _auditors = const [];
+  List<PortalUserSummary> _dfsUsers = const [];
+  List<String> _orgUnits = const ['QM', 'Operations', 'Produktion', 'IT', 'RA/QA', 'Logistik'];
 
   @override
   void initState() {
@@ -463,10 +515,19 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
       _error = null;
     });
     try {
-      final data = await widget.api.listAuditors();
+      final results = await Future.wait([
+        widget.api.listAuditors(),
+        widget.api.listDfsEmployees(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _auditors = data;
+        _auditors = results[0] as List<Auditor>;
+        _dfsUsers = results[1] as List<PortalUserSummary>;
+        final observedOrgUnits = {
+          ..._orgUnits,
+          ..._auditors.map((a) => a.orgUnit ?? '').where((e) => e.isNotEmpty),
+        }..removeWhere((e) => e.isEmpty);
+        _orgUnits = observedOrgUnits.toList(growable: false);
         _loading = false;
       });
     } catch (e) {
@@ -482,93 +543,437 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (_, i) {
-        final a = _auditors[i];
-        final due = a.requalificationDueDate;
-        final warn = due != null && due.isBefore(DateTime.now());
-        return Card(
-          child: ListTile(
-            leading: Icon(Icons.badge_outlined, color: warn ? Colors.red : null),
-            title: Text(a.name),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(a.email),
-                Text('Qualifiziert: ${a.isQualified ? 'Ja' : 'Nein'}'),
-                if (a.restrictedOrgUnits.isNotEmpty)
-                  Text('Restriktionen: ${a.restrictedOrgUnits.join(', ')}'),
-                if (due != null) Text('Re-Qual fällig: ${DateFormat('dd.MM.yyyy').format(due)}', style: TextStyle(color: warn ? Colors.red : null)),
-              ],
-            ),
-            trailing: IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _editAuditor(a)),
-          ),
-        );
-      },
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemCount: _auditors.length,
-    );
-  }
-
-  Future<void> _editAuditor(Auditor auditor) async {
-    final nameCtrl = TextEditingController(text: auditor.name);
-    final deptCtrl = TextEditingController(text: auditor.orgUnit ?? '');
-    final updated = await showDialog<Auditor>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Auditor bearbeiten'),
-        content: DialogContentScroll(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 12),
-              TextField(controller: deptCtrl, decoration: const InputDecoration(labelText: 'Bereich/OrgUnit')),
+              Text('Auditorenmatrix', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              FilledButton.icon(onPressed: _addAuditor, icon: const Icon(Icons.add), label: const Text('Auditor hinzufügen')),
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
-          FilledButton(
-            onPressed: () async {
-              final body = {
-                'id': auditor.id,
-                'name': nameCtrl.text.trim(),
-                'orgUnit': deptCtrl.text.trim(),
-              };
-              try {
-                final saved = await widget.api.saveAuditor(
-                  Auditor(
-                    id: auditor.id,
-                    name: nameCtrl.text.trim(),
-                    email: auditor.email,
-                    status: auditor.status,
-                    orgUnit: deptCtrl.text.trim().isEmpty ? null : deptCtrl.text.trim(),
-                    role: auditor.role,
-                    restrictedProcessOwners: auditor.restrictedProcessOwners,
-                    restrictedOrgUnits: auditor.restrictedOrgUnits,
-                    internalAuditorTrainingDate: auditor.internalAuditorTrainingDate,
-                    experienceYears: auditor.experienceYears,
-                    standardsIso13485: auditor.standardsIso13485,
-                    standardsMdr: auditor.standardsMdr,
-                    standardsIso19011: auditor.standardsIso19011,
-                    lastRequalificationDate: auditor.lastRequalificationDate,
-                    requalificationDueDate: auditor.requalificationDueDate,
-                    evidenceAttachments: auditor.evidenceAttachments,
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemBuilder: (_, i) {
+              final a = _auditors[i];
+              final due = a.nextRequalification ?? a.requalificationDueDate;
+              final warn = due != null && due.isBefore(DateTime.now());
+              return Card(
+                child: ListTile(
+                  leading: Icon(Icons.badge_outlined, color: warn ? Colors.red : null),
+                  title: Text(a.name),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(a.email),
+                      Text('Status: ${a.qualificationStatus}'),
+                      Text('Erfahrung: ${(a.experienceYears ?? 0)} Jahre'),
+                      Text('Co-Audit: ${a.coAuditCount} · Lead: ${a.leadAuditCount}'),
+                      if (a.restrictedOrgUnits.isNotEmpty)
+                        Text('Restriktionen: ${a.restrictedOrgUnits.join(', ')}'),
+                      if (due != null)
+                        Text('Re-Qual fällig: ${DateFormat('dd.MM.yyyy').format(due)}',
+                            style: TextStyle(color: warn ? Colors.red : null)),
+                    ],
                   ),
-                );
-                if (context.mounted) Navigator.pop(context, saved);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-              }
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (warn) const Icon(Icons.warning_amber, color: Colors.red),
+                      IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _editAuditor(a)),
+                      IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _deleteAuditor(a)),
+                    ],
+                  ),
+                ),
+              );
             },
-            child: const Text('Speichern'),
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemCount: _auditors.length,
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _addAuditor() async {
+    const empty = Auditor(id: '', name: '', email: '', status: 'active');
+    await _editAuditor(empty);
+  }
+  Future<void> _editAuditor(Auditor auditor) async {
+    final nameCtrl = TextEditingController(text: auditor.name);
+    final coCtrl = TextEditingController(text: auditor.coAuditCount.toString());
+    final leadCtrl = TextEditingController(text: auditor.leadAuditCount.toString());
+    final expCtrl = TextEditingController(text: (auditor.experienceYears ?? 0).toString());
+    final userCtrl = TextEditingController(text: auditor.name);
+    final userFocus = FocusNode();
+    DateTime? trainingDate = auditor.trainingDate ?? auditor.internalAuditorTrainingDate;
+    String trainingType = auditor.trainingType;
+    bool iso13485 = auditor.standardsKnowledge.contains('ISO13485');
+    bool iso19011 = auditor.standardsKnowledge.contains('ISO19011');
+    bool mdr = auditor.standardsKnowledge.contains('MDR');
+    bool active = auditor.status == 'active';
+    bool uploading = false;
+    String? selectedOrgUnit = auditor.orgUnit;
+    final attachments = auditor.evidenceAttachments.toList();
+    PortalUserSummary? selectedUser = _dfsUsers.firstWhere(
+      (u) => u.email.toLowerCase() == auditor.email.toLowerCase() || u.displayName == auditor.name,
+      orElse: () => const PortalUserSummary(email: '', displayName: '', role: '', portalStatus: ''),
+    );
+    if (selectedUser.email.isEmpty) selectedUser = null;
+    userCtrl.text = selectedUser?.displayName ?? auditor.name;
+
+    final updated = await showDialog<Auditor>(
+      context: context,
+      builder: (_) => StatefulBuilder(builder: (context, setModalState) {
+        Future<void> pickFile() async {
+          setModalState(() => uploading = true);
+          try {
+            final res = await FilePicker.platform.pickFiles(withData: true, allowMultiple: false);
+            if (res == null || res.files.isEmpty) {
+              setModalState(() => uploading = false);
+              return;
+            }
+            final file = res.files.first;
+            if (file.bytes == null) {
+              setModalState(() => uploading = false);
+              return;
+            }
+            final mime = lookupMimeType(file.name) ?? 'application/octet-stream';
+            final dataUrl = 'data:$mime;base64,${base64Encode(file.bytes!)}';
+            final evidence = AuditorEvidence(
+              name: file.name,
+              downloadUrl: dataUrl,
+              size: file.bytes!.length,
+              uploadedAt: DateTime.now().toUtc(),
+              mime: mime,
+            );
+            setModalState(() => attachments
+              ..removeWhere((e) => e.name == evidence.name)
+              ..add(evidence));
+          } finally {
+            setModalState(() => uploading = false);
+          }
+        }
+
+        void removeEvidence(AuditorEvidence evidence) {
+          setModalState(() => attachments.remove(evidence));
+        }
+
+        Future<void> openEvidence(AuditorEvidence evidence) async {
+          final link = evidence.downloadUrl ?? evidence.url;
+          if (link == null || link.isEmpty) return;
+          final uri = Uri.tryParse(link);
+          if (uri == null) return;
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri);
+          } else {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('Download-Link nicht verfügbar')));
+            }
+          }
+        }
+
+        final tempStatus = (() {
+          final co = int.tryParse(coCtrl.text) ?? 0;
+          final lead = int.tryParse(leadCtrl.text) ?? 0;
+          final expYears = int.tryParse(expCtrl.text) ?? 0;
+          final requal = trainingDate != null
+              ? DateTime(trainingDate!.year + 3, trainingDate!.month, trainingDate!.day)
+              : auditor.requalificationDueDate;
+          final requalOk = requal == null || !requal.isBefore(DateTime.now());
+          final hasTraining = trainingDate != null;
+          final countsOk = co >= 2 || lead >= 1;
+          if (hasTraining && countsOk && attachments.isNotEmpty && expYears >= 3 && requalOk) {
+            return 'qualifiziert';
+          }
+          if (hasTraining && attachments.isEmpty) return 'in Arbeit';
+          return 'nicht qualifiziert';
+        })();
+
+        return AlertDialog(
+          title: const Text('Auditor bearbeiten'),
+          content: DialogContentScroll(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RawAutocomplete<PortalUserSummary>(
+                  textEditingController: userCtrl,
+                  focusNode: userFocus,
+                  optionsBuilder: (t) {
+                    final query = t.text.toLowerCase();
+                    return _dfsUsers.where((u) => u.displayName.toLowerCase().contains(query) || u.email.toLowerCase().contains(query));
+                  },
+                  displayStringForOption: (o) => '${o.displayName} (${o.email})',
+                  fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                    controller.value = TextEditingValue(text: selectedUser?.displayName ?? controller.text);
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(labelText: 'DFS-Mitarbeiter'),
+                      onChanged: (_) => setModalState(() {}),
+                    );
+                  },
+                  onSelected: (opt) {
+                    setModalState(() {
+                      selectedUser = opt;
+                      nameCtrl.text = opt.displayName;
+                      userCtrl.text = opt.displayName;
+                    });
+                  },
+                  optionsViewBuilder: (context, onSelected, options) => Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 240, maxWidth: 420),
+                        child: ListView(
+                          padding: EdgeInsets.zero,
+                          children: options
+                              .map((o) => ListTile(
+                                    title: Text(o.displayName),
+                                    subtitle: Text(o.email),
+                                    onTap: () => onSelected(o),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Anzeigename')),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedOrgUnit != null && selectedOrgUnit!.isNotEmpty ? selectedOrgUnit : null,
+                  decoration: const InputDecoration(labelText: 'Bereich / OrgUnit'),
+                  items: _orgUnits
+                      .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                      .toList(),
+                  onChanged: (v) => setModalState(() => selectedOrgUnit = v),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: trainingType,
+                  decoration: const InputDecoration(labelText: 'Training (intern/extern)'),
+                  items: const [
+                    DropdownMenuItem(value: 'internal', child: Text('Intern')),
+                    DropdownMenuItem(value: 'external', child: Text('Extern')),
+                  ],
+                  onChanged: (v) => setModalState(() => trainingType = v ?? 'internal'),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Trainingsdatum'),
+                  subtitle: Text(trainingDate != null ? DateFormat('dd.MM.yyyy').format(trainingDate!) : 'offen'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.event_outlined),
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime(DateTime.now().year - 5),
+                        lastDate: DateTime(DateTime.now().year + 5),
+                        initialDate: trainingDate ?? DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setModalState(() => trainingDate = picked);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: expCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Erfahrung (Jahre)'),
+                ),
+                const SizedBox(height: 12),
+                TextField(controller: coCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Co-Audits')),
+                const SizedBox(height: 12),
+                TextField(controller: leadCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Lead-Audits')),
+                CheckboxListTile(
+                  value: iso13485,
+                  onChanged: (v) => setModalState(() => iso13485 = v ?? false),
+                  title: const Text('ISO 13485'),
+                ),
+                CheckboxListTile(
+                  value: iso19011,
+                  onChanged: (v) => setModalState(() => iso19011 = v ?? false),
+                  title: const Text('ISO 19011'),
+                ),
+                CheckboxListTile(
+                  value: mdr,
+                  onChanged: (v) => setModalState(() => mdr = v ?? false),
+                  title: const Text('MDR'),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: attachments
+                        .map((a) => InputChip(
+                              label: Text(a.name),
+                              onPressed: () => openEvidence(a),
+                              onDeleted: () => removeEvidence(a),
+                              avatar: const Icon(Icons.attachment_outlined, size: 18),
+                            ))
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    FilledButton.icon(
+                      onPressed: uploading ? null : pickFile,
+                      icon: uploading
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.upload_file_outlined),
+                      label: const Text('Qualifikationsnachweis hochladen'),
+                    ),
+                    const SizedBox(width: 8),
+                    if (uploading) const Text('Upload...'),
+                  ],
+                ),
+                SwitchListTile(
+                  value: active,
+                  onChanged: (v) => setModalState(() => active = v),
+                  title: const Text('Aktiv'),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Status: $tempStatus', style: Theme.of(context).textTheme.bodySmall),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+            FilledButton(
+              onPressed: uploading
+                  ? null
+                  : () async {
+                      try {
+                        final requal = trainingDate != null
+                            ? DateTime(trainingDate!.year + 3, trainingDate!.month, trainingDate!.day)
+                            : auditor.requalificationDueDate;
+                        final saved = await widget.api.saveAuditor(
+                          Auditor(
+                            id: auditor.id,
+                            userId: selectedUser?.email.isNotEmpty == true ? selectedUser!.email : auditor.userId,
+                            name: nameCtrl.text.trim().isEmpty
+                                ? (selectedUser?.displayName ?? auditor.name)
+                                : nameCtrl.text.trim(),
+                            email: selectedUser?.email.isNotEmpty == true ? selectedUser!.email : auditor.email,
+                            status: active ? 'active' : 'inactive',
+                            orgUnit: (selectedOrgUnit ?? '').trim().isEmpty ? null : selectedOrgUnit!.trim(),
+                            role: auditor.role,
+                            restrictedProcessOwners: auditor.restrictedProcessOwners,
+                            restrictedOrgUnits: auditor.restrictedOrgUnits,
+                            internalAuditorTrainingDate: trainingDate,
+                            trainingType: trainingType,
+                            trainingDate: trainingDate,
+                            experienceYears: int.tryParse(expCtrl.text) ?? auditor.experienceYears,
+                            standardsKnowledge: [
+                              if (iso13485) 'ISO13485',
+                              if (iso19011) 'ISO19011',
+                              if (mdr) 'MDR'
+                            ],
+                            requalificationDueDate: requal,
+                            evidenceAttachments: attachments,
+                            coAuditCount: int.tryParse(coCtrl.text) ?? auditor.coAuditCount,
+                            leadAuditCount: int.tryParse(leadCtrl.text) ?? auditor.leadAuditCount,
+                          ),
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Auditor gespeichert')),
+                          );
+                          Navigator.pop(context, saved);
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $e')));
+                      }
+                    },
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      }),
     );
     if (updated != null) _load();
+  }
+
+  Future<void> _deleteAuditor(Auditor auditor) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Auditor löschen?'),
+            content: Text('Soll ${auditor.name} wirklich gelöscht werden?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen')),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    try {
+      await widget.api.deleteAuditor(auditor.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${auditor.name} entfernt')),
+        );
+      }
+      await _load();
+    } catch (e) {
+      final deactivate = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Löschen nicht möglich'),
+              content: Text('Der Auditor ist referenziert. Stattdessen deaktivieren? ($e)'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+                FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Deaktivieren')),
+              ],
+            ),
+          ) ??
+          false;
+      if (deactivate) {
+        final inactive = Auditor(
+          id: auditor.id,
+          userId: auditor.userId,
+          name: auditor.name,
+          email: auditor.email,
+          status: 'inactive',
+          orgUnit: auditor.orgUnit,
+          role: auditor.role,
+          restrictedProcessOwners: auditor.restrictedProcessOwners,
+          restrictedOrgUnits: auditor.restrictedOrgUnits,
+          internalAuditorTrainingDate: auditor.internalAuditorTrainingDate,
+          trainingType: auditor.trainingType,
+          trainingDate: auditor.trainingDate,
+          experienceYears: auditor.experienceYears,
+          standardsKnowledge: auditor.standardsKnowledge,
+          requalificationDueDate: auditor.requalificationDueDate,
+          evidenceAttachments: auditor.evidenceAttachments,
+          coAuditCount: auditor.coAuditCount,
+          leadAuditCount: auditor.leadAuditCount,
+        );
+        await widget.api.saveAuditor(inactive);
+        await _load();
+      }
+    }
   }
 }
 
@@ -692,6 +1097,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   late final TextEditingController _title;
   late final TextEditingController _site;
   late final TextEditingController _scope;
+  late final TextEditingController _orgUnit;
   DateTime? _start;
   DateTime? _end;
   String _cluster = 'Q1';
@@ -707,6 +1113,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
     _title = TextEditingController(text: existing?.title ?? '');
     _site = TextEditingController(text: existing?.site ?? '');
     _scope = TextEditingController(text: existing?.scopeText ?? '');
+    _orgUnit = TextEditingController(text: existing?.auditeesOrgUnits.isNotEmpty == true ? existing!.auditeesOrgUnits.first : '');
     _start = existing?.plannedStart;
     _end = existing?.plannedEnd;
     _cluster = existing?.cluster ?? 'Q1';
@@ -729,9 +1136,11 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
               ),
             TextField(controller: _title, decoration: const InputDecoration(labelText: 'Titel')),
             const SizedBox(height: 12),
-            TextField(controller: _site, decoration: const InputDecoration(labelText: 'Standort')), 
+            TextField(controller: _site, decoration: const InputDecoration(labelText: 'Standort')),
             const SizedBox(height: 12),
             TextField(controller: _scope, maxLines: 3, decoration: const InputDecoration(labelText: 'Scope / Umfang')),
+            const SizedBox(height: 12),
+            TextField(controller: _orgUnit, decoration: const InputDecoration(labelText: 'OrgUnit / Bereich')),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -798,9 +1207,20 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
             DropdownButtonFormField<String?>(
               value: _lead,
               decoration: const InputDecoration(labelText: 'Lead Auditor'),
-              onChanged: (v) => setState(() => _lead = v),
-              items: [const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
-                ...widget.auditors.map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))],
+              onChanged: (v) {
+                final selected = widget.auditors.firstWhere((a) => a.id == v, orElse: () => const Auditor(id: '', name: '', email: '', status: 'inactive'));
+                if (_orgUnit.text.isNotEmpty && selected.orgUnit == _orgUnit.text) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unabhängigkeit verletzt: OrgUnit identisch.')));
+                  return;
+                }
+                setState(() => _lead = v);
+              },
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
+                ...widget.auditors
+                    .where((a) => a.isQualified)
+                    .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.orgUnit ?? '-'})')))
+              ],
             ),
           ],
         ),
@@ -836,7 +1256,9 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
         objectives: existing?.objectives ?? const [],
         criteria: existing?.criteria ?? const [],
         references: existing?.references ?? const [],
-        auditeesOrgUnits: existing?.auditeesOrgUnits ?? const [],
+        auditeesOrgUnits: _orgUnit.text.trim().isEmpty
+            ? (existing?.auditeesOrgUnits ?? const [])
+            : [_orgUnit.text.trim()],
         processOwners: existing?.processOwners ?? const [],
         participants: existing?.participants ?? const [],
         leadAuditorId: _lead,
@@ -860,6 +1282,15 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _site.dispose();
+    _scope.dispose();
+    _orgUnit.dispose();
+    super.dispose();
+  }
 }
 
 class _AuditDetailPage extends StatefulWidget {
@@ -877,13 +1308,15 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   List<Auditor> _auditors = const [];
   List<AuditFinding> _findings = const [];
   List<AuditAction> _actions = const [];
+  final List<_AuditPlanEntry> _planEntries = [];
+  _AuditReportDraft _reportDraft = _AuditReportDraft.empty();
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
     _load();
   }
 
@@ -910,6 +1343,18 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         _auditors = auditors;
         _findings = findings;
         _actions = actions;
+        if (_planEntries.isEmpty) {
+          _planEntries.add(_AuditPlanEntry(
+            from: '09:00',
+            to: '10:00',
+            agenda: 'Eröffnung & Scope',
+            process: 'QM',
+            participants: audit.participants.join(', '),
+            auditor: _auditors.isEmpty ? '' : _auditors.first.name,
+            notes: 'Anpassbar',
+          ));
+        }
+        _reportDraft = _reportDraft;
         _loading = false;
       });
     } catch (e) {
@@ -931,6 +1376,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
           controller: _tabs,
           tabs: const [
             Tab(text: 'Plan'),
+            Tab(text: 'Auditplan'),
+            Tab(text: 'Auditbericht'),
             Tab(text: 'Findings'),
             Tab(text: 'Maßnahmen'),
             Tab(text: 'Historie'),
@@ -945,6 +1392,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
                   controller: _tabs,
                   children: [
                     _buildPlan(),
+                    _buildSchedule(),
+                    _buildReport(),
                     _buildFindings(),
                     _buildActions(),
                     _buildHistory(),
@@ -973,6 +1422,147 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         ),
         const SizedBox(height: 12),
         FilledButton.icon(onPressed: () => _openEditor(), icon: const Icon(Icons.edit_outlined), label: const Text('Plan bearbeiten')),
+      ],
+    );
+  }
+
+  bool get _isClosed => (_audit?.status ?? '').toLowerCase() == 'closed';
+
+  Widget _buildSchedule() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Text('Auditplan (täglich)', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            if (!_isClosed)
+              FilledButton.icon(
+                onPressed: () => setState(() => _planEntries.add(_AuditPlanEntry())),
+                icon: const Icon(Icons.add),
+                label: const Text('Zeile hinzufügen'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('Zeit von')),
+                DataColumn(label: Text('Zeit bis')),
+                DataColumn(label: Text('Agenda')),
+                DataColumn(label: Text('Prozess/Bereich')),
+                DataColumn(label: Text('Teilnehmer')),
+                DataColumn(label: Text('Auditor')),
+                DataColumn(label: Text('Notizen')),
+                DataColumn(label: Text('')),
+              ],
+              rows: _planEntries
+                  .map(
+                    (e) => DataRow(cells: [
+                          DataCell(_EditableCell(initialValue: e.from, enabled: !_isClosed, onSaved: (v) => e.from = v)),
+                          DataCell(_EditableCell(initialValue: e.to, enabled: !_isClosed, onSaved: (v) => e.to = v)),
+                          DataCell(_EditableCell(initialValue: e.agenda, enabled: !_isClosed, onSaved: (v) => e.agenda = v)),
+                          DataCell(_EditableCell(initialValue: e.process, enabled: !_isClosed, onSaved: (v) => e.process = v)),
+                          DataCell(_EditableCell(initialValue: e.participants, enabled: !_isClosed, onSaved: (v) => e.participants = v)),
+                          DataCell(_EditableCell(initialValue: e.auditor, enabled: !_isClosed, onSaved: (v) => e.auditor = v)),
+                          DataCell(_EditableCell(initialValue: e.notes, enabled: !_isClosed, onSaved: (v) => e.notes = v)),
+                          DataCell(
+                            IconButton(
+                              onPressed: _isClosed
+                                  ? null
+                                  : () => setState(() => _planEntries.remove(e)),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          ),
+                        ]),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Der Plan wird auditbezogen gespeichert und kann exportiert werden.', style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReport() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Text('Auditbericht', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            if (_isClosed) const Chip(label: Text('Abgeschlossen')), // read-only indicator
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.summary),
+          onChanged: (v) => _reportDraft.summary = v,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Zusammenfassung'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.scopeEvaluation),
+          onChanged: (v) => _reportDraft.scopeEvaluation = v,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Scope-Bewertung'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.findings),
+          onChanged: (v) => _reportDraft.findings = v,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Findings / Beobachtungen'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.conclusion),
+          onChanged: (v) => _reportDraft.conclusion = v,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Gesamtfazit'),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          value: _reportDraft.followUpRecommended,
+          onChanged: _isClosed ? null : (v) => setState(() => _reportDraft.followUpRecommended = v),
+          title: const Text('Nachaudit empfohlen'),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ..._reportDraft.evidence.map((f) => Chip(label: Text(f))),
+            if (!_isClosed)
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _reportDraft.evidence = [..._reportDraft.evidence, 'Evidence_${_reportDraft.evidence.length + 1}.pdf']),
+                icon: const Icon(Icons.upload_file_outlined),
+                label: const Text('Nachweis hinzufügen'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('PDF Export')),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.description_outlined), label: const Text('DOCX Export')),
+          ],
+        ),
       ],
     );
   }
@@ -1386,6 +1976,50 @@ class _KpiCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _EditableCell extends StatefulWidget {
+  final String initialValue;
+  final bool enabled;
+  final ValueChanged<String> onSaved;
+  const _EditableCell({required this.initialValue, required this.enabled, required this.onSaved});
+
+  @override
+  State<_EditableCell> createState() => _EditableCellState();
+}
+
+class _EditableCellState extends State<_EditableCell> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditableCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      enabled: widget.enabled,
+      onChanged: widget.onSaved,
+      decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }
 
