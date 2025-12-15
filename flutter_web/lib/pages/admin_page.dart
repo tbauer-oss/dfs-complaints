@@ -26,6 +26,7 @@ import '../widgets/legal_footer.dart';
 import '../widgets/password_field.dart';
 import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
+import '../widgets/fmea_risk_check_dialog.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
@@ -6342,6 +6343,7 @@ class _AdminPageState extends State<AdminPage> {
                       hasRep: _portalRep != null,
                       repName: _portalRep?.displayName,
                       productLookup: _fetchProduct,
+                      productLookupService: _productLookup,
                       companyHint: _portalCompanyName,
                       initiallyExpanded: true,
                       showEditToggle: false,
@@ -11868,6 +11870,7 @@ class _AdminPageState extends State<AdminPage> {
                           canOpenPrrc: _portalIsPrrc,
                           onOpenPrrc: _openPrrcScreen,
                           productLookup: _productByArticle,
+                          productLookupService: _productLookup,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email),
                           repName: _repNameForEmail(c.email),
@@ -12035,6 +12038,7 @@ class _AdminPageState extends State<AdminPage> {
                           canOpenPrrc: _portalIsPrrc,
                           onOpenPrrc: _openPrrcScreen,
                           productLookup: _productByArticle,
+                          productLookupService: _productLookup,
                           companyHint: _companyByEmail(c.email),
                           hasRep: _customerHasRep(c.email), // ← NEU
                           repName: _repNameForEmail(c.email),
@@ -14087,6 +14091,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                     portalApi: parent?.widget.api,
                     c: c,
                     productLookup: parent?._productByArticle,
+                    productLookupService: parent?._productLookup,
                     onChanged: parent?._syncComplaint,
                     onClosed: onClosed,
                     companyHint: companyHint,
@@ -15288,6 +15293,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
   final String? companyHint;
   final bool hasRep;
   final String? repName;
+  final ProductLookup? productLookupService;
   final bool selectable;
   final bool selected;
   final ValueChanged<bool?>? onSelected;
@@ -15308,6 +15314,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
     required this.portalRole,
     this.portalIsSales = false,
     this.productLookup,
+    this.productLookupService,
     this.companyHint,
     this.hasRep = false,
     this.repName,
@@ -15456,6 +15463,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       portalRole: portalRole,
                       portalIsSales: portalIsSales,
                       productLookup: productLookup,
+                      productLookupService: parent?._productLookup,
                       companyHint: companyHint,
                       hasRep: hasRep,
                       repName: repName,
@@ -15719,6 +15727,7 @@ class _ComplaintEditor extends StatefulWidget {
   final String? companyHint;
   final bool hasRep;
   final String? repName;
+  final ProductLookup? productLookupService;
   final bool selectable;
   final bool selected;
   final ValueChanged<bool?>? onSelected;
@@ -15739,6 +15748,7 @@ class _ComplaintEditor extends StatefulWidget {
     this.portalRole = 'superuser',
     this.showEditToggle = true,
     this.productLookup,
+    this.productLookupService,
     this.companyHint,
     this.hasRep = false,
     this.repName,
@@ -17841,6 +17851,28 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       );
     }
 
+    Future<void> _openFmea() async {
+      final lookup = widget.productLookupService;
+      final portalApi = widget.portalApi;
+      if (lookup == null || portalApi == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('FMEA-Sprung nicht verfügbar (Artikelliste fehlt).')),
+          );
+        }
+        return;
+      }
+
+      await openFmeaRiskCheckDialog(
+        context: context,
+        api: portalApi,
+        productLookup: lookup,
+        articleNumber: articleNo ?? '',
+        clues: [descText, reason ?? '', customerWish ?? '', injuryDesc ?? ''],
+        canEdit: true,
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
@@ -18043,6 +18075,12 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           ),
                         ),
                         const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Zur FMEA',
+                          icon: const Icon(Icons.health_and_safety_outlined),
+                          onPressed: (_busy || _isPortalUser || _isPortalReadonly) ? null : _openFmea,
+                        ),
+                        const SizedBox(width: 4),
                         IconButton(
                           tooltip: 'E-Mail an Kunden verfassen',
                           icon: const Icon(Icons.email_outlined),
@@ -20957,6 +20995,7 @@ class PrrcDashboardPage extends StatefulWidget {
                       hasRep: _portalRep != null,
                       repName: _portalRep?.displayName,
                       productLookup: _fetchProduct,
+                      productLookupService: _productLookup,
                       companyHint: _portalCompanyName,
                       initiallyExpanded: true,
                       showEditToggle: false,

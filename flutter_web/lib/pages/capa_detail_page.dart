@@ -8,6 +8,7 @@ import '../models/portal_user.dart';
 import '../models/dfs_product.dart';
 import '../services/product_lookup.dart';
 import '../widgets/date_field.dart';
+import '../widgets/fmea_risk_check_dialog.dart';
 
 const List<String> _departmentOptions = [
   'Sinterei',
@@ -167,6 +168,22 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
           status: status ?? _report.status,
           responsibleUserId: responsible ?? _report.responsibleUserId,
         ));
+  }
+
+  Future<void> _openFmeaCheck() async {
+    await openFmeaRiskCheckDialog(
+      context: context,
+      api: widget.api,
+      productLookup: _productLookup,
+      articleNumber: _report.sections.product,
+      clues: [
+        _report.title,
+        _report.sections.problem,
+        _report.sections.causeSummary,
+        _report.sections.immediateDetails,
+      ],
+      canEdit: widget.canWrite,
+    );
   }
 
   void _syncControllersFromReport() {
@@ -976,6 +993,12 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                 DropdownMenuItem(value: 'closed', child: Text('abgeschlossen')),
               ],
             ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: _openFmeaCheck,
+            icon: const Icon(Icons.health_and_safety_outlined),
+            label: const Text('Zur FMEA'),
           ),
           const SizedBox(width: 8),
           TextButton.icon(
