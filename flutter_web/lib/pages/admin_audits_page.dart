@@ -85,7 +85,10 @@ class _AuditPlanEntry {
   String process;
   String participants;
   String auditor;
+  String? auditorId;
+  String reference;
   String notes;
+  bool done;
 
   _AuditPlanEntry({
     this.from = '',
@@ -94,7 +97,10 @@ class _AuditPlanEntry {
     this.process = '',
     this.participants = '',
     this.auditor = '',
+    this.auditorId,
+    this.reference = '',
     this.notes = '',
+    this.done = false,
   });
 }
 
@@ -1418,12 +1424,18 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   _AuditReportDraft _reportDraft = _AuditReportDraft.empty();
   bool _loading = true;
   bool _planSaving = false;
+  bool _planLoaded = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 6, vsync: this);
+    _tabs.addListener(() {
+      if (_tabs.index == 1 && !_planLoaded) {
+        _loadPlanEntries();
+      }
+    });
     _load();
   }
 
@@ -1437,43 +1449,26 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     setState(() {
       _loading = true;
       _error = null;
+      _planLoaded = false;
     });
     try {
       final audits = await widget.api.listAudits(year: widget.audit.year);
       final audit = audits.firstWhere((a) => a.id == widget.audit.id, orElse: () => widget.audit);
-      final auditors = await widget.api.listAuditors();
-      final findings = await widget.api.listFindings(widget.audit.id);
-      final actions = await widget.api.listActions(widget.audit.id);
+      final auditorsFuture = widget.api.listAuditors();
+      final findingsFuture = widget.api.listFindings(widget.audit.id);
+      final actionsFuture = widget.api.listActions(widget.audit.id);
+      final planFuture = widget.api.loadAuditPlan(widget.audit.id);
+      final auditors = await auditorsFuture;
+      final findings = await findingsFuture;
+      final actions = await actionsFuture;
+      final planEntries = await planFuture;
       if (!mounted) return;
       setState(() {
         _audit = audit;
         _auditors = auditors;
         _findings = findings;
         _actions = actions;
-        _planEntries
-          ..clear()
-          ..addAll((audit.planEntries.isNotEmpty ? audit.planEntries : const [])
-              .map((p) => _AuditPlanEntry(
-                    from: p.from,
-                    to: p.to,
-                    agenda: p.agenda,
-                    process: p.process,
-                    participants: p.participants,
-                    auditor: p.auditor,
-                    notes: p.notes,
-                  ))
-              .toList());
-        if (_planEntries.isEmpty) {
-          _planEntries.add(_AuditPlanEntry(
-            from: '09:00',
-            to: '10:00',
-            agenda: 'Eröffnung & Scope',
-            process: 'QM',
-            participants: audit.participants.join(', '),
-            auditor: _auditors.isEmpty ? '' : _auditors.first.name,
-            notes: 'Anpassbar',
-          ));
-        }
+        _applyPlan(planEntries);
         _reportDraft = _reportDraft;
         _loading = false;
       });
@@ -1484,6 +1479,58 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         _loading = false;
       });
     }
+  }
+
+  Future<void> _loadPlanEntries() async {
+    if (_audit == null) return;
+    try {
+      final planEntries = await widget.api.loadAuditPlan(_audit!.id);
+      if (!mounted) return;
+      setState(() {
+        _applyPlan(planEntries);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
+  }
+
+  Auditor? _findAuditor(String? id) {
+    if (id == null || id.isEmpty) return null;
+    return _auditors.cast<Auditor?>().firstWhere((a) => a?.id == id, orElse: () => null);
+  }
+
+  String? _auditorName(String? id) => _findAuditor(id)?.name;
+
+  void _applyPlan(List<AuditPlanEntry> planEntries) {
+    _planEntries
+      ..clear()
+      ..addAll(planEntries.map(_mapPlan));
+    _planLoaded = true;
+    _syncPlanAuditorSelection();
+  }
+
+  void _syncPlanAuditorSelection() {
+    final leadId = _audit?.leadAuditorId;
+    final coId = _audit?.coAuditorId;
+    for (final entry in _planEntries) {
+      if ((entry.auditorId == null || entry.auditorId!.isEmpty) && coId == null && leadId != null) {
+        entry.auditorId = leadId;
+      }
+      final name = _auditorName(entry.auditorId);
+      if (name != null && name.isNotEmpty) {
+        entry.auditor = name;
+      }
+    }
+  }
+
+  List<Auditor> _planAuditorOptions() {
+    final options = <Auditor>[];
+    final lead = _findAuditor(_audit?.leadAuditorId);
+    final co = _findAuditor(_audit?.coAuditorId);
+    if (lead != null) options.add(lead);
+    if (co != null && co.id != lead?.id) options.add(co);
+    return options;
   }
 
   @override
@@ -1565,7 +1612,10 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         process: p.process,
         participants: p.participants,
         auditor: p.auditor,
+        auditorId: p.auditorId,
+        reference: p.reference,
         notes: p.notes,
+        done: p.done,
       );
 
   AuditPlanEntry _mapPlanBack(_AuditPlanEntry p) => AuditPlanEntry(
@@ -1575,7 +1625,10 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         process: p.process,
         participants: p.participants,
         auditor: p.auditor,
+        auditorId: p.auditorId,
+        reference: p.reference,
         notes: p.notes,
+        done: p.done,
       );
 
   Audit _auditWith({String? status, List<AuditPlanEntry>? plan}) {
@@ -1615,13 +1668,11 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     if (_audit == null || _planSaving) return;
     setState(() => _planSaving = true);
     try {
-      final saved = await widget.api.updateAudit(_auditWith(plan: _planEntries.map(_mapPlanBack).toList()));
+      final savedPlan = await widget.api.saveAuditPlan(_audit!.id, _planEntries.map(_mapPlanBack).toList());
       if (!mounted) return;
       setState(() {
-        _audit = saved;
-        _planEntries
-          ..clear()
-          ..addAll(saved.planEntries.map(_mapPlan));
+        _applyPlan(savedPlan);
+        _audit = _auditWith(plan: savedPlan);
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Auditplan gespeichert.')));
     } catch (e) {
@@ -1633,6 +1684,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   }
 
   Widget _buildSchedule() {
+    _syncPlanAuditorSelection();
+    final auditorOptions = _planAuditorOptions();
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1668,19 +1721,65 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
                 DataColumn(label: Text('Prozess/Bereich')),
                 DataColumn(label: Text('Teilnehmer')),
                 DataColumn(label: Text('Auditor')),
+                DataColumn(label: Text('Norm / Referenz')),
                 DataColumn(label: Text('Notizen')),
+                DataColumn(label: Text('abgehakt')),
                 DataColumn(label: Text('')),
               ],
               rows: _planEntries
                   .map(
-                    (e) => DataRow(cells: [
-                          DataCell(_TimeCell(initialValue: e.from, enabled: !_isClosed, onChanged: (v) => setState(() => e.from = v))),
-                          DataCell(_TimeCell(initialValue: e.to, enabled: !_isClosed, onChanged: (v) => setState(() => e.to = v))),
-                          DataCell(_EditableCell(initialValue: e.agenda, enabled: !_isClosed, onSaved: (v) => e.agenda = v)),
-                          DataCell(_EditableCell(initialValue: e.process, enabled: !_isClosed, onSaved: (v) => e.process = v)),
-                          DataCell(_EditableCell(initialValue: e.participants, enabled: !_isClosed, onSaved: (v) => e.participants = v)),
-                          DataCell(_EditableCell(initialValue: e.auditor, enabled: !_isClosed, onSaved: (v) => e.auditor = v)),
-                          DataCell(_EditableCell(initialValue: e.notes, enabled: !_isClosed, onSaved: (v) => e.notes = v)),
+                    (e) {
+                      final editable = !_isClosed && !e.done;
+                      final selection =
+                          e.auditorId?.isNotEmpty == true ? e.auditorId : (auditorOptions.length == 1 ? auditorOptions.first.id : null);
+                      if (selection != null && e.auditorId != selection) {
+                        e.auditorId = selection;
+                        e.auditor = _auditorName(selection) ?? e.auditor;
+                      }
+                      return DataRow(
+                        color: MaterialStateProperty.resolveWith(
+                          (states) => e.done ? Colors.grey.shade200 : null,
+                        ),
+                        cells: [
+                          DataCell(
+                            _TimeCell(initialValue: e.from, enabled: editable, onChanged: (v) => setState(() => e.from = v)),
+                          ),
+                          DataCell(
+                            _TimeCell(initialValue: e.to, enabled: editable, onChanged: (v) => setState(() => e.to = v)),
+                          ),
+                          DataCell(_EditableCell(initialValue: e.agenda, enabled: editable, onSaved: (v) => e.agenda = v)),
+                          DataCell(_EditableCell(initialValue: e.process, enabled: editable, onSaved: (v) => e.process = v)),
+                          DataCell(
+                              _EditableCell(initialValue: e.participants, enabled: editable, onSaved: (v) => e.participants = v)),
+                          DataCell(
+                            auditorOptions.isEmpty
+                                ? Text(e.auditor.isNotEmpty ? e.auditor : '-')
+                                : DropdownButton<String>(
+                                    value: selection,
+                                    hint: const Text('Auditor wählen'),
+                                    onChanged: !editable
+                                        ? null
+                                        : (value) => setState(() {
+                                              e.auditorId = value;
+                                              e.auditor = _auditorName(value) ?? e.auditor;
+                                            }),
+                                    items: auditorOptions
+                                        .map((a) => DropdownMenuItem<String>(value: a.id, child: Text(a.name)))
+                                        .toList(),
+                                  ),
+                          ),
+                          DataCell(_EditableCell(initialValue: e.reference, enabled: editable, onSaved: (v) => e.reference = v)),
+                          DataCell(_EditableCell(initialValue: e.notes, enabled: editable, onSaved: (v) => e.notes = v)),
+                          DataCell(
+                            Checkbox(
+                              value: e.done,
+                              onChanged: _isClosed
+                                  ? null
+                                  : (value) => setState(() {
+                                        e.done = value ?? false;
+                                      }),
+                            ),
+                          ),
                           DataCell(
                             IconButton(
                               onPressed: _isClosed
@@ -1689,7 +1788,9 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
                               icon: const Icon(Icons.delete_outline),
                             ),
                           ),
-                        ]),
+                        ],
+                      );
+                    },
                   )
                   .toList(),
             ),
