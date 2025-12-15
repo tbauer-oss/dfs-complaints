@@ -380,9 +380,9 @@ function _normalizeCatalogConfig(input) {
 }
 
 // ===== Helper (Redis IO) =====
-async function rget(k) {
+async function rget(k, rclient = null) {
   try {
-    const r = getRedis();
+    const r = rclient || getRedis();
     if (!r) return null;
     const raw = await withRedisTimeout(r.get(k), `KV GET ${k}`);
     if (typeof raw === 'string') {
@@ -398,9 +398,9 @@ async function rget(k) {
     return null;
   }
 }
-async function rset(k, v) {
+async function rset(k, v, rclient = null) {
   try {
-    const r = getRedis();
+    const r = rclient || getRedis();
     if (!r) return null;
     const payload = typeof v === 'string' ? v : JSON.stringify(v);
     return await withRedisTimeout(r.set(k, payload), `KV SET ${k}`);
@@ -409,9 +409,9 @@ async function rset(k, v) {
     return null;
   }
 }
-async function rdel(k) {
+async function rdel(k, rclient = null) {
   try {
-    const r = getRedis();
+    const r = rclient || getRedis();
     if (!r) return null;
     return await withRedisTimeout(r.del(k), `KV DEL ${k}`);
   } catch (e) {
@@ -421,8 +421,8 @@ async function rdel(k) {
 }
 
 // ===== Key-Scan kompatibel zu Upstash =====
-async function rkeys(pattern) {
-  const r = getRedis();
+async function rkeys(pattern, rclient = null) {
+  const r = rclient || getRedis();
   if (!r) return [];
   if (typeof r.keys === 'function') {
     try { return await withRedisTimeout(r.keys(pattern), `KV KEYS ${pattern}`); } catch { /* continue */ }
@@ -3527,14 +3527,21 @@ const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
 // Redis previously acted as the primary store for auditors/audits which caused
 // every PATCH/PUT to write fresh keys like dfs:audit:auditor:<uuid>. The UI
 // sends full audit payloads, so each edit overwrote Redis with partially
-// normalized auditor data and produced phantom auditors. To make audit updates
-// deterministic we stop persisting audit entities to Redis entirely and keep
-// everything in-process (or downstream DB once available).
+// normalized auditor data and produced phantom auditors. To keep audit updates
+// deterministic we still avoid persisting audits themselves. Auditor writes are
+// opt-in so we don't unintentionally create records in Upstash.
+const AUDITOR_REDIS_ENABLED =
+  String(process.env.AUDITOR_REDIS_ENABLED || '').toLowerCase() === 'true';
 const AUDIT_REDIS_ENABLED = false;
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedis() {
   if (!AUDIT_REDIS_ENABLED) return null;
+  return getRedis();
+}
+
+function getAuditorRedis() {
+  if (!AUDITOR_REDIS_ENABLED) return null;
   return getRedis();
 }
 
@@ -3561,8 +3568,9 @@ function ensureAuditStores() {
 
 async function hydrateAuditStores() {
   auditStoresHydrated = true;
+  const rAuditor = getAuditorRedis();
   const r = getAuditRedis();
-  if (!r) return;
+  if (!rAuditor && !r) return;
 
   const AUDITOR_PREFIX = `${P}audit:auditor:`;
   const PROGRAM_PREFIX = `${P}audit:program:`;
@@ -3572,18 +3580,18 @@ async function hydrateAuditStores() {
   const REPORT_PREFIX = `${P}audit:annualReport:`;
 
   const [auditorKeys, programKeys, auditKeys, findingKeys, actionKeys, reportKeys, counters] = await Promise.all([
-    rkeys(`${P}audit:auditor:*`),
-    rkeys(`${P}audit:program:*`),
-    rkeys(`${P}audit:*`),
-    rkeys(`${P}audit:finding:*`),
-    rkeys(`${P}audit:action:*`),
-    rkeys(`${P}audit:annualReport:*`),
-    rget(KEY_AUDIT_COUNTERS),
+    rAuditor ? rkeys(`${P}audit:auditor:*`, rAuditor) : [],
+    r ? rkeys(`${P}audit:program:*`, r) : [],
+    r ? rkeys(`${P}audit:*`, r) : [],
+    r ? rkeys(`${P}audit:finding:*`, r) : [],
+    r ? rkeys(`${P}audit:action:*`, r) : [],
+    r ? rkeys(`${P}audit:annualReport:*`, r) : [],
+    r ? rget(KEY_AUDIT_COUNTERS, r) : null,
   ]);
 
-  const load = async (keys, normalize, target, deriveIdFromKey = null) => {
+  const load = async (rclient, keys, normalize, target, deriveIdFromKey = null) => {
     for (const key of keys) {
-      const raw = await rget(key);
+      const raw = await rget(key, rclient);
       if (!raw || typeof raw !== 'object') continue;
       const record = { ...raw };
       if (!record.id && typeof deriveIdFromKey === 'function') {
@@ -3596,9 +3604,10 @@ async function hydrateAuditStores() {
 
   const idFromSuffix = (prefix) => (key) => (key.startsWith(prefix) ? key.slice(prefix.length) : undefined);
 
-  await load(auditorKeys, normalizeAuditor, mem.auditors, idFromSuffix(AUDITOR_PREFIX));
-  await load(programKeys, normalizeAuditProgram, mem.auditPrograms, idFromSuffix(PROGRAM_PREFIX));
+  await load(rAuditor, auditorKeys, normalizeAuditor, mem.auditors, idFromSuffix(AUDITOR_PREFIX));
+  await load(r, programKeys, normalizeAuditProgram, mem.auditPrograms, idFromSuffix(PROGRAM_PREFIX));
   await load(
+    r,
     auditKeys.filter(
       k =>
         !k.startsWith(AUDITOR_PREFIX) &&
@@ -3612,9 +3621,9 @@ async function hydrateAuditStores() {
     mem.audits,
     idFromSuffix(AUDIT_PREFIX),
   );
-  await load(findingKeys, normalizeFinding, mem.auditFindings, idFromSuffix(FINDING_PREFIX));
-  await load(actionKeys, normalizeAction, mem.auditActions, idFromSuffix(ACTION_PREFIX));
-  await load(reportKeys, normalizeAnnualReport, mem.auditAnnualReports, idFromSuffix(REPORT_PREFIX));
+  await load(r, findingKeys, normalizeFinding, mem.auditFindings, idFromSuffix(FINDING_PREFIX));
+  await load(r, actionKeys, normalizeAction, mem.auditActions, idFromSuffix(ACTION_PREFIX));
+  await load(r, reportKeys, normalizeAnnualReport, mem.auditAnnualReports, idFromSuffix(REPORT_PREFIX));
 
   if (counters && typeof counters === 'object') {
     mem.auditCounters = counters;
@@ -3979,8 +3988,8 @@ export async function auditorSave(record = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAuditor(record);
   mem.auditors.set(normalized.id, normalized);
-  const r = getAuditRedis();
-  if (r) await rset(KEY_AUDITOR(normalized.id), normalized);
+  const r = getAuditorRedis();
+  if (r) await rset(KEY_AUDITOR(normalized.id), normalized, r);
   return normalized;
 }
 
@@ -3990,8 +3999,8 @@ export async function auditorUpdate(id, patch = {}) {
   if (!current) return null;
   const merged = normalizeAuditor({ ...current, ...patch, id });
   mem.auditors.set(id, merged);
-  const r = getAuditRedis();
-  if (r) await rset(KEY_AUDITOR(id), merged);
+  const r = getAuditorRedis();
+  if (r) await rset(KEY_AUDITOR(id), merged, r);
   return merged;
 }
 
@@ -4005,8 +4014,8 @@ export async function auditorDelete(id) {
     }
   }
   const deleted = mem.auditors.delete(id);
-  const r = getAuditRedis();
-  if (r) await rdel(KEY_AUDITOR(id));
+  const r = getAuditorRedis();
+  if (r) await rdel(KEY_AUDITOR(id), r);
   return deleted;
 }
 
