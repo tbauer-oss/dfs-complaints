@@ -158,6 +158,7 @@ class AuditAdminApi {
           'coAuditCount': auditor.coAuditCount,
           'leadAuditCount': auditor.leadAuditCount,
           'requalificationDueDate': auditor.requalificationDueDate?.toIso8601String(),
+          'override': auditor.qualificationOverride,
           'evidence': auditor.evidenceAttachments.map((e) => e.toJson()).toList(),
         },
         'independenceRules': {
