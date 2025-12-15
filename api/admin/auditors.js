@@ -22,7 +22,13 @@ const TILE = AUDIT_TILE_ID;
 
 function handleError(res, err) {
   console.error('[admin/auditors] error', err);
-  return bad(res, err.message || 'server error', err.code === 'VALIDATION_ERROR' ? 400 : 500);
+  const status =
+    err.code === 'VALIDATION_ERROR'
+      ? 400
+      : err.code === 'REFERENCED'
+          ? 409
+          : 500;
+  return bad(res, err.message || 'server error', status);
 }
 
 export default async function handler(req, res) {
