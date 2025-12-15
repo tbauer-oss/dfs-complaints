@@ -710,9 +710,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     }
   }
 
-  Widget _buildHeaderForm() {
+  Widget _buildHeaderForm({void Function(VoidCallback fn)? setStateFn}) {
     final theme = Theme.of(context);
     final spacing = const SizedBox(height: 12);
+    final rebuild = setStateFn ?? setState;
     final summaryChips = [
       if (_mdrTdCtrl.text.trim().isNotEmpty)
         Chip(
@@ -753,7 +754,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                   ),
                 if (_headerExpanded) const Spacer(),
                 TextButton.icon(
-                  onPressed: () => setState(() => _headerExpanded = !_headerExpanded),
+                  onPressed: () => rebuild(() => _headerExpanded = !_headerExpanded),
                   icon: Icon(_headerExpanded ? Icons.unfold_less : Icons.unfold_more),
                   label: Text(_headerExpanded ? 'Einklappen' : 'Einblenden'),
                 ),
@@ -784,7 +785,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           onChanged: _readOnly
                               ? null
                               : (val) {
-                                  setState(() {
+                                  rebuild(() {
                                     _mdrTdCtrl.text = val ?? '';
                                     if ((_medicalProductCtrl.text).isEmpty) {
                                       _medicalProductCtrl.text = val ?? '';
@@ -804,7 +805,8 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           }
                               .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                               .toList(),
-                          onChanged: _readOnly ? null : (val) => setState(() => _productGroupCtrl.text = val ?? ''),
+                          onChanged:
+                              _readOnly ? null : (val) => rebuild(() => _productGroupCtrl.text = val ?? ''),
                         ),
                       ),
                       SizedBox(
@@ -829,7 +831,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           controller: _revisionCtrl,
                           decoration: const InputDecoration(labelText: 'Revision'),
                           readOnly: _readOnly,
-                          onChanged: (v) => setState(() => _revisionCtrl.text = _normalizedRevision(v)),
+                          onChanged: (v) => rebuild(() => _revisionCtrl.text = _normalizedRevision(v)),
                         ),
                       ),
                       if (!_readOnly)
@@ -860,7 +862,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                               .toList(),
                           onChanged: _readOnly
                               ? null
-                              : (val) => setState(() {
+                              : (val) => rebuild(() {
                                     _moderatorCtrl.text = val ?? '';
                                   }),
                         ),
@@ -871,7 +873,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           value: _prrcApproved,
                           onChanged: _readOnly
                               ? null
-                              : (val) => setState(() {
+                              : (val) => rebuild(() {
                                     _prrcApproved = val ?? false;
                                     if (val == true && _prrcDate == null) {
                                       _prrcDate = DateTime.now();
@@ -895,9 +897,8 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                     child: Text('${u.label} (${u.email})'),
                                   ))
                               .toList(),
-                          onChanged: _readOnly
-                              ? null
-                              : (val) => setState(() => _prrcNameCtrl.text = val ?? ''),
+                          onChanged:
+                              _readOnly ? null : (val) => rebuild(() => _prrcNameCtrl.text = val ?? ''),
                         ),
                       ),
                       SizedBox(
@@ -912,7 +913,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                     firstDate: DateTime(2020),
                                     lastDate: DateTime(2100),
                                   );
-                                  if (picked != null) setState(() => _prrcDate = picked);
+                                  if (picked != null) rebuild(() => _prrcDate = picked);
                                 },
                           child: InputDecorator(
                             decoration: const InputDecoration(labelText: 'PRRC-Datum'),
@@ -922,7 +923,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                       ),
                       if (!_readOnly)
                         TextButton.icon(
-                          onPressed: () => setState(() => _prrcDate = null),
+                          onPressed: () => rebuild(() => _prrcDate = null),
                           icon: const Icon(Icons.clear),
                           label: const Text('Datum leeren'),
                         ),
@@ -1911,42 +1912,46 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       context: context,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        return Align(
-          alignment: Alignment.centerRight,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520, minWidth: 420),
-            child: Material(
-              elevation: 12,
-              color: theme.colorScheme.surface,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520, minWidth: 420),
+                child: Material(
+                  elevation: 12,
+                  color: theme.colorScheme.surface,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.max,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Kopfdaten', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            icon: const Icon(Icons.close),
+                          Row(
+                            children: [
+                              Text('Kopfdaten', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: _buildHeaderForm(setStateFn: dialogSetState),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: _buildHeaderForm(),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
