@@ -1,5 +1,5 @@
 // /api/account_export.js – DSGVO Self-Service Datenexport (Art. 15/20)
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import {
   handlePreflight,

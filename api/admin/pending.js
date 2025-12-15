@@ -1,5 +1,5 @@
 // api/admin/pending.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import {
   handlePreflight, setCors, ok, bad, methodNotAllowed, readJson

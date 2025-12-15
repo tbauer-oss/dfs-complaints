@@ -1,5 +1,5 @@
 // api/_options.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { handlePreflight, setCors } from './_lib/http.js';
 

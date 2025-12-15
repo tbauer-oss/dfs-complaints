@@ -1,5 +1,5 @@
 // api/admin/complaints_export.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import JSZip from 'jszip';
 import { setCors, noContent, bad, methodNotAllowed } from '../_lib/http.js';

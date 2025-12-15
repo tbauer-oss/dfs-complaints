@@ -1,5 +1,5 @@
 // api/admin/download-categories.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { addDownloadCategory, deleteDownloadCategory, downloadCategoriesWithCounts } from '../_lib/store.js';

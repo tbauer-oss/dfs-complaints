@@ -1,5 +1,5 @@
 // /api/admin/audit-findings.js – Auditfeststellungen & Verknüpfungen
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import {
   handlePreflight,

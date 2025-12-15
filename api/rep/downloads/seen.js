@@ -1,5 +1,5 @@
 // api/rep/downloads/seen.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
 import { getRepFromAuthHeader } from '../../_lib/repAuth.js';

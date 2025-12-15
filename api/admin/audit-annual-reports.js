@@ -1,5 +1,5 @@
 // /api/admin/audit-annual-reports.js – Jahresberichte & Exporte
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import {
   handlePreflight,

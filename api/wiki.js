@@ -1,5 +1,5 @@
 // /api/wiki.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from './_lib/http.js';
 import { normalizeLangValue } from './_lib/store.js';

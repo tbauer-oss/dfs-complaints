@@ -1,5 +1,5 @@
 // api/complaint/get.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { setCors, noContent, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { complaintByTicket } from '../_lib/store.js';

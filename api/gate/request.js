@@ -1,5 +1,5 @@
 // /api/gate/request.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { handlePreflight, setCors, bad } from '../_lib/http.js';
 

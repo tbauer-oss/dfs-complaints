@@ -1,5 +1,5 @@
 // /api/admin/audit-programs.js – Auditprogramme (Jahresplanung)
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import {
   handlePreflight,

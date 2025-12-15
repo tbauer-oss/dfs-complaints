@@ -1,5 +1,5 @@
 // api/rep/decision/reset.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 // --- Utils ---
 const S = (v) => (v ?? '').toString().trim();

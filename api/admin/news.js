@@ -1,5 +1,5 @@
 // api/admin/news.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed, readJson, noContent } from '../_lib/http.js';
 import {
