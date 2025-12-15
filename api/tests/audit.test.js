@@ -162,6 +162,64 @@ test('maps auditor objects and still blocks unknown auditors without upserting',
   assert.equal(auditorsAfter.length, beforeCount + 1);
 });
 
+test('generates stable IA audit numbers using yearly redis counter', async () => {
+  const calls = [];
+  const counters = new Map();
+  const fakeRedis = {
+    async incr(key) {
+      const val = (counters.get(key) || 0) + 1;
+      counters.set(key, val);
+      calls.push({ op: 'incr', key, val });
+      return val;
+    },
+    async set(key, value) {
+      calls.push({ op: 'set', key, value });
+      return 'ok';
+    },
+    async get() { return null; },
+    async del() { return null; },
+    async keys() { return []; },
+  };
+
+  __setRedisClientForTests(fakeRedis);
+  const lead = await auditorSave(buildQualifiedAuditor('Counter Lead'));
+
+  const audit2025 = await auditSave({
+    title: 'Counter Audit 1',
+    plannedStart: '2025-01-10T00:00:00.000Z',
+    plannedEnd: '2025-01-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  const audit2025b = await auditSave({
+    title: 'Counter Audit 2',
+    plannedStart: '2025-02-10T00:00:00.000Z',
+    plannedEnd: '2025-02-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  const audit2026 = await auditSave({
+    title: 'Counter Audit 3',
+    plannedStart: '2026-02-10T00:00:00.000Z',
+    plannedEnd: '2026-02-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  __setRedisClientForTests(null);
+
+  assert.equal(audit2025.auditNumber, 'IA-25-01');
+  assert.equal(audit2025.auditNo, 'IA-25-01');
+  assert.equal(audit2025b.auditNumber, 'IA-25-02');
+  assert.equal(audit2026.auditNumber, 'IA-26-01');
+
+  const updated = await auditUpdate(audit2025.id, { title: 'keep number' });
+  assert.equal(updated.auditNumber, 'IA-25-01');
+  assert.ok(calls.some(c => c.op === 'incr' && /audit:counter:25/.test(c.key)));
+});
+
 test('enforces independence between auditor org unit and audit org unit', async () => {
   const lead = await auditorSave({
     ...buildQualifiedAuditor('Independence Lead'),
@@ -221,6 +279,7 @@ test('persists auditors to redis when a redis client is available', async () => 
       calls.push({ op: 'set', key, value });
       return 'ok';
     },
+    async incr() { return 1; },
     async get() { return null; },
     async del() { return null; },
   };
@@ -241,6 +300,7 @@ test('hydrates lead auditor from redis when memory is cold', async () => {
       backing.set(key, value);
       return 'ok';
     },
+    async incr() { return 1; },
     async get(key) {
       return backing.get(key) || null;
     },
