@@ -71,6 +71,12 @@ const mem = {
   complaints: new Map(),
   capaReports: new Map(),
   fmeas: new Map(),
+  auditors: new Map(),
+  auditPrograms: new Map(),
+  audits: new Map(),
+  auditFindings: new Map(),
+  auditActions: new Map(),
+  auditAnnualReports: new Map(),
   counters: { ticket: 1, capa: {} },
   catalogConfig: {},
   repPushTokens: new Map(),
@@ -85,6 +91,7 @@ const mem = {
   downloadCategories: null,
   repDownloadSeen: new Map(),
   adminUiConfig: null,
+  auditCounters: {},
 };
 
 export function normalizeTilePermission(value) {
@@ -3469,3 +3476,654 @@ async function syncFmeaRiskLinks(fmea, risk, prevRisk) {
     await capaSave({ ...capa, fmeaRiskNumbers: list });
   }
 }
+
+/* =====================================================================
+   AUDITS – Auditprogramm, Audits, Findings, Actions, Annual Reports
+   ===================================================================== */
+
+const AUDIT_TILE_ID = 'audits';
+
+const AUDIT_FINDING_SEVERITY = {
+  CONFORMITY: 'Konformität',
+  HINT: 'Hinweis',
+  MINOR: 'Minor',
+  MAJOR: 'Major',
+  CRITICAL: 'Critical',
+};
+
+function ensureAuditStores() {
+  if (!mem.auditors) mem.auditors = new Map();
+  if (!mem.auditPrograms) mem.auditPrograms = new Map();
+  if (!mem.audits) mem.audits = new Map();
+  if (!mem.auditFindings) mem.auditFindings = new Map();
+  if (!mem.auditActions) mem.auditActions = new Map();
+  if (!mem.auditAnnualReports) mem.auditAnnualReports = new Map();
+  if (!mem.auditCounters) mem.auditCounters = {};
+}
+
+function normalizeAuditString(value) {
+  return (value ?? '').toString().trim();
+}
+
+function normalizeAuditStringArray(arr) {
+  return Array.isArray(arr)
+    ? Array.from(new Set(arr.map(v => normalizeAuditString(v)).filter(Boolean)))
+    : [];
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function addDays(base, days) {
+  const d = base ? new Date(base) : new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function auditorQualificationState(auditor) {
+  const q = auditor?.qualifications || {};
+  const hasTraining = !!q.internalAuditorTrainingDate;
+  const experienceYears = Number(q.experienceYears || 0);
+  const hasOverride = q.override === true || q.qualificationOverride === true;
+  const dueDateIso = q.requalificationDueDate ? new Date(q.requalificationDueDate) : null;
+  const overdue = dueDateIso ? dueDateIso.getTime() < Date.now() : false;
+  const qualified = Boolean(hasTraining && (experienceYears >= 3 || hasOverride) && !overdue);
+  return { qualified, overdue, hasTraining, hasOverride, experienceYears };
+}
+
+export function isAuditorQualified(auditor, { allowOverride = true } = {}) {
+  const { qualified, hasOverride } = auditorQualificationState(auditor);
+  if (qualified) return true;
+  if (!allowOverride && hasOverride) return false;
+  return false;
+}
+
+function auditorConflictsWithScope(auditor, audit) {
+  const restrictedOrgUnits = normalizeAuditStringArray(auditor?.independenceRules?.restrictedOrgUnits);
+  const restrictedProcessOwners = normalizeAuditStringArray(auditor?.independenceRules?.restrictedProcessOwners);
+  const scopeOrgUnits = normalizeAuditStringArray(audit?.auditeesOrgUnits);
+  const processOwners = normalizeAuditStringArray(audit?.processOwners);
+
+  const conflictOrg = scopeOrgUnits.find(org => restrictedOrgUnits.includes(org));
+  if (conflictOrg) return `Konflikt mit Organisationsbereich ${conflictOrg}`;
+  const conflictProcess = processOwners.find(po => restrictedProcessOwners.includes(po));
+  if (conflictProcess) return `Konflikt mit Prozessverantwortung ${conflictProcess}`;
+  return null;
+}
+
+function nextAuditNumber(year) {
+  const y = String(year || new Date().getFullYear()).slice(-2);
+  if (!mem.auditCounters[y]) mem.auditCounters[y] = 0;
+  mem.auditCounters[y] += 1;
+  const counter = String(mem.auditCounters[y]).padStart(2, '0');
+  return `IA-${y}-${counter}`;
+}
+
+function applyAuditNumber(audit) {
+  if (audit.auditNumber) return audit.auditNumber;
+  const year = audit?.plannedStart ? new Date(audit.plannedStart).getFullYear() : new Date().getFullYear();
+  return nextAuditNumber(year);
+}
+
+function normalizeAuditor(record = {}) {
+  const now = nowIso();
+  const normalized = {
+    id: record.id || crypto.randomUUID(),
+    name: normalizeAuditString(record.name),
+    email: normalizeAuditString(record.email),
+    orgUnit: normalizeAuditString(record.orgUnit || record.orgUnitOrDepartment || record.department),
+    role: normalizeAuditString(record.role || 'Lead'),
+    status: normalizeAuditString(record.status || 'active'),
+    qualifications: record.qualifications || {},
+    independenceRules: {
+      restrictedProcessOwners: normalizeAuditStringArray(record?.independenceRules?.restrictedProcessOwners),
+      restrictedOrgUnits: normalizeAuditStringArray(record?.independenceRules?.restrictedOrgUnits),
+      notes: normalizeAuditString(record?.independenceRules?.notes),
+    },
+    createdAt: record.createdAt || now,
+    updatedAt: now,
+    createdBy: record.createdBy || record.updatedBy,
+    updatedBy: record.updatedBy,
+  };
+  return normalized;
+}
+
+function normalizeAuditProgram(record = {}) {
+  const now = nowIso();
+  return {
+    id: record.id || crypto.randomUUID(),
+    year: Number(record.year || new Date().getFullYear()),
+    title: normalizeAuditString(record.title || `Auditprogramm ${record.year || new Date().getFullYear()}`),
+    status: record.status || 'draft',
+    approvedBy: normalizeAuditString(record.approvedBy),
+    approvedAt: record.approvedAt ? parseDate(record.approvedAt) : null,
+    clusters: Array.isArray(record.clusters) && record.clusters.length ? record.clusters : ['Q1', 'Q2', 'Q3', 'Q4'],
+    createdAt: record.createdAt || now,
+    updatedAt: now,
+    createdBy: record.createdBy || record.updatedBy,
+    updatedBy: record.updatedBy,
+  };
+}
+
+function normalizeAudit(record = {}) {
+  const now = nowIso();
+  const programId = record.programId || null;
+  const normalized = {
+    id: record.id || crypto.randomUUID(),
+    programId,
+    auditNumber: record.auditNumber || applyAuditNumber(record),
+    cluster: normalizeAuditString(record.cluster || 'Q1'),
+    auditType: normalizeAuditString(record.auditType || 'System'),
+    title: normalizeAuditString(record.title || record.auditName),
+    site: normalizeAuditString(record.site || record.location),
+    plannedStart: parseDate(record.plannedStart),
+    plannedEnd: parseDate(record.plannedEnd),
+    actualStart: parseDate(record.actualStart),
+    actualEnd: parseDate(record.actualEnd),
+    duration: record.duration || null,
+    scopeText: normalizeAuditString(record.scopeText),
+    objectives: normalizeAuditStringArray(record.objectives),
+    criteria: normalizeAuditStringArray(record.criteria),
+    references: normalizeAuditStringArray(record.references),
+    auditeesOrgUnits: normalizeAuditStringArray(record.auditeesOrgUnits),
+    processOwners: normalizeAuditStringArray(record.processOwners),
+    participants: normalizeAuditStringArray(record.participants),
+    leadAuditorId: record.leadAuditorId || null,
+    coAuditorIds: normalizeAuditStringArray(record.coAuditorIds),
+    status: record.status || 'planned',
+    riskPriority: record.riskPriority || null,
+    linkedDocs: Array.isArray(record.linkedDocs) ? record.linkedDocs : [],
+    attachments: Array.isArray(record.attachments) ? record.attachments : [],
+    createdAt: record.createdAt || now,
+    updatedAt: now,
+    createdBy: record.createdBy || record.updatedBy,
+    updatedBy: record.updatedBy,
+  };
+  return normalized;
+}
+
+function normalizeFinding(record = {}) {
+  const now = nowIso();
+  return {
+    id: record.id || crypto.randomUUID(),
+    auditId: record.auditId,
+    type: record.type || AUDIT_FINDING_SEVERITY.HINT,
+    requirementRef: normalizeAuditString(record.requirementRef),
+    description: normalizeAuditString(record.description),
+    evidenceText: normalizeAuditString(record.evidenceText),
+    linkedComplaintIds: normalizeAuditStringArray(record.linkedComplaintIds),
+    linkedCapaIds: normalizeAuditStringArray(record.linkedCapaIds),
+    ownerOrgUnit: normalizeAuditString(record.ownerOrgUnit || record.processOwner),
+    createdInMeeting: normalizeAuditString(record.createdInMeeting),
+    status: record.status || 'open',
+    createdAt: record.createdAt || now,
+    updatedAt: now,
+    createdBy: record.createdBy || record.updatedBy,
+    updatedBy: record.updatedBy,
+  };
+}
+
+function normalizeAction(record = {}) {
+  const now = nowIso();
+  return {
+    id: record.id || crypto.randomUUID(),
+    auditId: record.auditId,
+    findingId: record.findingId || null,
+    actionType: record.actionType || 'Korrektur',
+    description: normalizeAuditString(record.description),
+    responsibleUserId: normalizeAuditString(record.responsibleUserId),
+    responsibleOrgUnit: normalizeAuditString(record.responsibleOrgUnit),
+    dueDate: record.dueDate ? parseDate(record.dueDate) : null,
+    completedAt: record.completedAt ? parseDate(record.completedAt) : null,
+    effectivenessCheckRequired: record.effectivenessCheckRequired ?? false,
+    effectivenessCheckMethod: normalizeAuditString(record.effectivenessCheckMethod),
+    effectivenessCheckedAt: record.effectivenessCheckedAt ? parseDate(record.effectivenessCheckedAt) : null,
+    effectivenessResult: record.effectivenessResult || null,
+    escalationLevel: record.escalationLevel || 'none',
+    escalationReason: normalizeAuditString(record.escalationReason),
+    status: record.status || 'open',
+    createdAt: record.createdAt || now,
+    updatedAt: now,
+    createdBy: record.createdBy || record.updatedBy,
+    updatedBy: record.updatedBy,
+  };
+}
+
+function normalizeAnnualReport(record = {}) {
+  const now = nowIso();
+  return {
+    id: record.id || crypto.randomUUID(),
+    year: Number(record.year || new Date().getFullYear()),
+    generatedAt: record.generatedAt ? parseDate(record.generatedAt) : now,
+    generatedBy: normalizeAuditString(record.generatedBy),
+    contentSnapshot: record.contentSnapshot || {},
+    kpisSnapshot: record.kpisSnapshot || {},
+    exportFiles: Array.isArray(record.exportFiles) ? record.exportFiles : [],
+    signOff: record.signOff || null,
+    createdAt: record.createdAt || now,
+    updatedAt: now,
+    createdBy: record.createdBy || record.updatedBy,
+    updatedBy: record.updatedBy,
+  };
+}
+
+function validateAuditorAssignments(audit) {
+  const errors = [];
+  if (!audit.leadAuditorId) return errors;
+  const lead = mem.auditors.get(audit.leadAuditorId);
+  if (!lead) errors.push('Lead Auditor nicht gefunden');
+  else {
+    if (!isAuditorQualified(lead)) errors.push('Lead Auditor nicht qualifiziert');
+    const conflict = auditorConflictsWithScope(lead, audit);
+    if (conflict) errors.push(`Lead Auditor Konflikt: ${conflict}`);
+  }
+  for (const coId of audit.coAuditorIds || []) {
+    const co = mem.auditors.get(coId);
+    if (!co) {
+      errors.push(`Co-Auditor ${coId} nicht gefunden`);
+      continue;
+    }
+    if (!isAuditorQualified(co)) errors.push(`Co-Auditor ${co.name || coId} nicht qualifiziert`);
+    const conflict = auditorConflictsWithScope(co, audit);
+    if (conflict) errors.push(`Co-Auditor Konflikt: ${conflict}`);
+  }
+  return errors;
+}
+
+function defaultDueDateForFinding(findingType, audit) {
+  const anchor = audit?.plannedEnd || audit?.plannedStart || nowIso();
+  if (findingType === AUDIT_FINDING_SEVERITY.CRITICAL) return addDays(anchor, 7);
+  if (findingType === AUDIT_FINDING_SEVERITY.MAJOR) return addDays(anchor, 90);
+  if (findingType === AUDIT_FINDING_SEVERITY.MINOR) return addDays(anchor, 120);
+  return null;
+}
+
+function escalateLevelForFinding(findingType) {
+  if (findingType === AUDIT_FINDING_SEVERITY.CRITICAL) return 'prrc';
+  if (findingType === AUDIT_FINDING_SEVERITY.MAJOR) return 'qm';
+  return 'none';
+}
+
+function markActionOverdue(action) {
+  if (!action?.dueDate) return action;
+  const due = new Date(action.dueDate).getTime();
+  const nowTs = Date.now();
+  if (due < nowTs && !['done', 'closed'].includes(action.status)) {
+    return { ...action, status: action.status === 'ineffective' ? 'ineffective' : 'overdue' };
+  }
+  return action;
+}
+
+function shouldTriggerNachaudit(findings, actions) {
+  const severeFinding = (findings || []).some(f => [AUDIT_FINDING_SEVERITY.MAJOR, AUDIT_FINDING_SEVERITY.CRITICAL].includes(f?.type));
+  if (severeFinding) return true;
+  return (actions || []).some(a => ['overdue', 'ineffective'].includes(a?.status));
+}
+
+function auditDocumentationComplete(audit, findings, actions) {
+  if (!audit.leadAuditorId) return false;
+  if (!audit.plannedStart || !audit.plannedEnd) return false;
+  if (!audit.scopeText) return false;
+  if (!findings || findings.length === 0) return false;
+  const openActions = (actions || []).filter(a => !['done', 'closed'].includes(a.status));
+  return openActions.length === 0;
+}
+
+export async function auditorAll() {
+  ensureAuditStores();
+  return Array.from(mem.auditors.values());
+}
+
+export async function auditorSave(record = {}) {
+  ensureAuditStores();
+  const normalized = normalizeAuditor(record);
+  mem.auditors.set(normalized.id, normalized);
+  return normalized;
+}
+
+export async function auditorUpdate(id, patch = {}) {
+  ensureAuditStores();
+  const current = mem.auditors.get(id);
+  if (!current) return null;
+  const merged = normalizeAuditor({ ...current, ...patch, id });
+  mem.auditors.set(id, merged);
+  return merged;
+}
+
+export async function auditorDelete(id) {
+  ensureAuditStores();
+  return mem.auditors.delete(id);
+}
+
+export async function auditProgramAll() {
+  ensureAuditStores();
+  return Array.from(mem.auditPrograms.values());
+}
+
+export async function auditProgramSave(record = {}) {
+  ensureAuditStores();
+  const normalized = normalizeAuditProgram(record);
+  mem.auditPrograms.set(normalized.id, normalized);
+  return normalized;
+}
+
+export async function auditProgramUpdate(id, patch = {}) {
+  ensureAuditStores();
+  const current = mem.auditPrograms.get(id);
+  if (!current) return null;
+  const merged = normalizeAuditProgram({ ...current, ...patch, id });
+  mem.auditPrograms.set(id, merged);
+  return merged;
+}
+
+export async function auditProgramDelete(id) {
+  ensureAuditStores();
+  mem.auditPrograms.delete(id);
+  for (const [auditId, audit] of mem.audits.entries()) {
+    if (audit.programId === id) mem.audits.delete(auditId);
+  }
+}
+
+export async function auditAll(filter = {}) {
+  ensureAuditStores();
+  let list = Array.from(mem.audits.values());
+  if (filter.programId) list = list.filter(a => a.programId === filter.programId);
+  if (filter.cluster) list = list.filter(a => a.cluster === filter.cluster);
+  if (filter.status) list = list.filter(a => a.status === filter.status);
+  return list;
+}
+
+export async function auditGet(id) {
+  ensureAuditStores();
+  return mem.audits.get(id) || null;
+}
+
+async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
+  ensureAuditStores();
+  const normalized = normalizeAudit(record);
+  const validationErrors = skipValidation ? [] : validateAuditorAssignments(normalized);
+  if (!skipValidation && validationErrors.length > 0) {
+    const err = new Error(validationErrors.join('; '));
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+  mem.audits.set(normalized.id, normalized);
+  return normalized;
+}
+
+export async function auditSave(record = {}) {
+  return await saveAuditInternal(record);
+}
+
+export async function auditUpdate(id, patch = {}) {
+  const current = await auditGet(id);
+  if (!current) return null;
+  return await saveAuditInternal({ ...current, ...patch, id });
+}
+
+export async function auditDelete(id) {
+  ensureAuditStores();
+  mem.audits.delete(id);
+  for (const [fid, finding] of mem.auditFindings.entries()) {
+    if (finding.auditId === id) mem.auditFindings.delete(fid);
+  }
+  for (const [aid, action] of mem.auditActions.entries()) {
+    if (action.auditId === id) mem.auditActions.delete(aid);
+  }
+}
+
+export async function auditFindingAll(filter = {}) {
+  ensureAuditStores();
+  let list = Array.from(mem.auditFindings.values());
+  if (filter.auditId) list = list.filter(f => f.auditId === filter.auditId);
+  return list;
+}
+
+export async function auditFindingSave(record = {}) {
+  ensureAuditStores();
+  if (!record.auditId) throw new Error('auditId missing');
+  const audit = await auditGet(record.auditId);
+  if (!audit) throw new Error('audit not found');
+  const normalized = normalizeFinding(record);
+  mem.auditFindings.set(normalized.id, normalized);
+  await updateAuditStatusAfterChange(audit.id);
+  return normalized;
+}
+
+export async function auditFindingUpdate(id, patch = {}) {
+  ensureAuditStores();
+  const current = mem.auditFindings.get(id);
+  if (!current) return null;
+  const merged = normalizeFinding({ ...current, ...patch, id });
+  mem.auditFindings.set(id, merged);
+  await updateAuditStatusAfterChange(merged.auditId);
+  return merged;
+}
+
+export async function auditFindingDelete(id) {
+  ensureAuditStores();
+  const current = mem.auditFindings.get(id);
+  mem.auditFindings.delete(id);
+  if (current) await updateAuditStatusAfterChange(current.auditId);
+}
+
+export async function auditActionAll(filter = {}) {
+  ensureAuditStores();
+  let list = Array.from(mem.auditActions.values());
+  if (filter.auditId) list = list.filter(a => a.auditId === filter.auditId);
+  if (filter.findingId) list = list.filter(a => a.findingId === filter.findingId);
+  return list.map(markActionOverdue);
+}
+
+async function applyActionDefaults(record) {
+  const audit = record.auditId ? await auditGet(record.auditId) : null;
+  const finding = record.findingId ? mem.auditFindings.get(record.findingId) : null;
+  const normalized = normalizeAction(record);
+  const severity = finding?.type;
+  if (!normalized.dueDate && severity) {
+    normalized.dueDate = defaultDueDateForFinding(severity, audit);
+  }
+  if (!normalized.escalationLevel && severity) {
+    normalized.escalationLevel = escalateLevelForFinding(severity);
+  }
+  if (severity === AUDIT_FINDING_SEVERITY.CRITICAL) {
+    normalized.effectivenessCheckRequired = true;
+  }
+  return markActionOverdue(normalized);
+}
+
+export async function auditActionSave(record = {}) {
+  ensureAuditStores();
+  if (!record.auditId) throw new Error('auditId missing');
+  const normalized = await applyActionDefaults(record);
+  mem.auditActions.set(normalized.id, normalized);
+  await updateAuditStatusAfterChange(normalized.auditId);
+  return normalized;
+}
+
+export async function auditActionUpdate(id, patch = {}) {
+  ensureAuditStores();
+  const current = mem.auditActions.get(id);
+  if (!current) return null;
+  const merged = await applyActionDefaults({ ...current, ...patch, id });
+  mem.auditActions.set(id, merged);
+  await updateAuditStatusAfterChange(merged.auditId);
+  return merged;
+}
+
+export async function auditActionDelete(id) {
+  ensureAuditStores();
+  const current = mem.auditActions.get(id);
+  mem.auditActions.delete(id);
+  if (current) await updateAuditStatusAfterChange(current.auditId);
+}
+
+export async function auditAnnualReportAll(filter = {}) {
+  ensureAuditStores();
+  let list = Array.from(mem.auditAnnualReports.values());
+  if (filter.year) list = list.filter(r => Number(r.year) === Number(filter.year));
+  return list;
+}
+
+export async function auditAnnualReportSave(record = {}) {
+  ensureAuditStores();
+  const normalized = normalizeAnnualReport(record);
+  mem.auditAnnualReports.set(normalized.id, normalized);
+  return normalized;
+}
+
+async function updateAuditStatusAfterChange(auditId) {
+  const audit = await auditGet(auditId);
+  if (!audit) return null;
+  const findings = await auditFindingAll({ auditId });
+  const actions = await auditActionAll({ auditId });
+  const needsNachaudit = shouldTriggerNachaudit(findings, actions);
+  let nextStatus = audit.status;
+  if (needsNachaudit) nextStatus = 'nachauditRequired';
+  if (audit.status === 'closed' && !auditDocumentationComplete(audit, findings, actions)) {
+    nextStatus = 'inProgress';
+  }
+  if (nextStatus !== audit.status) {
+    await saveAuditInternal({ ...audit, status: nextStatus }, { skipValidation: true });
+  }
+  return nextStatus;
+}
+
+function ensureAuditSeeds() {
+  ensureAuditStores();
+  if (mem.audits.size > 0 || mem.auditors.size > 0) return;
+
+  const auditor1 = normalizeAuditor({
+    name: 'Anna Audit',
+    email: 'anna.audit@example.com',
+    orgUnit: 'QM',
+    role: 'Lead',
+    qualifications: {
+      internalAuditorTrainingDate: addDays(nowIso(), -500),
+      experienceYears: 5,
+      standardsKnowledge: ['ISO13485', 'ISO19011'],
+      requalificationDueDate: addDays(nowIso(), 400),
+    },
+    independenceRules: { restrictedOrgUnits: ['Production'] },
+  });
+  const auditor2 = normalizeAuditor({
+    name: 'Benedikt Beistand',
+    email: 'ben.audit@example.com',
+    orgUnit: 'Operations',
+    role: 'Co',
+    qualifications: {
+      internalAuditorTrainingDate: addDays(nowIso(), -900),
+      experienceYears: 4,
+      standardsKnowledge: ['MDR'],
+      requalificationDueDate: addDays(nowIso(), 200),
+    },
+    independenceRules: { restrictedProcessOwners: ['Operations'] },
+  });
+  mem.auditors.set(auditor1.id, auditor1);
+  mem.auditors.set(auditor2.id, auditor2);
+
+  const program = normalizeAuditProgram({
+    year: new Date().getFullYear(),
+    title: 'Auditprogramm Q1–Q4',
+    status: 'released',
+    approvedBy: 'QM-Leitung',
+    approvedAt: nowIso(),
+  });
+  mem.auditPrograms.set(program.id, program);
+
+  const audits = ['Q1', 'Q2', 'Q3', 'Q4'].map((cluster, idx) =>
+    normalizeAudit({
+      programId: program.id,
+      cluster,
+      auditType: idx === 3 ? 'Nachaudit' : 'System',
+      title: `Internes Audit ${cluster}`,
+      site: 'HQ',
+      plannedStart: addDays(nowIso(), -120 + idx * 30),
+      plannedEnd: addDays(nowIso(), -115 + idx * 30),
+      scopeText: 'ISO 13485 Prozess-Check',
+      auditeesOrgUnits: ['Production', 'Operations'],
+      processOwners: ['Production'],
+      leadAuditorId: auditor1.id,
+      coAuditorIds: [auditor2.id],
+      status: idx < 2 ? 'closed' : 'planned',
+    }),
+  );
+
+  for (const a of audits) mem.audits.set(a.id, a);
+
+  const finding1 = normalizeFinding({
+    auditId: audits[0].id,
+    type: AUDIT_FINDING_SEVERITY.MINOR,
+    requirementRef: 'ISO 13485 8.2',
+    description: 'Dokumentation unvollständig',
+    status: 'open',
+  });
+  const finding2 = normalizeFinding({
+    auditId: audits[1].id,
+    type: AUDIT_FINDING_SEVERITY.MAJOR,
+    requirementRef: 'ISO 19011 6.3',
+    description: 'Risikobewertung fehlt',
+    status: 'open',
+  });
+  const finding3 = normalizeFinding({
+    auditId: audits[2].id,
+    type: AUDIT_FINDING_SEVERITY.CRITICAL,
+    requirementRef: 'MDR',
+    description: 'Unmittelbare Korrektur erforderlich',
+    status: 'open',
+  });
+  mem.auditFindings.set(finding1.id, finding1);
+  mem.auditFindings.set(finding2.id, finding2);
+  mem.auditFindings.set(finding3.id, finding3);
+
+  const action1 = normalizeAction({
+    auditId: audits[0].id,
+    findingId: finding1.id,
+    actionType: 'Korrektur',
+    description: 'Vorlage aktualisieren',
+    dueDate: defaultDueDateForFinding(finding1.type, audits[0]),
+    responsibleOrgUnit: 'QM',
+  });
+  const action2 = normalizeAction({
+    auditId: audits[1].id,
+    findingId: finding2.id,
+    actionType: 'CAPA',
+    description: 'Risikomatrix ergänzen',
+    dueDate: defaultDueDateForFinding(finding2.type, audits[1]),
+    escalationLevel: escalateLevelForFinding(finding2.type),
+    effectivenessCheckRequired: true,
+  });
+  const action3 = normalizeAction({
+    auditId: audits[2].id,
+    findingId: finding3.id,
+    actionType: 'Sofortmaßnahme',
+    description: 'Sofortige Korrekturmaßnahme',
+    dueDate: defaultDueDateForFinding(finding3.type, audits[2]),
+    escalationLevel: escalateLevelForFinding(finding3.type),
+    status: 'overdue',
+  });
+  mem.auditActions.set(action1.id, markActionOverdue(action1));
+  mem.auditActions.set(action2.id, markActionOverdue(action2));
+  mem.auditActions.set(action3.id, markActionOverdue(action3));
+
+  const report = normalizeAnnualReport({
+    year: program.year,
+    generatedBy: 'audit-bot',
+    contentSnapshot: { summary: 'Initial Auditprogramm', clusters: program.clusters },
+    kpisSnapshot: { majors: 1, critical: 1, overdueActions: 1 },
+    exportFiles: [],
+  });
+  mem.auditAnnualReports.set(report.id, report);
+}
+
+ensureAuditSeeds();
+
+export { AUDIT_TILE_ID, AUDIT_FINDING_SEVERITY };
