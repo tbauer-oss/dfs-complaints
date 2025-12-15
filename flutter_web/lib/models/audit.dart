@@ -428,7 +428,7 @@ class Audit {
   final List<String> processOwners;
   final List<String> participants;
   final String? leadAuditorId;
-  final List<String> coAuditorIds;
+  final String? coAuditorId;
   final List<String> linkedDocs;
   final List<AuditFinding> findings;
   final List<AuditAction> actions;
@@ -473,7 +473,7 @@ class Audit {
     this.processOwners = const [],
     this.participants = const [],
     this.leadAuditorId,
-    this.coAuditorIds = const [],
+    this.coAuditorId,
     this.linkedDocs = const [],
     this.findings = const [],
     this.actions = const [],
@@ -520,7 +520,8 @@ class Audit {
       processOwners: parseList(json['processOwners']),
       participants: parseList(json['participants']),
       leadAuditorId: json['leadAuditorId']?.toString(),
-      coAuditorIds: parseList(json['coAuditorIds']),
+      coAuditorId: json['coAuditorId']?.toString() ??
+          (parseList(json['coAuditorIds']).isNotEmpty ? parseList(json['coAuditorIds']).first : null),
       linkedDocs: parseList(json['linkedDocs']),
       findings: parseFindings(json['findings']),
       actions: parseActions(json['actions']),
@@ -553,7 +554,7 @@ class Audit {
         if (processOwners.isNotEmpty) 'processOwners': processOwners,
         if (participants.isNotEmpty) 'participants': participants,
         if (leadAuditorId != null) 'leadAuditorId': leadAuditorId,
-        if (coAuditorIds.isNotEmpty) 'coAuditorIds': coAuditorIds,
+        if (coAuditorId != null) 'coAuditorId': coAuditorId,
         if (linkedDocs.isNotEmpty) 'linkedDocs': linkedDocs,
         if (planEntries.isNotEmpty) 'planEntries': planEntries.map((p) => p.toJson()).toList(),
       };
