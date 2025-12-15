@@ -299,6 +299,11 @@ class ApiClient {
     _portalNewsLoadedAt = null;
   }
 
+  void clearAllNewsCaches() {
+    clearCustomerNewsCache();
+    clearPortalNewsCache();
+  }
+
   Map<String, dynamic>? get appMeta => _appMeta;
   String get appVersion => _appMeta?['version']?.toString() ?? '';
 
