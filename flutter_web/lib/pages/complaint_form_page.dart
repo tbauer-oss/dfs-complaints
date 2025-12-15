@@ -2171,7 +2171,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
           automaticallyImplyLeading: false,
           title: Text(t.reportComplaint),
           leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: _handleBack),
-          actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
+          actions: [TextButton(onPressed: _handleCancel, child: Text(t.cancel))],
         ),
         body: body,
       ),
