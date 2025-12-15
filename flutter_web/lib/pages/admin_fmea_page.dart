@@ -370,7 +370,16 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
               value: _selectedCategory,
               decoration: const InputDecoration(labelText: 'Kategorie'),
               items: _categoryOptions
-                  .map((c) => DropdownMenuItem(value: c['id'], child: Text(c['label']!)))
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(switch (c) {
+                        'all' => 'Alle Kategorien',
+                        'uncategorized' => 'Ohne Kategorie',
+                        _ => c,
+                      }),
+                    ),
+                  )
                   .toList(),
               onChanged: (v) => setState(() {
                 _selectedCategory = v ?? 'all';
