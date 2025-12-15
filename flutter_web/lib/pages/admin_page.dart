@@ -48,22 +48,32 @@ class AdminPage extends StatefulWidget {
   final Map<String, dynamic>? portalProfile;
   final void Function(Map<String, dynamic> meta)? onMetaUpdated;
   final _AdminView initialView;
+  final int auditInitialTab;
+  final int? initialAuditReportYear;
   const AdminPage({
     super.key,
     required this.api,
     this.portalProfile,
     this.onMetaUpdated,
     this.initialView = _AdminView.menu,
+    this.auditInitialTab = 0,
+    this.initialAuditReportYear,
   });
 
   const AdminPage.wiki({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
-      : initialView = _AdminView.wiki;
+      : initialView = _AdminView.wiki,
+        auditInitialTab = 0,
+        initialAuditReportYear = null;
 
   const AdminPage.wikiCategories({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
-      : initialView = _AdminView.wikiCategories;
+      : initialView = _AdminView.wikiCategories,
+        auditInitialTab = 0,
+        initialAuditReportYear = null;
 
   const AdminPage.wikiArticles({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
-      : initialView = _AdminView.wikiArticles;
+      : initialView = _AdminView.wikiArticles,
+        auditInitialTab = 0,
+        initialAuditReportYear = null;
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -8423,7 +8433,11 @@ class _AdminPageState extends State<AdminPage> {
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case _AdminView.audits:
-        return AdminAuditsPage(api: widget.api);
+        return AdminAuditsPage(
+          api: widget.api,
+          initialTab: widget.auditInitialTab,
+          initialReportYear: widget.initialAuditReportYear,
+        );
       case _AdminView.prrc:
         return _buildPrrcPanel();
       case _AdminView.pending:
