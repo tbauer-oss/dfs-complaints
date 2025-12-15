@@ -1768,7 +1768,9 @@ function sanitizePortalAdminUi(raw) {
 
 export async function loadPortalAdminUi() {
   const r = getRedis();
-  const stored = r ? await rget(KEY_PORTAL_ADMIN_UI) : mem.adminUiConfig;
+  if (!r) throw new Error('portal admin UI config requires Redis/KV');
+
+  const stored = await rget(KEY_PORTAL_ADMIN_UI);
   return sanitizePortalAdminUi(stored || {});
 }
 
@@ -1790,7 +1792,10 @@ export async function savePortalAdminUi(config) {
   }
 
   const r = getRedis();
-  if (r) await rset(KEY_PORTAL_ADMIN_UI, next); else mem.adminUiConfig = next;
+  if (!r) throw new Error('portal admin UI config requires Redis/KV');
+
+  const persisted = await rset(KEY_PORTAL_ADMIN_UI, next);
+  if (!persisted) throw new Error('failed to persist portal admin UI config');
   return next;
 }
 
