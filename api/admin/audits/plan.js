@@ -1,5 +1,5 @@
 // /api/admin/audits/plan.js – alias endpoint using ?id=... for plan CRUD
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import handlerById from './[id]/plan.js';
 

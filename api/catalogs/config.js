@@ -1,5 +1,5 @@
 // api/catalogs/config.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import {
   handlePreflight,

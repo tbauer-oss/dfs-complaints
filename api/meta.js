@@ -1,7 +1,7 @@
 // api/meta.js
 import { loadAppMeta } from './_lib/appMeta.js';
 
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 // --- Utils ---
 const nowIso = () => new Date().toISOString();

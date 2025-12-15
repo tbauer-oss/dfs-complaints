@@ -4,7 +4,7 @@ import { usersList, pushTokensForEmail } from './store.js';
 import { getRepOf, loadRepById, loadRepByEmail } from './repsStore.js';
 import { applyTestPushRouting, loadAppMeta } from './appMeta.js';
 
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 // Service-Account-basiertes FCM HTTP v1
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || '';

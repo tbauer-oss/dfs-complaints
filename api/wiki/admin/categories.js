@@ -1,5 +1,5 @@
 // /api/wiki/admin/categories.js
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs20.x' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson, noContent } from '../../_lib/http.js';
 import { wikiCategories, wikiSaveCategory } from '../../_lib/wikiStore.js';
