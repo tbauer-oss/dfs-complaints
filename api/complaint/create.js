@@ -1,6 +1,6 @@
 // api/complaint/create.js
 export const config = {
-  runtime: 'nodejs20.x',
+  runtime: 'nodejs22.x',
   api: {
     // Eigene Parser-Logik, damit wir CORS-Header auch bei großen Bodies setzen können
     bodyParser: false,

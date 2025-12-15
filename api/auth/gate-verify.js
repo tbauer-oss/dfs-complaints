@@ -1,4 +1,4 @@
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import {

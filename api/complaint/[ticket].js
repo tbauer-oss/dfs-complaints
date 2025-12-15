@@ -1,6 +1,6 @@
 // api/complaint/[ticket].js
 export const config = {
-  runtime: 'nodejs20.x',
+  runtime: 'nodejs22.x',
   api: {
     bodyParser: false,
   },

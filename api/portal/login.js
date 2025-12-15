@@ -1,5 +1,5 @@
 // api/portal/login.js – DFS Portal (vormals Adminbereich)
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';

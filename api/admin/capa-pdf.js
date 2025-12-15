@@ -1,5 +1,5 @@
 // /api/admin/capa-pdf.js – PDF-Export für CAPA / 8D-Reports
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { handlePreflight, setCors, bad, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';

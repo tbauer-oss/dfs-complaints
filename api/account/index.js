@@ -1,5 +1,5 @@
 // api/account/index.js
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';

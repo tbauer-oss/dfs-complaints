@@ -1,5 +1,5 @@
 // /api/admin/activity.js
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs22.x' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { activityForRep, activityForUser, isPushTokenFresh } from '../_lib/store.js';
