@@ -1,5 +1,5 @@
 // api/rep/refresh.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs.x' };
 
 import jwt from 'jsonwebtoken';
 import { setCors } from '../_lib/cors.js';
