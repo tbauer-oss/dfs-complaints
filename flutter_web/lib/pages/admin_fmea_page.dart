@@ -1867,8 +1867,9 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Vor',
+                                'Vor Maßnahme:',
                                 style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 12, 
                                   color: theme.colorScheme.onSurfaceVariant,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -1882,8 +1883,9 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Nach',
+                                'Nach Maßnahme:',
                                 style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 12, 
                                   color: theme.colorScheme.onSurfaceVariant,
                                   fontWeight: FontWeight.w600,
                                 ),
