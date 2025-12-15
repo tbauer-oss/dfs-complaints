@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/audit.dart';
+import '../models/portal_user.dart';
 import 'client.dart';
 
 class AuditAdminApi {
@@ -140,26 +141,47 @@ class AuditAdminApi {
       headers: _headersJson(),
       body: jsonEncode({
         'id': auditor.id.isEmpty ? null : auditor.id,
+        'userId': auditor.userId?.isEmpty == true ? null : auditor.userId,
         'name': auditor.name,
         'email': auditor.email,
         'orgUnit': auditor.orgUnit,
         'role': auditor.role,
         'status': auditor.status,
-        'restrictedProcessOwners': auditor.restrictedProcessOwners,
-        'restrictedOrgUnits': auditor.restrictedOrgUnits,
-        'internalAuditorTrainingDate': auditor.internalAuditorTrainingDate?.toIso8601String(),
-        'experienceYears': auditor.experienceYears,
-        'standardsIso13485': auditor.standardsIso13485,
-        'standardsMdr': auditor.standardsMdr,
-        'standardsIso19011': auditor.standardsIso19011,
-        'lastRequalificationDate': auditor.lastRequalificationDate?.toIso8601String(),
-        'requalificationDueDate': auditor.requalificationDueDate?.toIso8601String(),
-        'evidenceAttachments': auditor.evidenceAttachments,
+        'qualifications': {
+          'trainingType': auditor.trainingType,
+          'trainingDate': auditor.trainingDate?.toIso8601String(),
+          'internalAuditorTrainingDate': auditor.internalAuditorTrainingDate?.toIso8601String(),
+          'experienceYears': auditor.experienceYears,
+          'standardsKnowledge': auditor.standardsKnowledge,
+          'coAuditCount': auditor.coAuditCount,
+          'leadAuditCount': auditor.leadAuditCount,
+          'requalificationDueDate': auditor.requalificationDueDate?.toIso8601String(),
+          'evidence': auditor.evidenceAttachments.map((e) => e.toJson()).toList(),
+        },
+        'independenceRules': {
+          'restrictedProcessOwners': auditor.restrictedProcessOwners,
+          'restrictedOrgUnits': auditor.restrictedOrgUnits,
+        },
       }),
     );
     final decoded = await _decode(r);
     final data = decoded['auditor'] as Map?;
     return Auditor.fromJson((data ?? decoded).cast<String, dynamic>());
+  }
+
+  Future<void> deleteAuditor(String id) async {
+    await http.delete(_u('/api/admin/auditors', {'id': id}), headers: _headersJson());
+  }
+
+  Future<List<PortalUserSummary>> listDfsEmployees() async {
+    final users = await _client.fetchPortalUsers();
+    return users
+        .where((u) =>
+            u.portalStatus.toLowerCase() == 'active' &&
+            (u.role.toLowerCase().contains('dfs') ||
+                u.role.toLowerCase().contains('qm') ||
+                u.role.toLowerCase().contains('admin')))
+        .toList(growable: false);
   }
 
   // Findings ----------------------------------------------------------

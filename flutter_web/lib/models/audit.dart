@@ -1,48 +1,114 @@
 import 'dart:convert';
 
+class AuditorEvidence {
+  final String name;
+  final String? url;
+  final String? downloadUrl;
+  final int size;
+  final DateTime? uploadedAt;
+  final String? mime;
+  final String? preview;
+
+  const AuditorEvidence({
+    required this.name,
+    this.url,
+    this.downloadUrl,
+    this.size = 0,
+    this.uploadedAt,
+    this.mime,
+    this.preview,
+  });
+
+  bool get hasLink => (downloadUrl ?? url ?? '').isNotEmpty;
+
+  factory AuditorEvidence.fromJson(Map<String, dynamic> json) => AuditorEvidence(
+        name: (json['name'] ?? '').toString(),
+        url: json['url']?.toString(),
+        downloadUrl: json['downloadUrl']?.toString(),
+        size: json['size'] is int
+            ? json['size'] as int
+            : int.tryParse(json['size']?.toString() ?? '') ?? 0,
+        uploadedAt: json['uploadedAt'] == null
+            ? null
+            : DateTime.tryParse(json['uploadedAt'].toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(
+                    int.tryParse(json['uploadedAt'].toString()) ?? 0,
+                    isUtc: true),
+        mime: json['mime']?.toString(),
+        preview: json['preview']?.toString(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (url != null) 'url': url,
+        if (downloadUrl != null) 'downloadUrl': downloadUrl,
+        if (size > 0) 'size': size,
+        if (uploadedAt != null) 'uploadedAt': uploadedAt!.toIso8601String(),
+        if (mime != null) 'mime': mime,
+        if (preview != null) 'preview': preview,
+      };
+}
+
 class Auditor {
   final String id;
+  final String? userId;
   final String name;
   final String email;
   final String? orgUnit;
   final String? role;
   final String status;
+  final String trainingType;
   final List<String> restrictedProcessOwners;
   final List<String> restrictedOrgUnits;
   final DateTime? internalAuditorTrainingDate;
   final int? experienceYears;
-  final bool standardsIso13485;
-  final bool standardsMdr;
-  final bool standardsIso19011;
-  final DateTime? lastRequalificationDate;
+  final List<String> standardsKnowledge;
   final DateTime? requalificationDueDate;
-  final List<String> evidenceAttachments;
+  final List<AuditorEvidence> evidenceAttachments;
+  final int coAuditCount;
+  final int leadAuditCount;
+  final DateTime? trainingDate;
+
+  DateTime? get nextRequalification => requalificationDueDate;
 
   const Auditor({
     required this.id,
     required this.name,
     required this.email,
     required this.status,
+    this.userId,
+    this.trainingType = 'internal',
     this.orgUnit,
     this.role,
     this.restrictedProcessOwners = const [],
     this.restrictedOrgUnits = const [],
     this.internalAuditorTrainingDate,
     this.experienceYears,
-    this.standardsIso13485 = false,
-    this.standardsMdr = false,
-    this.standardsIso19011 = false,
-    this.lastRequalificationDate,
+    this.standardsKnowledge = const [],
     this.requalificationDueDate,
     this.evidenceAttachments = const [],
+    this.coAuditCount = 0,
+    this.leadAuditCount = 0,
+    this.trainingDate,
   });
 
-  bool get isQualified {
-    final hasTraining = internalAuditorTrainingDate != null;
-    final experienceOk = (experienceYears ?? 0) >= 3;
-    final requalOk =
-        requalificationDueDate == null || !requalificationDueDate!.isBefore(DateTime.now());
-    return hasTraining && experienceOk && requalOk;
+  bool get hasTraining => internalAuditorTrainingDate != null || trainingDate != null;
+
+  bool get experienceOk => (experienceYears ?? 0) >= 3;
+
+  bool get hasEvidence => evidenceAttachments.isNotEmpty;
+
+  bool get auditCountOk => coAuditCount >= 2 || leadAuditCount >= 1;
+
+  bool get requalificationValid =>
+      requalificationDueDate == null || !requalificationDueDate!.isBefore(DateTime.now());
+
+  bool get isQualified => hasTraining && auditCountOk && requalificationValid;
+
+  String get qualificationStatus {
+    if (isQualified && hasEvidence && experienceOk) return 'qualifiziert';
+    if (hasTraining && !hasEvidence) return 'in Arbeit';
+    return 'nicht qualifiziert';
   }
 
   factory Auditor.fromJson(Map<String, dynamic> json) {
@@ -51,25 +117,51 @@ class Auditor {
         : DateTime.tryParse(v.toString());
     List<String> parseList(dynamic v) =>
         v is List ? v.whereType<String>().toList() : const <String>[];
+    final qualifications = (json['qualifications'] as Map?)?.cast<String, dynamic>();
+    final independence = (json['independenceRules'] as Map?)?.cast<String, dynamic>();
     return Auditor(
       id: json['id']?.toString() ?? '',
+      userId: json['userId']?.toString(),
       name: json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       orgUnit: json['orgUnit']?.toString(),
       role: json['role']?.toString(),
       status: json['status']?.toString() ?? 'active',
-      restrictedProcessOwners: parseList(json['restrictedProcessOwners']),
-      restrictedOrgUnits: parseList(json['restrictedOrgUnits']),
-      internalAuditorTrainingDate: parseDate(json['internalAuditorTrainingDate']),
-      experienceYears: json['experienceYears'] is int
-          ? json['experienceYears'] as int
-          : int.tryParse(json['experienceYears']?.toString() ?? ''),
-      standardsIso13485: json['standardsIso13485'] == true,
-      standardsMdr: json['standardsMdr'] == true,
-      standardsIso19011: json['standardsIso19011'] == true,
-      lastRequalificationDate: parseDate(json['lastRequalificationDate']),
-      requalificationDueDate: parseDate(json['requalificationDueDate']),
-      evidenceAttachments: parseList(json['evidenceAttachments']),
+      trainingType: qualifications?['trainingType']?.toString() ?? 'internal',
+      restrictedProcessOwners: parseList(independence?['restrictedProcessOwners'] ?? json['restrictedProcessOwners']),
+      restrictedOrgUnits: parseList(independence?['restrictedOrgUnits'] ?? json['restrictedOrgUnits']),
+        internalAuditorTrainingDate:
+            parseDate(qualifications?['internalAuditorTrainingDate'] ?? json['internalAuditorTrainingDate']),
+        experienceYears: qualifications?['experienceYears'] is int
+            ? qualifications?['experienceYears'] as int
+            : int.tryParse(
+                qualifications?['experienceYears']?.toString() ??
+                    json['experienceYears']?.toString() ??
+                    '',
+              ),
+      standardsKnowledge: parseList(qualifications?['standardsKnowledge']),
+      requalificationDueDate: parseDate(qualifications?['requalificationDueDate'] ?? json['requalificationDueDate']),
+      evidenceAttachments: ((qualifications?['evidence'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>()))
+          .toList(),
+        coAuditCount: qualifications?['coAuditCount'] is int
+            ? qualifications?['coAuditCount'] as int
+            : int.tryParse(
+                  qualifications?['coAuditCount']?.toString() ??
+                      json['coAuditCount']?.toString() ??
+                      '',
+                ) ??
+                0,
+        leadAuditCount: qualifications?['leadAuditCount'] is int
+            ? qualifications?['leadAuditCount'] as int
+            : int.tryParse(
+                  qualifications?['leadAuditCount']?.toString() ??
+                      json['leadAuditCount']?.toString() ??
+                      '',
+                ) ??
+                0,
+      trainingDate: parseDate(qualifications?['trainingDate'] ?? json['trainingDate']),
     );
   }
 }

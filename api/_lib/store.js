@@ -3575,14 +3575,41 @@ function applyAuditNumber(audit) {
 
 function normalizeAuditor(record = {}) {
   const now = nowIso();
+  const q = record.qualifications || {};
+  const standardsKnowledge = Array.isArray(q.standardsKnowledge) ? q.standardsKnowledge.filter(Boolean) : [];
+  if (record.standardsIso13485) standardsKnowledge.push('ISO13485');
+  if (record.standardsIso19011) standardsKnowledge.push('ISO19011');
+  if (record.standardsMdr) standardsKnowledge.push('MDR');
+  const coAuditCount = Number(q.coAuditCount ?? record.coAuditCount ?? 0) || 0;
+  const leadAuditCount = Number(q.leadAuditCount ?? record.leadAuditCount ?? 0) || 0;
+  const requalificationDueDate = q.requalificationDueDate || record.requalificationDueDate;
+  const experienceYears = Number(q.experienceYears ?? record.experienceYears ?? 0) || 0;
+  const trainingDate = q.trainingDate || q.internalAuditorTrainingDate || record.trainingDate;
+  const evidence = Array.isArray(q.evidence)
+    ? q.evidence.filter(Boolean)
+    : Array.isArray(record.evidenceAttachments)
+        ? record.evidenceAttachments.filter(Boolean)
+        : [];
   const normalized = {
     id: record.id || crypto.randomUUID(),
+    userId: record.userId || null,
     name: normalizeAuditString(record.name),
     email: normalizeAuditString(record.email),
     orgUnit: normalizeAuditString(record.orgUnit || record.orgUnitOrDepartment || record.department),
     role: normalizeAuditString(record.role || 'Lead'),
     status: normalizeAuditString(record.status || 'active'),
-    qualifications: record.qualifications || {},
+    qualifications: {
+      ...q,
+      trainingType: q.trainingType || record.trainingType || 'internal',
+      trainingDate: parseDate(trainingDate),
+      internalAuditorTrainingDate: parseDate(q.internalAuditorTrainingDate || record.internalAuditorTrainingDate || trainingDate),
+      experienceYears,
+      coAuditCount,
+      leadAuditCount,
+      requalificationDueDate: parseDate(requalificationDueDate),
+      standardsKnowledge: Array.from(new Set(standardsKnowledge)),
+      evidence,
+    },
     independenceRules: {
       restrictedProcessOwners: normalizeAuditStringArray(record?.independenceRules?.restrictedProcessOwners),
       restrictedOrgUnits: normalizeAuditStringArray(record?.independenceRules?.restrictedOrgUnits),
@@ -3800,6 +3827,18 @@ export async function auditorUpdate(id, patch = {}) {
 
 export async function auditorDelete(id) {
   ensureAuditStores();
+  for (const audit of mem.audits.values()) {
+    if (audit.leadAuditorId === id) {
+      const err = new Error('Auditor wird als Lead genutzt');
+      err.code = 'REFERENCED';
+      throw err;
+    }
+    if (Array.isArray(audit.coAuditorIds) && audit.coAuditorIds.includes(id)) {
+      const err = new Error('Auditor wird als Co-Auditor genutzt');
+      err.code = 'REFERENCED';
+      throw err;
+    }
+  }
   return mem.auditors.delete(id);
 }
 
