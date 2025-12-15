@@ -23,6 +23,7 @@ import '../utils/attachment_preview.dart';
 import '../utils/charge_input_formatter.dart';
 import '../utils/gs1_data_matrix_parser.dart';
 import '../widgets/attachment_editor_page.dart';
+import '../widgets/fmea_risk_check_dialog.dart';
 import 'knowledge_base_page.dart';
 import 'complaint_summary_page.dart';
 
@@ -135,6 +136,17 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   void _handleDescriptionChanged() {
     _markDirty();
     _updateAutoHelp();
+  }
+
+  Future<void> _openFmeaCheck() async {
+    await openFmeaRiskCheckDialog(
+      context: context,
+      api: widget.api,
+      productLookup: _productLookup,
+      articleNumber: article.text,
+      clues: [desc.text, injuryDesc.text],
+      canEdit: _account != null,
+    );
   }
 
   void _handleArticleChanged() {
