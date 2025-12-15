@@ -225,7 +225,7 @@ test('persists auditors to redis when a redis client is available', async () => 
     async del() { return null; },
   };
   __setRedisClientForTests(fakeRedis);
-  const auditor = await auditorSave(buildQualifiedAuditor('Redis Auditor'));
+  const auditor = await auditorSave(buildQualifiedAuditor('Redis Auditor'), { persist: true });
   __setRedisClientForTests(null);
 
   assert.ok(

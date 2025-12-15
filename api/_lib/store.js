@@ -4060,27 +4060,31 @@ export async function auditorAll() {
   return Array.from(mem.auditors.values());
 }
 
-export async function auditorSave(record = {}) {
+export async function auditorSave(record = {}, { persist = false } = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAuditor(record);
   mem.auditors.set(normalized.id, normalized);
-  const r = getAuditorRedisForWrite();
-  if (r) await rset(KEY_AUDITOR(normalized.id), normalized, r);
+  if (persist) {
+    const r = getAuditorRedisForWrite();
+    if (r) await rset(KEY_AUDITOR(normalized.id), normalized, r);
+  }
   return normalized;
 }
 
-export async function auditorUpdate(id, patch = {}) {
+export async function auditorUpdate(id, patch = {}, { persist = false } = {}) {
   await ensureAuditStoresReady();
   const current = mem.auditors.get(id);
   if (!current) return null;
   const merged = normalizeAuditor({ ...current, ...patch, id });
   mem.auditors.set(id, merged);
-  const r = getAuditorRedisForWrite();
-  if (r) await rset(KEY_AUDITOR(id), merged, r);
+  if (persist) {
+    const r = getAuditorRedisForWrite();
+    if (r) await rset(KEY_AUDITOR(id), merged, r);
+  }
   return merged;
 }
 
-export async function auditorDelete(id) {
+export async function auditorDelete(id, { persist = false } = {}) {
   await ensureAuditStoresReady();
   for (const audit of mem.audits.values()) {
     const lead = audit.leadAuditorId === id ? null : audit.leadAuditorId;
@@ -4090,8 +4094,10 @@ export async function auditorDelete(id) {
     }
   }
   const deleted = mem.auditors.delete(id);
-  const r = getAuditorRedisForWrite();
-  if (r) await rdel(KEY_AUDITOR(id), r);
+  if (persist) {
+    const r = getAuditorRedisForWrite();
+    if (r) await rdel(KEY_AUDITOR(id), r);
+  }
   return deleted;
 }
 
