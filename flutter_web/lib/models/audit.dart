@@ -104,6 +104,7 @@ class Auditor {
   final int? experienceYears;
   final List<String> standardsKnowledge;
   final DateTime? requalificationDueDate;
+  final bool qualificationOverride;
   final List<AuditorEvidence> evidenceAttachments;
   final int coAuditCount;
   final int leadAuditCount;
@@ -126,6 +127,7 @@ class Auditor {
     this.experienceYears,
     this.standardsKnowledge = const [],
     this.requalificationDueDate,
+    this.qualificationOverride = false,
     this.evidenceAttachments = const [],
     this.coAuditCount = 0,
     this.leadAuditCount = 0,
@@ -139,9 +141,11 @@ class Auditor {
 
   bool get experienceOk => (experienceYears ?? 0) >= 3;
 
+  bool get hasOverride => qualificationOverride;
+
   /// Frontend-Logik an Backend angeglichen: Qualifiziert mit Training,
   /// ausreichender Erfahrung (>= 3 Jahre) und gültiger Re-Qualifikation.
-  bool get isQualified => hasTraining && experienceOk && requalificationValid;
+  bool get isQualified => hasTraining && (experienceOk || hasOverride) && requalificationValid;
 
   String get qualificationStatus {
     if (isQualified) return 'qualifiziert';
@@ -176,6 +180,7 @@ class Auditor {
           parseInt(qualifications?['experienceYears'] ?? json['experienceYears']),
       standardsKnowledge: parseList(qualifications?['standardsKnowledge']),
       requalificationDueDate: parseDate(qualifications?['requalificationDueDate'] ?? json['requalificationDueDate']),
+      qualificationOverride: (qualifications?['override'] ?? qualifications?['qualificationOverride']) == true,
       evidenceAttachments: ((qualifications?['evidence'] as List?) ?? const [])
           .whereType<Map>()
           .map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>()))
