@@ -15463,7 +15463,7 @@ class _ComplaintDialogLauncher extends StatelessWidget {
                       portalRole: portalRole,
                       portalIsSales: portalIsSales,
                       productLookup: productLookup,
-                      productLookupService: parent?._productLookup,
+                      productLookupService: productLookupService,
                       companyHint: companyHint,
                       hasRep: hasRep,
                       repName: repName,
