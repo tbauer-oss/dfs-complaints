@@ -220,6 +220,40 @@ test('generates stable IA audit numbers using yearly redis counter', async () =>
   assert.ok(calls.some(c => c.op === 'incr' && /audit:counter:25/.test(c.key)));
 });
 
+test('replaces placeholder audit numbers during creation', async () => {
+  const lead = await auditorSave(buildQualifiedAuditor('Placeholder Lead'));
+
+  const audit = await auditSave({
+    title: 'Placeholder Audit',
+    plannedStart: '2030-01-10T00:00:00.000Z',
+    plannedEnd: '2030-01-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+    auditNumber: 'TEMP-12345',
+  });
+
+  assert.equal(audit.auditNumber.startsWith('IA-30-'), true);
+  assert.equal(audit.auditNo, audit.auditNumber);
+});
+
+test('keeps audit numbers stable on update attempts', async () => {
+  const lead = await auditorSave(buildQualifiedAuditor('Immutable Lead'));
+
+  const audit = await auditSave({
+    title: 'Immutable Audit',
+    plannedStart: '2031-03-01T00:00:00.000Z',
+    plannedEnd: '2031-03-03T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  const updated = await auditUpdate(audit.id, { auditNumber: 'IA-99-99', auditNo: 'IA-99-99', title: 'Updated' });
+
+  assert.equal(updated.auditNumber, audit.auditNumber);
+  assert.equal(updated.auditNo, audit.auditNo);
+  assert.equal(updated.title, 'Updated');
+});
+
 test('enforces independence between auditor org unit and audit org unit', async () => {
   const lead = await auditorSave({
     ...buildQualifiedAuditor('Independence Lead'),
