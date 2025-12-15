@@ -113,12 +113,13 @@ export function ok(res, data) {
 }
 
 // --- Fehlerantwort ---
-export function bad(res, msg = 'bad request', code = 400) {
+export function bad(res, msg = 'bad request', code = 400, extra = undefined) {
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
   res.statusCode = code;
-  res.end(JSON.stringify({ error: msg }));
+  const body = typeof extra === 'object' && extra !== null ? { error: msg, ...extra } : { error: msg };
+  res.end(JSON.stringify(body));
 }
 
 // --- 405 Method Not Allowed ---

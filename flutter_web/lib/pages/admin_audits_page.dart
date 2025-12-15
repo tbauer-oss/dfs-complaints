@@ -1132,7 +1132,13 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
 
   bool _isLeadAllowed(String? id) => id == null || _eligibleAuditors.any((a) => a.id == id);
 
-  String _errorText(Object e) => e is ApiError ? e.message : e.toString();
+  String _errorText(Object e) {
+    if (e is ApiError) {
+      if (e.details.isNotEmpty) return '${e.message}: ${e.details.join('; ')}';
+      return e.message;
+    }
+    return e.toString();
+  }
 
   @override
   void initState() {
