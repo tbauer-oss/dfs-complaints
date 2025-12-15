@@ -710,9 +710,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
     }
   }
 
-  Widget _buildHeaderForm() {
+  Widget _buildHeaderForm({void Function(VoidCallback fn)? setStateFn}) {
     final theme = Theme.of(context);
     final spacing = const SizedBox(height: 12);
+    final rebuild = setStateFn ?? setState;
     final summaryChips = [
       if (_mdrTdCtrl.text.trim().isNotEmpty)
         Chip(
@@ -753,7 +754,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                   ),
                 if (_headerExpanded) const Spacer(),
                 TextButton.icon(
-                  onPressed: () => setState(() => _headerExpanded = !_headerExpanded),
+                  onPressed: () => rebuild(() => _headerExpanded = !_headerExpanded),
                   icon: Icon(_headerExpanded ? Icons.unfold_less : Icons.unfold_more),
                   label: Text(_headerExpanded ? 'Einklappen' : 'Einblenden'),
                 ),
@@ -784,7 +785,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           onChanged: _readOnly
                               ? null
                               : (val) {
-                                  setState(() {
+                                  rebuild(() {
                                     _mdrTdCtrl.text = val ?? '';
                                     if ((_medicalProductCtrl.text).isEmpty) {
                                       _medicalProductCtrl.text = val ?? '';
@@ -804,7 +805,8 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           }
                               .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                               .toList(),
-                          onChanged: _readOnly ? null : (val) => setState(() => _productGroupCtrl.text = val ?? ''),
+                          onChanged:
+                              _readOnly ? null : (val) => rebuild(() => _productGroupCtrl.text = val ?? ''),
                         ),
                       ),
                       SizedBox(
@@ -829,7 +831,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           controller: _revisionCtrl,
                           decoration: const InputDecoration(labelText: 'Revision'),
                           readOnly: _readOnly,
-                          onChanged: (v) => setState(() => _revisionCtrl.text = _normalizedRevision(v)),
+                          onChanged: (v) => rebuild(() => _revisionCtrl.text = _normalizedRevision(v)),
                         ),
                       ),
                       if (!_readOnly)
@@ -860,7 +862,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                               .toList(),
                           onChanged: _readOnly
                               ? null
-                              : (val) => setState(() {
+                              : (val) => rebuild(() {
                                     _moderatorCtrl.text = val ?? '';
                                   }),
                         ),
@@ -871,7 +873,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                           value: _prrcApproved,
                           onChanged: _readOnly
                               ? null
-                              : (val) => setState(() {
+                              : (val) => rebuild(() {
                                     _prrcApproved = val ?? false;
                                     if (val == true && _prrcDate == null) {
                                       _prrcDate = DateTime.now();
@@ -895,9 +897,8 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                     child: Text('${u.label} (${u.email})'),
                                   ))
                               .toList(),
-                          onChanged: _readOnly
-                              ? null
-                              : (val) => setState(() => _prrcNameCtrl.text = val ?? ''),
+                          onChanged:
+                              _readOnly ? null : (val) => rebuild(() => _prrcNameCtrl.text = val ?? ''),
                         ),
                       ),
                       SizedBox(
@@ -912,7 +913,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                                     firstDate: DateTime(2020),
                                     lastDate: DateTime(2100),
                                   );
-                                  if (picked != null) setState(() => _prrcDate = picked);
+                                  if (picked != null) rebuild(() => _prrcDate = picked);
                                 },
                           child: InputDecorator(
                             decoration: const InputDecoration(labelText: 'PRRC-Datum'),
@@ -922,7 +923,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                       ),
                       if (!_readOnly)
                         TextButton.icon(
-                          onPressed: () => setState(() => _prrcDate = null),
+                          onPressed: () => rebuild(() => _prrcDate = null),
                           icon: const Icon(Icons.clear),
                           label: const Text('Datum leeren'),
                         ),
@@ -1911,42 +1912,46 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       context: context,
       builder: (ctx) {
         final theme = Theme.of(ctx);
-        return Align(
-          alignment: Alignment.centerRight,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520, minWidth: 420),
-            child: Material(
-              elevation: 12,
-              color: theme.colorScheme.surface,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520, minWidth: 420),
+                child: Material(
+                  elevation: 12,
+                  color: theme.colorScheme.surface,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.max,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Kopfdaten', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            icon: const Icon(Icons.close),
+                          Row(
+                            children: [
+                              Text('Kopfdaten', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: _buildHeaderForm(setStateFn: dialogSetState),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: _buildHeaderForm(),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -2778,159 +2783,161 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
             initialIndex: 1,
             child: Scaffold(
               backgroundColor: theme.colorScheme.surface,
-              appBar: PreferredSize(
-                preferredSize: const Size.fromHeight(112),
-                child: Material(
-                  elevation: 2,
-                  color: theme.colorScheme.surface,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Qualitätsmanagement > FMEA',
-                                    style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    fmeaTitle,
-                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                                  ),
-                                  if (_selected != null)
-                                    Text(
-                                      'Moderator: ${_selected!.moderator.isEmpty ? '—' : _selected!.moderator}',
-                                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Row(
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    Material(
+                      elevation: 2,
+                      color: theme.colorScheme.surface,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Flexible(
-                                      child: DropdownButtonFormField<String>(
-                                        value: _selected?.id,
-                                        decoration: const InputDecoration(
-                                          labelText: 'FMEA auswählen',
-                                          isDense: true,
-                                        ),
-                                        items: _fmeas
-                                            .map(
-                                              (f) => DropdownMenuItem(
-                                                value: f.id,
-                                                child: Text(
-                                                  f.mdrTd.isNotEmpty ? f.mdrTd : f.title,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            )
-                                            .toList(),
-                                        onChanged: (value) {
-                                          final target = _fmeas.firstWhereOrNull((f) => f.id == value);
-                                          if (target != null) {
-                                            _setSelection(target);
-                                            _syncSelectedRisk();
-                                          }
-                                        },
-                                      ),
+                                    Text(
+                                      'Qualitätsmanagement > FMEA',
+                                      style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                                     ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      tooltip: 'FMEA-Liste aktualisieren',
-                                      onPressed: _loadingList ? null : _loadFmeas,
-                                      icon: const Icon(Icons.refresh_outlined),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      fmeaTitle,
+                                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                                     ),
-                                    if (widget.canEdit)
-                                      IconButton(
-                                        tooltip: 'Neue FMEA',
-                                        onPressed: _saving ? null : _createFmea,
-                                        icon: const Icon(Icons.add_circle_outline),
+                                    if (_selected != null)
+                                      Text(
+                                        'Moderator: ${_selected!.moderator.isEmpty ? '—' : _selected!.moderator}',
+                                        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                                       ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  FilledButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _addRisk,
-                                    icon: const Icon(Icons.add_outlined),
-                                    label: const Text('+ Risiko'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _exportPdf,
-                                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                                    label: const Text('PDF'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _selected == null || _saving ? null : _exportCsv,
-                                    icon: const Icon(Icons.table_view_outlined),
-                                    label: const Text('Excel'),
-                                  ),
-                                  FilledButton.tonalIcon(
-                                    onPressed: _selected == null ? null : _openHeaderDrawer,
-                                    icon: const Icon(Icons.info_outline),
-                                    label: const Text('Kopfdaten'),
-                                  ),
-                                  if (widget.canEdit)
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: theme.colorScheme.error,
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: DropdownButtonFormField<String>(
+                                          value: _selected?.id,
+                                          decoration: const InputDecoration(
+                                            labelText: 'FMEA auswählen',
+                                            isDense: true,
+                                          ),
+                                          items: _fmeas
+                                              .map(
+                                                (f) => DropdownMenuItem(
+                                                  value: f.id,
+                                                  child: Text(
+                                                    f.mdrTd.isNotEmpty ? f.mdrTd : f.title,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (value) {
+                                            final target = _fmeas.firstWhereOrNull((f) => f.id == value);
+                                            if (target != null) {
+                                              _setSelection(target);
+                                              _syncSelectedRisk();
+                                            }
+                                          },
+                                        ),
                                       ),
-                                      onPressed: _selected == null || _saving ? null : _deleteSelected,
-                                      icon: const Icon(Icons.delete_outline),
-                                      label: const Text('Löschen'),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        tooltip: 'FMEA-Liste aktualisieren',
+                                        onPressed: _loadingList ? null : _loadFmeas,
+                                        icon: const Icon(Icons.refresh_outlined),
+                                      ),
+                                      if (widget.canEdit)
+                                        IconButton(
+                                          tooltip: 'Neue FMEA',
+                                          onPressed: _saving ? null : _createFmea,
+                                          icon: const Icon(Icons.add_circle_outline),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    FilledButton.icon(
+                                      onPressed: _selected == null || _saving ? null : _addRisk,
+                                      icon: const Icon(Icons.add_outlined),
+                                      label: const Text('+ Risiko'),
                                     ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TabBar(
-                              isScrollable: true,
-                              labelColor: theme.colorScheme.primary,
-                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                              indicatorColor: theme.colorScheme.primary,
-                              labelPadding: const EdgeInsets.symmetric(horizontal: 14),
-                              tabs: const [
-                                Tab(text: 'Übersicht'),
-                                Tab(text: 'Risiken'),
-                                Tab(text: 'Verknüpfungen'),
+                                    OutlinedButton.icon(
+                                      onPressed: _selected == null || _saving ? null : _exportPdf,
+                                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                                      label: const Text('PDF'),
+                                    ),
+                                    OutlinedButton.icon(
+                                      onPressed: _selected == null || _saving ? null : _exportCsv,
+                                      icon: const Icon(Icons.table_view_outlined),
+                                      label: const Text('Excel'),
+                                    ),
+                                    FilledButton.tonalIcon(
+                                      onPressed: _selected == null ? null : _openHeaderDrawer,
+                                      icon: const Icon(Icons.info_outline),
+                                      label: const Text('Kopfdaten'),
+                                    ),
+                                    if (widget.canEdit)
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: theme.colorScheme.error,
+                                        ),
+                                        onPressed: _selected == null || _saving ? null : _deleteSelected,
+                                        icon: const Icon(Icons.delete_outline),
+                                        label: const Text('Löschen'),
+                                      ),
+                                  ],
+                                ),
                               ],
                             ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TabBar(
+                                isScrollable: true,
+                                labelColor: theme.colorScheme.primary,
+                                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                indicatorColor: theme.colorScheme.primary,
+                                labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+                                tabs: const [
+                                  Tab(text: 'Übersicht'),
+                                  Tab(text: 'Risiken'),
+                                  Tab(text: 'Verknüpfungen'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: _buildOverviewTab(theme),
+                          ),
+                          _buildRiskTab(theme, isDesktop: isDesktop),
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: _buildLinksTab(theme),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-              body: TabBarView(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: _buildOverviewTab(theme),
-                  ),
-                  _buildRiskTab(theme, isDesktop: isDesktop),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: _buildLinksTab(theme),
-                  ),
-                ],
               ),
             ),
           ),
