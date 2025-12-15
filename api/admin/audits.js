@@ -1,6 +1,8 @@
 // /api/admin/audits.js – Auditplanung & Durchführung
 export const config = { runtime: 'nodejs' };
 
+import crypto from 'node:crypto';
+
 import {
   handlePreflight,
   setCors,
@@ -21,14 +23,24 @@ import {
 
 const TILE = AUDIT_TILE_ID;
 
-function handleError(res, err) {
-  console.error('[admin/audits] error', err);
-  return bad(res, err.message || 'server error', err.code === 'VALIDATION_ERROR' ? 400 : 500);
+function handleError(res, err, { requestId } = {}) {
+  const status = err.code === 'VALIDATION_ERROR' ? 400 : err.statusCode || 500;
+  const details = Array.isArray(err.details) ? err.details : undefined;
+  const payload = { ...(requestId ? { requestId } : {}), ...(details ? { details } : {}) };
+  console.error('[admin/audits] error', {
+    status,
+    requestId,
+    message: err?.message,
+    details: details?.map?.(d => d?.issue || d?.message || d),
+  });
+  return bad(res, err.message || 'server error', status, payload);
 }
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
+
+  const requestId = req.headers?.['x-request-id'] || req.headers?.['x-vercel-id'] || crypto.randomUUID();
 
   const wantsWrite = ['POST', 'PATCH', 'DELETE'].includes(req.method);
   const actor = await requirePortalAccess(req, res, { tile: TILE, write: wantsWrite, allowPrrc: true });
@@ -49,7 +61,7 @@ export default async function handler(req, res) {
       const id = req.query?.id;
       if (id) {
         const found = list.find((p) => p.id === id) || (await auditGet(id));
-        if (!found) return bad(res, 'not found', 404);
+        if (!found) return bad(res, 'not found', 404, { requestId });
         return ok(res, { ok: true, audit: found });
       }
       return ok(res, { ok: true, list });
@@ -57,30 +69,32 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
-      console.log('[admin/audits] create', { actor: actor.email, body });
+      console.log('[admin/audits] create', { actor: actor.email, requestId, fields: Object.keys(body || {}) });
       const saved = await auditSave({ ...body, updatedBy: actor.email });
-      return ok(res, { ok: true, audit: saved });
+      return ok(res, { ok: true, audit: saved, requestId });
     }
 
     if (req.method === 'PATCH') {
       const body = readJson(req) || {};
       const id = body.id || req.query?.id;
-      if (!id) return bad(res, 'id missing', 400);
-      console.log('[admin/audits] update', { actor: actor.email, id, body });
+      if (!id)
+        return bad(res, 'id missing', 400, { requestId, details: [{ field: 'id', issue: 'required' }] });
+      console.log('[admin/audits] update', { actor: actor.email, id, requestId, fields: Object.keys(body || {}) });
       const updated = await auditUpdate(id, { ...body, updatedBy: actor.email });
-      if (!updated) return bad(res, 'not found', 404);
-      return ok(res, { ok: true, audit: updated });
+      if (!updated) return bad(res, 'not found', 404, { requestId });
+      return ok(res, { ok: true, audit: updated, requestId });
     }
 
     if (req.method === 'DELETE') {
       const id = req.query?.id;
-      if (!id) return bad(res, 'id missing', 400);
+      if (!id)
+        return bad(res, 'id missing', 400, { requestId, details: [{ field: 'id', issue: 'required' }] });
       await auditDelete(id);
-      return ok(res, { ok: true });
+      return ok(res, { ok: true, requestId });
     }
 
     return methodNotAllowed(res);
   } catch (err) {
-    return handleError(res, err);
+    return handleError(res, err, { requestId });
   }
 }

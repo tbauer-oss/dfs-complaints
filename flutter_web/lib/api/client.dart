@@ -21,9 +21,12 @@ import 'config.dart';
 class ApiError implements Exception {
   final int status;
   final String message;
-  ApiError(this.status, this.message);
+  final List<String> details;
+  ApiError(this.status, this.message, [List<String>? details])
+      : details = List.unmodifiable(details ?? const []);
   @override
-  String toString() => 'HTTP $status: $message';
+  String toString() =>
+      details.isNotEmpty ? 'HTTP $status: $message (${details.join('; ')})' : 'HTTP $status: $message';
 }
 
 class LoginResult {
