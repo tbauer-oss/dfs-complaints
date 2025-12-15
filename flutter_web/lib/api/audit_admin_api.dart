@@ -142,6 +142,38 @@ class AuditAdminApi {
     return Audit.fromJson((data ?? decoded).cast<String, dynamic>());
   }
 
+  Future<List<AuditPlanEntry>> loadAuditPlan(String auditId) async {
+    final r = await http.get(_u('/api/admin/audits/$auditId/plan'), headers: _headersJson());
+    final decoded = await _decode(r);
+    final list = decoded['planEntries'] ?? decoded['plan'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => AuditPlanEntry.fromJson(e.cast<String, dynamic>()))
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<List<AuditPlanEntry>> saveAuditPlan(String auditId, List<AuditPlanEntry> plan) async {
+    final r = await http.put(
+      _u('/api/admin/audits/$auditId/plan'),
+      headers: _headersJson(),
+      body: jsonEncode({
+        'planEntries': plan.map((p) => p.toJson()).toList(),
+      }),
+    );
+    final decoded = await _decode(r);
+    final list = decoded['planEntries'] ?? decoded['plan'];
+    if (list is List) {
+      return list
+          .whereType<Map>()
+          .map((e) => AuditPlanEntry.fromJson(e.cast<String, dynamic>()))
+          .toList();
+    }
+    return const [];
+  }
+
   Future<void> deleteAudit(String id) async {
     final uri = id.isEmpty ? _u('/api/admin/audits') : _u('/api/admin/audits', {'id': id});
     await _decode(await http.delete(uri, headers: _headersJson()));
