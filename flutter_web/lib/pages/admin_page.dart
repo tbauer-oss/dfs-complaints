@@ -47,29 +47,39 @@ class AdminPage extends StatefulWidget {
   final ApiClient api;
   final Map<String, dynamic>? portalProfile;
   final void Function(Map<String, dynamic> meta)? onMetaUpdated;
-  final _AdminView initialView;
+  final AdminView initialView;
+  final int auditInitialTab;
+  final int? initialAuditReportYear;
   const AdminPage({
     super.key,
     required this.api,
     this.portalProfile,
     this.onMetaUpdated,
-    this.initialView = _AdminView.menu,
+    this.initialView = AdminView.menu,
+    this.auditInitialTab = 0,
+    this.initialAuditReportYear,
   });
 
   const AdminPage.wiki({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
-      : initialView = _AdminView.wiki;
+      : initialView = AdminView.wiki,
+        auditInitialTab = 0,
+        initialAuditReportYear = null;
 
   const AdminPage.wikiCategories({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
-      : initialView = _AdminView.wikiCategories;
+      : initialView = AdminView.wikiCategories,
+        auditInitialTab = 0,
+        initialAuditReportYear = null;
 
   const AdminPage.wikiArticles({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
-      : initialView = _AdminView.wikiArticles;
+      : initialView = AdminView.wikiArticles,
+        auditInitialTab = 0,
+        initialAuditReportYear = null;
 
   @override
   State<AdminPage> createState() => _AdminPageState();
 }
 
-enum _AdminView {
+enum AdminView {
   menu,
   all,
   complaintList,
@@ -763,7 +773,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _savingRoleTileVisibility = false;
 
   bool _navCollapsed = true;
-  List<_AdminView> _navOrder = const [];
+  List<AdminView> _navOrder = const [];
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -784,7 +794,7 @@ class _AdminPageState extends State<AdminPage> {
   static const double _sectionReorderHeight = 40;
 
   // Ansicht (Menü / Bereich)
-  _AdminView _view = _AdminView.menu;
+  AdminView _view = AdminView.menu;
 
   Country get _defaultCountry => kCountries.firstWhere(
         (c) => c.code == 'DE',
@@ -4641,37 +4651,37 @@ class _AdminPageState extends State<AdminPage> {
 
     final theme = Theme.of(context);
     final title = switch (_view) {
-      _AdminView.menu           => 'DFS Connect+ | Your Digital Quality Hub',
-      _AdminView.all            => 'Alle Reklamationen',
-      _AdminView.complaintList  => 'Reklamationsliste',
-      _AdminView.capaReports    => 'CAPA / 8D-Reports',
-      _AdminView.capaDashboard  => 'CAPA-Dashboard',
-      _AdminView.fmea           => 'FMEA',
-      _AdminView.prrc           => 'PRRC-Einstufungen',
-      _AdminView.audits         => 'Audits',
-      _AdminView.pending        => 'Pending (Freigabe ausstehend)',
-      _AdminView.portalUsers    => 'User-Datenbank',
-      _AdminView.users          => 'Kundendatenbank',
-      _AdminView.open           => 'Offene Reklamationen',
-      _AdminView.reps           => 'Vertreterverwaltung',
-      _AdminView.downloads      => 'Vertreter-Downloads',
-      _AdminView.faq            => 'Wissensdatenbank (FAQ)',
-      _AdminView.wiki           => 'Vertreter-Wiki',
-      _AdminView.products       => 'Artikelliste',
-      _AdminView.news           => 'Neuigkeiten & Infoscreen',
-      _AdminView.catalogs       => 'Katalog-Konfiguration',
-      _AdminView.systemHealth   => 'Systemstatus & Checks',
-      _AdminView.createCustomer => 'Neuen Kunden anlegen',
-      _AdminView.activity       => 'Aktivitätsübersicht',
-      _AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
-      _AdminView.wikiCategories => 'Vertreter-Wiki Kategorien',
-      _AdminView.wikiArticles   => 'Vertreter-Wiki Artikel',
+      AdminView.menu           => 'DFS Connect+ | Your Digital Quality Hub',
+      AdminView.all            => 'Alle Reklamationen',
+      AdminView.complaintList  => 'Reklamationsliste',
+      AdminView.capaReports    => 'CAPA / 8D-Reports',
+      AdminView.capaDashboard  => 'CAPA-Dashboard',
+      AdminView.fmea           => 'FMEA',
+      AdminView.prrc           => 'PRRC-Einstufungen',
+      AdminView.audits         => 'Audits',
+      AdminView.pending        => 'Pending (Freigabe ausstehend)',
+      AdminView.portalUsers    => 'User-Datenbank',
+      AdminView.users          => 'Kundendatenbank',
+      AdminView.open           => 'Offene Reklamationen',
+      AdminView.reps           => 'Vertreterverwaltung',
+      AdminView.downloads      => 'Vertreter-Downloads',
+      AdminView.faq            => 'Wissensdatenbank (FAQ)',
+      AdminView.wiki           => 'Vertreter-Wiki',
+      AdminView.products       => 'Artikelliste',
+      AdminView.news           => 'Neuigkeiten & Infoscreen',
+      AdminView.catalogs       => 'Katalog-Konfiguration',
+      AdminView.systemHealth   => 'Systemstatus & Checks',
+      AdminView.createCustomer => 'Neuen Kunden anlegen',
+      AdminView.activity       => 'Aktivitätsübersicht',
+      AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
+      AdminView.wikiCategories => 'Vertreter-Wiki Kategorien',
+      AdminView.wikiArticles   => 'Vertreter-Wiki Artikel',
     };
 
     return WillPopScope(
       onWillPop: () async {
-        if (_view != _AdminView.menu) {
-          setState(() => _view = _AdminView.menu);
+        if (_view != AdminView.menu) {
+          setState(() => _view = AdminView.menu);
           return false;
         }
         return true;
@@ -4756,10 +4766,10 @@ class _AdminPageState extends State<AdminPage> {
       ),
       icon: const Icon(Icons.home_outlined),
       label: const Text('Connect+ Dashboard'),
-      onPressed: () => setState(() => _view = _AdminView.menu),
+      onPressed: () => setState(() => _view = AdminView.menu),
     );
 
-    final dashboardEditButton = _view == _AdminView.menu
+    final dashboardEditButton = _view == AdminView.menu
         ? Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -4951,11 +4961,11 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  void _handleNavigation(_AdminView view) {
-    final shouldRefreshFaq = view == _AdminView.faq &&
+  void _handleNavigation(AdminView view) {
+    final shouldRefreshFaq = view == AdminView.faq &&
         !_faqLoading &&
         (_faqCategories.isEmpty || _faqEntries.isEmpty);
-    final shouldRefreshComplaints = view == _AdminView.complaintList && !_loadAllComplaints;
+    final shouldRefreshComplaints = view == AdminView.complaintList && !_loadAllComplaints;
 
     if (_view != view) {
       setState(() => _view = view);
@@ -4994,7 +5004,7 @@ class _AdminPageState extends State<AdminPage> {
     final theme = Theme.of(context);
     final Color accent = theme.colorScheme.primary;
     final Color subtle = theme.colorScheme.onSurfaceVariant;
-    final order = List<_AdminView>.from(_mergeNavOrder(_navOrder));
+    final order = List<AdminView>.from(_mergeNavOrder(_navOrder));
     final lookup = _navItemLookup();
     final surfaceBlend = Color.alphaBlend(
       theme.colorScheme.surfaceVariant.withOpacity(theme.brightness == Brightness.dark ? 0.28 : 0.46),
@@ -5359,105 +5369,105 @@ class _AdminPageState extends State<AdminPage> {
     return _SidebarTooltip(message: message, child: child);
   }
 
-  String? _viewToTileId(_AdminView view) {
+  String? _viewToTileId(AdminView view) {
     switch (view) {
-      case _AdminView.menu:
+      case AdminView.menu:
         return null;
-      case _AdminView.complaintList:
+      case AdminView.complaintList:
         return 'complaintList';
-      case _AdminView.capaReports:
+      case AdminView.capaReports:
         return 'capaReports';
-      case _AdminView.capaDashboard:
+      case AdminView.capaDashboard:
         return 'capaDashboard';
-      case _AdminView.fmea:
+      case AdminView.fmea:
         return 'fmea';
-      case _AdminView.prrc:
+      case AdminView.prrc:
         return 'prrc';
-      case _AdminView.audits:
+      case AdminView.audits:
         return 'audits';
-      case _AdminView.open:
+      case AdminView.open:
         return 'open';
-      case _AdminView.all:
+      case AdminView.all:
         return 'all';
-      case _AdminView.pending:
+      case AdminView.pending:
         return 'pending';
-      case _AdminView.portalUsers:
+      case AdminView.portalUsers:
         return 'portalUsers';
-      case _AdminView.users:
+      case AdminView.users:
         return 'users';
-      case _AdminView.reps:
+      case AdminView.reps:
         return 'reps';
-      case _AdminView.news:
+      case AdminView.news:
         return 'news';
-      case _AdminView.downloads:
+      case AdminView.downloads:
         return 'downloads';
-      case _AdminView.faq:
+      case AdminView.faq:
         return 'faq';
-      case _AdminView.wiki:
+      case AdminView.wiki:
         return 'wiki';
-      case _AdminView.products:
+      case AdminView.products:
         return 'products';
-      case _AdminView.catalogs:
+      case AdminView.catalogs:
         return 'catalogs';
-      case _AdminView.systemHealth:
+      case AdminView.systemHealth:
         return 'systemHealth';
-      case _AdminView.activity:
+      case AdminView.activity:
         return 'activity';
-      case _AdminView.createCustomer:
+      case AdminView.createCustomer:
         return 'createCustomer';
-      case _AdminView.pushBroadcast:
+      case AdminView.pushBroadcast:
         return 'push';
-      case _AdminView.wikiCategories:
+      case AdminView.wikiCategories:
         return 'wikiCategories';
-      case _AdminView.wikiArticles:
+      case AdminView.wikiArticles:
         return 'wikiArticles';
     }
   }
 
-  Set<_AdminView> _baseViewsForRole(String role) {
-    if (_isSuperuser) return _AdminView.values.toSet();
+  Set<AdminView> _baseViewsForRole(String role) {
+    if (_isSuperuser) return AdminView.values.toSet();
     if (role == 'readonly') {
       return const {
-        _AdminView.menu,
-        _AdminView.open,
-        _AdminView.all,
-        _AdminView.complaintList,
-        _AdminView.fmea,
-        _AdminView.audits,
-        _AdminView.pending,
-        _AdminView.activity,
-        _AdminView.systemHealth,
+        AdminView.menu,
+        AdminView.open,
+        AdminView.all,
+        AdminView.complaintList,
+        AdminView.fmea,
+        AdminView.audits,
+        AdminView.pending,
+        AdminView.activity,
+        AdminView.systemHealth,
       };
     }
     return const {
-      _AdminView.menu,
-      _AdminView.open,
-      _AdminView.all,
-      _AdminView.complaintList,
-      _AdminView.capaReports,
-      _AdminView.capaDashboard,
-      _AdminView.fmea,
-      _AdminView.prrc,
-      _AdminView.pending,
-      _AdminView.users,
-      _AdminView.reps,
-      _AdminView.news,
-      _AdminView.downloads,
-      _AdminView.faq,
-      _AdminView.wiki,
-      _AdminView.audits,
-      _AdminView.products,
-      _AdminView.catalogs,
-      _AdminView.systemHealth,
-      _AdminView.activity,
-      _AdminView.createCustomer,
-      _AdminView.pushBroadcast,
-      _AdminView.wikiCategories,
-      _AdminView.wikiArticles,
+      AdminView.menu,
+      AdminView.open,
+      AdminView.all,
+      AdminView.complaintList,
+      AdminView.capaReports,
+      AdminView.capaDashboard,
+      AdminView.fmea,
+      AdminView.prrc,
+      AdminView.pending,
+      AdminView.users,
+      AdminView.reps,
+      AdminView.news,
+      AdminView.downloads,
+      AdminView.faq,
+      AdminView.wiki,
+      AdminView.audits,
+      AdminView.products,
+      AdminView.catalogs,
+      AdminView.systemHealth,
+      AdminView.activity,
+      AdminView.createCustomer,
+      AdminView.pushBroadcast,
+      AdminView.wikiCategories,
+      AdminView.wikiArticles,
     };
   }
 
-  bool _isViewAllowed(_AdminView view) {
+  bool _isViewAllowed(AdminView view) {
     final allowed = _baseViewsForRole(_portalRole);
     if (!allowed.contains(view)) return false;
 
@@ -5476,7 +5486,7 @@ class _AdminPageState extends State<AdminPage> {
           _AdminNavItem(
             label: 'Dashboard',
             icon: Icons.dashboard_outlined,
-            view: _AdminView.menu,
+            view: AdminView.menu,
           ),
         ],
       ),
@@ -5486,44 +5496,44 @@ class _AdminPageState extends State<AdminPage> {
           _AdminNavItem(
             label: 'Offene Reklamationen',
             icon: Icons.assignment_late_outlined,
-            view: _AdminView.open,
+            view: AdminView.open,
             badge: _openComplaints.isNotEmpty ? '${_openComplaints.length}' : null,
           ),
           _AdminNavItem(
             label: 'Alle Reklamationen',
             icon: Icons.dashboard_customize_outlined,
-            view: _AdminView.all,
+            view: AdminView.all,
             badge: _allComplaints.isNotEmpty ? '${_allComplaints.length}' : null,
           ),
           _AdminNavItem(
             label: 'Reklamationsliste',
             icon: Icons.table_view_outlined,
-            view: _AdminView.complaintList,
+            view: AdminView.complaintList,
           ),
           _AdminNavItem(
             label: 'CAPA / 8D-Reports',
             icon: Icons.fact_check_outlined,
-            view: _AdminView.capaReports,
+            view: AdminView.capaReports,
           ),
           _AdminNavItem(
             label: 'CAPA-Dashboard',
             icon: Icons.dashboard_customize_outlined,
-            view: _AdminView.capaDashboard,
+            view: AdminView.capaDashboard,
           ),
           _AdminNavItem(
             label: 'FMEA',
             icon: Icons.analytics_outlined,
-            view: _AdminView.fmea,
+            view: AdminView.fmea,
           ),
           _AdminNavItem(
             label: 'PRRC-Einstufungen',
             icon: Icons.health_and_safety_outlined,
-            view: _AdminView.prrc,
+            view: AdminView.prrc,
           ),
           _AdminNavItem(
             label: 'Audits',
             icon: Icons.assignment_turned_in_outlined,
-            view: _AdminView.audits,
+            view: AdminView.audits,
           ),
         ],
       ),
@@ -5533,19 +5543,19 @@ class _AdminPageState extends State<AdminPage> {
           _AdminNavItem(
             label: 'Anträge / Pending',
             icon: Icons.hourglass_bottom_outlined,
-            view: _AdminView.pending,
+            view: AdminView.pending,
             badge: _pending.isNotEmpty ? '${_pending.length}' : null,
           ),
           _AdminNavItem(
             label: 'Kundendatenbank',
             icon: Icons.people_outline,
-            view: _AdminView.users,
+            view: AdminView.users,
             badge: _users.isNotEmpty ? '${_users.length}' : null,
           ),
           _AdminNavItem(
             label: 'Kunden anlegen',
             icon: Icons.person_add_alt_1_outlined,
-            view: _AdminView.createCustomer,
+            view: AdminView.createCustomer,
           ),
         ],
       ),
@@ -5555,18 +5565,18 @@ class _AdminPageState extends State<AdminPage> {
           _AdminNavItem(
             label: 'Vertreterverwaltung',
             icon: Icons.support_agent_outlined,
-            view: _AdminView.reps,
+            view: AdminView.reps,
             badge: _reps.isNotEmpty ? '${_reps.length}' : null,
           ),
           _AdminNavItem(
             label: 'Downloads',
             icon: Icons.download_outlined,
-            view: _AdminView.downloads,
+            view: AdminView.downloads,
           ),
           _AdminNavItem(
             label: 'Vertreter-Wiki',
             icon: Icons.menu_book_rounded,
-            view: _AdminView.wiki,
+            view: AdminView.wiki,
           ),
         ],
       ),
@@ -5576,28 +5586,28 @@ class _AdminPageState extends State<AdminPage> {
           _AdminNavItem(
             label: 'News & Infos',
             icon: Icons.campaign_outlined,
-            view: _AdminView.news,
+            view: AdminView.news,
           ),
           _AdminNavItem(
             label: 'FAQ / Wissen',
             icon: Icons.help_outline,
-            view: _AdminView.faq,
+            view: AdminView.faq,
           ),
           _AdminNavItem(
             label: 'Artikelliste',
             icon: Icons.inventory_2_outlined,
-            view: _AdminView.products,
+            view: AdminView.products,
             badge: _products.isNotEmpty ? '${_products.length}' : null,
           ),
           _AdminNavItem(
             label: 'Kataloge',
             icon: Icons.menu_book_outlined,
-            view: _AdminView.catalogs,
+            view: AdminView.catalogs,
           ),
           _AdminNavItem(
             label: 'Push-Broadcasts',
             icon: Icons.wifi_tethering_outlined,
-            view: _AdminView.pushBroadcast,
+            view: AdminView.pushBroadcast,
             badge: _pushResult?.totalTokens != null && _pushResult!.totalTokens! > 0
                 ? '${_pushResult!.totalTokens}'
                 : null,
@@ -5610,17 +5620,17 @@ class _AdminPageState extends State<AdminPage> {
           _AdminNavItem(
             label: 'User-Datenbank',
             icon: Icons.admin_panel_settings_outlined,
-            view: _AdminView.portalUsers,
+            view: AdminView.portalUsers,
           ),
           _AdminNavItem(
             label: 'Systemstatus',
             icon: Icons.health_and_safety_outlined,
-            view: _AdminView.systemHealth,
+            view: AdminView.systemHealth,
           ),
           _AdminNavItem(
             label: 'Aktivitäts-Checks',
             icon: Icons.analytics_outlined,
-            view: _AdminView.activity,
+            view: AdminView.activity,
           ),
         ],
       ),
@@ -5639,7 +5649,7 @@ class _AdminPageState extends State<AdminPage> {
         for (final section in sections) ...section.items,
       ];
 
-  List<_AdminView> _defaultNavOrder() =>
+  List<AdminView> _defaultNavOrder() =>
       _flattenNavItems(_defaultNavSections()).map((i) => i.view).toList(growable: false);
 
   void _loadNavOrder() {
@@ -5647,7 +5657,7 @@ class _AdminPageState extends State<AdminPage> {
     _applyNavOrder(defaults, persist: false, syncRemote: false);
   }
 
-  void _applyNavOrder(List<_AdminView> order, {bool persist = false, bool syncRemote = true}) {
+  void _applyNavOrder(List<AdminView> order, {bool persist = false, bool syncRemote = true}) {
     final merged = _mergeNavOrder(order);
     final changed = !listEquals(_navOrder, merged);
 
@@ -5666,9 +5676,9 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  List<_AdminView> _mergeNavOrder(List<_AdminView> candidate) {
+  List<AdminView> _mergeNavOrder(List<AdminView> candidate) {
     final defaults = _defaultNavOrder();
-    final merged = <_AdminView>[];
+    final merged = <AdminView>[];
     for (final view in candidate) {
       if (defaults.contains(view) && !merged.contains(view)) {
         merged.add(view);
@@ -5682,7 +5692,7 @@ class _AdminPageState extends State<AdminPage> {
     return merged;
   }
 
-  Map<_AdminView, _AdminNavItem> _navItemLookup() {
+  Map<AdminView, _AdminNavItem> _navItemLookup() {
     final items = _flattenNavItems(_defaultNavSections());
     return {for (final item in items) item.view: item};
   }
@@ -5694,58 +5704,58 @@ class _AdminPageState extends State<AdminPage> {
         children: [
           Text(_err!, style: TextStyle(color: theme.colorScheme.error)),
           const SizedBox(height: 8),
-          Expanded(child: _view == _AdminView.menu ? _buildMenu() : _buildView()),
+          Expanded(child: _view == AdminView.menu ? _buildMenu() : _buildView()),
         ],
       );
     }
-    return _view == _AdminView.menu ? _buildMenu() : _buildView();
+    return _view == AdminView.menu ? _buildMenu() : _buildView();
   }
 
   List<_AdminMenuSectionState> _baseMenuSections() {
-    _AdminView? _tileIdToView(String id) {
+    AdminView? _tileIdToView(String id) {
       switch (id) {
         case 'open':
-          return _AdminView.open;
+          return AdminView.open;
         case 'all':
-          return _AdminView.all;
+          return AdminView.all;
         case 'complaintList':
-          return _AdminView.complaintList;
+          return AdminView.complaintList;
         case 'capaReports':
-          return _AdminView.capaReports;
+          return AdminView.capaReports;
         case 'capaDashboard':
-          return _AdminView.capaDashboard;
+          return AdminView.capaDashboard;
         case 'prrc':
-          return _AdminView.prrc;
+          return AdminView.prrc;
         case 'audits':
-          return _AdminView.audits;
+          return AdminView.audits;
         case 'pending':
-          return _AdminView.pending;
+          return AdminView.pending;
         case 'portalUsers':
-          return _AdminView.portalUsers;
+          return AdminView.portalUsers;
         case 'users':
-          return _AdminView.users;
+          return AdminView.users;
         case 'createCustomer':
-          return _AdminView.createCustomer;
+          return AdminView.createCustomer;
         case 'reps':
-          return _AdminView.reps;
+          return AdminView.reps;
         case 'news':
-          return _AdminView.news;
+          return AdminView.news;
         case 'downloads':
-          return _AdminView.downloads;
+          return AdminView.downloads;
         case 'faq':
-          return _AdminView.faq;
+          return AdminView.faq;
         case 'wiki':
-          return _AdminView.wiki;
+          return AdminView.wiki;
         case 'products':
-          return _AdminView.products;
+          return AdminView.products;
         case 'push':
-          return _AdminView.pushBroadcast;
+          return AdminView.pushBroadcast;
         case 'catalogs':
-          return _AdminView.catalogs;
+          return AdminView.catalogs;
         case 'systemHealth':
-          return _AdminView.systemHealth;
+          return AdminView.systemHealth;
         case 'activity':
-          return _AdminView.activity;
+          return AdminView.activity;
         default:
           return null;
       }
@@ -5862,7 +5872,7 @@ class _AdminPageState extends State<AdminPage> {
       if (navOrder is List) {
         final views = navOrder
             .whereType<String>()
-            .map((name) => _AdminView.values.firstWhereOrNull((v) => v.name == name))
+            .map((name) => AdminView.values.firstWhereOrNull((v) => v.name == name))
             .whereNotNull()
             .toList();
         if (views.isNotEmpty) {
@@ -6076,7 +6086,7 @@ class _AdminPageState extends State<AdminPage> {
   Future<Map<String, dynamic>> _syncAdminUiConfig({
     Map<String, Set<String>>? roleTileVisibility,
     Map<String, dynamic>? menuLayout,
-    List<_AdminView>? navOrder,
+    List<AdminView>? navOrder,
     bool swallowErrors = true,
   }) async {
     try {
@@ -6325,7 +6335,7 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _openComplaintByTicket(String ticket) async {
     if (ticket.trim().isEmpty) return;
-    _handleNavigation(_AdminView.complaintList);
+    _handleNavigation(AdminView.complaintList);
     try {
       final raw = await _api.fetchComplaintRawByTicket(ticket.trim());
       final complaint = AdminComplaint.fromJson(raw);
@@ -6415,7 +6425,7 @@ class _AdminPageState extends State<AdminPage> {
 
   Future<void> _openCapaById(String id) async {
     if (id.trim().isEmpty) return;
-    _handleNavigation(_AdminView.capaReports);
+    _handleNavigation(AdminView.capaReports);
     CapaReport? target = _capaReports.firstWhereOrNull(
       (c) => c.id == id || c.capaNumber == id || c.complaintId == id,
     );
@@ -6719,7 +6729,7 @@ class _AdminPageState extends State<AdminPage> {
                                 Navigator.of(context).pop();
                                 setState(() {
                                   _newsScope = 'portal';
-                                  _view = _AdminView.news;
+                                  _view = AdminView.news;
                                 });
                               },
                               icon: const Icon(Icons.edit_note_outlined),
@@ -6761,7 +6771,7 @@ class _AdminPageState extends State<AdminPage> {
                               Navigator.of(context).pop();
                               setState(() {
                                 _newsScope = 'portal';
-                                _view = _AdminView.news;
+                                _view = AdminView.news;
                               });
                             },
                             icon: const Icon(Icons.add_circle_outline),
@@ -7383,7 +7393,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.redB,
           count: _openComplaints.length,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.open),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.open),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7397,7 +7407,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.purpleB,
           count: _allComplaints.length,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.all),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.all),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7410,7 +7420,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
           compact: compact,
-          onTap: isPreview ? () {} : () => _handleNavigation(_AdminView.complaintList),
+          onTap: isPreview ? () {} : () => _handleNavigation(AdminView.complaintList),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7423,7 +7433,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.greenA,
           colorB: AdminPalette.greenB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.capaReports),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.capaReports),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7447,7 +7457,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.indigoB,
           count: total,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.capaDashboard),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.capaDashboard),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7460,7 +7470,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.amberA,
           colorB: AdminPalette.amberB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.fmea),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.fmea),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7509,7 +7519,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.amberB,
           count: _pending.length,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.pending),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pending),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7523,7 +7533,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.tealB,
           count: _users.length,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.users),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.users),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7536,7 +7546,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.tealA,
           colorB: AdminPalette.tealB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.createCustomer),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.createCustomer),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7552,7 +7562,7 @@ class _AdminPageState extends State<AdminPage> {
           onTap: isPreview
               ? () {}
               : () {
-                  setState(() => _view = _AdminView.reps);
+                  setState(() => _view = AdminView.reps);
                   if (_reps.isEmpty) _refreshReps();
                 },
           actionLabel: resolvedActionLabel,
@@ -7573,7 +7583,7 @@ class _AdminPageState extends State<AdminPage> {
           onTap: isPreview
               ? () {}
               : () {
-                  setState(() => _view = _AdminView.news);
+                  setState(() => _view = AdminView.news);
                   if (_activeNewsEntries.isEmpty) _refreshNews();
                 },
           actionLabel: resolvedActionLabel,
@@ -7588,7 +7598,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.indigoA,
           colorB: AdminPalette.indigoB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.downloads),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.downloads),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7602,7 +7612,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.blueB,
           compact: compact,
           count: _faqEntries.length,
-          onTap: isPreview ? () {} : () => _handleNavigation(_AdminView.faq),
+          onTap: isPreview ? () {} : () => _handleNavigation(AdminView.faq),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7615,7 +7625,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.tealA,
           colorB: AdminPalette.tealB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.wiki),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.wiki),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7629,7 +7639,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.blueB,
           compact: compact,
           count: _products.length,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.products),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.products),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7642,7 +7652,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.tealA,
           colorB: AdminPalette.tealB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.audits),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.audits),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7656,7 +7666,7 @@ class _AdminPageState extends State<AdminPage> {
           colorB: AdminPalette.amberB,
           compact: compact,
           count: _pushResult?.totalTokens,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.pushBroadcast),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pushBroadcast),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7669,7 +7679,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.catalogs),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.catalogs),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -7686,7 +7696,7 @@ class _AdminPageState extends State<AdminPage> {
           onTap: isPreview
               ? () {}
               : () {
-                  setState(() => _view = _AdminView.portalUsers);
+                  setState(() => _view = AdminView.portalUsers);
                   if (!_portalUsersLoaded && !_portalUsersLoading) {
                     _refreshPortalUsers();
                   }
@@ -7732,7 +7742,7 @@ class _AdminPageState extends State<AdminPage> {
           onTap: isPreview
               ? () {}
               : () {
-                  setState(() => _view = _AdminView.systemHealth);
+                  setState(() => _view = AdminView.systemHealth);
                   _loadSystemHealth(force: true);
                 },
           actionLabel: resolvedActionLabel,
@@ -7747,7 +7757,7 @@ class _AdminPageState extends State<AdminPage> {
           colorA: AdminPalette.tealA,
           colorB: AdminPalette.tealB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = _AdminView.activity),
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.activity),
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -8391,9 +8401,9 @@ class _AdminPageState extends State<AdminPage> {
   // ------------------ Panel-Ansichten ------------------
   Widget _buildView() {
     switch (_view) {
-      case _AdminView.all:
+      case AdminView.all:
         return _buildAllComplaintsPanel();
-      case _AdminView.complaintList:
+      case AdminView.complaintList:
         return ComplaintListPage(
           api: widget.api,
           complaints: _complaintListItems(),
@@ -8407,68 +8417,72 @@ class _AdminPageState extends State<AdminPage> {
               _portalIsPrrc ? _updatePrrcClassification : null,
           prrcReadOnly: !_portalIsPrrc,
         );
-      case _AdminView.capaReports:
+      case AdminView.capaReports:
         return CapaOverviewPage(
           api: widget.api,
           canWrite: _canWriteTile('capaReports'),
         );
-      case _AdminView.capaDashboard:
+      case AdminView.capaDashboard:
         return AdminCapaDashboardPage(
           api: widget.api,
           canWrite: _canWriteTile('capaReports'),
         );
-      case _AdminView.fmea:
+      case AdminView.fmea:
         return AdminFmeaPage(
           api: widget.api,
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
-      case _AdminView.audits:
-        return AdminAuditsPage(api: widget.api);
-      case _AdminView.prrc:
+      case AdminView.audits:
+        return AdminAuditsPage(
+          api: widget.api,
+          initialTab: widget.auditInitialTab,
+          initialReportYear: widget.initialAuditReportYear,
+        );
+      case AdminView.prrc:
         return _buildPrrcPanel();
-      case _AdminView.pending:
+      case AdminView.pending:
         return _buildPendingPanel();
-      case _AdminView.portalUsers:
+      case AdminView.portalUsers:
         return _buildPortalUsersPanel();
-      case _AdminView.users:
+      case AdminView.users:
         return _buildUsersPanel();
-      case _AdminView.open:
+      case AdminView.open:
         return _buildOpenPanel();
-      case _AdminView.menu:
+      case AdminView.menu:
         return const SizedBox.shrink();
-      case _AdminView.reps:
+      case AdminView.reps:
         return _buildRepsPanel();
-      case _AdminView.news:
+      case AdminView.news:
         return _buildNewsPanel();
-      case _AdminView.downloads:
+      case AdminView.downloads:
         return AdminDownloadsPage(api: widget.api);
-      case _AdminView.products:
+      case AdminView.products:
         return _buildProductsPanel();
-      case _AdminView.faq:
+      case AdminView.faq:
         return _buildFaqPanel();
-      case _AdminView.wiki:
+      case AdminView.wiki:
         return _buildWikiOverview();
-      case _AdminView.catalogs:
+      case AdminView.catalogs:
         return _buildCatalogsPanel();
-      case _AdminView.systemHealth:
+      case AdminView.systemHealth:
         return _buildSystemHealthPanel();
-      case _AdminView.activity:
+      case AdminView.activity:
         return _buildActivityPanel();
-      case _AdminView.createCustomer:
+      case AdminView.createCustomer:
         return _buildCreateCustomerPanel();
-      case _AdminView.pushBroadcast:
+      case AdminView.pushBroadcast:
         return _buildPushBroadcastPanel();
-      case _AdminView.wikiCategories:
+      case AdminView.wikiCategories:
         return AdminWikiCategoriesPage(
           api: widget.api,
           canWrite: _canWriteTile('wikiCategories'),
-          onBack: () => setState(() => _view = _AdminView.wiki),
+          onBack: () => setState(() => _view = AdminView.wiki),
         );
-      case _AdminView.wikiArticles:
+      case AdminView.wikiArticles:
         return AdminWikiArticlesPage(
           api: widget.api,
           canWrite: _canWriteTile('wikiArticles'),
-          onBack: () => setState(() => _view = _AdminView.wiki),
+          onBack: () => setState(() => _view = AdminView.wiki),
         );
     }
   }
@@ -8596,7 +8610,7 @@ class _AdminPageState extends State<AdminPage> {
                 title: 'Kategorien verwalten',
                 desc: 'Struktur, Sortierung und Aktivierung der Wissensbereiche im Blick behalten.',
                 accent: cs.primaryContainer,
-                onTap: () => setState(() => _view = _AdminView.wikiCategories),
+                onTap: () => setState(() => _view = AdminView.wikiCategories),
                 footer: Wrap(
                   spacing: 8,
                   children: const [
@@ -8610,7 +8624,7 @@ class _AdminPageState extends State<AdminPage> {
                 title: 'Artikel verwalten',
                 desc: 'Markdown-Inhalte pflegen, Produktgruppen zuordnen und Veröffentlichungen steuern.',
                 accent: cs.secondaryContainer,
-                onTap: () => setState(() => _view = _AdminView.wikiArticles),
+                onTap: () => setState(() => _view = AdminView.wikiArticles),
                 footer: Wrap(
                   spacing: 8,
                   children: const [
@@ -13010,7 +13024,7 @@ class _AdminNavItem {
 
   final String label;
   final IconData icon;
-  final _AdminView view;
+  final AdminView view;
   final String? badge;
 }
 

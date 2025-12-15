@@ -787,6 +787,37 @@ class _MyAppState extends State<MyApp> {
                 );
               }
 
+              if (name.startsWith('/admin/audits')) {
+                final uri = Uri.tryParse(name);
+                final segments = uri?.pathSegments ?? const [];
+                var tab = 0;
+                int? reportYear;
+                if (segments.length >= 3) {
+                  final target = segments[2];
+                  if (target == 'program') tab = 1;
+                  if (target == 'matrix') tab = 2;
+                  if (target == 'reports') {
+                    tab = 3;
+                    if (segments.length > 3) {
+                      reportYear = int.tryParse(segments[3]);
+                    }
+                    reportYear ??= int.tryParse(uri?.queryParameters['year'] ?? '');
+                  }
+                }
+
+                return MaterialPageRoute(
+                  builder: (_) => AdminPage(
+                    api: api,
+                    portalProfile: api.portalProfile,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                    initialView: AdminView.audits,
+                    auditInitialTab: tab,
+                    initialAuditReportYear: reportYear,
+                  ),
+                  settings: settings,
+                );
+              }
+
               return null;
             },
           );

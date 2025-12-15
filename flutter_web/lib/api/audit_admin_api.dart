@@ -99,7 +99,7 @@ class AuditAdminApi {
     final r = await http.post(
       _u('/api/admin/audits'),
       headers: _headersJson(),
-      body: jsonEncode(audit.toJson()),
+      body: jsonEncode(_auditPayload(audit)),
     );
     final decoded = await _decode(r);
     final data = decoded['audit'] as Map?;
@@ -107,10 +107,11 @@ class AuditAdminApi {
   }
 
   Future<Audit> updateAudit(Audit audit) async {
+    final uri = audit.id.isEmpty ? _u('/api/admin/audits') : _u('/api/admin/audits', {'id': audit.id});
     final r = await http.patch(
-      _u('/api/admin/audits'),
+      uri,
       headers: _headersJson(),
-      body: jsonEncode(audit.toJson()),
+      body: jsonEncode(_auditPayload(audit)),
     );
     final decoded = await _decode(r);
     final data = decoded['audit'] as Map?;
@@ -118,7 +119,8 @@ class AuditAdminApi {
   }
 
   Future<void> deleteAudit(String id) async {
-    await http.delete(_u('/api/admin/audits', {'id': id}), headers: _headersJson());
+    final uri = id.isEmpty ? _u('/api/admin/audits') : _u('/api/admin/audits', {'id': id});
+    await http.delete(uri, headers: _headersJson());
   }
 
   // Auditoren ---------------------------------------------------------
@@ -326,5 +328,11 @@ class AuditAdminApi {
           .toList();
     }
     return const [];
+  }
+
+  Map<String, dynamic> _auditPayload(Audit audit) {
+    final data = audit.toJson();
+    if ((data['id'] as String?)?.isEmpty ?? true) data.remove('id');
+    return data;
   }
 }

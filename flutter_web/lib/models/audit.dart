@@ -49,6 +49,46 @@ class AuditorEvidence {
       };
 }
 
+class AuditPlanEntry {
+  final String from;
+  final String to;
+  final String agenda;
+  final String process;
+  final String participants;
+  final String auditor;
+  final String notes;
+
+  const AuditPlanEntry({
+    this.from = '',
+    this.to = '',
+    this.agenda = '',
+    this.process = '',
+    this.participants = '',
+    this.auditor = '',
+    this.notes = '',
+  });
+
+  factory AuditPlanEntry.fromJson(Map<String, dynamic> json) => AuditPlanEntry(
+        from: json['from']?.toString() ?? '',
+        to: json['to']?.toString() ?? '',
+        agenda: json['agenda']?.toString() ?? '',
+        process: json['process']?.toString() ?? '',
+        participants: json['participants']?.toString() ?? '',
+        auditor: json['auditor']?.toString() ?? '',
+        notes: json['notes']?.toString() ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        if (from.isNotEmpty) 'from': from,
+        if (to.isNotEmpty) 'to': to,
+        if (agenda.isNotEmpty) 'agenda': agenda,
+        if (process.isNotEmpty) 'process': process,
+        if (participants.isNotEmpty) 'participants': participants,
+        if (auditor.isNotEmpty) 'auditor': auditor,
+        if (notes.isNotEmpty) 'notes': notes,
+      };
+}
+
 class Auditor {
   final String id;
   final String? userId;
@@ -389,6 +429,7 @@ class Audit {
   final List<String> linkedDocs;
   final List<AuditFinding> findings;
   final List<AuditAction> actions;
+  final List<AuditPlanEntry> planEntries;
   final int? openFindings;
   final int? overdueActions;
 
@@ -433,6 +474,7 @@ class Audit {
     this.linkedDocs = const [],
     this.findings = const [],
     this.actions = const [],
+    this.planEntries = const [],
     this.openFindings,
     this.overdueActions,
   });
@@ -449,6 +491,9 @@ class Audit {
     List<AuditAction> parseActions(dynamic v) => v is List
         ? v.whereType<Map>().map((e) => AuditAction.fromJson(e.cast<String, dynamic>())).toList()
         : const <AuditAction>[];
+    List<AuditPlanEntry> parsePlan(dynamic v) => v is List
+        ? v.whereType<Map>().map((e) => AuditPlanEntry.fromJson(e.cast<String, dynamic>())).toList()
+        : const <AuditPlanEntry>[];
     final numOpenFindings = json['openFindings'] ?? json['open_findings'];
     final numOverdue = json['overdueActions'] ?? json['overdue_actions'];
     return Audit(
@@ -476,6 +521,7 @@ class Audit {
       linkedDocs: parseList(json['linkedDocs']),
       findings: parseFindings(json['findings']),
       actions: parseActions(json['actions']),
+      planEntries: parsePlan(json['planEntries'] ?? json['plan']),
       openFindings: numOpenFindings is int
           ? numOpenFindings
           : int.tryParse(numOpenFindings?.toString() ?? ''),
@@ -506,6 +552,7 @@ class Audit {
         if (leadAuditorId != null) 'leadAuditorId': leadAuditorId,
         if (coAuditorIds.isNotEmpty) 'coAuditorIds': coAuditorIds,
         if (linkedDocs.isNotEmpty) 'linkedDocs': linkedDocs,
+        if (planEntries.isNotEmpty) 'planEntries': planEntries.map((p) => p.toJson()).toList(),
       };
 }
 
