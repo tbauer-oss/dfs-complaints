@@ -56,7 +56,10 @@ class AuditPlanEntry {
   final String process;
   final String participants;
   final String auditor;
+  final String? auditorId;
+  final String reference;
   final String notes;
+  final bool done;
 
   const AuditPlanEntry({
     this.from = '',
@@ -66,6 +69,9 @@ class AuditPlanEntry {
     this.participants = '',
     this.auditor = '',
     this.notes = '',
+    this.auditorId,
+    this.reference = '',
+    this.done = false,
   });
 
   factory AuditPlanEntry.fromJson(Map<String, dynamic> json) => AuditPlanEntry(
@@ -75,7 +81,10 @@ class AuditPlanEntry {
         process: json['process']?.toString() ?? '',
         participants: json['participants']?.toString() ?? '',
         auditor: json['auditor']?.toString() ?? '',
+        auditorId: json['auditorId']?.toString(),
+        reference: json['reference']?.toString() ?? json['norm']?.toString() ?? '',
         notes: json['notes']?.toString() ?? '',
+        done: json['done'] == true,
       );
 
   Map<String, dynamic> toJson() => {
@@ -85,7 +94,10 @@ class AuditPlanEntry {
         if (process.isNotEmpty) 'process': process,
         if (participants.isNotEmpty) 'participants': participants,
         if (auditor.isNotEmpty) 'auditor': auditor,
+        if (auditorId?.isNotEmpty == true) 'auditorId': auditorId,
+        if (reference.isNotEmpty) 'reference': reference,
         if (notes.isNotEmpty) 'notes': notes,
+        'done': done,
       };
 }
 

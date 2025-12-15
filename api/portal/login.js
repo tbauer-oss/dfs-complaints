@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { handlePreflight, ok, bad, methodNotAllowed, readJson, setCors } from '../_lib/http.js';
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
@@ -18,6 +18,7 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
+  setCors(req, res);
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   try {
