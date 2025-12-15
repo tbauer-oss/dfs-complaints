@@ -1,11 +1,10 @@
 // api/_options.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors } from './_lib/http.js';
+import { setCors, handlePreflight } from './_lib/cors.js';
 
 export default function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  // Fallback for runtimes that skip OPTIONS short-circuiting
   setCors(req, res);
+  if (handlePreflight(req, res)) return;
   return res.status(204).end();
 }

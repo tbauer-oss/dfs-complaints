@@ -1,20 +1,10 @@
 {
   "version": 2,
   "functions": {
-    "api/**/*.js": { "runtime": "nodejs22.x" }
+    "api/**/*.js": { "runtime": "nodejs" }
   },
+  "headers": [],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "headers": {
-        "Access-Control-Allow-Origin": "https://dfs-complaints-web.vercel.app",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Admin-Secret, X-Gate",
-        "Access-Control-Allow-Credentials": "true"
-      },
-      "continue": true
-    },
-    { "src": "/api/admin/audits/([^/]+)/plan", "dest": "/api/admin/audits/plan.js?id=$1" },
     { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
   ]
 }

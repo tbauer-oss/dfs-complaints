@@ -1,5 +1,5 @@
 // api/faq.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import { setCors, handlePreflight, ok, bad, methodNotAllowed } from './_lib/http.js';
 import { faqList, FAQ_AUDIENCE_CODES } from './_lib/store.js';

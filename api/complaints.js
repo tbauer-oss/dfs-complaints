@@ -1,5 +1,5 @@
 // /api/complaints.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
 import {

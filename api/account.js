@@ -1,5 +1,5 @@
 // /api/account.js
-export const config = { runtime: 'nodejs22.x' };
+export const config = { runtime: 'nodejs' };
 
 import {
   handlePreflight, setCors, ok, bad, methodNotAllowed, noContent, readJson
