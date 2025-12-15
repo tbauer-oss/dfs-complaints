@@ -587,15 +587,20 @@ class _AdminPageState extends State<AdminPage> {
         return;
       }
 
-      // Merge neue Standard-Kacheln (z. B. FMEA) auch dann, wenn bereits ein
-      // gespeichertes Layout vorliegt. So erscheinen frisch eingeführte Module
-      // automatisch, solange sie nicht explizit über Tile-Permissions ausgeblendet
-      // werden.
-      var changed = false;
-      for (final tile in defaults) {
-        if (existingTiles.add(tile)) changed = true;
+      final storedRoleTiles = rawData?[role];
+      final shouldMergeDefaults = !hasRemoteConfig || storedRoleTiles == null;
+
+      // Neue Standard-Kacheln (z. B. FMEA) nur dann automatisch ergänzen,
+      // wenn noch kein Rollen-Layout aus dem Backend vorliegt. Damit bleiben
+      // explizit ausgeblendete Kacheln erhalten, sobald eine gespeicherte
+      // Auswahl existiert.
+      if (shouldMergeDefaults) {
+        var changed = false;
+        for (final tile in defaults) {
+          if (existingTiles.add(tile)) changed = true;
+        }
+        if (changed) addedDefaults = true;
       }
-      if (changed) addedDefaults = true;
     });
 
     return addedDefaults;
@@ -10543,9 +10548,7 @@ class _AdminPageState extends State<AdminPage> {
       value: tiles.contains(tileId),
       title: Text(_tileLabel(tileId)),
       subtitle: isDefault ? const Text('Standardmäßig sichtbar') : null,
-      onChanged: (value) {
-        setState(() => _updateRoleTileVisibility(role, tileId, value));
-      },
+      onChanged: (value) => _updateRoleTileVisibility(role, tileId, value),
     );
   }
 
