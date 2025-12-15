@@ -15,3 +15,10 @@
 - Admin-API `GET /api/admin/fmea-links` liefert eine Monitoring-Liste aller Risiko-Verknüpfungen (inkl. Filter „ohne Verknüpfung“ im Frontend-Tab).
 - Export-API `GET /api/admin/fmea-export?id=...&format=pdf|csv` erzeugt FMEA-PDF (Querformat) oder CSV mit allen 20 Spalten.
 - Frontend: Tab-Wechsel zwischen Risikobearbeitung und Verknüpfungsmonitoring, CSV/PDF-Export-Buttons sowie zusätzliche Felder im Risiko-Dialog (Nachweise, Maßnahmen nach Maßnahme, Verknüpfungen usw.).
+
+## Audit- & Review-Modul (ISO 13485/19011)
+- Neue Audit-Datenmodelle (`auditors`, `audit_programs`, `audits`, `audit_findings`, `audit_actions`, `audit_annual_reports`) mit Audit-Trail-Feldern und Seed-Beispielen (Auditprogramm Q1–Q4, zwei Auditoren, drei Findings, drei Actions).
+- Server-seitige Validierungen für Auditorenqualifikation, Unabhängigkeitsregeln und Nachaudit-Trigger (Major/Critical oder überfällige/ineffektive Maßnahmen markieren Audits als `nachauditRequired`).
+- REST-APIs unter `/api/admin/auditors`, `/api/admin/audit-programs`, `/api/admin/audits`, `/api/admin/audit-findings`, `/api/admin/audit-actions`, `/api/admin/audit-annual-reports` mit Portal-Guarding (`tile: audits`).
+- Standardisierte Fristlogik: automatische Due-Dates je Einstufung (Minor/Major/Critical), Eskalationslevel, Overdue-Erkennung und Wirksamkeitsprüfung-Flags.
+- Node-Testabdeckung für Unabhängigkeitsblock, Re-Qual-Check, Fristberechnung und Nachaudit-Trigger (`node --test api/tests/audit.test.js`).

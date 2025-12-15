@@ -12,6 +12,7 @@ import 'package:dfs_mobile/api/client.dart';
 import 'package:dfs_mobile/models/complaint.dart' show ComplaintUpload;
 import 'package:dfs_mobile/models/country.dart';
 import 'package:dfs_mobile/models/customer_news_entry.dart';
+import 'package:dfs_mobile/pages/admin_audit/admin_audits_page.dart';
 import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -814,6 +815,25 @@ class _AdminPageState extends State<AdminPage> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
+              );
+            },
+          ),
+        ],
+      ),
+      _AdminMenuSectionData(
+        title: 'Audits & QM',
+        subtitle: 'Auditprogramm, Findings & Maßnahmen',
+        tiles: [
+          AdminTilePro(
+            label: 'Audits',
+            subtitle: 'Planung, Findings, Maßnahmen',
+            icon: Icons.checklist_outlined,
+            colorA: AdminPalette.blueA,
+            colorB: AdminPalette.tealB,
+            compact: compact,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => AdminAuditsPage(api: widget.api)),
               );
             },
           ),
