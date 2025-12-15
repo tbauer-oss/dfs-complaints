@@ -7,6 +7,7 @@ class Auditor {
   final String? orgUnit;
   final String? role;
   final String status;
+  final String trainingType;
   final List<String> restrictedProcessOwners;
   final List<String> restrictedOrgUnits;
   final DateTime? internalAuditorTrainingDate;
@@ -17,12 +18,20 @@ class Auditor {
   final DateTime? lastRequalificationDate;
   final DateTime? requalificationDueDate;
   final List<String> evidenceAttachments;
+  final int coAuditCount;
+  final int leadAuditCount;
+  final DateTime? trainingDate;
+
+  DateTime? get nextRequalification => lastRequalificationDate == null
+      ? null
+      : DateTime(lastRequalificationDate!.year + 3, lastRequalificationDate!.month, lastRequalificationDate!.day);
 
   const Auditor({
     required this.id,
     required this.name,
     required this.email,
     required this.status,
+    this.trainingType = 'internal',
     this.orgUnit,
     this.role,
     this.restrictedProcessOwners = const [],
@@ -35,14 +44,27 @@ class Auditor {
     this.lastRequalificationDate,
     this.requalificationDueDate,
     this.evidenceAttachments = const [],
+    this.coAuditCount = 0,
+    this.leadAuditCount = 0,
+    this.trainingDate,
   });
 
   bool get isQualified {
-    final hasTraining = internalAuditorTrainingDate != null;
+    final hasTraining = internalAuditorTrainingDate != null || trainingDate != null;
     final experienceOk = (experienceYears ?? 0) >= 3;
+    final evidenceOk = evidenceAttachments.isNotEmpty;
+    final coOk = coAuditCount >= 2 || leadAuditCount >= 1;
     final requalOk =
-        requalificationDueDate == null || !requalificationDueDate!.isBefore(DateTime.now());
-    return hasTraining && experienceOk && requalOk;
+        nextRequalification == null || !nextRequalification!.isBefore(DateTime.now());
+    return hasTraining && experienceOk && evidenceOk && coOk && requalOk;
+  }
+
+  String get qualificationStatus {
+    if (isQualified) return 'qualifiziert';
+    if ((internalAuditorTrainingDate != null || trainingDate != null) && evidenceAttachments.isEmpty) {
+      return 'in Arbeit';
+    }
+    return 'nicht qualifiziert';
   }
 
   factory Auditor.fromJson(Map<String, dynamic> json) {
@@ -58,6 +80,7 @@ class Auditor {
       orgUnit: json['orgUnit']?.toString(),
       role: json['role']?.toString(),
       status: json['status']?.toString() ?? 'active',
+      trainingType: json['trainingType']?.toString() ?? 'internal',
       restrictedProcessOwners: parseList(json['restrictedProcessOwners']),
       restrictedOrgUnits: parseList(json['restrictedOrgUnits']),
       internalAuditorTrainingDate: parseDate(json['internalAuditorTrainingDate']),
@@ -70,6 +93,13 @@ class Auditor {
       lastRequalificationDate: parseDate(json['lastRequalificationDate']),
       requalificationDueDate: parseDate(json['requalificationDueDate']),
       evidenceAttachments: parseList(json['evidenceAttachments']),
+      coAuditCount: json['coAuditCount'] is int
+          ? json['coAuditCount'] as int
+          : int.tryParse(json['coAuditCount']?.toString() ?? '') ?? 0,
+      leadAuditCount: json['leadAuditCount'] is int
+          ? json['leadAuditCount'] as int
+          : int.tryParse(json['leadAuditCount']?.toString() ?? '') ?? 0,
+      trainingDate: parseDate(json['trainingDate']),
     );
   }
 }
