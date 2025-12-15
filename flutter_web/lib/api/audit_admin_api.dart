@@ -120,7 +120,7 @@ class AuditAdminApi {
 
   Future<void> deleteAudit(String id) async {
     final uri = id.isEmpty ? _u('/api/admin/audits') : _u('/api/admin/audits', {'id': id});
-    await http.delete(uri, headers: _headersJson());
+    await _decode(await http.delete(uri, headers: _headersJson()));
   }
 
   // Auditoren ---------------------------------------------------------
@@ -172,7 +172,7 @@ class AuditAdminApi {
   }
 
   Future<void> deleteAuditor(String id) async {
-    await http.delete(_u('/api/admin/auditors', {'id': id}), headers: _headersJson());
+    await _decode(await http.delete(_u('/api/admin/auditors', {'id': id}), headers: _headersJson()));
   }
 
   Future<List<PortalUserSummary>> listDfsEmployees() async {
