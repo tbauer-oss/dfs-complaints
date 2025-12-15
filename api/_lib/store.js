@@ -3945,7 +3945,10 @@ function normalizeAuditPlanEntry(entry = {}) {
     process: normalizeAuditString(entry.process),
     participants: normalizeAuditString(entry.participants),
     auditor: normalizeAuditString(entry.auditor),
+    auditorId: normalizeAuditId(entry.auditorId),
+    reference: normalizeAuditString(entry.reference || entry.norm || entry.standard || entry.normReference),
     notes: normalizeAuditString(entry.notes),
+    done: entry.done === true,
   };
 }
 
@@ -4189,6 +4192,11 @@ export async function auditGet(id) {
   return mem.audits.get(id) || null;
 }
 
+export async function auditPlanGet(id) {
+  const audit = await auditGet(id);
+  return audit?.planEntries || [];
+}
+
 async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
   await ensureAuditStoresReady();
   const normalized = normalizeAudit(record);
@@ -4221,6 +4229,17 @@ export async function auditUpdate(id, patch = {}) {
   const current = await auditGet(id);
   if (!current) return null;
   return await saveAuditInternal({ ...current, ...patch, id });
+}
+
+export async function auditPlanSave(id, planEntries = [], { updatedBy } = {}) {
+  const current = await auditGet(id);
+  if (!current) return null;
+  const normalizedPlan = Array.isArray(planEntries) ? planEntries.map(normalizeAuditPlanEntry) : [];
+  const updated = await saveAuditInternal(
+    { ...current, planEntries: normalizedPlan, updatedBy: updatedBy || current.updatedBy },
+    { skipValidation: true },
+  );
+  return updated?.planEntries || [];
 }
 
 export async function auditDelete(id) {
