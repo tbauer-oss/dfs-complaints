@@ -1860,16 +1860,6 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: Text(
-                          'vor / nach',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -1912,8 +1902,6 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                     runSpacing: 10,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Chip(label: Text('Vor: ${r.severity ?? '-'}×${r.occurrence ?? '-'}')),
-                      Chip(label: Text('Nach: ${r.severityAfter ?? '-'}×${r.occurrenceAfter ?? '-'}')),
                       Chip(label: Text('Aktiv: $miniValue')),
                       Chip(label: Text(r.category.isEmpty ? 'Ohne Kategorie' : r.category)),
                       if (r.linkedComplaints.isNotEmpty) Chip(label: Text('Reklamation ${r.linkedComplaints.length}')),
