@@ -1873,9 +1873,35 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          _riskBadge(r.riskLevel, theme),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Vor',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _riskBadge(r.riskLevel, theme),
+                            ],
+                          ),
                           const SizedBox(height: 6),
-                          _riskBadge(r.riskLevelAfter ?? r.riskLevel, theme),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Nach',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _riskBadge(r.riskLevelAfter ?? r.riskLevel, theme),
+                            ],
+                          ),
                         ],
                       ),
                     ],
