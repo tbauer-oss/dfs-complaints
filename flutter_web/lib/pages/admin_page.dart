@@ -894,7 +894,7 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
-    _api = AdminApi(onNewsChanged: widget.api.clearCustomerNewsCache);
+    _api = AdminApi(onNewsChanged: widget.api.clearAllNewsCaches);
     bool _truthy(dynamic flag) {
       if (flag == null) return false;
       if (flag is bool) return flag;
