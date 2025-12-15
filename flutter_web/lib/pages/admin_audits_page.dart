@@ -71,11 +71,53 @@ class _AuditOverviewTab extends StatefulWidget {
   State<_AuditOverviewTab> createState() => _AuditOverviewTabState();
 }
 
+class _AuditPlanEntry {
+  String from;
+  String to;
+  String agenda;
+  String process;
+  String participants;
+  String auditor;
+  String notes;
+
+  _AuditPlanEntry({
+    this.from = '',
+    this.to = '',
+    this.agenda = '',
+    this.process = '',
+    this.participants = '',
+    this.auditor = '',
+    this.notes = '',
+  });
+}
+
+class _AuditReportDraft {
+  String summary;
+  String scopeEvaluation;
+  String findings;
+  String conclusion;
+  bool followUpRecommended;
+  List<String> evidence;
+
+  _AuditReportDraft({
+    this.summary = '',
+    this.scopeEvaluation = '',
+    this.findings = '',
+    this.conclusion = '',
+    this.followUpRecommended = false,
+    this.evidence = const [],
+  });
+
+  factory _AuditReportDraft.empty() => _AuditReportDraft();
+}
+
 class _AuditOverviewTabState extends State<_AuditOverviewTab> {
   bool _loading = false;
   String? _error;
   List<Audit> _audits = const [];
   List<Auditor> _auditors = const [];
+  final Map<String, List<_AuditPlanEntry>> _plans = {};
+  final Map<String, _AuditReportDraft> _reports = {};
 
   int _year = DateTime.now().year;
   String? _quarter;
@@ -110,6 +152,10 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
       setState(() {
         _audits = audits;
         _auditors = auditors;
+        for (final a in audits) {
+          _plans.putIfAbsent(a.id, () => []);
+          _reports.putIfAbsent(a.id, () => _AuditReportDraft.empty());
+        }
         _loading = false;
       });
     } catch (e) {
@@ -482,42 +528,84 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (_, i) {
-        final a = _auditors[i];
-        final due = a.requalificationDueDate;
-        final warn = due != null && due.isBefore(DateTime.now());
-        return Card(
-          child: ListTile(
-            leading: Icon(Icons.badge_outlined, color: warn ? Colors.red : null),
-            title: Text(a.name),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(a.email),
-                Text('Qualifiziert: ${a.isQualified ? 'Ja' : 'Nein'}'),
-                if (a.restrictedOrgUnits.isNotEmpty)
-                  Text('Restriktionen: ${a.restrictedOrgUnits.join(', ')}'),
-                if (due != null) Text('Re-Qual fällig: ${DateFormat('dd.MM.yyyy').format(due)}', style: TextStyle(color: warn ? Colors.red : null)),
-              ],
-            ),
-            trailing: IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _editAuditor(a)),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(
+            children: [
+              Text('Auditorenmatrix', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              FilledButton.icon(onPressed: _addAuditor, icon: const Icon(Icons.add), label: const Text('Auditor hinzufügen')),
+            ],
           ),
-        );
-      },
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemCount: _auditors.length,
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemBuilder: (_, i) {
+              final a = _auditors[i];
+              final due = a.nextRequalification ?? a.requalificationDueDate;
+              final warn = due != null && due.isBefore(DateTime.now());
+              return Card(
+                child: ListTile(
+                  leading: Icon(Icons.badge_outlined, color: warn ? Colors.red : null),
+                  title: Text(a.name),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(a.email),
+                      Text('Status: ${a.qualificationStatus}'),
+                      Text('Erfahrung: ${(a.experienceYears ?? 0)} Jahre'),
+                      Text('Co-Audit: ${a.coAuditCount} · Lead: ${a.leadAuditCount}'),
+                      if (a.restrictedOrgUnits.isNotEmpty)
+                        Text('Restriktionen: ${a.restrictedOrgUnits.join(', ')}'),
+                      if (due != null)
+                        Text('Re-Qual fällig: ${DateFormat('dd.MM.yyyy').format(due)}',
+                            style: TextStyle(color: warn ? Colors.red : null)),
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (warn) const Icon(Icons.warning_amber, color: Colors.red),
+                      IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _editAuditor(a)),
+                      IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _deleteAuditor(a)),
+                    ],
+                  ),
+                ),
+              );
+            },
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemCount: _auditors.length,
+          ),
+        ),
+      ],
     );
   }
 
+  Future<void> _addAuditor() async {
+    const empty = Auditor(id: '', name: '', email: '', status: 'active');
+    await _editAuditor(empty);
+  }
   Future<void> _editAuditor(Auditor auditor) async {
     final nameCtrl = TextEditingController(text: auditor.name);
     final deptCtrl = TextEditingController(text: auditor.orgUnit ?? '');
+    final coCtrl = TextEditingController(text: auditor.coAuditCount.toString());
+    final leadCtrl = TextEditingController(text: auditor.leadAuditCount.toString());
+    final expCtrl = TextEditingController(text: (auditor.experienceYears ?? 0).toString());
+    DateTime? trainingDate = auditor.trainingDate ?? auditor.internalAuditorTrainingDate;
+    String trainingType = auditor.trainingType;
+    bool iso13485 = auditor.standardsIso13485;
+    bool iso19011 = auditor.standardsIso19011;
+    bool mdr = auditor.standardsMdr;
+    final attachments = auditor.evidenceAttachments.toList();
+    bool active = auditor.status == 'active';
+
     final updated = await showDialog<Auditor>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Auditor bearbeiten'),
+        title: const Text('Auditor bearbeiten'),
         content: DialogContentScroll(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -525,6 +613,64 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
               TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
               const SizedBox(height: 12),
               TextField(controller: deptCtrl, decoration: const InputDecoration(labelText: 'Bereich/OrgUnit')),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: trainingType,
+                decoration: const InputDecoration(labelText: 'Training (intern/extern)'),
+                items: const [
+                  DropdownMenuItem(value: 'internal', child: Text('Intern')),
+                  DropdownMenuItem(value: 'external', child: Text('Extern')),
+                ],
+                onChanged: (v) => trainingType = v ?? 'internal',
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Trainingsdatum'),
+                subtitle: Text(trainingDate != null ? DateFormat('dd.MM.yyyy').format(trainingDate!) : 'offen'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.event_outlined),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime(DateTime.now().year - 5),
+                      lastDate: DateTime(DateTime.now().year + 5),
+                      initialDate: trainingDate ?? DateTime.now(),
+                    );
+                    if (picked != null) {
+                      trainingDate = picked;
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: expCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Erfahrung (Jahre)'),
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: coCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Co-Audits')),
+              const SizedBox(height: 12),
+              TextField(controller: leadCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Lead-Audits')),
+              const SizedBox(height: 12),
+              CheckboxListTile(value: iso13485, onChanged: (v) => iso13485 = v ?? false, title: const Text('ISO 13485')),
+              CheckboxListTile(value: iso19011, onChanged: (v) => iso19011 = v ?? false, title: const Text('ISO 19011')),
+              CheckboxListTile(value: mdr, onChanged: (v) => mdr = v ?? false, title: const Text('MDR')),
+              Wrap(spacing: 8, children: attachments.map((a) => Chip(label: Text(a))).toList()),
+              TextButton.icon(
+                onPressed: () => attachments.add('Nachweis_${attachments.length + 1}.pdf'),
+                icon: const Icon(Icons.upload_file_outlined),
+                label: const Text('Qualifikationsnachweis'),
+              ),
+              SwitchListTile(value: active, onChanged: (v) => active = v, title: const Text('Aktiv')),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Status: ${auditor.qualificationStatus}', style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ),
             ],
           ),
         ),
@@ -532,30 +678,29 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
           FilledButton(
             onPressed: () async {
-              final body = {
-                'id': auditor.id,
-                'name': nameCtrl.text.trim(),
-                'orgUnit': deptCtrl.text.trim(),
-              };
               try {
                 final saved = await widget.api.saveAuditor(
                   Auditor(
                     id: auditor.id,
                     name: nameCtrl.text.trim(),
                     email: auditor.email,
-                    status: auditor.status,
+                    status: active ? 'active' : 'inactive',
                     orgUnit: deptCtrl.text.trim().isEmpty ? null : deptCtrl.text.trim(),
                     role: auditor.role,
                     restrictedProcessOwners: auditor.restrictedProcessOwners,
                     restrictedOrgUnits: auditor.restrictedOrgUnits,
                     internalAuditorTrainingDate: auditor.internalAuditorTrainingDate,
-                    experienceYears: auditor.experienceYears,
-                    standardsIso13485: auditor.standardsIso13485,
-                    standardsMdr: auditor.standardsMdr,
-                    standardsIso19011: auditor.standardsIso19011,
+                    trainingType: trainingType,
+                    trainingDate: trainingDate,
+                    experienceYears: int.tryParse(expCtrl.text) ?? auditor.experienceYears,
+                    standardsIso13485: iso13485,
+                    standardsMdr: mdr,
+                    standardsIso19011: iso19011,
                     lastRequalificationDate: auditor.lastRequalificationDate,
                     requalificationDueDate: auditor.requalificationDueDate,
-                    evidenceAttachments: auditor.evidenceAttachments,
+                    evidenceAttachments: attachments,
+                    coAuditCount: int.tryParse(coCtrl.text) ?? auditor.coAuditCount,
+                    leadAuditCount: int.tryParse(leadCtrl.text) ?? auditor.leadAuditCount,
                   ),
                 );
                 if (context.mounted) Navigator.pop(context, saved);
@@ -569,6 +714,34 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
       ),
     );
     if (updated != null) _load();
+  }
+
+  Future<void> _deleteAuditor(Auditor auditor) async {
+    // soft delete: mark inactive for frontend view
+    final inactive = Auditor(
+      id: auditor.id,
+      name: auditor.name,
+      email: auditor.email,
+      status: 'inactive',
+      orgUnit: auditor.orgUnit,
+      role: auditor.role,
+      restrictedProcessOwners: auditor.restrictedProcessOwners,
+      restrictedOrgUnits: auditor.restrictedOrgUnits,
+      internalAuditorTrainingDate: auditor.internalAuditorTrainingDate,
+      trainingType: auditor.trainingType,
+      trainingDate: auditor.trainingDate,
+      experienceYears: auditor.experienceYears,
+      standardsIso13485: auditor.standardsIso13485,
+      standardsMdr: auditor.standardsMdr,
+      standardsIso19011: auditor.standardsIso19011,
+      lastRequalificationDate: auditor.lastRequalificationDate,
+      requalificationDueDate: auditor.requalificationDueDate,
+      evidenceAttachments: auditor.evidenceAttachments,
+      coAuditCount: auditor.coAuditCount,
+      leadAuditCount: auditor.leadAuditCount,
+    );
+    await widget.api.saveAuditor(inactive);
+    _load();
   }
 }
 
@@ -692,6 +865,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   late final TextEditingController _title;
   late final TextEditingController _site;
   late final TextEditingController _scope;
+  late final TextEditingController _orgUnit;
   DateTime? _start;
   DateTime? _end;
   String _cluster = 'Q1';
@@ -707,6 +881,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
     _title = TextEditingController(text: existing?.title ?? '');
     _site = TextEditingController(text: existing?.site ?? '');
     _scope = TextEditingController(text: existing?.scopeText ?? '');
+    _orgUnit = TextEditingController(text: existing?.auditeesOrgUnits.isNotEmpty == true ? existing!.auditeesOrgUnits.first : '');
     _start = existing?.plannedStart;
     _end = existing?.plannedEnd;
     _cluster = existing?.cluster ?? 'Q1';
@@ -729,9 +904,11 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
               ),
             TextField(controller: _title, decoration: const InputDecoration(labelText: 'Titel')),
             const SizedBox(height: 12),
-            TextField(controller: _site, decoration: const InputDecoration(labelText: 'Standort')), 
+            TextField(controller: _site, decoration: const InputDecoration(labelText: 'Standort')),
             const SizedBox(height: 12),
             TextField(controller: _scope, maxLines: 3, decoration: const InputDecoration(labelText: 'Scope / Umfang')),
+            const SizedBox(height: 12),
+            TextField(controller: _orgUnit, decoration: const InputDecoration(labelText: 'OrgUnit / Bereich')),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -798,9 +975,20 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
             DropdownButtonFormField<String?>(
               value: _lead,
               decoration: const InputDecoration(labelText: 'Lead Auditor'),
-              onChanged: (v) => setState(() => _lead = v),
-              items: [const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
-                ...widget.auditors.map((a) => DropdownMenuItem(value: a.id, child: Text(a.name)))],
+              onChanged: (v) {
+                final selected = widget.auditors.firstWhere((a) => a.id == v, orElse: () => const Auditor(id: '', name: '', email: '', status: 'inactive'));
+                if (_orgUnit.text.isNotEmpty && selected.orgUnit == _orgUnit.text) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unabhängigkeit verletzt: OrgUnit identisch.')));
+                  return;
+                }
+                setState(() => _lead = v);
+              },
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
+                ...widget.auditors
+                    .where((a) => a.isQualified)
+                    .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.orgUnit ?? '-'})')))
+              ],
             ),
           ],
         ),
@@ -836,7 +1024,9 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
         objectives: existing?.objectives ?? const [],
         criteria: existing?.criteria ?? const [],
         references: existing?.references ?? const [],
-        auditeesOrgUnits: existing?.auditeesOrgUnits ?? const [],
+        auditeesOrgUnits: _orgUnit.text.trim().isEmpty
+            ? (existing?.auditeesOrgUnits ?? const [])
+            : [_orgUnit.text.trim()],
         processOwners: existing?.processOwners ?? const [],
         participants: existing?.participants ?? const [],
         leadAuditorId: _lead,
@@ -860,6 +1050,15 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _site.dispose();
+    _scope.dispose();
+    _orgUnit.dispose();
+    super.dispose();
+  }
 }
 
 class _AuditDetailPage extends StatefulWidget {
@@ -877,13 +1076,15 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   List<Auditor> _auditors = const [];
   List<AuditFinding> _findings = const [];
   List<AuditAction> _actions = const [];
+  final List<_AuditPlanEntry> _planEntries = [];
+  _AuditReportDraft _reportDraft = _AuditReportDraft.empty();
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
     _load();
   }
 
@@ -910,6 +1111,18 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         _auditors = auditors;
         _findings = findings;
         _actions = actions;
+        if (_planEntries.isEmpty) {
+          _planEntries.add(_AuditPlanEntry(
+            from: '09:00',
+            to: '10:00',
+            agenda: 'Eröffnung & Scope',
+            process: 'QM',
+            participants: audit.participants.join(', '),
+            auditor: _auditors.isEmpty ? '' : _auditors.first.name,
+            notes: 'Anpassbar',
+          ));
+        }
+        _reportDraft = _reportDraft;
         _loading = false;
       });
     } catch (e) {
@@ -931,6 +1144,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
           controller: _tabs,
           tabs: const [
             Tab(text: 'Plan'),
+            Tab(text: 'Auditplan'),
+            Tab(text: 'Auditbericht'),
             Tab(text: 'Findings'),
             Tab(text: 'Maßnahmen'),
             Tab(text: 'Historie'),
@@ -945,6 +1160,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
                   controller: _tabs,
                   children: [
                     _buildPlan(),
+                    _buildSchedule(),
+                    _buildReport(),
                     _buildFindings(),
                     _buildActions(),
                     _buildHistory(),
@@ -973,6 +1190,147 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         ),
         const SizedBox(height: 12),
         FilledButton.icon(onPressed: () => _openEditor(), icon: const Icon(Icons.edit_outlined), label: const Text('Plan bearbeiten')),
+      ],
+    );
+  }
+
+  bool get _isClosed => (_audit?.status ?? '').toLowerCase() == 'closed';
+
+  Widget _buildSchedule() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Text('Auditplan (täglich)', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            if (!_isClosed)
+              FilledButton.icon(
+                onPressed: () => setState(() => _planEntries.add(_AuditPlanEntry())),
+                icon: const Icon(Icons.add),
+                label: const Text('Zeile hinzufügen'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('Zeit von')),
+                DataColumn(label: Text('Zeit bis')),
+                DataColumn(label: Text('Agenda')),
+                DataColumn(label: Text('Prozess/Bereich')),
+                DataColumn(label: Text('Teilnehmer')),
+                DataColumn(label: Text('Auditor')),
+                DataColumn(label: Text('Notizen')),
+                DataColumn(label: Text('')),
+              ],
+              rows: _planEntries
+                  .map(
+                    (e) => DataRow(cells: [
+                          DataCell(_EditableCell(initialValue: e.from, enabled: !_isClosed, onSaved: (v) => e.from = v)),
+                          DataCell(_EditableCell(initialValue: e.to, enabled: !_isClosed, onSaved: (v) => e.to = v)),
+                          DataCell(_EditableCell(initialValue: e.agenda, enabled: !_isClosed, onSaved: (v) => e.agenda = v)),
+                          DataCell(_EditableCell(initialValue: e.process, enabled: !_isClosed, onSaved: (v) => e.process = v)),
+                          DataCell(_EditableCell(initialValue: e.participants, enabled: !_isClosed, onSaved: (v) => e.participants = v)),
+                          DataCell(_EditableCell(initialValue: e.auditor, enabled: !_isClosed, onSaved: (v) => e.auditor = v)),
+                          DataCell(_EditableCell(initialValue: e.notes, enabled: !_isClosed, onSaved: (v) => e.notes = v)),
+                          DataCell(
+                            IconButton(
+                              onPressed: _isClosed
+                                  ? null
+                                  : () => setState(() => _planEntries.remove(e)),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          ),
+                        ]),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Der Plan wird auditbezogen gespeichert und kann exportiert werden.', style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReport() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Text('Auditbericht', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            if (_isClosed) const Chip(label: Text('Abgeschlossen')), // read-only indicator
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.summary),
+          onChanged: (v) => _reportDraft.summary = v,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Zusammenfassung'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.scopeEvaluation),
+          onChanged: (v) => _reportDraft.scopeEvaluation = v,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Scope-Bewertung'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.findings),
+          onChanged: (v) => _reportDraft.findings = v,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Findings / Beobachtungen'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          enabled: !_isClosed,
+          controller: TextEditingController(text: _reportDraft.conclusion),
+          onChanged: (v) => _reportDraft.conclusion = v,
+          maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Gesamtfazit'),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          value: _reportDraft.followUpRecommended,
+          onChanged: _isClosed ? null : (v) => setState(() => _reportDraft.followUpRecommended = v),
+          title: const Text('Nachaudit empfohlen'),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ..._reportDraft.evidence.map((f) => Chip(label: Text(f))),
+            if (!_isClosed)
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _reportDraft.evidence = [..._reportDraft.evidence, 'Evidence_${_reportDraft.evidence.length + 1}.pdf']),
+                icon: const Icon(Icons.upload_file_outlined),
+                label: const Text('Nachweis hinzufügen'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('PDF Export')),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.description_outlined), label: const Text('DOCX Export')),
+          ],
+        ),
       ],
     );
   }
@@ -1386,6 +1744,50 @@ class _KpiCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _EditableCell extends StatefulWidget {
+  final String initialValue;
+  final bool enabled;
+  final ValueChanged<String> onSaved;
+  const _EditableCell({required this.initialValue, required this.enabled, required this.onSaved});
+
+  @override
+  State<_EditableCell> createState() => _EditableCellState();
+}
+
+class _EditableCellState extends State<_EditableCell> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditableCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      enabled: widget.enabled,
+      onChanged: widget.onSaved,
+      decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }
 
