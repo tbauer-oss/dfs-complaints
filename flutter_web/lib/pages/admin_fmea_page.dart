@@ -1860,6 +1860,16 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: Text(
+                          'vor / nach',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
