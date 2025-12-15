@@ -1107,6 +1107,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   String _cluster = 'Q1';
   String _status = 'planned';
   String? _lead;
+  String? _coAuditor;
   bool _busy = false;
   String? _error;
 
@@ -1153,6 +1154,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
     _cluster = existing?.cluster ?? 'Q1';
     _status = existing?.status ?? 'planned';
     _lead = existing?.leadAuditorId;
+    _coAuditor = existing?.coAuditorId;
   }
 
   @override
@@ -1244,12 +1246,19 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
             const SizedBox(height: 12),
             Builder(builder: (context) {
               var options = _eligibleAuditors;
-              final selected = widget.auditors.firstWhere(
+              final selectedLead = widget.auditors.firstWhere(
                 (a) => a.id == _lead,
                 orElse: () => const Auditor(id: '', name: '', email: '', status: 'inactive'),
               );
-              if (_lead != null && options.every((a) => a.id != selected.id)) {
-                options = [...options, selected];
+              final selectedCo = widget.auditors.firstWhere(
+                (a) => a.id == _coAuditor,
+                orElse: () => const Auditor(id: '', name: '', email: '', status: 'inactive'),
+              );
+              if (_lead != null && options.every((a) => a.id != selectedLead.id)) {
+                options = [...options, selectedLead];
+              }
+              if (_coAuditor != null && options.every((a) => a.id != selectedCo.id)) {
+                options = [...options, selectedCo];
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1268,6 +1277,18 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
                     },
                     items: [
                       const DropdownMenuItem(value: null, child: Text('Noch nicht zugewiesen')),
+                      ...options
+                          .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.orgUnit ?? '-'})')))
+                          .toList(),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    value: _coAuditor,
+                    decoration: const InputDecoration(labelText: 'Co-Auditor'),
+                    onChanged: (v) => setState(() => _coAuditor = v),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Kein Co-Auditor')),
                       ...options
                           .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.orgUnit ?? '-'})')))
                           .toList(),
@@ -1346,7 +1367,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
         processOwners: existing?.processOwners ?? const [],
         participants: existing?.participants ?? const [],
         leadAuditorId: _lead,
-        coAuditorIds: existing?.coAuditorIds ?? const [],
+        coAuditorId: _coAuditor,
         linkedDocs: existing?.linkedDocs ?? const [],
         findings: existing?.findings ?? const [],
         actions: existing?.actions ?? const [],
@@ -1580,7 +1601,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       processOwners: current.processOwners,
       participants: current.participants,
       leadAuditorId: current.leadAuditorId,
-      coAuditorIds: current.coAuditorIds,
+      coAuditorId: current.coAuditorId,
       linkedDocs: current.linkedDocs,
       findings: current.findings,
       actions: current.actions,
