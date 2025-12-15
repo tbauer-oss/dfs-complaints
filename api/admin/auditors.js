@@ -53,6 +53,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
+      console.log('[admin/auditors] create', { actor: actor.email, body });
       const saved = await auditorSave({ ...body, updatedBy: actor.email });
       return ok(res, { ok: true, auditor: saved });
     }
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const id = body.id || req.query?.id;
       if (!id) return bad(res, 'id missing', 400);
+      console.log('[admin/auditors] update', { actor: actor.email, id, body });
       const updated = await auditorUpdate(id, { ...body, updatedBy: actor.email });
       if (!updated) return bad(res, 'not found', 404);
       return ok(res, { ok: true, auditor: updated });

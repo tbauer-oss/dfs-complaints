@@ -7,7 +7,9 @@ import {
   auditGet,
   auditSave,
   auditorSave,
+  auditorAll,
   isAuditorQualified,
+  auditUpdate,
 } from '../_lib/store.js';
 
 function isoDaysFromNow(days) {
@@ -102,4 +104,44 @@ test('nachaudit triggered for ineffective actions', async () => {
   });
   const updated = await auditGet(audit.id);
   assert.equal(updated.status, 'nachauditRequired');
+});
+
+test('rejects audit updates with unknown auditors and does not upsert new ones', async () => {
+  const beforeCount = (await auditorAll()).length;
+  const lead = await auditorSave(buildQualifiedAuditor('Primary Lead'));
+  const audit = await auditSave({
+    title: 'Valid Audit',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    orgUnit: 'Operations',
+    leadAuditorId: lead.id,
+  });
+
+  await assert.rejects(() => auditUpdate(audit.id, { leadAuditor: { name: 'Illegal' } }), /leadAuditorId only/);
+  await assert.rejects(() => auditUpdate(audit.id, { leadAuditorId: 'does-not-exist' }), /nicht gefunden/);
+  await assert.rejects(() => auditUpdate(audit.id, { coAuditorIds: ['unknown-co'] }), /nicht gefunden/);
+
+  const auditorsAfter = await auditorAll();
+  assert.ok(auditorsAfter.find(a => a.id === lead.id));
+  assert.equal(auditorsAfter.length, beforeCount + 1);
+});
+
+test('enforces independence between auditor org unit and audit org unit', async () => {
+  const lead = await auditorSave({
+    ...buildQualifiedAuditor('Independence Lead'),
+    orgUnit: 'QA',
+  });
+  await assert.rejects(
+    () =>
+      auditSave({
+        title: 'OrgUnit Conflict',
+        plannedStart: isoDaysFromNow(1),
+        plannedEnd: isoDaysFromNow(2),
+        scopeText: 'Scope',
+        orgUnit: 'QA',
+        leadAuditorId: lead.id,
+      }),
+    /eigenen Bereich/,
+  );
 });
