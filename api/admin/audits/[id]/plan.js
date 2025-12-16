@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   if (!actor) return;
 
   const auditId = req.query?.id;
+  console.log('[audit-plan] route hit', auditId);
   if (!auditId) return bad(res, 'id missing', 400, { details: [{ field: 'id', issue: 'required' }] });
 
   return await runWithAuditRedisContext({ route: '/api/admin/audits/[id]/plan', method: req.method, auditId }, async () => {
