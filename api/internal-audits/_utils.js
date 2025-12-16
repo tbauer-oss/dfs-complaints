@@ -140,12 +140,39 @@ export async function createAuditor(data, { method }) {
   assertWriteAllowed(method, 'createAuditor', KEY_AUDITOR(data.id || 'new'));
   const now = Date.now();
   const id = data.id || randomUUID();
+  const normalizeDate = (value) => {
+    if (!value) return undefined;
+    if (typeof value === 'string') return value;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  };
+  const normalizeStringList = (value) =>
+    Array.isArray(value) ? value.map((v) => `${v}`.trim()).filter(Boolean) : undefined;
   const record = {
     id,
     name: data.name || '',
     email: data.email || '',
     active: data.active !== false,
     createdAt: data.createdAt || now,
+    userId: data.userId || undefined,
+    orgUnit: data.orgUnit || undefined,
+    role: data.role || undefined,
+    restrictedProcessOwners: normalizeStringList(data.restrictedProcessOwners),
+    restrictedOrgUnits: normalizeStringList(data.restrictedOrgUnits),
+    internalAuditorTrainingDate: normalizeDate(
+      data.internalAuditorTrainingDate || data.trainingDate,
+    ),
+    trainingType: data.trainingType || undefined,
+    experienceYears: data.experienceYears ?? undefined,
+    standardsKnowledge: normalizeStringList(data.standardsKnowledge),
+    requalificationDueDate: normalizeDate(data.requalificationDueDate),
+    qualificationOverride: data.qualificationOverride === true,
+    evidenceAttachments: Array.isArray(data.evidenceAttachments)
+      ? data.evidenceAttachments
+      : undefined,
+    coAuditCount: data.coAuditCount ?? undefined,
+    leadAuditCount: data.leadAuditCount ?? undefined,
+    trainingDate: normalizeDate(data.trainingDate),
   };
   await redis.sadd(KEY_AUDITOR_INDEX, id);
   await redis.set(KEY_AUDITOR(id), record);

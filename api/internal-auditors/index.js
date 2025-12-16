@@ -13,7 +13,16 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const actor = await ensureActor(req, res, { write: true });
     if (!actor) return;
-    const payload = req.body || {};
+    let payload = req.body || {};
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch (err) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'invalid json body' }));
+        return;
+      }
+    }
     const auditor = await createAuditor(payload, { method: req.method });
     res.statusCode = 200;
     res.end(JSON.stringify({ auditor }));
