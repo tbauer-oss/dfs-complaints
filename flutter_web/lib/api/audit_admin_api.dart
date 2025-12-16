@@ -162,6 +162,44 @@ class AuditAdminApi {
     await _decode(await http.delete(uri, headers: _headersJson()));
   }
 
+  Future<List<AuditorEvidence>> listAuditEvidence(String auditId) async {
+    final r = await http.get(_u('/api/internal-audits/$auditId/evidence'), headers: _headersJson());
+    final decoded = await _decode(r);
+    final list = decoded['evidence'];
+    if (list is List) {
+      return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
+  }
+
+  Future<List<AuditorEvidence>> uploadAuditEvidence(String auditId, List<Map<String, dynamic>> files) async {
+    final r = await http.post(
+      _u('/api/internal-audits/$auditId/evidence'),
+      headers: _headersJson(),
+      body: jsonEncode({'files': files}),
+    );
+    final decoded = await _decode(r);
+    final list = decoded['evidence'];
+    if (list is List) {
+      return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
+  }
+
+  Future<List<AuditorEvidence>> deleteAuditEvidence(String auditId, String evidenceId) async {
+    final r = await http.delete(
+      _u('/api/internal-audits/$auditId/evidence'),
+      headers: _headersJson(),
+      body: jsonEncode({'id': evidenceId}),
+    );
+    final decoded = await _decode(r);
+    final list = decoded['evidence'];
+    if (list is List) {
+      return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
+  }
+
   // Auditoren ---------------------------------------------------------
   Future<List<Auditor>> listAuditors() async {
     final r = await http.get(_u('/api/internal-auditors'), headers: _headersJson());

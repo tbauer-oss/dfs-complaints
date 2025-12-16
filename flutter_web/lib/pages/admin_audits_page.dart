@@ -1,10 +1,17 @@
 import 'dart:convert';
-import 'package:flutter/gestures.dart';
+import 'dart:html' as html;
+import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:mime/mime.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/audit_admin_api.dart';
@@ -111,7 +118,7 @@ class _AuditReportDraft {
   String findings;
   String conclusion;
   bool followUpRecommended;
-  List<String> evidence;
+  List<AuditorEvidence> evidence;
 
   _AuditReportDraft({
     this.summary = '',
@@ -1510,6 +1517,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   List<AuditAction> _actions = const [];
   final List<_AuditPlanEntry> _planEntries = [];
   _AuditReportDraft _reportDraft = _AuditReportDraft.empty();
+  List<AuditorEvidence> _evidence = const [];
+  bool _evidenceLoading = false;
   bool _loading = true;
   bool _planSaving = false;
   bool _planLoaded = false;
@@ -1522,6 +1531,419 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       return 'Auditplan konnte nicht geladen werden: ${error.message}';
     }
     return 'Auditplan konnte nicht geladen werden: $error';
+  }
+
+  Future<void> _loadEvidence() async {
+    setState(() {
+      _evidenceLoading = true;
+    });
+    try {
+      final evidence = await widget.api.listAuditEvidence(widget.audit.id);
+      if (!mounted) return;
+      setState(() {
+        _evidence = evidence;
+        _evidenceLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _evidenceLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nachweise konnten nicht geladen werden: $e')));
+    }
+  }
+
+  Future<void> _addEvidence() async {
+    if (_isClosed) return;
+    setState(() => _evidenceLoading = true);
+    try {
+      final res = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true);
+      if (res == null || res.files.isEmpty) {
+        setState(() => _evidenceLoading = false);
+        return;
+      }
+      final files = <Map<String, dynamic>>[];
+      for (final file in res.files) {
+        if (file.bytes == null) continue;
+        final mime = lookupMimeType(file.name) ?? 'application/octet-stream';
+        files.add({
+          'name': file.name,
+          'mime': mime,
+          'bytes': base64Encode(file.bytes!),
+        });
+      }
+      if (files.isEmpty) {
+        setState(() => _evidenceLoading = false);
+        return;
+      }
+      final updated = await widget.api.uploadAuditEvidence(widget.audit.id, files);
+      if (!mounted) return;
+      setState(() {
+        _evidence = updated;
+        _evidenceLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _evidenceLoading = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Nachweis-Upload fehlgeschlagen: $e')));
+    }
+  }
+
+  Future<void> _deleteEvidence(AuditorEvidence evidence) async {
+    if (_isClosed || (evidence.id ?? '').isEmpty) return;
+    setState(() => _evidenceLoading = true);
+    try {
+      final updated = await widget.api.deleteAuditEvidence(widget.audit.id, evidence.id!);
+      if (!mounted) return;
+      setState(() {
+        _evidence = updated;
+        _evidenceLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _evidenceLoading = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Nachweis konnte nicht gelöscht werden: $e')));
+    }
+  }
+
+  Future<void> _openEvidence(AuditorEvidence evidence) async {
+    final link = evidence.downloadUrl ?? evidence.url;
+    if (link == null || link.isEmpty) return;
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _formatFilesize(int bytes) {
+    if (bytes <= 0) return '—';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    double size = bytes.toDouble();
+    int unit = 0;
+    while (size > 900 && unit < units.length - 1) {
+      size /= 1024;
+      unit++;
+    }
+    return '${size.toStringAsFixed(1)} ${units[unit]}';
+  }
+
+  Uint8List? _logoBytes;
+
+  Future<Uint8List> _loadLogoBytes() async {
+    if (_logoBytes != null) return _logoBytes!;
+    final data = await rootBundle.load('assets/dfs_logo.png');
+    _logoBytes = data.buffer.asUint8List();
+    return _logoBytes!;
+  }
+
+  Future<void> _exportPdf() async {
+    if (_audit == null) return;
+    final logo = pw.MemoryImage(await _loadLogoBytes());
+    final textStyle = pw.TextStyle(fontSize: 11);
+    final heading = pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold);
+    final dateFmt = DateFormat('dd.MM.yyyy');
+
+    pw.Widget metaRow(String label, String value) => pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [pw.Text('$label: ', style: heading.copyWith(fontSize: 11)), pw.Expanded(child: pw.Text(value, style: textStyle))],
+        );
+
+    pw.TableRow tableHeader(List<String> labels) => pw.TableRow(
+          children: labels
+              .map((l) => pw.Container(
+                    padding: const pw.EdgeInsets.all(6),
+                    color: PdfColors.grey200,
+                    child: pw.Text(l, style: heading.copyWith(fontSize: 11)),
+                  ))
+              .toList(),
+        );
+
+    pw.TableRow tableRow(List<String> values) => pw.TableRow(
+          children: values
+              .map((v) => pw.Container(padding: const pw.EdgeInsets.all(6), child: pw.Text(v, style: textStyle)))
+              .toList(),
+        );
+
+    final planTable = _planEntries.isEmpty
+        ? pw.Text('Kein Auditplan hinterlegt.', style: textStyle)
+        : pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1),
+              1: pw.FlexColumnWidth(1),
+              2: pw.FlexColumnWidth(2),
+              3: pw.FlexColumnWidth(2),
+              4: pw.FlexColumnWidth(2),
+            },
+            children: [
+              tableHeader(['Von', 'Bis', 'Agenda', 'Prozess', 'Auditor']),
+              ..._planEntries.map((p) => tableRow([
+                    p.from,
+                    p.to,
+                    p.agenda,
+                    p.process,
+                    p.auditor,
+                  ])),
+            ],
+          );
+
+    final findingsTable = _findings.isEmpty
+        ? pw.Text('Keine Findings erfasst.', style: textStyle)
+        : pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.2),
+              1: pw.FlexColumnWidth(3),
+              2: pw.FlexColumnWidth(1.6),
+              3: pw.FlexColumnWidth(1),
+            },
+            children: [
+              tableHeader(['Typ', 'Beschreibung', 'Anforderung', 'Status']),
+              ..._findings.map((f) => tableRow([
+                    f.type,
+                    f.description,
+                    f.requirementRef ?? '-',
+                    f.status,
+                  ])),
+            ],
+          );
+
+    final actionsTable = _actions.isEmpty
+        ? pw.Text('Keine Maßnahmen erfasst.', style: textStyle)
+        : pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2),
+              1: pw.FlexColumnWidth(3),
+              2: pw.FlexColumnWidth(1.5),
+              3: pw.FlexColumnWidth(1.2),
+            },
+            children: [
+              tableHeader(['Art', 'Beschreibung', 'Verantwortlich', 'Status']),
+              ..._actions.map((a) => tableRow([
+                    a.actionType,
+                    a.description,
+                    a.responsibleOrgUnit ?? a.responsibleUserId ?? '-',
+                    a.status,
+                  ])),
+            ],
+          );
+
+    final evidenceList = _evidence.isEmpty
+        ? pw.Text('Keine Nachweise hochgeladen.', style: textStyle)
+        : pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: _evidence
+                .map((e) => pw.Text('• ${e.name} (${_formatFilesize(e.size)})', style: textStyle))
+                .toList(),
+          );
+
+    final doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageTheme: pw.PageTheme(
+          margin: const pw.EdgeInsets.all(28),
+        ),
+        header: (context) => pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Container(width: 80, height: 40, child: pw.Image(logo, fit: pw.BoxFit.contain)),
+            pw.SizedBox(width: 12),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text('DFS Internal Audit', style: heading),
+              pw.Text('Auditbericht ${_audit!.year}', style: textStyle.copyWith(fontSize: 10)),
+            ]),
+          ],
+        ),
+        build: (context) => [
+          pw.SizedBox(height: 12),
+          pw.Text(_audit!.title, style: heading.copyWith(fontSize: 18)),
+          pw.SizedBox(height: 6),
+          pw.Text('Auditnummer: ${_audit!.auditNumber}', style: heading.copyWith(fontSize: 12)),
+          pw.SizedBox(height: 12),
+          metaRow('Cluster', _audit!.cluster ?? '-'),
+          metaRow('Standort', _audit!.site ?? '-'),
+          metaRow('Scope', _audit!.scopeText ?? '-'),
+          metaRow('Leadauditor', _auditors.firstWhere((a) => a.id == _audit!.leadAuditorId, orElse: () =>
+                  const Auditor(id: '', name: '—', email: '', status: 'inactive'))
+              .name),
+          metaRow('Co-Auditor', _auditors.firstWhere((a) => a.id == _audit!.coAuditorId, orElse: () =>
+                  const Auditor(id: '', name: '—', email: '', status: 'inactive'))
+              .name),
+          metaRow('Geplanter Zeitraum',
+              '${_audit!.plannedStart != null ? dateFmt.format(_audit!.plannedStart!) : '-'} – ${_audit!.plannedEnd != null ? dateFmt.format(_audit!.plannedEnd!) : '-'}'),
+          pw.SizedBox(height: 14),
+          pw.Text('Zusammenfassung', style: heading),
+          pw.Text(_reportDraft.summary.isEmpty ? '—' : _reportDraft.summary, style: textStyle),
+          pw.SizedBox(height: 10),
+          pw.Text('Scope-Bewertung', style: heading),
+          pw.Text(_reportDraft.scopeEvaluation.isEmpty ? '—' : _reportDraft.scopeEvaluation, style: textStyle),
+          pw.SizedBox(height: 10),
+          pw.Text('Findings / Beobachtungen', style: heading),
+          pw.Text(_reportDraft.findings.isEmpty ? '—' : _reportDraft.findings, style: textStyle),
+          pw.SizedBox(height: 10),
+          pw.Text('Gesamtfazit', style: heading),
+          pw.Text(_reportDraft.conclusion.isEmpty ? '—' : _reportDraft.conclusion, style: textStyle),
+          pw.SizedBox(height: 14),
+          pw.Text('Auditplan', style: heading),
+          pw.SizedBox(height: 6),
+          planTable,
+          pw.SizedBox(height: 14),
+          pw.Text('Findings', style: heading),
+          pw.SizedBox(height: 6),
+          findingsTable,
+          pw.SizedBox(height: 14),
+          pw.Text('Maßnahmen', style: heading),
+          pw.SizedBox(height: 6),
+          actionsTable,
+          pw.SizedBox(height: 14),
+          pw.Text('Nachweise', style: heading),
+          pw.SizedBox(height: 6),
+          evidenceList,
+        ],
+      ),
+    );
+
+    final bytes = await doc.save();
+    await Printing.sharePdf(bytes: bytes, filename: '${_audit!.auditNumber}_Report.pdf');
+  }
+
+  String _xmlEscape(String input) => input
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+
+  String _docxParagraph(String text, {bool bold = false}) {
+    final escaped = _xmlEscape(text);
+    final runProps = bold ? '<w:rPr><w:b/></w:rPr>' : '';
+    return '<w:p><w:r>$runProps<w:t xml:space="preserve">$escaped</w:t></w:r></w:p>';
+  }
+
+  String _docxTable(List<List<String>> rows, {List<String>? header}) {
+    final buffer = StringBuffer('<w:tbl><w:tblGrid/>');
+    if (header != null) {
+      buffer.write('<w:tr>');
+      for (final cell in header) {
+        buffer.write('<w:tc><w:tcPr><w:shd w:fill="E6E6E6"/></w:tcPr>${_docxParagraph(cell, bold: true)}</w:tc>');
+      }
+      buffer.write('</w:tr>');
+    }
+    for (final row in rows) {
+      buffer.write('<w:tr>');
+      for (final cell in row) {
+        buffer.write('<w:tc>${_docxParagraph(cell)}</w:tc>');
+      }
+      buffer.write('</w:tr>');
+    }
+    buffer.write('</w:tbl>');
+    return buffer.toString();
+  }
+
+  Future<Uint8List> _buildDocx(Audit audit) async {
+    final logoData = await _loadLogoBytes();
+    final archive = Archive();
+
+    const relsContent =
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>\n</Relationships>';
+
+    const contentTypes =
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n  <Default Extension="xml" ContentType="application/xml"/>\n  <Default Extension="png" ContentType="image/png"/>\n  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>\n  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>\n</Types>';
+
+    const styles =
+        '<?xml version="1.0" encoding="UTF-8"?>\n<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">\n    <w:rPr><w:sz w:val="22"/></w:rPr>\n  </w:style>\n</w:styles>';
+
+    final docRels =
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>\n  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>\n</Relationships>';
+
+    final metaRows = [
+      ['Auditnummer', audit.auditNumber],
+      ['Titel', audit.title],
+      ['Jahr', audit.year.toString()],
+      ['Cluster', audit.cluster ?? '-'],
+      ['Standort', audit.site ?? '-'],
+      ['Scope', audit.scopeText ?? '-'],
+      ['Leadauditor', _auditors.firstWhere((a) => a.id == audit.leadAuditorId, orElse: () =>
+              const Auditor(id: '', name: '—', email: '', status: 'inactive'))
+          .name],
+      ['Co-Auditor', _auditors.firstWhere((a) => a.id == audit.coAuditorId, orElse: () =>
+              const Auditor(id: '', name: '—', email: '', status: 'inactive'))
+          .name],
+    ];
+
+    final planRows = _planEntries
+        .map((p) => [p.from, p.to, p.agenda, p.process, p.auditor])
+        .toList(growable: false);
+
+    final findingRows = _findings
+        .map((f) => [f.type, f.description, f.requirementRef ?? '-', f.status])
+        .toList(growable: false);
+
+    final actionRows = _actions
+        .map((a) => [a.actionType, a.description, a.responsibleOrgUnit ?? a.responsibleUserId ?? '-', a.status])
+        .toList(growable: false);
+
+    final evidenceRows = _evidence
+        .map((e) => [e.name, _formatFilesize(e.size), e.mime ?? ''])
+        .toList(growable: false);
+
+    final document = StringBuffer();
+    document.write('<?xml version="1.0" encoding="UTF-8"?>');
+    document.write(
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+    document.write('<w:body>');
+    document.write('<w:p><w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0"><wp:extent cx="640000" cy="220000"/><wp:docPr id="1" name="DFS Logo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="logo.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="640000" cy="220000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>');
+    document.write(_docxParagraph('Auditbericht ${audit.year}', bold: true));
+    document.write(_docxTable(metaRows, header: ['Attribut', 'Wert']));
+    document.write(_docxParagraph('Zusammenfassung', bold: true));
+    document.write(_docxParagraph(_reportDraft.summary.isEmpty ? '—' : _reportDraft.summary));
+    document.write(_docxParagraph('Scope-Bewertung', bold: true));
+    document.write(_docxParagraph(_reportDraft.scopeEvaluation.isEmpty ? '—' : _reportDraft.scopeEvaluation));
+    document.write(_docxParagraph('Findings / Beobachtungen', bold: true));
+    document.write(_docxParagraph(_reportDraft.findings.isEmpty ? '—' : _reportDraft.findings));
+    document.write(_docxParagraph('Gesamtfazit', bold: true));
+    document.write(_docxParagraph(_reportDraft.conclusion.isEmpty ? '—' : _reportDraft.conclusion));
+    document.write(_docxParagraph('Auditplan', bold: true));
+    document.write(_planEntries.isEmpty
+        ? _docxParagraph('Kein Auditplan hinterlegt.')
+        : _docxTable(planRows, header: ['Von', 'Bis', 'Agenda', 'Prozess', 'Auditor']));
+    document.write(_docxParagraph('Findings', bold: true));
+    document.write(_findings.isEmpty
+        ? _docxParagraph('Keine Findings erfasst.')
+        : _docxTable(findingRows, header: ['Typ', 'Beschreibung', 'Anforderung', 'Status']));
+    document.write(_docxParagraph('Maßnahmen', bold: true));
+    document.write(_actions.isEmpty
+        ? _docxParagraph('Keine Maßnahmen erfasst.')
+        : _docxTable(actionRows, header: ['Art', 'Beschreibung', 'Verantwortlich', 'Status']));
+    document.write(_docxParagraph('Nachweise', bold: true));
+    document.write(_evidence.isEmpty
+        ? _docxParagraph('Keine Nachweise hochgeladen.')
+        : _docxTable(evidenceRows, header: ['Name', 'Größe', 'Typ']));
+    document.write('<w:sectPr><w:pgSz w:w="11900" w:h="16840"/></w:sectPr>');
+    document.write('</w:body></w:document>');
+
+    archive.addFile(ArchiveFile('_rels/.rels', utf8.encode(relsContent).length, utf8.encode(relsContent)));
+    archive.addFile(ArchiveFile('[Content_Types].xml', utf8.encode(contentTypes).length, utf8.encode(contentTypes)));
+    archive.addFile(ArchiveFile('word/styles.xml', utf8.encode(styles).length, utf8.encode(styles)));
+    archive.addFile(ArchiveFile('word/_rels/document.xml.rels', utf8.encode(docRels).length, utf8.encode(docRels)));
+    archive.addFile(ArchiveFile('word/media/logo.png', logoData.length, logoData));
+    final docXml = utf8.encode(document.toString());
+    archive.addFile(ArchiveFile('word/document.xml', docXml.length, docXml));
+
+    final zipped = ZipEncoder().encode(archive)!;
+    return Uint8List.fromList(zipped);
+  }
+
+  Future<void> _exportDocx() async {
+    if (_audit == null) return;
+    final bytes = await _buildDocx(_audit!);
+    final blob = html.Blob([bytes], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final anchor = html.AnchorElement(href: url)..download = '${_audit!.auditNumber}_Report.docx';
+    anchor.click();
+    html.Url.revokeObjectUrl(url);
   }
 
   @override
@@ -1555,9 +1977,11 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       final findingsFuture = widget.api.listFindings(widget.audit.id);
       final actionsFuture = widget.api.listActions(widget.audit.id);
       final planFuture = widget.api.loadAuditPlan(widget.audit.id);
+      final evidenceFuture = widget.api.listAuditEvidence(widget.audit.id);
       final auditors = await auditorsFuture;
       final findings = await findingsFuture;
       final actions = await actionsFuture;
+      final evidence = await evidenceFuture;
       List<AuditPlanEntry> planEntries = const [];
       bool planMissing = false;
       try {
@@ -1575,6 +1999,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         _auditors = auditors;
         _findings = findings;
         _actions = actions;
+        _evidence = evidence;
         _planMissing = planMissing;
         if (planMissing) {
           _planEntries.clear();
@@ -2052,25 +2477,68 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
           title: const Text('Nachaudit empfohlen'),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ..._reportDraft.evidence.map((f) => Chip(label: Text(f))),
-            if (!_isClosed)
-              OutlinedButton.icon(
-                onPressed: () => setState(() => _reportDraft.evidence = [..._reportDraft.evidence, 'Evidence_${_reportDraft.evidence.length + 1}.pdf']),
-                icon: const Icon(Icons.upload_file_outlined),
-                label: const Text('Nachweis hinzufügen'),
+            Row(
+              children: [
+                Text('Nachweise', style: Theme.of(context).textTheme.titleSmall),
+                if (_evidenceLoading) ...[
+                  const SizedBox(width: 8),
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+                const Spacer(),
+                IconButton(onPressed: _evidenceLoading ? null : _loadEvidence, icon: const Icon(Icons.refresh)),
+                if (!_isClosed)
+                  OutlinedButton.icon(
+                    onPressed: _evidenceLoading ? null : _addEvidence,
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: const Text('Nachweis hinzufügen'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_evidence.isEmpty)
+              const Text('Keine Nachweise hochgeladen.')
+            else
+              ..._evidence.map(
+                (e) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Text(e.name),
+                    subtitle: Text('${e.mime ?? 'Datei'} • ${_formatFilesize(e.size)}'),
+                    leading: const Icon(Icons.attachment_outlined),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.open_in_new),
+                          onPressed: () => _openEvidence(e),
+                        ),
+                        if (!_isClosed)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteEvidence(e),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           children: [
-            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('PDF Export')),
+            OutlinedButton.icon(
+                onPressed: _loading ? null : _exportPdf,
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('PDF Export')),
             const SizedBox(width: 12),
-            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.description_outlined), label: const Text('DOCX Export')),
+            OutlinedButton.icon(
+                onPressed: _loading ? null : _exportDocx,
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('DOCX Export')),
           ],
         ),
       ],

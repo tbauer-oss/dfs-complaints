@@ -2,6 +2,11 @@ import { randomUUID } from 'crypto';
 import { redis } from '../_lib/redis.js';
 import { portalUserFromRequest, canWrite } from '../_lib/portalAuth.js';
 import { bad } from '../_lib/http.js';
+import {
+  processIncomingFiles,
+  normalizeProvidedUploads,
+  deleteUploadsFromBlob,
+} from '../_lib/uploads.js';
 
 const PROD_ORIGIN = 'https://dfs-complaints-web.vercel.app';
 const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
@@ -42,6 +47,7 @@ const KEY_AUDIT_PLAN = (id) => `dfs:ia:${id}:plan`;
 const KEY_AUDITOR_INDEX = 'dfs:ia:auditors:index';
 const KEY_AUDITOR = (id) => `dfs:ia:auditor:${id}`;
 const KEY_AUDIT_COUNTER = (year) => `dfs:ia:counter:${year}`;
+const KEY_AUDIT_EVIDENCE = (id) => `dfs:ia:${id}:evidence`;
 const KEY_PROGRAM_ARCHIVED = 'dfs:ia:program:archived';
 
 function twoDigit(value) {
@@ -180,6 +186,43 @@ export async function saveAuditPlan(id, planEntries, { method }) {
   const normalized = Array.isArray(planEntries) ? planEntries : [];
   await redis.set(KEY_AUDIT_PLAN(id), { auditId: id, planEntries: normalized });
   return normalized;
+}
+
+export async function listAuditEvidence(id) {
+  const existing = (await redis.get(KEY_AUDIT_EVIDENCE(id))) || {};
+  const uploads = normalizeProvidedUploads(existing.uploads || existing.evidence || []);
+  return uploads;
+}
+
+export async function addAuditEvidence(id, files, { method }) {
+  assertWriteAllowed(method, 'addAuditEvidence', KEY_AUDIT_EVIDENCE(id));
+  const audit = await getAudit(id);
+  if (!audit) return null;
+  const current = await listAuditEvidence(id);
+  const { uploads } = await processIncomingFiles(files, {
+    ticket: async () => audit.auditNumber || id,
+    allowPreviewFallback: false,
+    allowDataUrlFallback: true,
+  });
+  const enriched = uploads.map((entry) => ({
+    ...entry,
+    id: entry.id || randomUUID(),
+    uploadedAt: entry.uploadedAt || Date.now(),
+  }));
+  const merged = [...current.filter((c) => !enriched.find((e) => e.name === c.name)), ...enriched];
+  await redis.set(KEY_AUDIT_EVIDENCE(id), { auditId: id, uploads: merged });
+  return merged;
+}
+
+export async function deleteAuditEvidence(id, evidenceId, { method }) {
+  assertWriteAllowed(method, 'deleteAuditEvidence', KEY_AUDIT_EVIDENCE(id));
+  const current = await listAuditEvidence(id);
+  const removed = current.find((e) => e.id === evidenceId);
+  if (!removed) return current;
+  const remaining = current.filter((e) => e.id !== evidenceId);
+  await redis.set(KEY_AUDIT_EVIDENCE(id), { auditId: id, uploads: remaining });
+  await deleteUploadsFromBlob([removed]);
+  return remaining;
 }
 
 export async function listAuditors() {

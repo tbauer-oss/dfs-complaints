@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 class AuditorEvidence {
+  final String? id;
   final String name;
   final String? url;
   final String? downloadUrl;
@@ -10,6 +11,7 @@ class AuditorEvidence {
   final String? preview;
 
   const AuditorEvidence({
+    this.id,
     required this.name,
     this.url,
     this.downloadUrl,
@@ -22,6 +24,7 @@ class AuditorEvidence {
   bool get hasLink => (downloadUrl ?? url ?? '').isNotEmpty;
 
   factory AuditorEvidence.fromJson(Map<String, dynamic> json) => AuditorEvidence(
+        id: json['id']?.toString(),
         name: (json['name'] ?? '').toString(),
         url: json['url']?.toString(),
         downloadUrl: json['downloadUrl']?.toString(),
@@ -39,6 +42,7 @@ class AuditorEvidence {
       );
 
   Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
         'name': name,
         if (url != null) 'url': url,
         if (downloadUrl != null) 'downloadUrl': downloadUrl,
