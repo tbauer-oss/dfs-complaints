@@ -3543,7 +3543,8 @@ const AUDITOR_REDIS_WRITE_ENABLED =
   String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'true').toLowerCase() !== 'false';
 const AUDITOR_REDIS_READ_ENABLED =
   String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
-const AUDIT_REDIS_ENABLED = false;
+const AUDIT_REDIS_ENABLED =
+  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'true').toLowerCase() !== 'false';
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedis() {
