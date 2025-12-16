@@ -2,6 +2,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
 import '../l10n/app_localizations.dart';
@@ -392,7 +393,7 @@ class _RepLoginDialogState extends State<_RepLoginDialog> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
                     ),
-                    child: Image.asset('assets/DFS_Connect_Rep.png', fit: BoxFit.contain),
+                    child: SvgPicture.asset('assets/DFS_Connect_Rep.svg', fit: BoxFit.contain),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

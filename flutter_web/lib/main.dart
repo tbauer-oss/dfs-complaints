@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -234,12 +235,7 @@ class _MyAppState extends State<MyApp> {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(width: 10),
-        Image.asset(
-          'assets/dfs_logo.png',
-          height: 28,
-          filterQuality: FilterQuality.high,
-          isAntiAlias: true,
-        ),
+        SvgPicture.asset('assets/dfs_logo.svg', height: 28),
       ],
     );
   }
@@ -933,7 +929,7 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
                     ),
-                    child: Image.asset('assets/DFS_Connect+.png', fit: BoxFit.contain),
+                    child: SvgPicture.asset('assets/DFS_Connect+.svg', fit: BoxFit.contain),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1133,7 +1129,7 @@ class _LoginScreenState extends State<_LoginScreen> {
     final t = AppLocalizations.of(context)!;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final loginLogo = isDarkMode ? 'assets/DFS_Dunkel.png' : 'assets/DFS_Hell.png';
+    final loginLogo = isDarkMode ? 'assets/DFS_Dunkel.svg' : 'assets/DFS_Hell.svg';
 
     return Card(
       elevation: 8,
@@ -1147,15 +1143,7 @@ class _LoginScreenState extends State<_LoginScreen> {
             children: [
               Row(
                 children: [
-                  SizedBox(
-                    height: 48,
-                    child: Image.asset(
-                      loginLogo,
-                      height: 48,
-                      filterQuality: FilterQuality.high,
-                      isAntiAlias: true,
-                    ),
-                  ),
+                  SizedBox(height: 48, child: SvgPicture.asset(loginLogo, height: 48)),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(

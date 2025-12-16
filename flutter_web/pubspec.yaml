@@ -33,9 +33,13 @@ flutter:
     - assets/dfs_logo.png
     - assets/dfs_logo.svg
     - assets/DFS_Hell.png
+    - assets/DFS_Hell.svg
     - assets/DFS_Dunkel.png
+    - assets/DFS_Dunkel.svg
     - assets/DFS_Connect_Rep.png
+    - assets/DFS_Connect_Rep.svg
     - assets/DFS_Connect+.png
+    - assets/DFS_Connect+.svg
     - lib/data/dfs_products.csv
     - assets/help/
   generate: true
