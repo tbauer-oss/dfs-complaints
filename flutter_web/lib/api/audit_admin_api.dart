@@ -310,14 +310,10 @@ class AuditAdminApi {
 
   // Programme ---------------------------------------------------------
   Future<List<AuditProgram>> listPrograms({int? year}) async {
-    final r = await http.get(
-      _u('/api/admin/audit-programs', {
-        if (year != null) 'year': year.toString(),
-      }),
-      headers: _headersJson(),
-    );
+    final r = await http.get(_u('/api/internal-audit-programs', {if (year != null) 'year': year.toString()}),
+        headers: _headersJson(includeContentType: false));
     final decoded = await _decode(r);
-    final list = decoded['list'];
+    final list = decoded['programs'] ?? decoded['list'];
     if (list is List) {
       return list
           .whereType<Map>()
@@ -377,7 +373,12 @@ class AuditAdminApi {
     return {
       if (audit.id.isNotEmpty) 'id': audit.id,
       'auditNumber': audit.auditNumber,
+      'year': audit.year,
+      if (audit.cluster != null) 'cluster': audit.cluster,
       'title': audit.title,
+      if (audit.scopeText != null) 'scopeText': audit.scopeText,
+      if (audit.site != null) 'site': audit.site,
+      if (audit.auditeesOrgUnits.isNotEmpty) 'auditeesOrgUnits': audit.auditeesOrgUnits,
       'status': audit.status,
       if (plannedDate != null) 'date': plannedDate.toIso8601String(),
       if (audit.leadAuditorId != null) 'leadAuditorId': audit.leadAuditorId,

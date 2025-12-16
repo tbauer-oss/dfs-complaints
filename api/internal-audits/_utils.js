@@ -42,6 +42,7 @@ const KEY_AUDIT_PLAN = (id) => `dfs:ia:${id}:plan`;
 const KEY_AUDITOR_INDEX = 'dfs:ia:auditors:index';
 const KEY_AUDITOR = (id) => `dfs:ia:auditor:${id}`;
 const KEY_AUDIT_COUNTER = (year) => `dfs:ia:counter:${year}`;
+const KEY_PROGRAM_ARCHIVED = 'dfs:ia:program:archived';
 
 function twoDigit(value) {
   return String(value).padStart(2, '0');
@@ -59,17 +60,45 @@ async function nextAuditNumber({ now, method }) {
 function normalizeAuditMeta(payload, { actor, auditNumber }) {
   const now = Date.now();
   const id = payload.id || randomUUID();
+  const plannedDate = payload.date || payload.plannedDate || null;
+  const plannedStart = payload.plannedStart || plannedDate;
+  const plannedEnd = payload.plannedEnd || plannedDate;
+  const year = payload.year || (plannedStart ? new Date(plannedStart).getFullYear() : new Date(now).getFullYear());
+  const cluster = payload.cluster || payload.quarter || deriveQuarter(plannedStart || plannedEnd);
+  const auditeesOrgUnits = Array.isArray(payload.auditeesOrgUnits)
+    ? payload.auditeesOrgUnits.filter(Boolean)
+    : payload.orgUnit
+    ? [payload.orgUnit]
+    : [];
+
   return {
     id,
     auditNumber: auditNumber || payload.auditNumber || payload.auditNr || id,
     title: payload.title || '',
-    date: payload.date || payload.plannedDate || null,
+    year,
+    cluster: cluster || 'Q1',
+    site: payload.site || null,
+    plannedStart,
+    plannedEnd,
     status: payload.status || 'planned',
+    scopeText: payload.scopeText || payload.scope || null,
+    auditeesOrgUnits,
     leadAuditorId: payload.leadAuditorId || null,
     coAuditorId: payload.coAuditorId || null,
     createdAt: payload.createdAt || now,
     createdBy: payload.createdBy || actor?.email || 'unknown',
   };
+}
+
+function deriveQuarter(dateLike) {
+  if (!dateLike) return null;
+  const d = new Date(dateLike);
+  const month = d.getMonth();
+  if (Number.isNaN(month)) return null;
+  if (month <= 2) return 'Q1';
+  if (month <= 5) return 'Q2';
+  if (month <= 8) return 'Q3';
+  return 'Q4';
 }
 
 export async function ensureActor(req, res, { write = false } = {}) {
@@ -171,6 +200,49 @@ export async function deleteAuditor(id, { method }) {
   await redis.del(KEY_AUDITOR(id));
 }
 
+async function archivedYears() {
+  const list = (await redis.smembers(KEY_PROGRAM_ARCHIVED)) || [];
+  if (!Array.isArray(list)) return new Set();
+  return new Set(list.map((y) => String(y)));
+}
+
+export async function listAuditPrograms() {
+  const audits = await listAudits();
+  const archived = await archivedYears();
+  const nowYear = new Date().getFullYear();
+  const programs = new Map();
+  for (const audit of audits) {
+    const year = audit.year || nowYear;
+    const existing = programs.get(year) || {
+      id: `program-${year}`,
+      year,
+      title: `Auditprogramm ${year}`,
+      status: archived.has(String(year)) || year < nowYear ? 'archived' : 'active',
+      clusters: new Set(),
+    };
+    if (audit.cluster) existing.clusters.add(audit.cluster);
+    programs.set(year, existing);
+  }
+  return Array.from(programs.values()).map((p) => ({
+    ...p,
+    clusters: Array.from(p.clusters.size ? p.clusters : ['Q1', 'Q2', 'Q3', 'Q4']),
+  }));
+}
+
+export async function setProgramArchived(year, archivedFlag, { method }) {
+  const key = KEY_PROGRAM_ARCHIVED;
+  assertWriteAllowed(method, 'setProgramArchived', key);
+  if (!year) return null;
+  const yearStr = String(year);
+  if (archivedFlag) {
+    await redis.sadd(key, yearStr);
+  } else {
+    await redis.srem(key, yearStr);
+  }
+  const programs = await listAuditPrograms();
+  return programs.find((p) => String(p.year) === yearStr) || null;
+}
+
 export const IA_KEYS = {
   KEY_AUDIT_INDEX,
   KEY_AUDIT,
@@ -178,4 +250,5 @@ export const IA_KEYS = {
   KEY_AUDITOR_INDEX,
   KEY_AUDITOR,
   KEY_AUDIT_COUNTER,
+  KEY_PROGRAM_ARCHIVED,
 };
