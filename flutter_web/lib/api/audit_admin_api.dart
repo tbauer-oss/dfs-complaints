@@ -33,14 +33,6 @@ class AuditAdminApi {
     return (jsonDecode(r.body) as Map).cast<String, dynamic>();
   }
 
-  String _formatDateOnly(DateTime date) {
-    final normalized = DateTime(date.year, date.month, date.day);
-    final y = normalized.year.toString().padLeft(4, '0');
-    final m = normalized.month.toString().padLeft(2, '0');
-    final d = normalized.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
   Map<String, dynamic> _parseErrorBody(String body) {
     List<String> _details(dynamic raw) {
       if (raw is List) {
@@ -85,19 +77,10 @@ class AuditAdminApi {
     DateTime? from,
     DateTime? to,
   }) async {
-    String? fmt(DateTime? d) => d == null ? null : _formatDateOnly(d);
-    final q = {
-      if (year != null) 'year': year.toString(),
-      if (quarter != null && quarter.isNotEmpty) 'quarter': quarter,
-      if (status != null && status.isNotEmpty) 'status': status,
-      if (orgUnit != null && orgUnit.isNotEmpty) 'orgUnit': orgUnit,
-      if (leadAuditorId != null && leadAuditorId.isNotEmpty) 'leadAuditorId': leadAuditorId,
-      if (from != null) 'from': fmt(from)!,
-      if (to != null) 'to': fmt(to)!,
-    };
-    final r = await http.get(_u('/api/admin/audits', q), headers: _headersJson(includeContentType: false));
+    // Filters are intentionally ignored in V2; the endpoint returns the canonical list.
+    final r = await http.get(_u('/api/internal-audits'), headers: _headersJson(includeContentType: false));
     final decoded = await _decode(r);
-    final list = decoded['list'];
+    final list = decoded['audits'] ?? decoded['list'];
     if (list is List) {
       return list
           .whereType<Map>()
@@ -107,9 +90,16 @@ class AuditAdminApi {
     return const [];
   }
 
+  Future<Audit> getAudit(String id) async {
+    final r = await http.get(_u('/api/internal-audits/$id'), headers: _headersJson(includeContentType: false));
+    final decoded = await _decode(r);
+    final data = decoded['audit'] as Map?;
+    return Audit.fromJson((data ?? decoded).cast<String, dynamic>());
+  }
+
   Future<Audit> createAudit(Audit audit) async {
     final r = await http.post(
-      _u('/api/admin/audits'),
+      _u('/api/internal-audits'),
       headers: _headersJson(),
       body: jsonEncode(_auditPayload(audit)),
     );
@@ -119,7 +109,7 @@ class AuditAdminApi {
   }
 
   Future<Audit> updateAudit(Audit audit) async {
-    final uri = audit.id.isEmpty ? _u('/api/admin/audits') : _u('/api/admin/audits', {'id': audit.id});
+    final uri = audit.id.isEmpty ? _u('/api/internal-audits') : _u('/api/internal-audits/${audit.id}');
     final r = await http.patch(
       uri,
       headers: _headersJson(),
@@ -132,11 +122,12 @@ class AuditAdminApi {
 
   Future<List<AuditPlanEntry>> loadAuditPlan(String auditId) async {
     final r = await http.get(
-      _u('/api/admin/audits/$auditId/plan'),
+      _u('/api/internal-audits/$auditId/plan'),
       headers: _headersJson(includeContentType: false),
     );
     final decoded = await _decode(r);
-    final list = decoded['planEntries'] ?? decoded['plan'];
+    final planObj = decoded['plan'];
+    final list = decoded['planEntries'] ?? (planObj is Map ? planObj['planEntries'] : null) ?? planObj;
     if (list is List) {
       return list
           .whereType<Map>()
@@ -148,14 +139,15 @@ class AuditAdminApi {
 
   Future<List<AuditPlanEntry>> saveAuditPlan(String auditId, List<AuditPlanEntry> plan) async {
     final r = await http.put(
-      _u('/api/admin/audits/$auditId/plan'),
+      _u('/api/internal-audits/$auditId/plan'),
       headers: _headersJson(),
       body: jsonEncode({
         'planEntries': plan.map((p) => p.toJson()).toList(),
       }),
     );
     final decoded = await _decode(r);
-    final list = decoded['planEntries'] ?? decoded['plan'];
+    final planObj = decoded['plan'];
+    final list = decoded['planEntries'] ?? (planObj is Map ? planObj['planEntries'] : null) ?? planObj;
     if (list is List) {
       return list
           .whereType<Map>()
@@ -166,19 +158,60 @@ class AuditAdminApi {
   }
 
   Future<void> deleteAudit(String id) async {
-    final uri = id.isEmpty ? _u('/api/admin/audits') : _u('/api/admin/audits', {'id': id});
+    final uri = id.isEmpty ? _u('/api/internal-audits') : _u('/api/internal-audits/$id');
     await _decode(await http.delete(uri, headers: _headersJson()));
+  }
+
+  Future<List<AuditorEvidence>> listAuditEvidence(String auditId) async {
+    final r = await http.get(_u('/api/internal-audits/$auditId/evidence'), headers: _headersJson());
+    final decoded = await _decode(r);
+    final list = decoded['evidence'];
+    if (list is List) {
+      return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
+  }
+
+  Future<List<AuditorEvidence>> uploadAuditEvidence(String auditId, List<Map<String, dynamic>> files) async {
+    final r = await http.post(
+      _u('/api/internal-audits/$auditId/evidence'),
+      headers: _headersJson(),
+      body: jsonEncode({'files': files}),
+    );
+    final decoded = await _decode(r);
+    final list = decoded['evidence'];
+    if (list is List) {
+      return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
+  }
+
+  Future<List<AuditorEvidence>> deleteAuditEvidence(String auditId, String evidenceId) async {
+    final r = await http.delete(
+      _u('/api/internal-audits/$auditId/evidence'),
+      headers: _headersJson(),
+      body: jsonEncode({'id': evidenceId}),
+    );
+    final decoded = await _decode(r);
+    final list = decoded['evidence'];
+    if (list is List) {
+      return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+    }
+    return const [];
   }
 
   // Auditoren ---------------------------------------------------------
   Future<List<Auditor>> listAuditors() async {
-    final r = await http.get(_u('/api/admin/auditors'), headers: _headersJson());
+    final r = await http.get(_u('/api/internal-auditors'), headers: _headersJson());
     final decoded = await _decode(r);
-    final list = decoded['list'];
+    final list = decoded['auditors'] ?? decoded['list'];
     if (list is List) {
       return list
           .whereType<Map>()
-          .map((e) => Auditor.fromJson(e.cast<String, dynamic>()))
+          .map((e) => Auditor.fromJson({
+                ...e.cast<String, dynamic>(),
+                if (e['status'] == null && e['active'] != null) 'status': e['active'] == true ? 'active' : 'inactive',
+              }))
           .toList();
     }
     return const [];
@@ -186,32 +219,29 @@ class AuditAdminApi {
 
   Future<Auditor> saveAuditor(Auditor auditor) async {
     final r = await http.post(
-      _u('/api/admin/auditors'),
+      _u('/api/internal-auditors'),
       headers: _headersJson(),
       body: jsonEncode({
         'id': auditor.id.isEmpty ? null : auditor.id,
-        'userId': auditor.userId?.isEmpty == true ? null : auditor.userId,
+        'userId': auditor.userId,
         'name': auditor.name,
         'email': auditor.email,
         'orgUnit': auditor.orgUnit,
         'role': auditor.role,
         'status': auditor.status,
-        'qualifications': {
-          'trainingType': auditor.trainingType,
-          'trainingDate': auditor.trainingDate?.toIso8601String(),
-          'internalAuditorTrainingDate': auditor.internalAuditorTrainingDate?.toIso8601String(),
-          'experienceYears': auditor.experienceYears,
-          'standardsKnowledge': auditor.standardsKnowledge,
-          'coAuditCount': auditor.coAuditCount,
-          'leadAuditCount': auditor.leadAuditCount,
-          'requalificationDueDate': auditor.requalificationDueDate?.toIso8601String(),
-          'override': auditor.qualificationOverride,
-          'evidence': auditor.evidenceAttachments.map((e) => e.toJson()).toList(),
-        },
-        'independenceRules': {
-          'restrictedProcessOwners': auditor.restrictedProcessOwners,
-          'restrictedOrgUnits': auditor.restrictedOrgUnits,
-        },
+        'active': auditor.status != 'inactive',
+        'trainingType': auditor.trainingType,
+        'restrictedProcessOwners': auditor.restrictedProcessOwners,
+        'restrictedOrgUnits': auditor.restrictedOrgUnits,
+        'internalAuditorTrainingDate': auditor.internalAuditorTrainingDate?.toIso8601String(),
+        'trainingDate': auditor.trainingDate?.toIso8601String(),
+        'experienceYears': auditor.experienceYears,
+        'standardsKnowledge': auditor.standardsKnowledge,
+        'requalificationDueDate': auditor.requalificationDueDate?.toIso8601String(),
+        'qualificationOverride': auditor.qualificationOverride,
+        'evidenceAttachments': auditor.evidenceAttachments.map((e) => e.toJson()).toList(),
+        'coAuditCount': auditor.coAuditCount,
+        'leadAuditCount': auditor.leadAuditCount,
       }),
     );
     final decoded = await _decode(r);
@@ -220,7 +250,7 @@ class AuditAdminApi {
   }
 
   Future<void> deleteAuditor(String id) async {
-    await _decode(await http.delete(_u('/api/admin/auditors', {'id': id}), headers: _headersJson()));
+    await _decode(await http.delete(_u('/api/internal-auditors/$id'), headers: _headersJson()));
   }
 
   Future<List<PortalUserSummary>> listDfsEmployees() async {
@@ -318,14 +348,10 @@ class AuditAdminApi {
 
   // Programme ---------------------------------------------------------
   Future<List<AuditProgram>> listPrograms({int? year}) async {
-    final r = await http.get(
-      _u('/api/admin/audit-programs', {
-        if (year != null) 'year': year.toString(),
-      }),
-      headers: _headersJson(),
-    );
+    final r = await http.get(_u('/api/internal-audit-programs', {if (year != null) 'year': year.toString()}),
+        headers: _headersJson(includeContentType: false));
     final decoded = await _decode(r);
-    final list = decoded['list'];
+    final list = decoded['programs'] ?? decoded['list'];
     if (list is List) {
       return list
           .whereType<Map>()
@@ -381,8 +407,20 @@ class AuditAdminApi {
   }
 
   Map<String, dynamic> _auditPayload(Audit audit) {
-    final data = audit.toJson();
-    if ((data['id'] as String?)?.isEmpty ?? true) data.remove('id');
-    return data;
+    final plannedDate = audit.plannedStart ?? audit.plannedEnd ?? audit.actualStart ?? audit.actualEnd;
+    return {
+      if (audit.id.isNotEmpty) 'id': audit.id,
+      'auditNumber': audit.auditNumber,
+      'year': audit.year,
+      if (audit.cluster != null) 'cluster': audit.cluster,
+      'title': audit.title,
+      if (audit.scopeText != null) 'scopeText': audit.scopeText,
+      if (audit.site != null) 'site': audit.site,
+      if (audit.auditeesOrgUnits.isNotEmpty) 'auditeesOrgUnits': audit.auditeesOrgUnits,
+      'status': audit.status,
+      if (plannedDate != null) 'date': plannedDate.toIso8601String(),
+      if (audit.leadAuditorId != null) 'leadAuditorId': audit.leadAuditorId,
+      if (audit.coAuditorId != null) 'coAuditorId': audit.coAuditorId,
+    };
   }
 }
