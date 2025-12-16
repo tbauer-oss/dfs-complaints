@@ -3,8 +3,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter/services.dart' show rootBundle;
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -227,6 +225,25 @@ class _MyAppState extends State<MyApp> {
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
   bool get _repLoggedIn => (api.repToken != null && api.repToken!.isNotEmpty);
 
+  Widget _buildAppBarTitle(AppLocalizations t) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          t.appTitle,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(width: 10),
+        Image.asset(
+          'assets/dfs_logo.png',
+          height: 28,
+          filterQuality: FilterQuality.high,
+          isAntiAlias: true,
+        ),
+      ],
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -402,7 +419,7 @@ class _MyAppState extends State<MyApp> {
                       if (_loggedIn) {
                         return Scaffold(
                           appBar: AppBar(
-                            title: Text(t.appTitle),
+                            title: _buildAppBarTitle(t),
                             actions: [
                               IconButton(
                                 tooltip: t.help_center_title,
@@ -465,7 +482,7 @@ class _MyAppState extends State<MyApp> {
                       final isDark = Theme.of(ctx).brightness == Brightness.dark;
                       return Scaffold(
                         appBar: AppBar(
-                          title: Text(t.appTitle),
+                          title: _buildAppBarTitle(t),
                           actions: [
                             IconButton(
                               tooltip: t.help_center_title,
@@ -1107,16 +1124,6 @@ class _LoginScreenState extends State<_LoginScreen> {
   bool _busy = false;
   String? _err;
 
-  // robustes Asset-Checking (SVG → PNG → Text)
-  Future<bool> _assetExists(String path) async {
-    try {
-      await rootBundle.load(path);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
     try {
@@ -1154,6 +1161,8 @@ class _LoginScreenState extends State<_LoginScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loginLogo = isDarkMode ? 'assets/DFS_Dunkel.png' : 'assets/DFS_Hell.png';
 
     return Card(
       elevation: 8,
@@ -1168,21 +1177,12 @@ class _LoginScreenState extends State<_LoginScreen> {
               Row(
                 children: [
                   SizedBox(
-                    height: 40,
-                    child: FutureBuilder<bool>(
-                      future: _assetExists('assets/dfs_logo.svg'),
-                      builder: (context, snap) {
-                        if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
-                          return SvgPicture.asset('assets/dfs_logo.svg', height: 40);
-                        }
-                        return Image.asset(
-                          'assets/dfs_logo.png',
-                          height: 40,
-                          filterQuality: FilterQuality.high,
-                          isAntiAlias: true,
-                          errorBuilder: (_, __, ___) => const Text('DFS'),
-                        );
-                      },
+                    height: 48,
+                    child: Image.asset(
+                      loginLogo,
+                      height: 48,
+                      filterQuality: FilterQuality.high,
+                      isAntiAlias: true,
                     ),
                   ),
                   const SizedBox(width: 14),
