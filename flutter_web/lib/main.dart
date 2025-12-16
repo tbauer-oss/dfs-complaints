@@ -226,16 +226,19 @@ class _MyAppState extends State<MyApp> {
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
   bool get _repLoggedIn => (api.repToken != null && api.repToken!.isNotEmpty);
 
-  Widget _buildAppBarTitle(AppLocalizations t) {
+  Widget _buildAppBarTitle(BuildContext context, AppLocalizations t) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final logoAsset = isDark ? 'assets/dfs_logo_dunkel.svg' : 'assets/dfs_logo_hell.svg';
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        SvgPicture.asset(logoAsset, height: 28),
+        const SizedBox(width: 10),
         Text(
           t.appTitle,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        const SizedBox(width: 10),
-        SvgPicture.asset('assets/dfs_logo.svg', height: 28),
       ],
     );
   }
@@ -415,7 +418,7 @@ class _MyAppState extends State<MyApp> {
                       if (_loggedIn) {
                         return Scaffold(
                           appBar: AppBar(
-                            title: _buildAppBarTitle(t),
+                            title: _buildAppBarTitle(ctx, t),
                             actions: [
                               IconButton(
                                 tooltip: t.help_center_title,
@@ -478,7 +481,7 @@ class _MyAppState extends State<MyApp> {
                       final isDark = Theme.of(ctx).brightness == Brightness.dark;
                       return Scaffold(
                         appBar: AppBar(
-                          title: _buildAppBarTitle(t),
+                          title: _buildAppBarTitle(ctx, t),
                           actions: [
                             IconButton(
                               tooltip: t.help_center_title,

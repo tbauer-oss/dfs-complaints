@@ -32,6 +32,8 @@ flutter:
   assets:
     - assets/dfs_logo.png
     - assets/dfs_logo.svg
+    - assets/dfs_logo_hell.svg
+    - assets/dfs_logo_dunkel.svg
     - assets/DFS_Hell.png
     - assets/DFS_Hell.svg
     - assets/DFS_Dunkel.png
