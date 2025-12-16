@@ -3672,16 +3672,15 @@ function isAuditObjectKey(key) {
 // every PATCH/PUT to write fresh keys like dfs:audit:auditor:<uuid>. The UI
 // sends full audit payloads, so each edit overwrote Redis with partially
 // normalized auditor data and produced phantom auditors. To keep audit updates
-// deterministic we still avoid persisting audits themselves. Auditor writes are
-// opt-in so we don't unintentionally create records in Upstash; reads stay
-// enabled by default so existing auditors remain visible for validation unless
-// explicitly disabled.
+// deterministic — and to fully retire the legacy audit persistence layer — we
+// now disable all legacy audit/auditor Redis access by default. Only an
+// explicit opt-in via environment variables will re-enable it.
 const AUDITOR_REDIS_WRITE_ENABLED =
-  String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'true').toLowerCase() !== 'false';
+  String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'false').toLowerCase() !== 'false';
 const AUDITOR_REDIS_READ_ENABLED =
-  String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
+  String(process.env.AUDITOR_REDIS_READ_ENABLED || 'false').toLowerCase() !== 'false';
 const AUDIT_REDIS_ENABLED =
-  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'true').toLowerCase() !== 'false';
+  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'false').toLowerCase() !== 'false';
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedisForRead() {
