@@ -175,6 +175,7 @@ class Auditor {
         v is int ? v : int.tryParse(v?.toString() ?? '');
     final qualifications = (json['qualifications'] as Map?)?.cast<String, dynamic>();
     final independence = (json['independenceRules'] as Map?)?.cast<String, dynamic>();
+    final status = json['status'] ?? (json['active'] == false ? 'inactive' : 'active');
     return Auditor(
       id: json['id']?.toString() ?? '',
       userId: json['userId']?.toString(),
@@ -182,7 +183,7 @@ class Auditor {
       email: json['email']?.toString() ?? '',
       orgUnit: json['orgUnit']?.toString(),
       role: json['role']?.toString(),
-      status: json['status']?.toString() ?? 'active',
+      status: status.toString(),
       trainingType: qualifications?['trainingType']?.toString() ?? 'internal',
       restrictedProcessOwners: parseList(independence?['restrictedProcessOwners'] ?? json['restrictedProcessOwners']),
       restrictedOrgUnits: parseList(independence?['restrictedOrgUnits'] ?? json['restrictedOrgUnits']),
@@ -511,16 +512,22 @@ class Audit {
         : const <AuditPlanEntry>[];
     final numOpenFindings = json['openFindings'] ?? json['open_findings'];
     final numOverdue = json['overdueActions'] ?? json['overdue_actions'];
+    final v2Date = parseDate(json['date'] ?? json['plannedDate']);
+    final plannedStart = parseDate(json['plannedStart']) ?? v2Date;
+    final plannedEnd = parseDate(json['plannedEnd']) ?? v2Date;
+    final derivedYear = v2Date?.year ?? DateTime.now().year;
     return Audit(
       id: json['id']?.toString() ?? '',
       auditNumber: json['auditNumber']?.toString() ?? '',
-      year: json['year'] is int ? json['year'] as int : int.tryParse('${json['year']}') ?? 0,
+      year: json['year'] is int
+          ? json['year'] as int
+          : int.tryParse('${json['year']}') ?? derivedYear,
       cluster: json['cluster']?.toString(),
       auditType: json['auditType']?.toString() ?? 'System',
       title: json['title']?.toString() ?? json['auditName']?.toString() ?? '',
       site: json['site']?.toString() ?? json['location']?.toString(),
-      plannedStart: parseDate(json['plannedStart']),
-      plannedEnd: parseDate(json['plannedEnd']),
+      plannedStart: plannedStart,
+      plannedEnd: plannedEnd,
       actualStart: parseDate(json['actualStart']),
       actualEnd: parseDate(json['actualEnd']),
       status: json['status']?.toString() ?? 'planned',
