@@ -1,95 +1,74 @@
 // api/_lib/http.js  (ESM, shared CORS helpers)
 
 // --- Erlaubte Frontend-Origins ---
-export const PROD_FE   = 'https://dfs-complaints-web.vercel.app';
-export const ADMIN_FE  = process.env.ADMIN_ORIGIN  || 'https://dfs-complaints-admin.vercel.app';
-export const PORTAL_FE = process.env.PORTAL_ORIGIN || 'https://dfs-complaints.vercel.app';
-export const LOCAL_FE  = 'http://localhost:8080';
-const PREVIEW_WEB    = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-const PREVIEW_ADMIN  = /^https:\/\/dfs-complaints-admin-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-const PREVIEW_PORTAL = /^https:\/\/dfs-complaints-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-
+export const PROD_FE = 'https://dfs-complaints-web.vercel.app';
 const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
 
-function extraOrigins() {
-  return (process.env.CORS_EXTRA_ORIGINS || '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+function resolveAllowedOrigin(req) {
+  const origin = req?.headers?.origin || '';
+  if (origin === PROD_FE || LOCAL_PATTERN.test(origin)) return origin;
+  return PROD_FE;
 }
 
-// --- Origin prüfen ---
-export function isAllowedOrigin(origin = '') {
-  if (!origin) return false;
-  if (
-    origin === PROD_FE ||
-    origin === ADMIN_FE ||
-    origin === PORTAL_FE ||
-    origin === LOCAL_FE ||
-    LOCAL_PATTERN.test(origin) ||
-    PREVIEW_WEB.test(origin) ||
-    PREVIEW_ADMIN.test(origin) ||
-    PREVIEW_PORTAL.test(origin) ||
-    extraOrigins().includes(origin)
-  ) return true;
+function mergedAllowedHeaders(custom = '') {
+  const base = ['Content-Type', 'Authorization'];
+  const extras = String(custom || '')
+    .split(',')
+    .map((h) => h.trim())
+    .filter(Boolean);
+  return [...base, ...extras]
+    .map((h) => h.toLowerCase())
+    .filter((h, idx, arr) => arr.indexOf(h) === idx)
+    .map((h) =>
+      h
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('-')
+    )
+    .join(', ');
+}
+
+function applyCors(res, allowOrigin, allowHeaders = '') {
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', mergedAllowedHeaders(allowHeaders));
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.__corsApplied = true;
+  res.__corsOrigin = allowOrigin;
+}
+
+// Shared CORS helper used by all routes
+export function withCors(req, res, allowHeaders = '') {
+  const allowOrigin = resolveAllowedOrigin(req);
+  applyCors(res, allowOrigin, allowHeaders);
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return true;
+  }
   return false;
 }
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
 export function setCors(req, res, allowHeaders = '') {
-  const origin = req?.headers?.origin || '';
-  const allowOrigin = isAllowedOrigin(origin) ? origin : PROD_FE;
-
-  const baselineHeaders = ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Admin-Secret', 'X-Gate', 'X-Rep-Secret'];
-  const extras = String(allowHeaders || '')
-    .split(',')
-    .map((h) => h.trim())
-    .filter(Boolean);
-
-  const mergedHeaders = [...baselineHeaders, ...extras]
-    .map((h) => h.toLowerCase())
-    .filter((h, idx, arr) => arr.indexOf(h) === idx)
-    .map((h) => h
-      .split('-')
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join('-'))
-    .join(', ');
-
-  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', mergedHeaders);
-  res.setHeader('Access-Control-Max-Age', '86400');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  res.__corsApplied = true;
-  res.__corsOrigin = allowOrigin;
-
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
+  const handled = withCors(req, res, allowHeaders);
+  if (handled) return;
 }
 
 // --- Preflight komfortabel beantworten ---
 export function handlePreflight(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return true; // bereits beantwortet
-  }
-  return false;
+  return withCors(req, res);
 }
 
 function ensureCorsHeaders(res) {
   if (res.getHeader('Access-Control-Allow-Origin')) return;
   const allowOrigin = res.__corsOrigin || PROD_FE;
-  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Admin-Secret, X-Gate, X-Rep-Secret');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  applyCors(res, allowOrigin);
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
