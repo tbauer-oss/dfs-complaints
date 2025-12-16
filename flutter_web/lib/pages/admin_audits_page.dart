@@ -1462,21 +1462,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       _planMissing = false;
     });
     try {
-      final audits = await widget.api.listAudits(year: widget.audit.year);
-      Audit? audit;
-      for (final a in audits) {
-        if (a.id == widget.audit.id) {
-          audit = a;
-          break;
-        }
-      }
-      if (audit == null) {
-        setState(() {
-          _error = 'Audit nicht gefunden.';
-          _loading = false;
-        });
-        return;
-      }
+      final audit = await widget.api.getAudit(widget.audit.id);
       final auditorsFuture = widget.api.listAuditors();
       final findingsFuture = widget.api.listFindings(widget.audit.id);
       final actionsFuture = widget.api.listActions(widget.audit.id);
