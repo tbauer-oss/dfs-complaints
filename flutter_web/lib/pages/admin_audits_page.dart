@@ -461,35 +461,52 @@ class _AuditProgramTabState extends State<_AuditProgramTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _programs.length,
-      itemBuilder: (_, i) {
-        final program = _programs[i];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ExpansionTile(
-            title: Text('${program.year} – ${program.title}'),
-            subtitle: Text('Status: ${program.status} · Audits: ${program.totalAudits}'),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: _ProgramTable(program: program),
-              )
-            ],
-          ),
-        );
-      },
+    return Scrollbar(
+      thumbVisibility: true,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _programs.length,
+        itemBuilder: (_, i) {
+          final program = _programs[i];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ExpansionTile(
+              title: Text('${program.year} – ${program.title}'),
+              subtitle: Text('Status: ${program.status} · Audits: ${program.totalAudits}'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: _ProgramTable(program: program),
+                )
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-class _ProgramTable extends StatelessWidget {
+class _ProgramTable extends StatefulWidget {
   final AuditProgram program;
   const _ProgramTable({required this.program});
 
   @override
+  State<_ProgramTable> createState() => _ProgramTableState();
+}
+
+class _ProgramTableState extends State<_ProgramTable> {
+  final ScrollController _horizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final program = widget.program;
     if (program.entries.isEmpty) {
       return const Text('Keine Audits für dieses Jahr vorhanden.');
     }
@@ -505,26 +522,36 @@ class _ProgramTable extends StatelessWidget {
       'Lead',
       'Co',
     ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: columns.map((c) => DataColumn(label: Text(c))).toList(),
-        rows: program.entries
-            .map(
-              (e) => DataRow(cells: [
-                    DataCell(Text(e.auditNumber)),
-                    DataCell(Text(_nonEmpty([e.cluster, e.title, e.scope]))),
-                    DataCell(Text(e.processes.isEmpty ? '-' : e.processes.join(', '))),
-                    DataCell(Text(e.references.isEmpty ? '-' : e.references.join(', '))),
-                    DataCell(Text(e.responsible.isEmpty ? '-' : e.responsible.join(', '))),
-                    DataCell(Text(e.participants.isEmpty ? '-' : e.participants.join(', '))),
-                    DataCell(Text(e.plannedPeriod ?? '-')),
-                    DataCell(Text(e.site ?? '-')),
-                    DataCell(Text(e.leadAuditor ?? '-')),
-                    DataCell(Text(e.coAuditor ?? '-')),
-                  ]),
-            )
-            .toList(),
+
+    final table = DataTable(
+      columns: columns.map((c) => DataColumn(label: Text(c))).toList(),
+      rows: program.entries
+          .map(
+            (e) => DataRow(cells: [
+                  DataCell(Text(e.auditNumber)),
+                  DataCell(Text(_nonEmpty([e.cluster, e.title, e.scope]))),
+                  DataCell(Text(e.processes.isEmpty ? '-' : e.processes.join(', '))),
+                  DataCell(Text(e.references.isEmpty ? '-' : e.references.join(', '))),
+                  DataCell(Text(e.responsible.isEmpty ? '-' : e.responsible.join(', '))),
+                  DataCell(Text(e.participants.isEmpty ? '-' : e.participants.join(', '))),
+                  DataCell(Text(e.plannedPeriod ?? '-')),
+                  DataCell(Text(e.site ?? '-')),
+                  DataCell(Text(e.leadAuditor ?? '-')),
+                  DataCell(Text(e.coAuditor ?? '-')),
+                ]),
+          )
+          .toList(),
+    );
+
+    return Scrollbar(
+      controller: _horizontal,
+      thumbVisibility: true,
+      trackVisibility: true,
+      notificationPredicate: (notification) => notification.metrics.axis == Axis.horizontal,
+      child: SingleChildScrollView(
+        controller: _horizontal,
+        scrollDirection: Axis.horizontal,
+        child: table,
       ),
     );
   }
