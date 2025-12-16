@@ -233,7 +233,11 @@ class _MyAppState extends State<MyApp> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SvgPicture.asset(logoAsset, height: 28),
+        SvgPicture.asset(
+          logoAsset,
+          height: 36,
+          fit: BoxFit.contain,
+        ),
         const SizedBox(width: 10),
         Text(
           t.appTitle,
@@ -924,15 +928,20 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
               Row(
                 children: [
                   Container(
-                    width: 68,
-                    height: 68,
-                    padding: const EdgeInsets.all(8),
+                    width: 80,
+                    height: 80,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: scheme.secondaryContainer.withOpacity(0.95),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
                     ),
-                    child: SvgPicture.asset('assets/DFS_Connect+.svg', fit: BoxFit.contain),
+                    child: SvgPicture.asset(
+                      'assets/DFS_Connect+.svg',
+                      height: 60,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1146,7 +1155,15 @@ class _LoginScreenState extends State<_LoginScreen> {
             children: [
               Row(
                 children: [
-                  SizedBox(height: 48, child: SvgPicture.asset(loginLogo, height: 48)),
+                  SizedBox(
+                    height: 60,
+                    child: SvgPicture.asset(
+                      loginLogo,
+                      height: 60,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.centerLeft,
+                    ),
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
