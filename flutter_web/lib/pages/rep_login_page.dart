@@ -1,4 +1,6 @@
 // lib/pages/rep_login_page.dart
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import 'rep_dashboard_page.dart';
@@ -289,83 +291,182 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final t = context.t;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: Text(t.rep_login_title)), // NEU
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: AutofillGroup(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ---- Login-Formular ----
-                  TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    decoration: InputDecoration(
-                      labelText: t.email,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  PasswordField(
-                    controller: _pw,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: InputDecoration(
-                      labelText: t.password,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                    onSubmitted: (_) => canLogin ? _submitPasswordLogin() : null,
-                  ),
-                  const SizedBox(height: 12),
-                  if (_err != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_err!, style: const TextStyle(color: Colors.red)),
-                    ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: canLogin ? _submitPasswordLogin : null,
-                      icon: _busy
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.login),
-                      label: Text(t.login), // NEU
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(t.or), // NEU
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ---- Registrierung via temporärem Passwort ----
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _openSecretDialog,
-                      icon: const Icon(Icons.key),
-                      label: Text(t.i_have_temp_password), // NEU
-                    ),
-                  ),
-                ],
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Hintergrund mit leichter Struktur, um den Popup-Look hervorzuheben
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.black.withOpacity(0.92), Colors.blueGrey.shade900.withOpacity(0.9)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
             ),
           ),
-        ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.white.withOpacity(0.04), Colors.white.withOpacity(0.02)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+          ),
+
+          // Popup
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface.withOpacity(0.92),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: scheme.outline.withOpacity(0.2)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black45,
+                            blurRadius: 24,
+                            offset: Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+                        child: AutofillGroup(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: scheme.primaryContainer.withOpacity(0.75),
+                                    ),
+                                    child: Icon(Icons.badge, color: scheme.onPrimaryContainer),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'DFS Connect+',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(fontWeight: FontWeight.w700),
+                                        ),
+                                        Text(
+                                          t.rep_login_title,
+                                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.2,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.close_fullscreen, color: scheme.outlineVariant),
+                                ],
+                              ),
+
+                              const SizedBox(height: 18),
+                              Text(
+                                t.quick_access_subtitle,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: scheme.onSurface.withOpacity(0.7)),
+                              ),
+
+                              const SizedBox(height: 22),
+                              TextField(
+                                controller: _email,
+                                keyboardType: TextInputType.emailAddress,
+                                autofillHints: const [AutofillHints.username, AutofillHints.email],
+                                decoration: InputDecoration(
+                                  labelText: t.email,
+                                  border: const OutlineInputBorder(),
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                              const SizedBox(height: 12),
+                              PasswordField(
+                                controller: _pw,
+                                autofillHints: const [AutofillHints.password],
+                                decoration: InputDecoration(
+                                  labelText: t.password,
+                                  border: const OutlineInputBorder(),
+                                ),
+                                onChanged: (_) => setState(() {}),
+                                onSubmitted: (_) => canLogin ? _submitPasswordLogin() : null,
+                              ),
+                              const SizedBox(height: 12),
+                              if (_err != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                                ),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: canLogin ? _submitPasswordLogin : null,
+                                  icon: _busy
+                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.login),
+                                  label: Text(t.login), // NEU
+                                ),
+                              ),
+
+                              const SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text(t.or), // NEU
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // ---- Registrierung via temporärem Passwort ----
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _busy ? null : _openSecretDialog,
+                                  icon: const Icon(Icons.key),
+                                  label: Text(t.i_have_temp_password), // NEU
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
     );
