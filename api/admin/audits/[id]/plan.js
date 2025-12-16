@@ -32,10 +32,20 @@ export default async function handler(req, res) {
   return await runWithAuditRedisContext({ route: '/api/admin/audits/[id]/plan', method: req.method, auditId }, async () => {
     try {
       const audit = await auditGet(auditId);
-      if (!audit) return handleError(res, new Error('not found'), { status: 404 });
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[admin/audits/plan] hit', {
+          auditId,
+          hasAudit: !!audit,
+          hasPlan: Array.isArray(audit?.planEntries) && audit.planEntries.length > 0,
+        });
+      }
+
+      if (!audit) return handleError(res, new Error('Audit not found'), { status: 404 });
 
       if (req.method === 'GET') {
-        const planEntries = await auditPlanGet(auditId);
+        const planEntries = Array.isArray(audit?.planEntries) && audit.planEntries.length > 0
+          ? audit.planEntries
+          : await auditPlanGet(auditId);
         return ok(res, { ok: true, planEntries });
       }
 
