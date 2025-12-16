@@ -573,6 +573,7 @@ class _MyAppState extends State<MyApp> {
                                 ),
                               );
                             },
+                          ),
                         ),
                         bottomNavigationBar: LegalFooter(
                           api: api,
