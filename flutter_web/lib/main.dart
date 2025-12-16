@@ -561,35 +561,6 @@ class _MyAppState extends State<MyApp> {
                                                       child: Column(
                                                         crossAxisAlignment: CrossAxisAlignment.center,
                                                         children: [
-                                                          Tooltip(
-                                                            message: 'Weitere Optionen',
-                                                            child: GestureDetector(
-                                                              behavior: HitTestBehavior.opaque,
-                                                              onLongPress: () =>
-                                                                  setState(() => _showInternal = !_showInternal),
-                                                              onSecondaryTap: () =>
-                                                                  setState(() => _showInternal = !_showInternal),
-                                                              child: Container(
-                                                                padding: const EdgeInsets.symmetric(
-                                                                    vertical: 6, horizontal: 14),
-                                                                decoration: BoxDecoration(
-                                                                  color: scheme.surface.withOpacity(0.7),
-                                                                  borderRadius: BorderRadius.circular(30),
-                                                                  border:
-                                                                      Border.all(color: scheme.primary.withOpacity(0.4)),
-                                                                ),
-                                                                child: Text(
-                                                                  'DFS',
-                                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                                        letterSpacing: 0.8,
-                                                                        fontWeight: FontWeight.w700,
-                                                                        color: scheme.primary,
-                                                                      ),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          const SizedBox(height: 12),
                                                           Text(
                                                             t.quick_access_title,
                                                             style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
