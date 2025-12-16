@@ -16,6 +16,7 @@ import {
   auditProgramSave,
   auditProgramUpdate,
   auditProgramDelete,
+  runWithAuditRedisContext,
 } from '../_lib/store.js';
 
 const TILE = AUDIT_TILE_ID;
@@ -33,42 +34,50 @@ export default async function handler(req, res) {
   const actor = await requirePortalAccess(req, res, { tile: TILE, write: wantsWrite, allowPrrc: true });
   if (!actor) return;
 
-  try {
-    if (req.method === 'GET') {
-      const list = await auditProgramAll();
-      const id = req.query?.id;
-      if (id) {
-        const found = list.find((p) => p.id === id);
-        if (!found) return bad(res, 'not found', 404);
-        return ok(res, { ok: true, program: found });
+  const redisLogContext = { route: '/api/admin/audit-programs', method: req.method };
+
+  return await runWithAuditRedisContext(redisLogContext, async () => {
+    try {
+      if (req.method === 'GET') {
+        const list = await auditProgramAll();
+        const id = req.query?.id;
+        if (id) {
+          redisLogContext.auditId = id;
+          const found = list.find((p) => p.id === id);
+          if (!found) return bad(res, 'not found', 404);
+          return ok(res, { ok: true, program: found });
+        }
+        return ok(res, { ok: true, list });
       }
-      return ok(res, { ok: true, list });
-    }
 
-    if (req.method === 'POST') {
-      const body = readJson(req) || {};
-      const saved = await auditProgramSave({ ...body, updatedBy: actor.email });
-      return ok(res, { ok: true, program: saved });
-    }
+      if (req.method === 'POST') {
+        const body = readJson(req) || {};
+        const saved = await auditProgramSave({ ...body, updatedBy: actor.email });
+        redisLogContext.auditId = saved?.id;
+        return ok(res, { ok: true, program: saved });
+      }
 
-    if (req.method === 'PATCH') {
-      const body = readJson(req) || {};
-      const id = body.id || req.query?.id;
-      if (!id) return bad(res, 'id missing', 400);
-      const updated = await auditProgramUpdate(id, { ...body, updatedBy: actor.email });
-      if (!updated) return bad(res, 'not found', 404);
-      return ok(res, { ok: true, program: updated });
-    }
+      if (req.method === 'PATCH') {
+        const body = readJson(req) || {};
+        const id = body.id || req.query?.id;
+        redisLogContext.auditId = id;
+        if (!id) return bad(res, 'id missing', 400);
+        const updated = await auditProgramUpdate(id, { ...body, updatedBy: actor.email });
+        if (!updated) return bad(res, 'not found', 404);
+        return ok(res, { ok: true, program: updated });
+      }
 
-    if (req.method === 'DELETE') {
-      const id = req.query?.id;
-      if (!id) return bad(res, 'id missing', 400);
-      await auditProgramDelete(id);
-      return ok(res, { ok: true });
-    }
+      if (req.method === 'DELETE') {
+        const id = req.query?.id;
+        redisLogContext.auditId = id;
+        if (!id) return bad(res, 'id missing', 400);
+        await auditProgramDelete(id);
+        return ok(res, { ok: true });
+      }
 
-    return methodNotAllowed(res);
-  } catch (err) {
-    return handleError(res, err);
-  }
+      return methodNotAllowed(res);
+    } catch (err) {
+      return handleError(res, err);
+    }
+  });
 }

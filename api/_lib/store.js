@@ -3,6 +3,7 @@
 // =======================================================
 import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
 import {
   hasDepartmentOverlap,
@@ -31,6 +32,19 @@ const REDIS_TOKEN =
   null;
 
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
+const AUDIT_REDIS_DEBUG_LOG_ENABLED =
+  String(process.env.AUDIT_REDIS_DEBUG_LOG || '').toLowerCase() === 'true';
+
+const auditRedisDebugContext = new AsyncLocalStorage();
+
+export function runWithAuditRedisContext(ctx = {}, fn = () => {}) {
+  if (typeof fn !== 'function') return fn;
+  return auditRedisDebugContext.run({ ...ctx }, fn);
+}
+
+function getAuditRedisDebugContext() {
+  return auditRedisDebugContext.getStore() || {};
+}
 
 let _redis = null;
 let _redisOverride = null;
@@ -409,6 +423,7 @@ async function rset(k, v, rclient = null) {
     const r = rclient || getRedis();
     if (!r) return null;
     const payload = typeof v === 'string' ? v : JSON.stringify(v);
+    logAuditRedisWrite({ operation: 'set', key: k, payload });
     return await withRedisTimeout(r.set(k, payload), `KV SET ${k}`);
   } catch (e) {
     console.error('KV SET', k, e);
@@ -419,11 +434,35 @@ async function rdel(k, rclient = null) {
   try {
     const r = rclient || getRedis();
     if (!r) return null;
+    logAuditRedisWrite({ operation: 'del', key: k });
     return await withRedisTimeout(r.del(k), `KV DEL ${k}`);
   } catch (e) {
     console.error('KV DEL', k, e);
     return null;
   }
+}
+
+function logAuditRedisWrite({ operation, key, payload }) {
+  if (!AUDIT_REDIS_DEBUG_LOG_ENABLED) return;
+  const keyStr = String(key || '');
+  if (!keyStr.includes('audit:')) return;
+
+  const ctx = getAuditRedisDebugContext();
+  const stack = (new Error().stack || '')
+    .split('\n')
+    .slice(2, 7)
+    .map((l) => l.trim());
+  const auditIdMatch = keyStr.match(/audit:(?:[^:]+:)?([^:]+)/);
+
+  console.warn('[audit-redis-write]', {
+    operation,
+    key: keyStr,
+    method: ctx.method,
+    route: ctx.route,
+    auditId: ctx.auditId || auditIdMatch?.[1],
+    stack,
+    payloadType: typeof payload,
+  });
 }
 
 // ===== Key-Scan kompatibel zu Upstash =====
@@ -3544,7 +3583,7 @@ const AUDITOR_REDIS_WRITE_ENABLED =
 const AUDITOR_REDIS_READ_ENABLED =
   String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
 const AUDIT_REDIS_ENABLED =
-  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'false').toLowerCase() !== 'true';
+  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'false').toLowerCase() === 'true';
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedis() {
@@ -3755,9 +3794,10 @@ function isAuditNumberValid(value) {
 async function nextAuditNumber(year) {
   const y = String(year || new Date().getFullYear()).slice(-2);
   let counter = null;
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) {
     try {
+      logAuditRedisWrite({ operation: 'incr', key: KEY_AUDIT_COUNTER_YEAR(y) });
       const redisCounter = await withRedisTimeout(r.incr(KEY_AUDIT_COUNTER_YEAR(y)), `AUDIT COUNTER ${y}`);
       if (typeof redisCounter === 'number') counter = redisCounter;
     } catch (err) {

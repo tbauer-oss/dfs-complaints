@@ -14,6 +14,7 @@ import {
   AUDIT_TILE_ID,
   auditAnnualReportAll,
   auditAnnualReportSave,
+  runWithAuditRedisContext,
 } from '../_lib/store.js';
 
 const TILE = AUDIT_TILE_ID;
@@ -31,27 +32,32 @@ export default async function handler(req, res) {
   const actor = await requirePortalAccess(req, res, { tile: TILE, write: wantsWrite, allowPrrc: true });
   if (!actor) return;
 
-  try {
-    if (req.method === 'GET') {
-      const filter = { year: req.query?.year };
-      const list = await auditAnnualReportAll(filter);
-      const id = req.query?.id;
-      if (id) {
-        const found = list.find((r) => r.id === id);
-        if (!found) return bad(res, 'not found', 404);
-        return ok(res, { ok: true, report: found });
+  return await runWithAuditRedisContext(
+    { route: '/api/admin/audit-annual-reports', method: req.method },
+    async () => {
+      try {
+        if (req.method === 'GET') {
+          const filter = { year: req.query?.year };
+          const list = await auditAnnualReportAll(filter);
+          const id = req.query?.id;
+          if (id) {
+            const found = list.find((r) => r.id === id);
+            if (!found) return bad(res, 'not found', 404);
+            return ok(res, { ok: true, report: found });
+          }
+          return ok(res, { ok: true, list });
+        }
+
+        if (req.method === 'POST') {
+          const body = readJson(req) || {};
+          const saved = await auditAnnualReportSave({ ...body, updatedBy: actor.email });
+          return ok(res, { ok: true, report: saved });
+        }
+
+        return methodNotAllowed(res);
+      } catch (err) {
+        return handleError(res, err);
       }
-      return ok(res, { ok: true, list });
-    }
-
-    if (req.method === 'POST') {
-      const body = readJson(req) || {};
-      const saved = await auditAnnualReportSave({ ...body, updatedBy: actor.email });
-      return ok(res, { ok: true, report: saved });
-    }
-
-    return methodNotAllowed(res);
-  } catch (err) {
-    return handleError(res, err);
-  }
+    },
+  );
 }
