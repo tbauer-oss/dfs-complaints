@@ -40,6 +40,14 @@ function handleError(res, err, { status = 500 } = {}) {
   return bad(res, err.message || 'server error', status);
 }
 
+function respondPlanNotFound(res) {
+  res.statusCode = 404;
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  res.end(JSON.stringify({ message: 'Plan not found' }));
+}
+
 function resolveAuditId(req) {
   if (!req.query) req.query = {};
   if (req.query.auditId) {
@@ -96,19 +104,18 @@ export default async function handler(req, res) {
         if (!audit) return handleError(res, new Error('Audit not found'), { status: 404 });
 
         if (req.method === 'GET') {
-          const planResult = await auditPlanGet(auditId);
-          console.info('[audit-plan] read', {
-            requestId: reqId,
-            auditId,
-            planKey: planResult.planKey,
-            found: planResult.found,
-          });
-          if (!planResult.found) {
-            res.statusCode = 404;
-            return res.end(JSON.stringify({ message: 'Plan not found' }));
-          }
-          return ok(res, { ok: true, planEntries: planResult.planEntries });
+        const planResult = await auditPlanGet(auditId);
+        console.info('[audit-plan] read', {
+          requestId: reqId,
+          auditId,
+          planKey: planResult.planKey,
+          found: planResult.found,
+        });
+        if (!planResult.found) {
+          return respondPlanNotFound(res);
         }
+        return ok(res, { ok: true, planEntries: planResult.planEntries });
+      }
 
         if (req.method === 'PUT' || req.method === 'PATCH') {
           const body = readJson(req) || {};
