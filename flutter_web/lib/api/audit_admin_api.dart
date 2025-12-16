@@ -143,7 +143,10 @@ class AuditAdminApi {
   }
 
   Future<List<AuditPlanEntry>> loadAuditPlan(String auditId) async {
-    final r = await http.get(_u('/api/admin/audits/$auditId/plan'), headers: _headersJson());
+    final r = await http.get(
+      _u('/api/admin/audits/plan', {'id': auditId}),
+      headers: _headersJson(),
+    );
     final decoded = await _decode(r);
     final list = decoded['planEntries'] ?? decoded['plan'];
     if (list is List) {
@@ -157,7 +160,7 @@ class AuditAdminApi {
 
   Future<List<AuditPlanEntry>> saveAuditPlan(String auditId, List<AuditPlanEntry> plan) async {
     final r = await http.put(
-      _u('/api/admin/audits/$auditId/plan'),
+      _u('/api/admin/audits/plan', {'id': auditId}),
       headers: _headersJson(),
       body: jsonEncode({
         'planEntries': plan.map((p) => p.toJson()).toList(),
