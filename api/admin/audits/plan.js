@@ -1,6 +1,6 @@
 // /api/admin/audits/plan.js – Auditplan lesen & speichern via ?id=...
 
-import { setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
+import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
 import { requirePortalAccess } from '../_guard.js';
 import {
   AUDIT_TILE_ID,
@@ -55,7 +55,7 @@ function resolveAuditId(req) {
 }
 
 export default async function handler(req, res) {
-  if (setCors(req, res)) return;
+  if (handlePreflight(req, res)) return;
 
   const wantsWrite = req.method === 'PUT' || req.method === 'PATCH';
   const actor = await requirePortalAccess(req, res, {
