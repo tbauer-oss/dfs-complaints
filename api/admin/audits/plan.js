@@ -19,10 +19,20 @@ function handleError(res, err, { status = 500 } = {}) {
 
 function resolveAuditId(req) {
   if (!req.query) req.query = {};
+  if (req.query.auditId) {
+    req.query.id = req.query.auditId;
+    return req.query.auditId;
+  }
   if (req.query.id) return req.query.id;
 
   if (req.url) {
     try {
+      const fromPathMatch = req.url.match(/\/audits\/([^/]+)\/plan/i);
+      if (fromPathMatch?.[1]) {
+        req.query.id = fromPathMatch[1];
+        return fromPathMatch[1];
+      }
+
       const parsedUrl = new URL(req.url, 'http://localhost');
       const fromSearch = parsedUrl.searchParams.get('id');
       if (fromSearch) {
