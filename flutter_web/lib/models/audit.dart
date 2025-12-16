@@ -207,6 +207,57 @@ class Auditor {
   }
 }
 
+class AuditProgramEntry {
+  final String auditId;
+  final String auditNumber;
+  final String title;
+  final String? cluster;
+  final String? scope;
+  final List<String> processes;
+  final List<String> references;
+  final List<String> responsible;
+  final List<String> participants;
+  final String? site;
+  final String? plannedPeriod;
+  final String? leadAuditor;
+  final String? coAuditor;
+  final String status;
+
+  const AuditProgramEntry({
+    required this.auditId,
+    required this.auditNumber,
+    required this.title,
+    this.cluster,
+    this.scope,
+    this.processes = const [],
+    this.references = const [],
+    this.responsible = const [],
+    this.participants = const [],
+    this.site,
+    this.plannedPeriod,
+    this.leadAuditor,
+    this.coAuditor,
+    this.status = 'planned',
+  });
+
+  factory AuditProgramEntry.fromJson(Map<String, dynamic> json) => AuditProgramEntry(
+        auditId: json['auditId']?.toString() ?? '',
+        auditNumber: json['auditNumber']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        cluster: json['cluster']?.toString(),
+        scope: json['scope']?.toString(),
+        processes: _parseStringList(json['processes']),
+        references: _parseStringList(json['references']),
+        responsible: _parseStringList(json['responsible']),
+        participants: _parseStringList(json['participants']),
+        site: json['site']?.toString(),
+        plannedPeriod: json['plannedPeriod']?.toString(),
+        leadAuditor: json['leadAuditor']?.toString(),
+        coAuditor: json['coAuditor']?.toString(),
+        status: json['status']?.toString() ?? 'planned',
+      );
+}
+
 class AuditProgram {
   final String id;
   final int year;
@@ -215,6 +266,8 @@ class AuditProgram {
   final DateTime? approvedAt;
   final String? approvedBy;
   final List<String> clusters;
+  final List<AuditProgramEntry> entries;
+  final int totalAudits;
 
   const AuditProgram({
     required this.id,
@@ -224,6 +277,8 @@ class AuditProgram {
     this.approvedAt,
     this.approvedBy,
     this.clusters = const [],
+    this.entries = const [],
+    this.totalAudits = 0,
   });
 
   factory AuditProgram.fromJson(Map<String, dynamic> json) {
@@ -240,9 +295,20 @@ class AuditProgram {
       approvedAt: parseDate(json['approvedAt']),
       approvedBy: json['approvedBy']?.toString(),
       clusters: parseList(json['clusters']),
+      entries: (json['entries'] as List?)
+              ?.whereType<Map>()
+              .map((e) => AuditProgramEntry.fromJson(e.cast<String, dynamic>()))
+              .toList() ??
+          const <AuditProgramEntry>[],
+      totalAudits: json['totalAudits'] is int
+          ? json['totalAudits'] as int
+          : int.tryParse('${json['totalAudits'] ?? 0}') ??
+              ((json['entries'] as List?)?.length ?? 0),
     );
   }
 }
+
+List<String> _parseStringList(dynamic v) => v is List ? v.whereType<String>().toList() : const <String>[];
 
 class AuditFinding {
   final String id;

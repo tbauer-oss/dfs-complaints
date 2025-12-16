@@ -57,6 +57,18 @@ async function nextAuditNumber({ now, method }) {
   return `IA-${year}-${twoDigit(sequence)}`;
 }
 
+function displayPeriod(start, end) {
+  const fmt = (value) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return `${twoDigit(d.getDate())}.${twoDigit(d.getMonth() + 1)}.${d.getFullYear()}`;
+  };
+  const startText = start ? fmt(start) : null;
+  const endText = end ? fmt(end) : null;
+  if (startText && endText) return `${startText} – ${endText}`;
+  return startText || endText || null;
+}
+
 function normalizeAuditMeta(payload, { actor, auditNumber }) {
   const now = Date.now();
   const id = payload.id || randomUUID();
@@ -210,6 +222,9 @@ export async function listAuditPrograms() {
   const audits = await listAudits();
   const archived = await archivedYears();
   const nowYear = new Date().getFullYear();
+  const auditors = await listAuditors();
+  const auditorById = new Map(auditors.map((a) => [a.id, a]));
+
   const programs = new Map();
   for (const audit of audits) {
     const year = audit.year || nowYear;
@@ -219,12 +234,37 @@ export async function listAuditPrograms() {
       title: `Auditprogramm ${year}`,
       status: archived.has(String(year)) || year < nowYear ? 'archived' : 'active',
       clusters: new Set(),
+      entries: [],
     };
+
     if (audit.cluster) existing.clusters.add(audit.cluster);
+
+    const lead = audit.leadAuditorId ? auditorById.get(audit.leadAuditorId) : null;
+    const co = audit.coAuditorId ? auditorById.get(audit.coAuditorId) : null;
+
+    existing.entries.push({
+      auditId: audit.id,
+      auditNumber: audit.auditNumber,
+      cluster: audit.cluster || null,
+      title: audit.title || '',
+      scope: audit.scopeText || null,
+      processes: Array.isArray(audit.auditeesOrgUnits) ? audit.auditeesOrgUnits : [],
+      references: Array.isArray(audit.references) ? audit.references : [],
+      responsible: Array.isArray(audit.processOwners) ? audit.processOwners : [],
+      participants: Array.isArray(audit.participants) ? audit.participants : [],
+      site: audit.site || null,
+      status: audit.status || 'planned',
+      plannedPeriod: displayPeriod(audit.plannedStart, audit.plannedEnd),
+      leadAuditor: lead?.name || null,
+      coAuditor: co?.name || null,
+    });
+
     programs.set(year, existing);
   }
+
   return Array.from(programs.values()).map((p) => ({
     ...p,
+    totalAudits: p.entries.length,
     clusters: Array.from(p.clusters.size ? p.clusters : ['Q1', 'Q2', 'Q3', 'Q4']),
   }));
 }
