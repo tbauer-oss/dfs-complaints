@@ -275,6 +275,9 @@ export function normalizeProvidedUploads(input) {
   for (const raw of list) {
     if (!raw) continue;
     const entry = {
+      id: [raw.id, raw.key, raw.blobPath, raw.url, raw.name]
+        .map((v) => (v || '').toString())
+        .find((v) => v.trim().length > 0),
       name: (raw.name || '').toString(),
       mime: (raw.mime || 'application/octet-stream').toString(),
       size: normalizeSize(raw.size),
