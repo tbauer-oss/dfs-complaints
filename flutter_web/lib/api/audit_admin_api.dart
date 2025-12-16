@@ -144,7 +144,7 @@ class AuditAdminApi {
 
   Future<List<AuditPlanEntry>> loadAuditPlan(String auditId) async {
     final r = await http.get(
-      _u('/api/admin/audits/plan', {'id': auditId}),
+      _u('/api/admin/audits/$auditId/plan'),
       headers: _headersJson(),
     );
     final decoded = await _decode(r);
