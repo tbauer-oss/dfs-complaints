@@ -1,4 +1,6 @@
 // lib/main.dart
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -245,78 +247,16 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _openAdmin(BuildContext context) async {
-    final t = AppLocalizations.of(context)!;
-    final emailCtrl = TextEditingController(text: api.portalProfile?['email']?.toString() ?? '');
-    final pwCtrl = TextEditingController();
-    var remember = _rememberPortal;
-    final wantOpen = await showDialog<bool>(
-      context: context,
-          builder: (_) => StatefulBuilder(
-            builder: (ctx, setS) => AlertDialog(
-              title: Text(t.admin_area),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: emailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'E-Mail',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) => FocusScope.of(ctx).nextFocus(),
-                  ),
-                  const SizedBox(height: 12),
-                  PasswordField(
-                    controller: pwCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Passwort',
-                      border: OutlineInputBorder(),
-                    ),
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => Navigator.pop(ctx, true),
-                  ),
-                  CheckboxListTile(
-                    value: remember,
-                    onChanged: (v) => setS(() => remember = v ?? false),
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(t.stay_signed_in),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t.open)),
-          ],
-        ),
-      ),
+    final res = await showAdminLoginDialog(
+      context,
+      api: api,
+      rememberDefault: _rememberPortal,
+      initialEmail: api.portalProfile?['email']?.toString() ?? '',
     );
 
-    if (wantOpen != true) return;
-    _rememberPortal = remember;
+    if (!mounted || res == null) return;
+    setState(() => _rememberPortal = res.remember);
 
-    final email = emailCtrl.text.trim();
-    final pw = pwCtrl.text;
-    if (email.isEmpty || pw.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.required_fields)),
-      );
-      return;
-    }
-
-    final res = await api.portalLogin(email: email, password: pw, persist: _rememberPortal);
-    if (!res.ok) {
-      final msg = res.message ?? t.errorGeneric('Portal Login');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
-      return;
-    }
-
-    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AdminPage(
@@ -832,6 +772,269 @@ class _MyAppState extends State<MyApp> {
     );
   }
   } // <<< _MyAppState SAUBER geschlossen
+
+class _AdminLoginResult {
+  final bool remember;
+  const _AdminLoginResult({required this.remember});
+}
+
+Future<_AdminLoginResult?> showAdminLoginDialog(
+  BuildContext context, {
+  required ApiClient api,
+  required bool rememberDefault,
+  required String initialEmail,
+}) {
+  return showGeneralDialog<_AdminLoginResult>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'admin-login',
+    barrierColor: Colors.black.withOpacity(0.55),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (ctx, anim, __) {
+      return SafeArea(
+        child: Center(
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.97, end: 1).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      child: _AdminLoginDialog(
+                        api: api,
+                        rememberDefault: rememberDefault,
+                        initialEmail: initialEmail,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _AdminLoginDialog extends StatefulWidget {
+  final ApiClient api;
+  final bool rememberDefault;
+  final String initialEmail;
+
+  const _AdminLoginDialog({
+    required this.api,
+    required this.rememberDefault,
+    required this.initialEmail,
+  });
+
+  @override
+  State<_AdminLoginDialog> createState() => _AdminLoginDialogState();
+}
+
+class _AdminLoginDialogState extends State<_AdminLoginDialog> {
+  final _email = TextEditingController();
+  final _pw = TextEditingController();
+  bool _remember = true;
+  bool _busy = false;
+  String? _err;
+
+  @override
+  void initState() {
+    super.initState();
+    _email.text = widget.initialEmail;
+    _remember = widget.rememberDefault;
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
+
+  String? _mapPortalEmailError(String? backendMessage, AppLocalizations t) {
+    if (backendMessage == null || backendMessage.isEmpty) return null;
+    final lower = backendMessage.toLowerCase();
+    if (lower.contains('internen dfs-account') || lower.contains('internal dfs account')) {
+      return t.dfs_portal_email_forbidden;
+    }
+    return null;
+  }
+
+  Future<void> _submitPortalLogin() async {
+    final t = AppLocalizations.of(context)!;
+    setState(() => _err = null);
+
+    final email = _email.text.trim();
+    final pw = _pw.text;
+
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _err = t.email_invalid);
+      return;
+    }
+    if (pw.isEmpty) {
+      setState(() => _err = t.password_required);
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final res = await widget.api.portalLogin(
+        email: email,
+        password: pw,
+        persist: _remember,
+      );
+
+      if (!res.ok) {
+        final portalMsg = _mapPortalEmailError(res.message, t);
+        final err = portalMsg ??
+            (res.statusCode == 401
+                ? t.login_failed_check_credentials
+                : (res.message?.isNotEmpty == true ? res.message! : t.login_failed));
+        setState(() => _err = err);
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(_AdminLoginResult(remember: _remember));
+    } catch (e) {
+      setState(() => _err = t.login_failed_with_error('$e'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final t = AppLocalizations.of(context)!;
+    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outline.withOpacity(0.22)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black54, blurRadius: 28, offset: Offset(0, 16)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+        child: AutofillGroup(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: scheme.primaryContainer.withOpacity(0.75),
+                    ),
+                    child: Icon(Icons.verified_user, color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.admin_area,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          t.login,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    color: scheme.outlineVariant,
+                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                t.quick_access_subtitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: scheme.onSurface.withOpacity(0.7)),
+              ),
+              const SizedBox(height: 22),
+              TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.username, AutofillHints.email],
+                decoration: InputDecoration(
+                  labelText: t.email,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+              ),
+              const SizedBox(height: 12),
+              PasswordField(
+                controller: _pw,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  labelText: t.password,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => canLogin ? _submitPortalLogin() : null,
+              ),
+              CheckboxListTile(
+                value: _remember,
+                onChanged: _busy ? null : (v) => setState(() => _remember = v ?? false),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(t.stay_signed_in),
+              ),
+              if (_err != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: canLogin ? _submitPortalLogin : null,
+                  icon: _busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.login),
+                  label: Text(t.login),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _InternalFooterButton extends StatelessWidget {
   final bool expanded;
