@@ -937,13 +937,15 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
               Row(
                 children: [
                   Container(
-                    width: 42,
-                    height: 42,
+                    width: 46,
+                    height: 46,
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: scheme.primaryContainer.withOpacity(0.75),
+                      color: scheme.secondaryContainer.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
                     ),
-                    child: Icon(Icons.verified_user, color: scheme.onPrimaryContainer),
+                    child: Image.asset('assets/DFS_Connect+.png', fit: BoxFit.contain),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
