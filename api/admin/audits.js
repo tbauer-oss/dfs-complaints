@@ -3,7 +3,14 @@ export const config = { runtime: 'nodejs' };
 
 import crypto from 'node:crypto';
 
-import { setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import {
+  handlePreflight,
+  setCors,
+  ok,
+  bad,
+  methodNotAllowed,
+  readJson,
+} from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
   AUDIT_TILE_ID,
@@ -31,7 +38,7 @@ function handleError(res, err, { requestId } = {}) {
 }
 
 export default async function handler(req, res) {
-  if (setCors(req, res)) return;
+  if (handlePreflight(req, res)) return;
 
   const requestId = req.headers?.['x-request-id'] || req.headers?.['x-vercel-id'] || crypto.randomUUID();
 
