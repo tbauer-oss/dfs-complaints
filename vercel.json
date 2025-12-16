@@ -5,7 +5,7 @@
     {
       "src": "/api/admin/audits/(?<id>[^/]+)/plan$",
       "dest": "/api/admin/audits/plan.js?id=$id",
-      "methods": ["GET", "PUT"]
+      "methods": ["GET", "PUT", "PATCH"]
     }
   ]
 }

@@ -37,55 +37,34 @@ export function isAllowedOrigin(origin = '') {
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
 export function setCors(req, res, allowHeaders = '') {
-  const origin = req.headers?.origin || '';
-  const allow  = isAllowedOrigin(origin) ? origin : PROD_FE;
+  const origin = req?.headers?.origin || '';
+  const allowOrigin = isAllowedOrigin(origin) ? origin : PROD_FE;
 
-  // Kern
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-
-  // Vom Browser angefragte Header dynamisch spiegeln; Baseline immer erlauben
-  const reqAllowed = req.headers?.['access-control-request-headers'];
-  const baseline   = 'Content-Type, Authorization, X-Admin-Secret, X-Gate';
-
-  const fromExtras = String(allowHeaders || '')
+  const baselineHeaders = ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Admin-Secret', 'X-Gate', 'X-Rep-Secret'];
+  const extras = String(allowHeaders || '')
     .split(',')
     .map((h) => h.trim())
     .filter(Boolean);
 
-  const requested = reqAllowed && String(reqAllowed).trim().length > 0
-    ? String(reqAllowed).split(',')
-    : [];
-
-  const toHeaderCase = (h) => h
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('-');
-
-  const merged = [
-    ...baseline.split(','),
-    ...fromExtras,
-    ...requested,
-  ]
-    .map((h) => h.trim())
-    .filter(Boolean)
+  const mergedHeaders = [...baselineHeaders, ...extras]
     .map((h) => h.toLowerCase())
     .filter((h, idx, arr) => arr.indexOf(h) === idx)
-    .map(toHeaderCase);
+    .map((h) => h
+      .split('-')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join('-'))
+    .join(', ');
 
-  const allowHdrs = merged.join(', ');
-  res.setHeader('Access-Control-Allow-Headers', allowHdrs);
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', mergedHeaders);
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  // Optional: welche Response-Header der Client lesen darf
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Type');
+  res.__corsApplied = true;
+  res.__corsOrigin = allowOrigin;
 
-  // Preflight-Caching
-  res.setHeader('Access-Control-Max-Age', '600');
-
-  // Praktisch für viele Clients
-  // (Setzen wir hier, damit auch Fehlerantworten JSON-Mime haben)
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
@@ -102,9 +81,24 @@ export function handlePreflight(req, res) {
   return false;
 }
 
+function ensureCorsHeaders(res) {
+  if (res.getHeader('Access-Control-Allow-Origin')) return;
+  const allowOrigin = res.__corsOrigin || PROD_FE;
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Admin-Secret, X-Gate, X-Rep-Secret');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+}
+
 // --- 200 OK (JSON) ---
 export function ok(res, data) {
   // CORS sollte bereits gesetzt sein; Content-Type zur Sicherheit nochmal
+  ensureCorsHeaders(res);
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
@@ -114,6 +108,7 @@ export function ok(res, data) {
 
 // --- Fehlerantwort ---
 export function bad(res, msg = 'bad request', code = 400, extra = undefined) {
+  ensureCorsHeaders(res);
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
@@ -129,6 +124,7 @@ export function methodNotAllowed(res) {
 
 // --- 204 No Content ---
 export function noContent(res) {
+  ensureCorsHeaders(res);
   res.statusCode = 204;
   res.end();
 }
