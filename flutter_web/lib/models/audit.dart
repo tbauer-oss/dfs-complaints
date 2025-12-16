@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 class AuditorEvidence {
+  final String? id;
   final String name;
   final String? url;
   final String? downloadUrl;
@@ -10,6 +11,7 @@ class AuditorEvidence {
   final String? preview;
 
   const AuditorEvidence({
+    this.id,
     required this.name,
     this.url,
     this.downloadUrl,
@@ -22,6 +24,7 @@ class AuditorEvidence {
   bool get hasLink => (downloadUrl ?? url ?? '').isNotEmpty;
 
   factory AuditorEvidence.fromJson(Map<String, dynamic> json) => AuditorEvidence(
+        id: json['id']?.toString(),
         name: (json['name'] ?? '').toString(),
         url: json['url']?.toString(),
         downloadUrl: json['downloadUrl']?.toString(),
@@ -39,6 +42,7 @@ class AuditorEvidence {
       );
 
   Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
         'name': name,
         if (url != null) 'url': url,
         if (downloadUrl != null) 'downloadUrl': downloadUrl,
@@ -175,6 +179,7 @@ class Auditor {
         v is int ? v : int.tryParse(v?.toString() ?? '');
     final qualifications = (json['qualifications'] as Map?)?.cast<String, dynamic>();
     final independence = (json['independenceRules'] as Map?)?.cast<String, dynamic>();
+    final status = json['status'] ?? (json['active'] == false ? 'inactive' : 'active');
     return Auditor(
       id: json['id']?.toString() ?? '',
       userId: json['userId']?.toString(),
@@ -182,7 +187,7 @@ class Auditor {
       email: json['email']?.toString() ?? '',
       orgUnit: json['orgUnit']?.toString(),
       role: json['role']?.toString(),
-      status: json['status']?.toString() ?? 'active',
+      status: status.toString(),
       trainingType: qualifications?['trainingType']?.toString() ?? 'internal',
       restrictedProcessOwners: parseList(independence?['restrictedProcessOwners'] ?? json['restrictedProcessOwners']),
       restrictedOrgUnits: parseList(independence?['restrictedOrgUnits'] ?? json['restrictedOrgUnits']),
@@ -206,6 +211,57 @@ class Auditor {
   }
 }
 
+class AuditProgramEntry {
+  final String auditId;
+  final String auditNumber;
+  final String title;
+  final String? cluster;
+  final String? scope;
+  final List<String> processes;
+  final List<String> references;
+  final List<String> responsible;
+  final List<String> participants;
+  final String? site;
+  final String? plannedPeriod;
+  final String? leadAuditor;
+  final String? coAuditor;
+  final String status;
+
+  const AuditProgramEntry({
+    required this.auditId,
+    required this.auditNumber,
+    required this.title,
+    this.cluster,
+    this.scope,
+    this.processes = const [],
+    this.references = const [],
+    this.responsible = const [],
+    this.participants = const [],
+    this.site,
+    this.plannedPeriod,
+    this.leadAuditor,
+    this.coAuditor,
+    this.status = 'planned',
+  });
+
+  factory AuditProgramEntry.fromJson(Map<String, dynamic> json) => AuditProgramEntry(
+        auditId: json['auditId']?.toString() ?? '',
+        auditNumber: json['auditNumber']?.toString() ?? '',
+        title: json['title']?.toString() ?? '',
+        cluster: json['cluster']?.toString(),
+        scope: json['scope']?.toString(),
+        processes: _parseStringList(json['processes']),
+        references: _parseStringList(json['references']),
+        responsible: _parseStringList(json['responsible']),
+        participants: _parseStringList(json['participants']),
+        site: json['site']?.toString(),
+        plannedPeriod: json['plannedPeriod']?.toString(),
+        leadAuditor: json['leadAuditor']?.toString(),
+        coAuditor: json['coAuditor']?.toString(),
+        status: json['status']?.toString() ?? 'planned',
+      );
+}
+
 class AuditProgram {
   final String id;
   final int year;
@@ -214,6 +270,8 @@ class AuditProgram {
   final DateTime? approvedAt;
   final String? approvedBy;
   final List<String> clusters;
+  final List<AuditProgramEntry> entries;
+  final int totalAudits;
 
   const AuditProgram({
     required this.id,
@@ -223,6 +281,8 @@ class AuditProgram {
     this.approvedAt,
     this.approvedBy,
     this.clusters = const [],
+    this.entries = const [],
+    this.totalAudits = 0,
   });
 
   factory AuditProgram.fromJson(Map<String, dynamic> json) {
@@ -239,9 +299,20 @@ class AuditProgram {
       approvedAt: parseDate(json['approvedAt']),
       approvedBy: json['approvedBy']?.toString(),
       clusters: parseList(json['clusters']),
+      entries: (json['entries'] as List?)
+              ?.whereType<Map>()
+              .map((e) => AuditProgramEntry.fromJson(e.cast<String, dynamic>()))
+              .toList() ??
+          const <AuditProgramEntry>[],
+      totalAudits: json['totalAudits'] is int
+          ? json['totalAudits'] as int
+          : int.tryParse('${json['totalAudits'] ?? 0}') ??
+              ((json['entries'] as List?)?.length ?? 0),
     );
   }
 }
+
+List<String> _parseStringList(dynamic v) => v is List ? v.whereType<String>().toList() : const <String>[];
 
 class AuditFinding {
   final String id;
@@ -511,16 +582,22 @@ class Audit {
         : const <AuditPlanEntry>[];
     final numOpenFindings = json['openFindings'] ?? json['open_findings'];
     final numOverdue = json['overdueActions'] ?? json['overdue_actions'];
+    final v2Date = parseDate(json['date'] ?? json['plannedDate']);
+    final plannedStart = parseDate(json['plannedStart']) ?? v2Date;
+    final plannedEnd = parseDate(json['plannedEnd']) ?? v2Date;
+    final derivedYear = v2Date?.year ?? DateTime.now().year;
     return Audit(
       id: json['id']?.toString() ?? '',
       auditNumber: json['auditNumber']?.toString() ?? '',
-      year: json['year'] is int ? json['year'] as int : int.tryParse('${json['year']}') ?? 0,
+      year: json['year'] is int
+          ? json['year'] as int
+          : int.tryParse('${json['year']}') ?? derivedYear,
       cluster: json['cluster']?.toString(),
       auditType: json['auditType']?.toString() ?? 'System',
       title: json['title']?.toString() ?? json['auditName']?.toString() ?? '',
       site: json['site']?.toString() ?? json['location']?.toString(),
-      plannedStart: parseDate(json['plannedStart']),
-      plannedEnd: parseDate(json['plannedEnd']),
+      plannedStart: plannedStart,
+      plannedEnd: plannedEnd,
       actualStart: parseDate(json['actualStart']),
       actualEnd: parseDate(json['actualEnd']),
       status: json['status']?.toString() ?? 'planned',

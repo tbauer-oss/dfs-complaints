@@ -3672,16 +3672,13 @@ function isAuditObjectKey(key) {
 // every PATCH/PUT to write fresh keys like dfs:audit:auditor:<uuid>. The UI
 // sends full audit payloads, so each edit overwrote Redis with partially
 // normalized auditor data and produced phantom auditors. To keep audit updates
-// deterministic we still avoid persisting audits themselves. Auditor writes are
-// opt-in so we don't unintentionally create records in Upstash; reads stay
-// enabled by default so existing auditors remain visible for validation unless
-// explicitly disabled.
-const AUDITOR_REDIS_WRITE_ENABLED =
-  String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'true').toLowerCase() !== 'false';
-const AUDITOR_REDIS_READ_ENABLED =
-  String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
-const AUDIT_REDIS_ENABLED =
-  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'true').toLowerCase() !== 'false';
+// deterministic — and to fully retire the legacy audit persistence layer — we
+// now disable all legacy audit/auditor Redis access by default. Only an
+// explicit opt-in via environment variables will re-enable it.
+// Legacy audit/auditor Redis access is hard-disabled to avoid unintended key creation.
+const AUDITOR_REDIS_WRITE_ENABLED = false;
+const AUDITOR_REDIS_READ_ENABLED = false;
+const AUDIT_REDIS_ENABLED = false;
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedisForRead() {
@@ -4491,13 +4488,7 @@ export async function auditorSave(record = {}, { persist = false } = {}) {
   const normalized = normalizeAuditor(record);
   mem.auditors.set(normalized.id, normalized);
   addAuditorToIndex(normalized.id);
-  if (persist) {
-    const r = getAuditorRedisForWrite();
-    if (r) {
-      await rset(KEY_AUDITOR(normalized.id), normalized, r);
-      await persistAuditorIndex(r);
-    }
-  }
+  if (persist) throw new Error('legacy audit persistence disabled');
   return normalized;
 }
 
@@ -4508,13 +4499,7 @@ export async function auditorUpdate(id, patch = {}, { persist = false } = {}) {
   const merged = normalizeAuditor({ ...current, ...patch, id });
   mem.auditors.set(id, merged);
   addAuditorToIndex(id);
-  if (persist) {
-    const r = getAuditorRedisForWrite();
-    if (r) {
-      await rset(KEY_AUDITOR(id), merged, r);
-      await persistAuditorIndex(r);
-    }
-  }
+  if (persist) throw new Error('legacy audit persistence disabled');
   return merged;
 }
 
@@ -4529,13 +4514,7 @@ export async function auditorDelete(id, { persist = false } = {}) {
   }
   const deleted = mem.auditors.delete(id);
   removeAuditorFromIndex(id);
-  if (persist) {
-    const r = getAuditorRedisForWrite();
-    if (r) {
-      await rdel(KEY_AUDITOR(id), r);
-      await persistAuditorIndex(r);
-    }
-  }
+  if (persist) throw new Error('legacy audit persistence disabled');
   return deleted;
 }
 
