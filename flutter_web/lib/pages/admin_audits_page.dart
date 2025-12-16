@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/gestures.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -497,9 +498,11 @@ class _ProgramTable extends StatefulWidget {
 
 class _ProgramTableState extends State<_ProgramTable> {
   final ScrollController _horizontal = ScrollController();
+  final ScrollController _vertical = ScrollController();
 
   @override
   void dispose() {
+    _vertical.dispose();
     _horizontal.dispose();
     super.dispose();
   }
@@ -543,15 +546,34 @@ class _ProgramTableState extends State<_ProgramTable> {
           .toList(),
     );
 
-    return Scrollbar(
-      controller: _horizontal,
-      thumbVisibility: true,
-      trackVisibility: true,
-      notificationPredicate: (notification) => notification.metrics.axis == Axis.horizontal,
-      child: SingleChildScrollView(
-        controller: _horizontal,
-        scrollDirection: Axis.horizontal,
-        child: table,
+    return ScrollConfiguration(
+      behavior: const ScrollBehavior().copyWith(
+        dragDevices: {
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.touch,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: Scrollbar(
+        controller: _vertical,
+        thumbVisibility: true,
+        trackVisibility: true,
+        child: Scrollbar(
+          controller: _horizontal,
+          thumbVisibility: true,
+          trackVisibility: true,
+          notificationPredicate: (notification) => notification.metrics.axis == Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: _vertical,
+            scrollDirection: Axis.vertical,
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              child: table,
+            ),
+          ),
+        ),
       ),
     );
   }
