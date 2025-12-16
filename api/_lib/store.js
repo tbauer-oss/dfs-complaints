@@ -3543,7 +3543,11 @@ const AUDITOR_REDIS_WRITE_ENABLED =
   String(process.env.AUDITOR_REDIS_ENABLED ?? process.env.AUDITOR_REDIS_WRITE_ENABLED ?? 'true').toLowerCase() !== 'false';
 const AUDITOR_REDIS_READ_ENABLED =
   String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
-const AUDIT_REDIS_ENABLED = false;
+// Redis audit persistence is opt-in to avoid polluting shared Upstash with
+// transient test data. Set AUDIT_REDIS_ENABLED=true to persist audits and
+// counters; otherwise audits stay in-memory for each invocation.
+const AUDIT_REDIS_ENABLED =
+  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'false').toLowerCase() === 'true';
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedis() {
@@ -3754,7 +3758,7 @@ function isAuditNumberValid(value) {
 async function nextAuditNumber(year) {
   const y = String(year || new Date().getFullYear()).slice(-2);
   let counter = null;
-  const r = getRedis();
+  const r = getAuditRedis();
   if (r) {
     try {
       const redisCounter = await withRedisTimeout(r.incr(KEY_AUDIT_COUNTER_YEAR(y)), `AUDIT COUNTER ${y}`);
