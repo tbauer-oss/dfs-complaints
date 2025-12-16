@@ -1,6 +1,6 @@
 // /api/admin/audits/plan.js – Auditplan lesen & speichern via ?id=...
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
+import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
 import { requirePortalAccess } from '../_guard.js';
 import {
   AUDIT_TILE_ID,
@@ -9,6 +9,9 @@ import {
   auditPlanSave,
   runWithAuditRedisContext,
 } from '../../_lib/store.js';
+
+const PROD_ORIGIN = 'https://dfs-complaints-web.vercel.app';
+const LOCAL_ORIGIN = /^http:\/\/localhost(?::\d+)?$/i;
 
 const TILE = AUDIT_TILE_ID;
 
@@ -20,6 +23,16 @@ function requestIdFrom(req) {
     req?.headers?.['x-cf-ray'] ||
     undefined
   );
+}
+
+function allowOriginFrom(req) {
+  const origin = req?.headers?.origin || '';
+  return origin === PROD_ORIGIN || LOCAL_ORIGIN.test(origin) ? origin : PROD_ORIGIN;
+}
+
+function applyCors(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', allowOriginFrom(req));
+  res.setHeader('Vary', 'Origin');
 }
 
 function handleError(res, err, { status = 500 } = {}) {
@@ -55,6 +68,7 @@ function resolveAuditId(req) {
 }
 
 export default async function handler(req, res) {
+  applyCors(req, res);
   if (handlePreflight(req, res)) return;
 
   const wantsWrite = req.method === 'PUT' || req.method === 'PATCH';
