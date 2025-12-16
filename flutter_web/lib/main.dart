@@ -333,8 +333,14 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
-  void _openRepArea(BuildContext ctx) {
-    Navigator.of(ctx).pushNamed('/repLogin');
+  Future<void> _openRepArea(BuildContext ctx) async {
+    final ok = await showRepLoginDialog(ctx, api);
+    if (!mounted || ok != true) return;
+
+    Navigator.of(ctx).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => RepDashboardPage(api: api)),
+      (r) => false,
+    );
   }
 
   void _openResetPassword(BuildContext ctx) {
