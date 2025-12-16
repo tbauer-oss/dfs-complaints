@@ -385,15 +385,20 @@ class _RepLoginDialogState extends State<_RepLoginDialog> {
               Row(
                 children: [
                   Container(
-                    width: 68,
-                    height: 68,
-                    padding: const EdgeInsets.all(8),
+                    width: 80,
+                    height: 80,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: scheme.primaryContainer.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
                     ),
-                    child: SvgPicture.asset('assets/DFS_Connect_Rep.svg', fit: BoxFit.contain),
+                    child: SvgPicture.asset(
+                      'assets/DFS_Connect_Rep.svg',
+                      height: 60,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
