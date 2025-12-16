@@ -492,7 +492,7 @@
   "myCustomers": "Mes clients",
 
   "customer_area": "Espace client",
-  "customer_login": "Connexion client",
+  "customer_login": "DFS Connect (Connexion client)",
   "customer_label": "Client",
   "quick_access_title": "Accès internes DFS",
   "quick_access_subtitle": "Accédez immédiatement au login DFS Connect Rep ou au DFS Connect+.",
