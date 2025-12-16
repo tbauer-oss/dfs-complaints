@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*.js": { "runtime": "nodejs" }
   },
   "routes": [
     { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" },
