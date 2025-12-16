@@ -1,9 +1,16 @@
 // =======================================================
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
-import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
-import { AsyncLocalStorage } from 'node:async_hooks';
+import {
+  __setRedisClientForTests as __setRedisClientForTestsBase,
+  getRedisContext,
+  getRedisInstance,
+  redisRead,
+  redisWrite,
+  runWithRedisContext,
+  withRedisTimeout,
+} from './redisClient.js';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
 import {
   hasDepartmentOverlap,
@@ -14,65 +21,19 @@ import {
   normalizeReportLinksMap,
 } from './departments.js';
 
-/* =========================================================
-   KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
-   ========================================================= */
-const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  process.env.REDIS_URL ||
-  null;
-
-const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  process.env.REDIS_TOKEN ||
-  null;
-
-const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
-const AUDIT_REDIS_DEBUG_LOG_ENABLED =
-  String(process.env.AUDIT_REDIS_DEBUG_LOG || 'true').toLowerCase() !== 'false';
-
-const auditRedisDebugContext = new AsyncLocalStorage();
-
-export function runWithAuditRedisContext(ctx = {}, fn = () => {}) {
-  if (typeof fn !== 'function') return fn;
-  return auditRedisDebugContext.run({ ...ctx }, fn);
-}
-
-function getAuditRedisDebugContext() {
-  return auditRedisDebugContext.getStore() || {};
-}
-
-let _redis = null;
-let _redisOverride = null;
+export const runWithAuditRedisContext = runWithRedisContext;
 export function __setRedisClientForTests(client = null) {
-  _redisOverride = client;
-  _redis = client;
-}
-function getRedis() {
-  if (_redisOverride) return _redisOverride;
-  if (_redis) return _redis;
-  if (!REDIS_URL || !REDIS_TOKEN) return null;
-  _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
-  return _redis;
+  __setRedisClientForTestsBase(client);
 }
 
-async function withRedisTimeout(promise, label = 'redis op') {
-  if (!REDIS_TIMEOUT_MS) return await promise;
-  return await Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => {
-        const err = new Error(`${label} timed out after ${REDIS_TIMEOUT_MS}ms`);
-        err.code = 'REDIS_TIMEOUT';
-        reject(err);
-      }, REDIS_TIMEOUT_MS);
-    }),
-  ]);
+function getRedis() {
+  return getRedisInstance();
 }
+
+function getAuditRedis() {
+  return getRedisInstance();
+}
+
 
 const P = 'dfs:';
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
@@ -400,11 +361,9 @@ function _normalizeCatalogConfig(input) {
 }
 
 // ===== Helper (Redis IO) =====
-async function rget(k, rclient = null) {
+async function rget(k) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return null;
-    const raw = await withRedisTimeout(r.get(k), `KV GET ${k}`);
+    const raw = await withRedisTimeout(redisRead.get(k), `KV GET ${k}`);
     if (typeof raw === 'string') {
       try {
         return JSON.parse(raw);
@@ -418,123 +377,62 @@ async function rget(k, rclient = null) {
     return null;
   }
 }
-const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-function enforceRedisWritePolicy({ operation, key }) {
-  const ctx = getAuditRedisDebugContext();
-  const method = (ctx.method || '').toString().toUpperCase();
-  if (!method || !READ_ONLY_METHODS.has(method)) return;
-  const err = new Error(`Redis write blocked for read-only method ${method}`);
-  console.error('[redis-write-guard]', {
-    method,
-    route: ctx.route,
-    auditId: ctx.auditId,
-    key,
-    stack: (err.stack || '').split('\n').slice(1, 6),
-  });
-  throw err;
-}
-
-async function rset(k, v, rclient = null) {
+async function rset(k, v) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return null;
-    enforceRedisWritePolicy({ operation: 'set', key: k });
-    const payload = typeof v === 'string' ? v : JSON.stringify(v);
-    logAuditRedisWrite({ operation: 'set', key: k, payload });
-    return await withRedisTimeout(r.set(k, payload), `KV SET ${k}`);
+    return await withRedisTimeout(redisWrite.set(k, v), `KV SET ${k}`);
   } catch (e) {
     console.error('KV SET', k, e);
     return null;
   }
 }
-async function rdel(k, rclient = null) {
+async function rdel(k) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return null;
-    enforceRedisWritePolicy({ operation: 'del', key: k });
-    logAuditRedisWrite({ operation: 'del', key: k });
-    return await withRedisTimeout(r.del(k), `KV DEL ${k}`);
+    return await withRedisTimeout(redisWrite.del(k), `KV DEL ${k}`);
   } catch (e) {
     console.error('KV DEL', k, e);
     return null;
   }
 }
 
-async function rsadd(k, member, rclient = null) {
+async function rsadd(k, member) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return null;
-    enforceRedisWritePolicy({ operation: 'sadd', key: k });
-    logAuditRedisWrite({ operation: 'sadd', key: k });
     const members = Array.isArray(member) ? member : [member];
     if (members.length === 0) return 0;
-    return await withRedisTimeout(r.sadd(k, ...members), `KV SADD ${k}`);
+    return await withRedisTimeout(redisWrite.sadd(k, ...members), `KV SADD ${k}`);
   } catch (e) {
     console.error('KV SADD', k, e);
     return null;
   }
 }
 
-async function rsrem(k, member, rclient = null) {
+async function rsrem(k, member) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return null;
-    enforceRedisWritePolicy({ operation: 'srem', key: k });
-    logAuditRedisWrite({ operation: 'srem', key: k });
     const members = Array.isArray(member) ? member : [member];
     if (members.length === 0) return 0;
-    return await withRedisTimeout(r.srem(k, ...members), `KV SREM ${k}`);
+    return await withRedisTimeout(redisWrite.srem(k, ...members), `KV SREM ${k}`);
   } catch (e) {
     console.error('KV SREM', k, e);
     return null;
   }
 }
 
-async function rsmembers(k, rclient = null) {
+async function rsmembers(k) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return [];
-    return await withRedisTimeout(r.smembers(k), `KV SMEMBERS ${k}`);
+    return await withRedisTimeout(redisRead.smembers(k), `KV SMEMBERS ${k}`);
   } catch (e) {
     console.error('KV SMEMBERS', k, e);
     return [];
   }
 }
 
-async function rincr(k, rclient = null) {
+async function rincr(k) {
   try {
-    const r = rclient || getRedis();
-    if (!r) return null;
-    enforceRedisWritePolicy({ operation: 'incr', key: k });
-    logAuditRedisWrite({ operation: 'incr', key: k });
-    return await withRedisTimeout(r.incr(k), `KV INCR ${k}`);
+    return await withRedisTimeout(redisWrite.incr(k), `KV INCR ${k}`);
   } catch (e) {
     console.error('KV INCR', k, e);
     return null;
   }
-}
-
-function logAuditRedisWrite({ operation, key, payload }) {
-  if (!AUDIT_REDIS_DEBUG_LOG_ENABLED) return;
-  const keyStr = String(key || '');
-
-  const ctx = getAuditRedisDebugContext();
-  const stack = (new Error().stack || '')
-    .split('\n')
-    .slice(2, 7)
-    .map((l) => l.trim());
-  const auditIdMatch = keyStr.match(/audit:(?:[^:]+:)?([^:]+)/);
-
-  console.warn('[audit-redis-write]', {
-    operation,
-    key: keyStr,
-    method: ctx.method,
-    route: ctx.route,
-    auditId: ctx.auditId || auditIdMatch?.[1],
-    stack,
-    payloadType: typeof payload,
-  });
 }
 
 // ===== Key-Scan kompatibel zu Upstash =====
@@ -3630,9 +3528,6 @@ async function syncFmeaRiskLinks(fmea, risk, prevRisk) {
 
 const AUDIT_TILE_ID = 'audits';
 
-const AUDIT_SEEDS_ENABLED =
-  String(process.env.AUDIT_ENABLE_SEEDS || process.env.ENABLE_AUDIT_SEEDS || '').toLowerCase() === 'true';
-
 const KEY_AUDITOR = (id) => `${P}audit:auditor:${id}`;
 const KEY_AUDIT_PROGRAM = (id) => `${P}audit:program:${id}`;
 const KEY_AUDIT_INDEX = `${P}audits:index`;
@@ -3693,7 +3588,6 @@ function getAuditorRedisForRead() {
 }
 
 let auditStoresHydrated = false;
-let auditSeedsApplied = false;
 
 function normalizeAuditIndex(raw) {
   if (Array.isArray(raw)) return raw.map((id) => id && id.toString()).filter(Boolean);
@@ -3806,11 +3700,6 @@ async function hydrateAuditorsById(ids = []) {
 async function ensureAuditStoresReady() {
   ensureAuditStores();
   if (!auditStoresHydrated) await hydrateAuditStores();
-  if (!auditSeedsApplied && AUDIT_SEEDS_ENABLED && mem.audits.size === 0 && mem.auditors.size === 0) {
-    // Seeds are strictly opt-in; avoid implicitly creating audits in production.
-    // To activate, set AUDIT_ENABLE_SEEDS=true explicitly in the environment.
-    auditSeedsApplied = true;
-  }
 }
 
 function addAuditToIndex(id) {
@@ -4635,132 +4524,5 @@ async function updateAuditStatusAfterChange(auditId) {
   return nextStatus;
 }
 
-function ensureAuditSeeds() {
-  if (!AUDIT_SEEDS_ENABLED) return;
-  ensureAuditStores();
-  if (mem.audits.size > 0 || mem.auditors.size > 0) return;
-
-  const auditor1 = normalizeAuditor({
-    name: 'Anna Audit',
-    email: 'anna.audit@example.com',
-    orgUnit: 'QM',
-    role: 'Lead',
-    qualifications: {
-      internalAuditorTrainingDate: addDays(nowIso(), -500),
-      experienceYears: 5,
-      standardsKnowledge: ['ISO13485', 'ISO19011'],
-      requalificationDueDate: addDays(nowIso(), 400),
-    },
-    independenceRules: { restrictedOrgUnits: ['Production'] },
-  });
-  const auditor2 = normalizeAuditor({
-    name: 'Benedikt Beistand',
-    email: 'ben.audit@example.com',
-    orgUnit: 'Operations',
-    role: 'Co',
-    qualifications: {
-      internalAuditorTrainingDate: addDays(nowIso(), -900),
-      experienceYears: 4,
-      standardsKnowledge: ['MDR'],
-      requalificationDueDate: addDays(nowIso(), 200),
-    },
-    independenceRules: { restrictedProcessOwners: ['Operations'] },
-  });
-  mem.auditors.set(auditor1.id, auditor1);
-  mem.auditors.set(auditor2.id, auditor2);
-
-  const program = normalizeAuditProgram({
-    year: new Date().getFullYear(),
-    title: 'Auditprogramm Q1–Q4',
-    status: 'released',
-    approvedBy: 'QM-Leitung',
-    approvedAt: nowIso(),
-  });
-  mem.auditPrograms.set(program.id, program);
-
-  const audits = ['Q1', 'Q2', 'Q3', 'Q4'].map((cluster, idx) =>
-    normalizeAudit({
-      programId: program.id,
-      cluster,
-      auditType: idx === 3 ? 'Nachaudit' : 'System',
-      title: `Internes Audit ${cluster}`,
-      site: 'HQ',
-      plannedStart: addDays(nowIso(), -120 + idx * 30),
-      plannedEnd: addDays(nowIso(), -115 + idx * 30),
-      scopeText: 'ISO 13485 Prozess-Check',
-      auditeesOrgUnits: ['Production', 'Operations'],
-      processOwners: ['Production'],
-      leadAuditorId: auditor1.id,
-      coAuditorIds: [auditor2.id],
-      status: idx < 2 ? 'closed' : 'planned',
-    }),
-  );
-
-  for (const a of audits) mem.audits.set(a.id, a);
-
-  const finding1 = normalizeFinding({
-    auditId: audits[0].id,
-    type: AUDIT_FINDING_SEVERITY.MINOR,
-    requirementRef: 'ISO 13485 8.2',
-    description: 'Dokumentation unvollständig',
-    status: 'open',
-  });
-  const finding2 = normalizeFinding({
-    auditId: audits[1].id,
-    type: AUDIT_FINDING_SEVERITY.MAJOR,
-    requirementRef: 'ISO 19011 6.3',
-    description: 'Risikobewertung fehlt',
-    status: 'open',
-  });
-  const finding3 = normalizeFinding({
-    auditId: audits[2].id,
-    type: AUDIT_FINDING_SEVERITY.CRITICAL,
-    requirementRef: 'MDR',
-    description: 'Unmittelbare Korrektur erforderlich',
-    status: 'open',
-  });
-  mem.auditFindings.set(finding1.id, finding1);
-  mem.auditFindings.set(finding2.id, finding2);
-  mem.auditFindings.set(finding3.id, finding3);
-
-  const action1 = normalizeAction({
-    auditId: audits[0].id,
-    findingId: finding1.id,
-    actionType: 'Korrektur',
-    description: 'Vorlage aktualisieren',
-    dueDate: defaultDueDateForFinding(finding1.type, audits[0]),
-    responsibleOrgUnit: 'QM',
-  });
-  const action2 = normalizeAction({
-    auditId: audits[1].id,
-    findingId: finding2.id,
-    actionType: 'CAPA',
-    description: 'Risikomatrix ergänzen',
-    dueDate: defaultDueDateForFinding(finding2.type, audits[1]),
-    escalationLevel: escalateLevelForFinding(finding2.type),
-    effectivenessCheckRequired: true,
-  });
-  const action3 = normalizeAction({
-    auditId: audits[2].id,
-    findingId: finding3.id,
-    actionType: 'Sofortmaßnahme',
-    description: 'Sofortige Korrekturmaßnahme',
-    dueDate: defaultDueDateForFinding(finding3.type, audits[2]),
-    escalationLevel: escalateLevelForFinding(finding3.type),
-    status: 'overdue',
-  });
-  mem.auditActions.set(action1.id, markActionOverdue(action1));
-  mem.auditActions.set(action2.id, markActionOverdue(action2));
-  mem.auditActions.set(action3.id, markActionOverdue(action3));
-
-  const report = normalizeAnnualReport({
-    year: program.year,
-    generatedBy: 'audit-bot',
-    contentSnapshot: { summary: 'Initial Auditprogramm', clusters: program.clusters },
-    kpisSnapshot: { majors: 1, critical: 1, overdueActions: 1 },
-    exportFiles: [],
-  });
-  mem.auditAnnualReports.set(report.id, report);
-}
 
 export { AUDIT_TILE_ID, AUDIT_FINDING_SEVERITY };

@@ -1,14 +1,7 @@
 // /api/admin/auditors.js – Auditorenverwaltung & Matrix
 export const config = { runtime: 'nodejs' };
 
-import {
-  handlePreflight,
-  setCors,
-  ok,
-  bad,
-  methodNotAllowed,
-  readJson,
-} from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
   AUDIT_TILE_ID,
@@ -33,8 +26,7 @@ function handleError(res, err) {
 }
 
 export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
+  if (setCors(req, res)) return;
 
   const wantsWrite = ['POST', 'PATCH', 'DELETE'].includes(req.method);
   const actor = await requirePortalAccess(req, res, { tile: TILE, write: wantsWrite, allowPrrc: true });
