@@ -461,38 +461,104 @@ class _AuditProgramTabState extends State<_AuditProgramTab> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _programs.length,
-      itemBuilder: (_, i) {
-        final program = _programs[i];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            title: Text('${program.year} – ${program.title}'),
-            subtitle: Text('Status: ${program.status}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              tooltip: 'Programm exportieren',
-              onPressed: () => _showProgram(program),
+    return Scrollbar(
+      thumbVisibility: true,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _programs.length,
+        itemBuilder: (_, i) {
+          final program = _programs[i];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ExpansionTile(
+              title: Text('${program.year} – ${program.title}'),
+              subtitle: Text('Status: ${program.status} · Audits: ${program.totalAudits}'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: _ProgramTable(program: program),
+                )
+              ],
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProgramTable extends StatefulWidget {
+  final AuditProgram program;
+  const _ProgramTable({required this.program});
+
+  @override
+  State<_ProgramTable> createState() => _ProgramTableState();
+}
+
+class _ProgramTableState extends State<_ProgramTable> {
+  final ScrollController _horizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final program = widget.program;
+    if (program.entries.isEmpty) {
+      return const Text('Keine Audits für dieses Jahr vorhanden.');
+    }
+    final columns = [
+      'Audit-Nr',
+      'Cluster / Thema',
+      'Hauptprozesse',
+      'Referenzen',
+      'Verantwortung',
+      'Teilnehmer',
+      'Zeitraum geplant',
+      'Standort',
+      'Lead',
+      'Co',
+    ];
+
+    final table = DataTable(
+      columns: columns.map((c) => DataColumn(label: Text(c))).toList(),
+      rows: program.entries
+          .map(
+            (e) => DataRow(cells: [
+                  DataCell(Text(e.auditNumber)),
+                  DataCell(Text(_nonEmpty([e.cluster, e.title, e.scope]))),
+                  DataCell(Text(e.processes.isEmpty ? '-' : e.processes.join(', '))),
+                  DataCell(Text(e.references.isEmpty ? '-' : e.references.join(', '))),
+                  DataCell(Text(e.responsible.isEmpty ? '-' : e.responsible.join(', '))),
+                  DataCell(Text(e.participants.isEmpty ? '-' : e.participants.join(', '))),
+                  DataCell(Text(e.plannedPeriod ?? '-')),
+                  DataCell(Text(e.site ?? '-')),
+                  DataCell(Text(e.leadAuditor ?? '-')),
+                  DataCell(Text(e.coAuditor ?? '-')),
+                ]),
+          )
+          .toList(),
+    );
+
+    return Scrollbar(
+      controller: _horizontal,
+      thumbVisibility: true,
+      trackVisibility: true,
+      notificationPredicate: (notification) => notification.metrics.axis == Axis.horizontal,
+      child: SingleChildScrollView(
+        controller: _horizontal,
+        scrollDirection: Axis.horizontal,
+        child: table,
+      ),
     );
   }
 
-  void _showProgram(AuditProgram program) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Auditprogramm ${program.year}'),
-        content: DialogContentScroll(
-          child: Text('Cluster: ${(program.clusters.isEmpty ? ['Q1', 'Q2', 'Q3', 'Q4'] : program.clusters).join(', ')}'),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen'))],
-      ),
-    );
+  String _nonEmpty(List<String?> values) {
+    final merged = values.whereType<String>().where((v) => v.trim().isNotEmpty).toList();
+    return merged.isEmpty ? '-' : merged.join(' – ');
   }
 }
 
@@ -1462,21 +1528,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       _planMissing = false;
     });
     try {
-      final audits = await widget.api.listAudits(year: widget.audit.year);
-      Audit? audit;
-      for (final a in audits) {
-        if (a.id == widget.audit.id) {
-          audit = a;
-          break;
-        }
-      }
-      if (audit == null) {
-        setState(() {
-          _error = 'Audit nicht gefunden.';
-          _loading = false;
-        });
-        return;
-      }
+      final audit = await widget.api.getAudit(widget.audit.id);
       final auditorsFuture = widget.api.listAuditors();
       final findingsFuture = widget.api.listFindings(widget.audit.id);
       final actionsFuture = widget.api.listActions(widget.audit.id);
@@ -1629,6 +1681,8 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     final audit = _audit!;
     final lead = _auditors
         .firstWhere((a) => a.id == audit.leadAuditorId, orElse: () => const Auditor(id: '', name: '-', email: '', status: 'inactive'));
+    final co = _auditors
+        .firstWhere((a) => a.id == audit.coAuditorId, orElse: () => const Auditor(id: '', name: '-', email: '', status: 'inactive'));
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1636,6 +1690,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         ListTile(title: const Text('Quartal'), subtitle: Text(audit.cluster ?? '-')),
         ListTile(title: const Text('Zeitraum geplant'), subtitle: Text(audit.displayPeriod)),
         ListTile(title: const Text('Lead Auditor'), subtitle: Text(lead.name)),
+        ListTile(title: const Text('Co-Auditor'), subtitle: Text(co.name)),
         ListTile(title: const Text('Scope'), subtitle: Text(audit.scopeText ?? '-')),
         Wrap(
           spacing: 12,
