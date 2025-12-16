@@ -1425,6 +1425,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   bool _loading = true;
   bool _planSaving = false;
   bool _planLoaded = false;
+  bool _planMissing = false;
   String? _error;
 
   String _planErrorMessage(Object error) {
@@ -1458,10 +1459,24 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       _loading = true;
       _error = null;
       _planLoaded = false;
+      _planMissing = false;
     });
     try {
       final audits = await widget.api.listAudits(year: widget.audit.year);
-      final audit = audits.firstWhere((a) => a.id == widget.audit.id, orElse: () => widget.audit);
+      Audit? audit;
+      for (final a in audits) {
+        if (a.id == widget.audit.id) {
+          audit = a;
+          break;
+        }
+      }
+      if (audit == null) {
+        setState(() {
+          _error = 'Audit nicht gefunden.';
+          _loading = false;
+        });
+        return;
+      }
       final auditorsFuture = widget.api.listAuditors();
       final findingsFuture = widget.api.listFindings(widget.audit.id);
       final actionsFuture = widget.api.listActions(widget.audit.id);
@@ -1469,14 +1484,30 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       final auditors = await auditorsFuture;
       final findings = await findingsFuture;
       final actions = await actionsFuture;
-      final planEntries = await planFuture;
+      List<AuditPlanEntry> planEntries = const [];
+      bool planMissing = false;
+      try {
+        planEntries = await planFuture;
+      } catch (e) {
+        if (e is ApiError && e.status == 404) {
+          planMissing = true;
+        } else {
+          rethrow;
+        }
+      }
       if (!mounted) return;
       setState(() {
         _audit = audit;
         _auditors = auditors;
         _findings = findings;
         _actions = actions;
-        _applyPlan(planEntries);
+        _planMissing = planMissing;
+        if (planMissing) {
+          _planEntries.clear();
+          _planLoaded = true;
+        } else {
+          _applyPlan(planEntries);
+        }
         _reportDraft = _reportDraft;
         _loading = false;
       });
@@ -1495,10 +1526,19 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       final planEntries = await widget.api.loadAuditPlan(_audit!.id);
       if (!mounted) return;
       setState(() {
+        _planMissing = false;
         _applyPlan(planEntries);
       });
     } catch (e) {
       if (!mounted) return;
+      if (e is ApiError && e.status == 404) {
+        setState(() {
+          _planMissing = true;
+          _planEntries.clear();
+          _planLoaded = true;
+        });
+        return;
+      }
       setState(() => _error = _planErrorMessage(e));
     }
   }
@@ -1681,6 +1721,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       setState(() {
         _applyPlan(savedPlan);
         _audit = _auditWith(plan: savedPlan);
+        _planMissing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Auditplan gespeichert.')));
     } catch (e) {
@@ -1694,6 +1735,23 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   Widget _buildSchedule() {
     _syncPlanAuditorSelection();
     final auditorOptions = _planAuditorOptions();
+    if (_planMissing) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Kein Auditplan vorhanden'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _planSaving ? null : _savePlan,
+              child: _planSaving
+                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Auditplan anlegen'),
+            ),
+          ],
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

@@ -19,7 +19,6 @@ function handleError(res, err, { requestId } = {}) {
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
-  setCors(req, res);
 
   const requestId = req.headers?.['x-request-id'] || req.headers?.['x-vercel-id'] || crypto.randomUUID();
   const wantsWrite = req.method === 'POST';

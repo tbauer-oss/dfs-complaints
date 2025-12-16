@@ -12,13 +12,10 @@ class AuditAdminApi {
 
   final ApiClient _client;
 
-  String get _secret => _client.adminSecret ?? '';
-
   String get baseUrl => CFG.apiBase;
 
   Map<String, String> _headersJson({bool includeContentType = true}) => {
         if (includeContentType) 'Content-Type': 'application/json; charset=utf-8',
-        if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
         if ((_client.portalToken ?? '').isNotEmpty) 'Authorization': 'Bearer ${_client.portalToken}',
       };
 
@@ -98,7 +95,7 @@ class AuditAdminApi {
       if (from != null) 'from': fmt(from)!,
       if (to != null) 'to': fmt(to)!,
     };
-    final r = await http.get(_u('/api/admin/audits', q), headers: _headersJson());
+    final r = await http.get(_u('/api/admin/audits', q), headers: _headersJson(includeContentType: false));
     final decoded = await _decode(r);
     final list = decoded['list'];
     if (list is List) {

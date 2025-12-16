@@ -418,10 +418,28 @@ async function rget(k, rclient = null) {
     return null;
   }
 }
+const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function enforceRedisWritePolicy({ operation, key }) {
+  const ctx = getAuditRedisDebugContext();
+  const method = (ctx.method || '').toString().toUpperCase();
+  if (!method || !READ_ONLY_METHODS.has(method)) return;
+  const err = new Error(`Redis write blocked for read-only method ${method}`);
+  console.error('[redis-write-guard]', {
+    method,
+    route: ctx.route,
+    auditId: ctx.auditId,
+    key,
+    stack: (err.stack || '').split('\n').slice(1, 6),
+  });
+  throw err;
+}
+
 async function rset(k, v, rclient = null) {
   try {
     const r = rclient || getRedis();
     if (!r) return null;
+    enforceRedisWritePolicy({ operation: 'set', key: k });
     const payload = typeof v === 'string' ? v : JSON.stringify(v);
     logAuditRedisWrite({ operation: 'set', key: k, payload });
     return await withRedisTimeout(r.set(k, payload), `KV SET ${k}`);
@@ -434,6 +452,7 @@ async function rdel(k, rclient = null) {
   try {
     const r = rclient || getRedis();
     if (!r) return null;
+    enforceRedisWritePolicy({ operation: 'del', key: k });
     logAuditRedisWrite({ operation: 'del', key: k });
     return await withRedisTimeout(r.del(k), `KV DEL ${k}`);
   } catch (e) {
@@ -442,10 +461,63 @@ async function rdel(k, rclient = null) {
   }
 }
 
+async function rsadd(k, member, rclient = null) {
+  try {
+    const r = rclient || getRedis();
+    if (!r) return null;
+    enforceRedisWritePolicy({ operation: 'sadd', key: k });
+    logAuditRedisWrite({ operation: 'sadd', key: k });
+    const members = Array.isArray(member) ? member : [member];
+    if (members.length === 0) return 0;
+    return await withRedisTimeout(r.sadd(k, ...members), `KV SADD ${k}`);
+  } catch (e) {
+    console.error('KV SADD', k, e);
+    return null;
+  }
+}
+
+async function rsrem(k, member, rclient = null) {
+  try {
+    const r = rclient || getRedis();
+    if (!r) return null;
+    enforceRedisWritePolicy({ operation: 'srem', key: k });
+    logAuditRedisWrite({ operation: 'srem', key: k });
+    const members = Array.isArray(member) ? member : [member];
+    if (members.length === 0) return 0;
+    return await withRedisTimeout(r.srem(k, ...members), `KV SREM ${k}`);
+  } catch (e) {
+    console.error('KV SREM', k, e);
+    return null;
+  }
+}
+
+async function rsmembers(k, rclient = null) {
+  try {
+    const r = rclient || getRedis();
+    if (!r) return [];
+    return await withRedisTimeout(r.smembers(k), `KV SMEMBERS ${k}`);
+  } catch (e) {
+    console.error('KV SMEMBERS', k, e);
+    return [];
+  }
+}
+
+async function rincr(k, rclient = null) {
+  try {
+    const r = rclient || getRedis();
+    if (!r) return null;
+    enforceRedisWritePolicy({ operation: 'incr', key: k });
+    logAuditRedisWrite({ operation: 'incr', key: k });
+    return await withRedisTimeout(r.incr(k), `KV INCR ${k}`);
+  } catch (e) {
+    console.error('KV INCR', k, e);
+    return null;
+  }
+}
+
 function logAuditRedisWrite({ operation, key, payload }) {
   if (!AUDIT_REDIS_DEBUG_LOG_ENABLED) return;
   const keyStr = String(key || '');
-  if (!keyStr.includes('audit:')) return;
 
   const ctx = getAuditRedisDebugContext();
   const stack = (new Error().stack || '')
@@ -3563,14 +3635,16 @@ const AUDIT_SEEDS_ENABLED =
 
 const KEY_AUDITOR = (id) => `${P}audit:auditor:${id}`;
 const KEY_AUDIT_PROGRAM = (id) => `${P}audit:program:${id}`;
-const KEY_AUDIT_INDEX = `${P}audit:index`;
+const KEY_AUDIT_INDEX = `${P}audits:index`;
+const LEGACY_KEY_AUDIT_INDEX = `${P}audit:index`;
 const KEY_AUDIT = (id) => `${P}audit:${id}`;
 const KEY_AUDIT_FINDING = (id) => `${P}audit:finding:${id}`;
 const KEY_AUDIT_ACTION = (id) => `${P}audit:action:${id}`;
 const KEY_AUDIT_REPORT = (id) => `${P}audit:annualReport:${id}`;
 const KEY_AUDIT_COUNTERS = `${P}audit:counters`;
 const KEY_AUDIT_COUNTER_YEAR = (year) => `${P}audit:counter:${year}`;
-const KEY_AUDIT_PLAN = (id) => `${P}audit:plan:${id}`;
+const KEY_AUDIT_PLAN = (id) => `${P}audit:${id}:plan`;
+const LEGACY_KEY_AUDIT_PLAN = (id) => `${P}audit:plan:${id}`;
 
 function isAuditObjectKey(key) {
   const keyStr = String(key || '');
@@ -3583,7 +3657,7 @@ function isAuditObjectKey(key) {
     !keyStr.startsWith(`${P}audit:action:`) &&
     !keyStr.startsWith(`${P}audit:annualReport:`) &&
     !keyStr.startsWith(KEY_AUDIT_COUNTERS) &&
-    !keyStr.startsWith(KEY_AUDIT_PLAN(''))
+    !keyStr.includes(':plan')
   );
 }
 
@@ -3680,7 +3754,7 @@ async function hydrateAuditStores() {
       r ? rkeys(`${P}audit:action:*`, r) : [],
       r ? rkeys(`${P}audit:annualReport:*`, r) : [],
       r ? rget(KEY_AUDIT_COUNTERS, r) : null,
-      r ? rget(KEY_AUDIT_INDEX, r) : null,
+      r ? rsmembers(KEY_AUDIT_INDEX, r) : [],
     ]);
 
   const load = async (rclient, keys, normalize, target, deriveIdFromKey = null) => {
@@ -3701,11 +3775,12 @@ async function hydrateAuditStores() {
   await load(rAuditor, auditorKeys, normalizeAuditor, mem.auditors, idFromSuffix(AUDITOR_PREFIX));
   await load(r, programKeys, normalizeAuditProgram, mem.auditPrograms, idFromSuffix(PROGRAM_PREFIX));
   const indexSet = new Set(normalizeAuditIndex(indexIds));
-  const auditKeysFromIndex = indexSet.size > 0 ? Array.from(indexSet).map(KEY_AUDIT) : [];
-  const allowedAuditKeys = auditKeys.filter(isAuditObjectKey);
-  const sourceAuditKeys = auditKeysFromIndex.length > 0 ? auditKeysFromIndex : allowedAuditKeys;
-  await load(r, sourceAuditKeys, normalizeAudit, mem.audits, idFromSuffix(AUDIT_PREFIX));
-  mem.auditIndex = indexSet.size > 0 ? indexSet : new Set(sourceAuditKeys.map(idFromSuffix(AUDIT_PREFIX)).filter(Boolean));
+  const legacyIndexIds = indexSet.size === 0 && r ? normalizeAuditIndex(await rget(LEGACY_KEY_AUDIT_INDEX, r)) : [];
+  if (legacyIndexIds.length > 0) legacyIndexIds.forEach((id) => indexSet.add(id));
+
+  const auditKeysFromIndex = Array.from(indexSet).map(KEY_AUDIT);
+  await load(r, auditKeysFromIndex, normalizeAudit, mem.audits, idFromSuffix(AUDIT_PREFIX));
+  mem.auditIndex = indexSet;
   await load(r, findingKeys, normalizeFinding, mem.auditFindings, idFromSuffix(FINDING_PREFIX));
   await load(r, actionKeys, normalizeAction, mem.auditActions, idFromSuffix(ACTION_PREFIX));
   await load(r, reportKeys, normalizeAnnualReport, mem.auditAnnualReports, idFromSuffix(REPORT_PREFIX));
@@ -3753,7 +3828,11 @@ function removeAuditFromIndex(id) {
 async function persistAuditIndex(rclient = null) {
   const r = rclient || getAuditRedis();
   if (!r) return;
-  await rset(KEY_AUDIT_INDEX, currentAuditIndexIds(), r);
+  const ids = currentAuditIndexIds();
+  await rdel(KEY_AUDIT_INDEX, r);
+  if (ids.length > 0) {
+    await rsadd(KEY_AUDIT_INDEX, ids, r);
+  }
 }
 
 function normalizeAuditString(value) {
@@ -3844,8 +3923,7 @@ async function nextAuditNumber(year) {
   const r = getAuditRedis();
   if (r) {
     try {
-      logAuditRedisWrite({ operation: 'incr', key: KEY_AUDIT_COUNTER_YEAR(y) });
-      const redisCounter = await withRedisTimeout(r.incr(KEY_AUDIT_COUNTER_YEAR(y)), `AUDIT COUNTER ${y}`);
+      const redisCounter = await rincr(KEY_AUDIT_COUNTER_YEAR(y), r);
       if (typeof redisCounter === 'number') counter = redisCounter;
     } catch (err) {
       console.error('audit counter redis incr failed', err);
@@ -4290,6 +4368,7 @@ export async function auditGet(id) {
 export async function auditPlanGet(id) {
   await ensureAuditStoresReady();
   const planKey = KEY_AUDIT_PLAN(id);
+  const legacyPlanKey = LEGACY_KEY_AUDIT_PLAN(id);
   const r = getAuditRedis();
 
   if (r) {
@@ -4297,15 +4376,11 @@ export async function auditPlanGet(id) {
     if (Array.isArray(fromRedis)) {
       return { planEntries: fromRedis.map(normalizeAuditPlanEntry), found: true, planKey };
     }
+    const fromLegacyRedis = await rget(legacyPlanKey, r);
+    if (Array.isArray(fromLegacyRedis)) {
+      return { planEntries: fromLegacyRedis.map(normalizeAuditPlanEntry), found: true, planKey: legacyPlanKey };
+    }
   }
-
-  const audit = await auditGet(id);
-  const fallbackPlan = Array.isArray(audit?.planEntries)
-    ? audit.planEntries.map(normalizeAuditPlanEntry)
-    : [];
-
-  if (fallbackPlan.length > 0) return { planEntries: fallbackPlan, found: true, planKey };
-
   return { planEntries: [], found: false, planKey };
 }
 
@@ -4355,7 +4430,10 @@ export async function auditPlanSave(id, planEntries = [], { updatedBy } = {}) {
 
   const normalizedPlan = Array.isArray(planEntries) ? planEntries.map(normalizeAuditPlanEntry) : [];
   const r = getAuditRedis();
-  if (r) await rset(planKey, normalizedPlan, r);
+  if (r) {
+    await rset(planKey, normalizedPlan, r);
+    await rdel(LEGACY_KEY_AUDIT_PLAN(id), r);
+  }
 
   const updated = await saveAuditInternal(
     { ...current, planEntries: normalizedPlan, updatedBy: updatedBy || current.updatedBy },
@@ -4369,7 +4447,11 @@ export async function auditDelete(id) {
   await ensureAuditStoresReady();
   mem.audits.delete(id);
   const r = getAuditRedis();
-  if (r) await rdel(KEY_AUDIT(id));
+  if (r) {
+    await rdel(KEY_AUDIT(id));
+    await rdel(KEY_AUDIT_PLAN(id));
+    await rdel(LEGACY_KEY_AUDIT_PLAN(id));
+  }
   removeAuditFromIndex(id);
   await persistAuditIndex(r);
   for (const [fid, finding] of mem.auditFindings.entries()) {
@@ -4401,7 +4483,7 @@ async function auditIdsFromRedisKeys() {
 
 export async function auditFindUnindexed() {
   const r = getAuditRedis();
-  const indexFromRedis = r ? normalizeAuditIndex(await rget(KEY_AUDIT_INDEX, r)) : [];
+  const indexFromRedis = r ? normalizeAuditIndex(await rsmembers(KEY_AUDIT_INDEX, r)) : [];
   const canonicalIndex = new Set(indexFromRedis.length > 0 ? indexFromRedis : currentAuditIndexIds());
   const idsFromKeys = await auditIdsFromRedisKeys();
   return idsFromKeys.filter((id) => !canonicalIndex.has(id));
@@ -4415,6 +4497,7 @@ export async function auditDeleteUnindexed({ dryRun = true } = {}) {
     for (const auditId of candidates) {
       await rdel(KEY_AUDIT(auditId), r);
       await rdel(KEY_AUDIT_PLAN(auditId), r);
+      await rdel(LEGACY_KEY_AUDIT_PLAN(auditId), r);
       removed.push(auditId);
     }
   }

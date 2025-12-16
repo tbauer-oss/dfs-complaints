@@ -55,10 +55,6 @@ function resolveAuditId(req) {
 }
 
 export default async function handler(req, res) {
-  // ✅ CORS IMMER ZUERST
-  setCors(req, res, 'X-Admin-Secret');
-
-  // ✅ Preflight korrekt beantworten
   if (handlePreflight(req, res)) return;
 
   const wantsWrite = req.method === 'PUT' || req.method === 'PATCH';

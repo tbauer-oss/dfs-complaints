@@ -4,9 +4,6 @@ import { canReadTile, canWrite, canWriteTile, portalUserFromRequest } from '../_
 
 export async function requirePortalAccess(req, res, { write = false, tile, allowPrrc = false } = {}) {
   // ✅ CORS immer zuerst – auch für 401/403
-  setCors(req, res);
-
-  // ✅ Preflight (OPTIONS) sofort sauber beantworten
   if (handlePreflight(req, res)) return null;
 
   const actor = await portalUserFromRequest(req);
