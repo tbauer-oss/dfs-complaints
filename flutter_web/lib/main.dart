@@ -1,8 +1,6 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter/services.dart' show rootBundle;
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -218,7 +216,6 @@ class _MyAppState extends State<MyApp> {
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
   bool _rememberPortal = true;
-  bool _showInternal = false;
   Map<String, dynamic>? _appMeta;
 
   // ---- Helpers ----
@@ -547,151 +544,22 @@ class _MyAppState extends State<MyApp> {
                           child: LayoutBuilder(
                             builder: (context, constraints) {
                               final minHeight = constraints.maxHeight;
+                              final outerPadding = constraints.maxWidth < 640 ? 16.0 : 24.0;
                               return SingleChildScrollView(
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(minHeight: minHeight),
                                   child: Center(
                                     child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 920),
+                                      constraints: const BoxConstraints(maxWidth: 1040),
                                       child: Padding(
-                                        padding: const EdgeInsets.all(24),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            _LoginScreen(
-                                              api: api,
-                                              onLoggedIn: _onLoggedIn,
-                                              onOpenRegister: () => _openRegister(ctx),
-                                              onOpenAdmin: () => _openAdmin(ctx),
-                                              onOpenRep: () => _openRepArea(ctx), // -> /repLogin
-                                              onOpenResetPassword: () => _openResetPassword(ctx),
-                                            ),
-                                            const SizedBox(height: 18),
-                                            AnimatedSize(
-                                              duration: const Duration(milliseconds: 220),
-                                              curve: Curves.easeInOut,
-                                              child: _showInternal
-                                                  ? Container(
-                                                      width: double.infinity,
-                                                      padding: const EdgeInsets.all(22),
-                                                      decoration: BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          begin: Alignment.topLeft,
-                                                          end: Alignment.bottomRight,
-                                                          colors: [
-                                                            scheme.primary.withOpacity(isDark ? 0.18 : 0.22),
-                                                            scheme.surfaceVariant.withOpacity(isDark ? 0.45 : 0.35),
-                                                          ],
-                                                        ),
-                                                        borderRadius: BorderRadius.circular(20),
-                                                        border: Border.all(
-                                                          color: scheme.outlineVariant.withOpacity(isDark ? 0.7 : 0.9),
-                                                        ),
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
-                                                            blurRadius: 20,
-                                                            offset: const Offset(0, 12),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                                        children: [
-                                                          Tooltip(
-                                                            message: 'Weitere Optionen',
-                                                            child: GestureDetector(
-                                                              behavior: HitTestBehavior.opaque,
-                                                              onLongPress: () =>
-                                                                  setState(() => _showInternal = !_showInternal),
-                                                              onSecondaryTap: () =>
-                                                                  setState(() => _showInternal = !_showInternal),
-                                                              child: Container(
-                                                                padding: const EdgeInsets.symmetric(
-                                                                    vertical: 6, horizontal: 14),
-                                                                decoration: BoxDecoration(
-                                                                  color: scheme.surface.withOpacity(0.7),
-                                                                  borderRadius: BorderRadius.circular(30),
-                                                                  border:
-                                                                      Border.all(color: scheme.primary.withOpacity(0.4)),
-                                                                ),
-                                                                child: Text(
-                                                                  'DFS',
-                                                                  style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                                                                        letterSpacing: 0.8,
-                                                                        fontWeight: FontWeight.w700,
-                                                                        color: scheme.primary,
-                                                                      ),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          const SizedBox(height: 12),
-                                                          Text(
-                                                            t.quick_access_title,
-                                                            style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                                                                  fontWeight: FontWeight.w800,
-                                                                  color: scheme.onSurface,
-                                                                ),
-                                                            textAlign: TextAlign.center,
-                                                          ),
-                                                          const SizedBox(height: 8),
-                                                          Text(
-                                                            t.quick_access_subtitle,
-                                                            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                                                                  color: scheme.onSurfaceVariant,
-                                                                ),
-                                                            textAlign: TextAlign.center,
-                                                          ),
-                                                          const SizedBox(height: 18),
-                                                          Wrap(
-                                                            spacing: 12,
-                                                            runSpacing: 12,
-                                                            alignment: WrapAlignment.center,
-                                                            children: [
-                                                              FilledButton(
-                                                                onPressed: () => _openRepArea(ctx),
-                                                                style: FilledButton.styleFrom(
-                                                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                                                  shape: const StadiumBorder(),
-                                                                  backgroundColor: scheme.primary,
-                                                                  foregroundColor: scheme.onPrimary,
-                                                                  elevation: 0,
-                                                                ),
-                                                                child: Row(
-                                                                  mainAxisSize: MainAxisSize.min,
-                                                                  children: [
-                                                                    Text(t.rep_area ?? 'Vertreterbereich'),
-                                                                    const SizedBox(width: 8),
-                                                                    const Icon(Icons.chevron_right_rounded, size: 20),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                              OutlinedButton(
-                                                                onPressed: () => _openAdmin(ctx),
-                                                                style: OutlinedButton.styleFrom(
-                                                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                                                  shape: const StadiumBorder(),
-                                                                  side: BorderSide(color: scheme.outlineVariant.withOpacity(0.9)),
-                                                                  foregroundColor: scheme.onSurface,
-                                                                ),
-                                                                child: Row(
-                                                                  mainAxisSize: MainAxisSize.min,
-                                                                  children: [
-                                                                    Text(t.admin_area ?? 'DFS Portal'),
-                                                                    const SizedBox(width: 8),
-                                                                    Icon(Icons.arrow_outward_rounded, color: scheme.primary, size: 20),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    )
-                                                  : const SizedBox.shrink(),
-                                            ),
-                                          ],
+                                        padding: EdgeInsets.all(outerPadding),
+                                        child: _LoginScreen(
+                                          api: api,
+                                          onLoggedIn: _onLoggedIn,
+                                          onOpenRegister: () => _openRegister(ctx),
+                                          onOpenAdmin: () => _openAdmin(ctx),
+                                          onOpenRep: () => _openRepArea(ctx),
+                                          onOpenResetPassword: () => _openResetPassword(ctx),
                                         ),
                                       ),
                                     ),
@@ -699,14 +567,10 @@ class _MyAppState extends State<MyApp> {
                                 ),
                               );
                             },
-                          ),
                         ),
                         bottomNavigationBar: LegalFooter(
                           api: api,
-                          trailing: _InternalFooterButton(
-                            expanded: _showInternal,
-                            onPressed: () => setState(() => _showInternal = !_showInternal),
-                          ),
+                          trailing: const _InternalFooterButton(),
                         ),
                       );
                     },
@@ -828,10 +692,7 @@ class _MyAppState extends State<MyApp> {
   } // <<< _MyAppState SAUBER geschlossen
 
 class _InternalFooterButton extends StatelessWidget {
-  final bool expanded;
-  final VoidCallback onPressed;
-
-  const _InternalFooterButton({required this.expanded, required this.onPressed});
+  const _InternalFooterButton();
 
   @override
   Widget build(BuildContext context) {
@@ -840,26 +701,29 @@ class _InternalFooterButton extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Tooltip(
-      message: 'Weitere Optionen',
+      message: 'DFS Internal',
       waitDuration: const Duration(milliseconds: 300),
-      child: TextButton.icon(
-        onPressed: onPressed,
-        icon: Icon(
-          expanded ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-          size: 18,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: scheme.onSurface.withOpacity(isDark ? 0.12 : 0.08),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: scheme.outlineVariant.withOpacity(0.6)),
         ),
-        label: const Text('DFS Internal'),
-        style: TextButton.styleFrom(
-          foregroundColor: scheme.onSurface,
-          backgroundColor: scheme.onSurface.withOpacity(isDark ? 0.12 : 0.08),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          shape: const StadiumBorder(),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          minimumSize: Size.zero,
-          textStyle: theme.textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.info_outline, size: 16, color: scheme.onSurface.withOpacity(0.85)),
+            const SizedBox(width: 6),
+            Text(
+              'DFS Internal',
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -895,16 +759,6 @@ class _LoginScreenState extends State<_LoginScreen> {
   final _pw    = TextEditingController();
   bool _busy = false;
   String? _err;
-
-  // robustes Asset-Checking (SVG → PNG → Text)
-  Future<bool> _assetExists(String path) async {
-    try {
-      await rootBundle.load(path);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
 
   Future<void> _doLogin() async {
     setState(() { _busy = true; _err = null; });
@@ -943,93 +797,121 @@ class _LoginScreenState extends State<_LoginScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
-    return Card(
-      elevation: 8,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 700),
+    InputDecoration _fieldDecoration(String label, {IconData? icon}) {
+      return InputDecoration(
+        labelText: label,
+        prefixIcon: icon != null ? Icon(icon) : null,
+        filled: true,
+        fillColor: scheme.surfaceVariant.withOpacity(0.4),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.outlineVariant.withOpacity(0.6)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.primary, width: 1.6),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      );
+    }
+
+    Widget _hero() {
+      return Column(
+        children: [
+          Opacity(
+            opacity: 0.75,
+            child: Image.asset(
+              'assets/dfs_logo.png',
+              height: 32,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            t.appTitle,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: scheme.onSurface.withOpacity(0.7),
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget _loginCard() {
+      return Card(
+        elevation: 6,
+        shadowColor: Colors.black26,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  SizedBox(
-                    height: 40,
-                    child: FutureBuilder<bool>(
-                      future: _assetExists('assets/dfs_logo.svg'),
-                      builder: (context, snap) {
-                        if (snap.connectionState == ConnectionState.done && (snap.data ?? false)) {
-                          return SvgPicture.asset('assets/dfs_logo.svg', height: 40);
-                        }
-                        return Image.asset(
-                          'assets/dfs_logo.png',
-                          height: 40,
-                          filterQuality: FilterQuality.high,
-                          isAntiAlias: true,
-                          errorBuilder: (_, __, ___) => const Text('DFS'),
-                        );
-                      },
-                    ),
-                  ),
+                  Image.asset('assets/DFS_Connect.png', height: 52, fit: BoxFit.contain),
                   const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      t.customer_login,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DFS Connect',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        t.customer_login,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withOpacity(0.75),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
-              const SizedBox(height: 14),
-
+              const SizedBox(height: 18),
               TextField(
                 controller: _email,
-                decoration: InputDecoration(
-                  labelText: t.email,
-                  border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.email, icon: Icons.mail_outline),
                 enabled: !_busy,
+                keyboardType: TextInputType.emailAddress,
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
               PasswordField(
                 controller: _pw,
-                decoration: InputDecoration(
-                  labelText: t.password,
-                  border: const OutlineInputBorder(),
-                ),
+                decoration: _fieldDecoration(t.password, icon: Icons.lock_outline),
                 onSubmitted: (_) => canLogin ? _doLogin() : null,
                 enabled: !_busy,
                 onChanged: (_) => setState(() {}),
               ),
-
               if (_err != null) ...[
                 const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
-                ),
+                Text(_err!, style: TextStyle(color: scheme.error)),
               ],
-
-              const SizedBox(height: 14),
-
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
+                height: 48,
+                child: FilledButton.icon(
                   onPressed: canLogin ? _doLogin : null,
-                  child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(t.login),
+                  icon: _busy
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.login),
+                  label: Text(t.login),
                 ),
               ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.person_add_alt),
                   onPressed: _busy ? null : widget.onOpenRegister,
@@ -1039,39 +921,45 @@ class _LoginScreenState extends State<_LoginScreen> {
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.35),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.6),
-                  ),
+                  color: scheme.surfaceVariant.withOpacity(.3),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: scheme.outlineVariant.withOpacity(.55)),
                 ),
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
+                    Icon(Icons.lock_reset, color: scheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
                             t.forgot_password_button,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      t.forgot_password_instructions,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _busy ? null : widget.onOpenResetPassword,
-                      icon: const Icon(Icons.mail_outline),
-                      label: Text(t.reset_password_request_action),
+                          const SizedBox(height: 4),
+                          Text(
+                            t.forgot_password_instructions,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextButton.icon(
+                            onPressed: _busy ? null : widget.onOpenResetPassword,
+                            icon: const Icon(Icons.mail_outline),
+                            label: Text(t.reset_password_request_action),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1079,6 +967,180 @@ class _LoginScreenState extends State<_LoginScreen> {
             ],
           ),
         ),
+      );
+    }
+
+    Widget _internalTiles() {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isTwoColumn = constraints.maxWidth >= 820;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                t.quick_access_title,
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t.quick_access_subtitle,
+                style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              Flex(
+                direction: isTwoColumn ? Axis.horizontal : Axis.vertical,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _InternalTile(
+                      title: 'DFS Connect+',
+                      subtitle: 'Mitarbeiterbereich mit allen internen Tools.',
+                      logoPath: 'assets/DFS_Connect+.png',
+                      badgeLabel: 'Intern',
+                      buttonLabel: 'Zum Mitarbeiter-Login',
+                      icon: Icons.lock_outline,
+                      primary: true,
+                      onPressed: widget.onOpenAdmin,
+                    ),
+                  ),
+                  SizedBox(width: isTwoColumn ? 16 : 0, height: isTwoColumn ? 0 : 12),
+                  Expanded(
+                    child: _InternalTile(
+                      title: t.rep_area ?? 'Vertreterbereich',
+                      subtitle: 'Direkter Zugang zum Vertreter-Portal.',
+                      icon: Icons.work_outline,
+                      buttonLabel: 'Zum Vertreter-Login',
+                      primary: false,
+                      onPressed: widget.onOpenRep,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _hero(),
+        const SizedBox(height: 32),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          child: _loginCard(),
+        ),
+        const SizedBox(height: 32),
+        _internalTiles(),
+      ],
+    );
+  }
+}
+
+class _InternalTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String? logoPath;
+  final String? badgeLabel;
+  final String buttonLabel;
+  final IconData icon;
+  final bool primary;
+  final VoidCallback onPressed;
+
+  const _InternalTile({
+    required this.title,
+    required this.subtitle,
+    required this.buttonLabel,
+    required this.icon,
+    required this.primary,
+    required this.onPressed,
+    this.logoPath,
+    this.badgeLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: BoxDecoration(
+        color: scheme.surface.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.14),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (logoPath != null)
+                Image.asset(logoPath!, height: 48, fit: BoxFit.contain)
+              else
+                Icon(icon, size: 26, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    if (badgeLabel != null) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          badgeLabel!,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, height: 1.35),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: primary
+                ? FilledButton.icon(
+                    onPressed: onPressed,
+                    icon: Icon(icon),
+                    label: Text(buttonLabel),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: onPressed,
+                    icon: Icon(icon),
+                    label: Text(buttonLabel),
+                  ),
+          ),
+        ],
       ),
     );
   }
