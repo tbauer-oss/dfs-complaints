@@ -1,11 +1,11 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/audit.dart';
 import '../models/portal_user.dart';
 import 'client.dart';
+import 'config.dart';
 
 class AuditAdminApi {
   AuditAdminApi(this._client);
@@ -14,19 +14,10 @@ class AuditAdminApi {
 
   String get _secret => _client.adminSecret ?? '';
 
-  String get baseUrl {
-    const b = String.fromEnvironment('API_BASE', defaultValue: '');
-    if (b.isNotEmpty) return b;
-    if (kIsWeb) {
-      try {
-        return Uri.base.origin;
-      } catch (_) {}
-    }
-    return 'https://dfs-complaints-backend.vercel.app';
-  }
+  String get baseUrl => CFG.apiBase;
 
-  Map<String, String> _headersJson() => {
-        'Content-Type': 'application/json; charset=utf-8',
+  Map<String, String> _headersJson({bool includeContentType = true}) => {
+        if (includeContentType) 'Content-Type': 'application/json; charset=utf-8',
         if (_secret.isNotEmpty) 'X-Admin-Secret': _secret,
         if ((_client.portalToken ?? '').isNotEmpty) 'Authorization': 'Bearer ${_client.portalToken}',
       };
@@ -145,7 +136,7 @@ class AuditAdminApi {
   Future<List<AuditPlanEntry>> loadAuditPlan(String auditId) async {
     final r = await http.get(
       _u('/api/admin/audits/$auditId/plan'),
-      headers: _headersJson(),
+      headers: _headersJson(includeContentType: false),
     );
     final decoded = await _decode(r);
     final list = decoded['planEntries'] ?? decoded['plan'];
@@ -160,7 +151,7 @@ class AuditAdminApi {
 
   Future<List<AuditPlanEntry>> saveAuditPlan(String auditId, List<AuditPlanEntry> plan) async {
     final r = await http.put(
-      _u('/api/admin/audits/plan', {'id': auditId}),
+      _u('/api/admin/audits/$auditId/plan'),
       headers: _headersJson(),
       body: jsonEncode({
         'planEntries': plan.map((p) => p.toJson()).toList(),

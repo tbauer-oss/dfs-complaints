@@ -1427,6 +1427,14 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   bool _planLoaded = false;
   String? _error;
 
+  String _planErrorMessage(Object error) {
+    if (error is ApiError) {
+      if (error.status == 404) return 'Auditplan nicht gefunden (404).';
+      return 'Auditplan konnte nicht geladen werden: ${error.message}';
+    }
+    return 'Auditplan konnte nicht geladen werden: $error';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1475,7 +1483,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = _planErrorMessage(e);
         _loading = false;
       });
     }
@@ -1491,7 +1499,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = _planErrorMessage(e));
     }
   }
 

@@ -3583,7 +3583,7 @@ const AUDITOR_REDIS_WRITE_ENABLED =
 const AUDITOR_REDIS_READ_ENABLED =
   String(process.env.AUDITOR_REDIS_READ_ENABLED || 'true').toLowerCase() !== 'false';
 const AUDIT_REDIS_ENABLED =
-  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'false').toLowerCase() === 'true';
+  String(process.env.AUDIT_REDIS_ENABLED || process.env.AUDIT_ENABLE_REDIS || 'true').toLowerCase() !== 'false';
 const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedis() {
@@ -4239,8 +4239,28 @@ export async function auditGet(id) {
 }
 
 export async function auditPlanGet(id) {
+  await ensureAuditStoresReady();
+  const planKey = KEY_AUDIT_PLAN(id);
+  const r = getAuditRedis();
+
+  if (r) {
+    const fromRedis = await rget(planKey, r);
+    if (Array.isArray(fromRedis)) {
+      return { planEntries: fromRedis.map(normalizeAuditPlanEntry), found: true, planKey };
+    }
+  }
+
   const audit = await auditGet(id);
-  return audit?.planEntries || [];
+  const fallbackPlan = Array.isArray(audit?.planEntries)
+    ? audit.planEntries.map(normalizeAuditPlanEntry)
+    : [];
+
+  if (fallbackPlan.length > 0) {
+    if (r) await rset(planKey, fallbackPlan, r);
+    return { planEntries: fallbackPlan, found: true, planKey };
+  }
+
+  return { planEntries: [], found: false, planKey };
 }
 
 async function saveAuditInternal(record = {}, { skipValidation = false } = {}) {
@@ -4280,14 +4300,20 @@ export async function auditUpdate(id, patch = {}) {
 }
 
 export async function auditPlanSave(id, planEntries = [], { updatedBy } = {}) {
+  const planKey = KEY_AUDIT_PLAN(id);
   const current = await auditGet(id);
-  if (!current) return null;
+  if (!current) return { planEntries: null, planKey };
+
   const normalizedPlan = Array.isArray(planEntries) ? planEntries.map(normalizeAuditPlanEntry) : [];
+  const r = getAuditRedis();
+  if (r) await rset(planKey, normalizedPlan, r);
+
   const updated = await saveAuditInternal(
     { ...current, planEntries: normalizedPlan, updatedBy: updatedBy || current.updatedBy },
     { skipValidation: true },
   );
-  return updated?.planEntries || [];
+
+  return { planEntries: updated?.planEntries || normalizedPlan, planKey };
 }
 
 export async function auditDelete(id) {
