@@ -6,5 +6,6 @@
   "headers": [],
   "routes": [
     { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
+    ,{ "src": "/api/admin/audits/(?<id>[^/]+)/plan", "dest": "/api/admin/audits/plan.js?id=$id", "methods": ["GET", "PUT"] }
   ]
 }
