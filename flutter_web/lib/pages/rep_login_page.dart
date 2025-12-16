@@ -384,9 +384,9 @@ class _RepLoginDialogState extends State<_RepLoginDialog> {
               Row(
                 children: [
                   Container(
-                    width: 46,
-                    height: 46,
-                    padding: const EdgeInsets.all(6),
+                    width: 68,
+                    height: 68,
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: scheme.primaryContainer.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(12),
