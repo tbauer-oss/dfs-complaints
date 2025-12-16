@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
   AUDIT_TILE_ID,
@@ -18,7 +18,7 @@ function handleError(res, err, { requestId } = {}) {
 }
 
 export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
+  if (setCors(req, res)) return;
 
   const requestId = req.headers?.['x-request-id'] || req.headers?.['x-vercel-id'] || crypto.randomUUID();
   const wantsWrite = req.method === 'POST';
