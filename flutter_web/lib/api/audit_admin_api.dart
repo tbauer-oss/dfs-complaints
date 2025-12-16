@@ -160,7 +160,7 @@ class AuditAdminApi {
 
   Future<List<AuditPlanEntry>> saveAuditPlan(String auditId, List<AuditPlanEntry> plan) async {
     final r = await http.put(
-      _u('/api/admin/audits/$auditId/plan'),
+      _u('/api/admin/audits/plan', {'id': auditId}),
       headers: _headersJson(),
       body: jsonEncode({
         'planEntries': plan.map((p) => p.toJson()).toList(),
