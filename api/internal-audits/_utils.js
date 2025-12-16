@@ -41,13 +41,27 @@ const KEY_AUDIT = (id) => `dfs:ia:${id}`;
 const KEY_AUDIT_PLAN = (id) => `dfs:ia:${id}:plan`;
 const KEY_AUDITOR_INDEX = 'dfs:ia:auditors:index';
 const KEY_AUDITOR = (id) => `dfs:ia:auditor:${id}`;
+const KEY_AUDIT_COUNTER = (year) => `dfs:ia:counter:${year}`;
 
-function normalizeAuditMeta(payload, { actor }) {
+function twoDigit(value) {
+  return String(value).padStart(2, '0');
+}
+
+async function nextAuditNumber({ now, method }) {
+  const date = now ? new Date(now) : new Date();
+  const year = twoDigit(date.getFullYear() % 100);
+  const counterKey = KEY_AUDIT_COUNTER(year);
+  assertWriteAllowed(method, 'nextAuditNumber', counterKey);
+  const sequence = await redis.incr(counterKey);
+  return `IA-${year}-${twoDigit(sequence)}`;
+}
+
+function normalizeAuditMeta(payload, { actor, auditNumber }) {
   const now = Date.now();
   const id = payload.id || randomUUID();
   return {
     id,
-    auditNumber: payload.auditNumber || payload.auditNr || id,
+    auditNumber: auditNumber || payload.auditNumber || payload.auditNr || id,
     title: payload.title || '',
     date: payload.date || payload.plannedDate || null,
     status: payload.status || 'planned',
@@ -84,7 +98,9 @@ export async function listAudits() {
 
 export async function createAudit(meta, { method }) {
   assertWriteAllowed(method, 'createAudit', KEY_AUDIT(meta.id || 'new'));
-  const normalized = normalizeAuditMeta(meta, { actor: meta.actor });
+  const now = Date.now();
+  const auditNumber = await nextAuditNumber({ now, method });
+  const normalized = normalizeAuditMeta(meta, { actor: meta.actor, auditNumber });
   await redis.sadd(KEY_AUDIT_INDEX, normalized.id);
   await redis.set(KEY_AUDIT(normalized.id), normalized);
   return normalized;
@@ -161,4 +177,5 @@ export const IA_KEYS = {
   KEY_AUDIT_PLAN,
   KEY_AUDITOR_INDEX,
   KEY_AUDITOR,
+  KEY_AUDIT_COUNTER,
 };
