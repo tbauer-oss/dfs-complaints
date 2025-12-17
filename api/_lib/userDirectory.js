@@ -41,10 +41,14 @@ export async function buildPortalUserDirectory() {
   const users = await portalUsersList();
   for (const user of users) {
     const aliases = new Set();
-    const emailId = normalizeUserId(user.email);
+    const email = (user.email || '').toString().trim().toLowerCase();
+    if (email) aliases.add(email);
+    const emailId = normalizeUserId(email);
     if (emailId) aliases.add(emailId);
 
-    const usernameId = normalizeUserId(user.username || user.userName);
+    const username = (user.username || user.userName || user.login || '').toString().trim().toLowerCase();
+    if (username) aliases.add(username);
+    const usernameId = normalizeUserId(username);
     if (usernameId) aliases.add(usernameId);
 
     const displayName = resolvePortalDisplayName(user);
