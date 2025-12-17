@@ -52,10 +52,18 @@ export function parseContextId(raw) {
     if (normalizedParts.length !== 2) return null;
     const [a, b] = normalizedParts.sort();
     const [rawA, rawB] = rawParts.sort();
-    const normalizedId = `dm:${a}:${b}`;
+    const canonicalId = `dm:${a}:${b}`;
     const legacyId = `dm:${rawA}:${rawB}`;
-    const contextId = legacyId.includes('@') ? legacyId : normalizedId;
-    return { contextId, canonicalId: normalizedId, type: 'dm', reference: `${a}:${b}`, participants: [a, b] };
+    const isLegacy = legacyId.includes('@') || legacyId !== canonicalId;
+    const contextId = canonicalId;
+    return {
+      contextId,
+      canonicalId,
+      legacyId: isLegacy ? legacyId : null,
+      type: 'dm',
+      reference: `${a}:${b}`,
+      participants: [a, b],
+    };
   }
 
   return {
@@ -63,6 +71,71 @@ export function parseContextId(raw) {
     type: normalizedPrefix,
     reference,
   };
+}
+
+export function buildDmContext(userA, userB) {
+  const a = normalizeUserId(userA);
+  const b = normalizeUserId(userB);
+  if (!a || !b) return null;
+  const [first, second] = [a, b].sort();
+  return parseContextId(`dm:${first}:${second}`);
+}
+
+export async function migrateLegacyContext(context) {
+  if (!context?.legacyId || context.legacyId === context.contextId) return context;
+
+  const legacyMessagesKey = keyMessages(context.legacyId);
+  const canonicalMessagesKey = keyMessages(context.contextId);
+  const legacyMetaKey = keyMeta(context.legacyId);
+  const canonicalMetaKey = keyMeta(context.contextId);
+
+  const legacyMessages = await redis.lrange(legacyMessagesKey, 0, -1);
+  if (legacyMessages && legacyMessages.length > 0) {
+    await redis.rpush(canonicalMessagesKey, ...legacyMessages);
+    await redis.del(legacyMessagesKey);
+  }
+
+  const legacyMeta = await redis.hgetall(legacyMetaKey);
+  if (legacyMeta && Object.keys(legacyMeta).length > 0) {
+    await redis.hset(canonicalMetaKey, { ...legacyMeta, contextId: context.contextId });
+    await redis.del(legacyMetaKey);
+  }
+
+  const contextSetKeys = await redis.keys('chat:user:*:contexts*');
+  if (Array.isArray(contextSetKeys) && contextSetKeys.length) {
+    for (const key of contextSetKeys) {
+      const present = await redis.sismember(key, context.legacyId);
+      if (present) {
+        await redis.sadd(key, context.contextId);
+        await redis.srem(key, context.legacyId);
+      }
+    }
+  }
+
+  const readKeys = await redis.keys('chat:user:*:reads');
+  if (Array.isArray(readKeys) && readKeys.length) {
+    for (const key of readKeys) {
+      const ts = await redis.hget(key, context.legacyId);
+      if (ts) {
+        await redis.hset(key, { [context.contextId]: ts });
+        await redis.hdel(key, context.legacyId);
+      }
+    }
+  }
+
+  const deletedMarkers = await redis.keys(`chat:user:*:deleted:${context.legacyId}`);
+  if (Array.isArray(deletedMarkers) && deletedMarkers.length) {
+    for (const key of deletedMarkers) {
+      const userId = key.split(':')[2];
+      const ts = await redis.get(key);
+      if (userId && ts) {
+        await redis.set(keyUserDeletedContext(userId, context.contextId), ts);
+      }
+    }
+    await redis.del(...deletedMarkers);
+  }
+
+  return context;
 }
 
 export function sanitizeBody(body) {

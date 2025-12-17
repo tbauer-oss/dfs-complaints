@@ -11,11 +11,6 @@ class ChatService {
 
   ChatService(this.api);
 
-  String directContextId(String userA, String userB) {
-    final sorted = [normalizeUserId(userA), normalizeUserId(userB)]..sort();
-    return 'dm:${sorted.first}:${sorted.last}';
-  }
-
   static String normalizeUserId(String value) {
     final trimmed = value.trim().toLowerCase();
     if (!trimmed.contains('@')) return trimmed;
@@ -85,6 +80,16 @@ class ChatService {
     final uri = api.buildUri('/api/admin/chat/$contextId', query: query.isEmpty ? null : query);
     final response = await http.delete(uri, headers: api.portalHeaders());
     api.assertSuccess(response);
+  }
+
+  Future<ChatConversationSummary> ensureDirectConversation(String participant) async {
+    final uri = api.buildUri('/api/admin/chat/direct');
+    final payload = {'participant': participant};
+    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    final contextJson = jsonBody['context'] as Map<String, dynamic>;
+    return ChatConversationSummary.fromJson(contextJson);
   }
 }
 

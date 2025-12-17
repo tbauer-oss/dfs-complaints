@@ -3,7 +3,15 @@ export const config = { runtime: 'nodejs' };
 
 import { bad, handlePreflight, methodNotAllowed, ok, setCors } from '../../_lib/http.js';
 import { requirePortalAccess } from '../_guard.js';
-import { getContextMeta, getLastReads, listContextsForUser, parseContextId, userIdAliases, normalizeUserId } from '../../_lib/chat.js';
+import {
+  getContextMeta,
+  getLastReads,
+  listContextsForUser,
+  migrateLegacyContext,
+  parseContextId,
+  userIdAliases,
+  normalizeUserId,
+} from '../../_lib/chat.js';
 import { portalUsersList } from '../../_lib/store.js';
 
 function toBool(val) {
@@ -35,9 +43,14 @@ export default async function handler(req, res) {
     const reads = {};
     for (const entry of readEntries) {
       for (const [contextId, ts] of Object.entries(entry)) {
-        const prev = reads[contextId];
+        const parsed = parseContextId(contextId);
+        const key = parsed?.contextId || contextId;
+        const prev = reads[key];
         if (!prev || new Date(ts).getTime() > new Date(prev).getTime()) {
-          reads[contextId] = ts;
+          reads[key] = ts;
+        }
+        if (parsed?.legacyId) {
+          reads[parsed.legacyId] = reads[key];
         }
       }
     }
@@ -52,23 +65,32 @@ export default async function handler(req, res) {
 
     const entries = await Promise.all(
       Array.from(contextsSet.values()).map(async (contextId) => {
-        const parsed = parseContextId(contextId);
+        const parsedRaw = parseContextId(contextId);
+        if (!parsedRaw) return null;
+        const parsed = await migrateLegacyContext(parsedRaw);
+        const normalizedContextId = parsed.contextId;
+        contextsSet.add(normalizedContextId);
         const participants = (parsed?.participants || []).map((p) => ({
           userId: p,
           displayName: userDirectory.get(p) || 'Unbekannter Nutzer',
         }));
-        const lastRead = reads?.[contextId] ?? null;
-        const metaRaw = includeMeta ? await getContextMeta(contextId) : null;
+        const lastRead = reads?.[normalizedContextId] ?? null;
+        const metaRaw = includeMeta ? await getContextMeta(normalizedContextId) : null;
         const updatedAt = metaRaw?.updatedAt || null;
         const unread = updatedAt && (!lastRead || new Date(updatedAt).getTime() > new Date(lastRead).getTime());
         let meta = metaRaw || null;
-        if (meta && parsed?.type === 'dm' && participants.length > 0) {
+        if (parsed?.type === 'dm') {
           const selfId = normalizeUserId(actor.email);
           const other = participants.find((p) => p.userId !== selfId) || participants[0];
-          meta = { ...meta, reference: other.displayName || 'Direktnachricht' };
+          const reference = other.displayName || 'Direktnachricht';
+          if (meta) {
+            meta = { ...meta, reference };
+          } else {
+            meta = { contextId: normalizedContextId, type: 'dm', reference };
+          }
         }
         return {
-          contextId,
+          contextId: normalizedContextId,
           participants,
           lastRead,
           unread: !!unread,
@@ -77,13 +99,15 @@ export default async function handler(req, res) {
       })
     );
 
-    entries.sort((a, b) => {
+    const filteredEntries = entries.filter(Boolean);
+
+    filteredEntries.sort((a, b) => {
       const tA = a.meta?.updatedAt ? new Date(a.meta.updatedAt).getTime() : 0;
       const tB = b.meta?.updatedAt ? new Date(b.meta.updatedAt).getTime() : 0;
       return tB - tA;
     });
 
-    return ok(res, { ok: true, contexts: entries });
+    return ok(res, { ok: true, contexts: filteredEntries });
   } catch (err) {
     console.error('[admin/chat/conversations] error', err);
     return bad(res, 'server error', 500);
