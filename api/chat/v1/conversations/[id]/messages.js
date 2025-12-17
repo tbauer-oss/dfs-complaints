@@ -41,9 +41,29 @@ export default async function handler(req, res) {
 
     const membersKey = keyConversationMembers(convId);
     const membersKeyExists = Boolean(await client.exists(membersKey));
-    const isMember = membersKeyExists && (await client.sismember(membersKey, uid)) === 1;
+    const memberCount = membersKeyExists ? Number(await client.scard(membersKey)) || 0 : 0;
+    let isMember = membersKeyExists && (await client.sismember(membersKey, uid)) === 1;
+    let repairedMembership = false;
 
-    console.info('[chat/v1/messages] access', { uid, convId, membersKeyExists, isMember });
+    if (!isMember && memberCount === 0) {
+      const fallbackParticipants = Array.from(new Set([...(meta.participants || []), meta.p1, meta.p2].filter(Boolean)));
+      if (fallbackParticipants.includes(uid) && fallbackParticipants.length > 0) {
+        await client.sadd(membersKey, fallbackParticipants);
+        isMember = true;
+        repairedMembership = true;
+      }
+    }
+
+    console.info('[chat/v1/messages] access', {
+      uid,
+      convId,
+      membersKeyExists,
+      memberCount,
+      isMember,
+      repairedMembership,
+      metaP1: meta.p1 || null,
+      metaP2: meta.p2 || null,
+    });
 
     if (!isMember) return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
 
