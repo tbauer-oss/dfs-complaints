@@ -51,7 +51,11 @@ async function readConversationParticipants(redis, convId, rawMeta) {
     if (Array.isArray(members) && members.length > 0) return members;
   }
   const parsed = parseParticipantList(rawMeta);
-  return Array.isArray(parsed) ? parsed : [];
+  const fallbacks = [];
+  if (rawMeta?.p1) fallbacks.push(rawMeta.p1);
+  if (rawMeta?.p2) fallbacks.push(rawMeta.p2);
+  const combined = [...new Set([...(Array.isArray(parsed) ? parsed : []), ...fallbacks])];
+  return combined.filter(Boolean);
 }
 
 export async function fetchConversationMeta(redis, convId) {
@@ -71,6 +75,8 @@ export async function fetchConversationMeta(redis, convId) {
     title: raw.title || null,
     createdBy: raw.createdBy || null,
     participants,
+    p1: raw.p1 || null,
+    p2: raw.p2 || null,
   };
 }
 
