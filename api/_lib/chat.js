@@ -13,8 +13,8 @@ const CONTEXT_PREFIXES = {
 
 const FLAG_WHITELIST = new Set(['todo']);
 
-const LIST_FETCH_WINDOW = 500;
 const MAX_BODY_LENGTH = 2000;
+const CONTEXT_TYPES = new Set(Object.values(CONTEXT_PREFIXES));
 
 export function parseContextId(raw) {
   const value = String(raw || '').trim();
@@ -79,12 +79,37 @@ function keyUserContexts(userId) {
   return `chat:user:${userId}:contexts`;
 }
 
+function keyUserContextsAll(userId) {
+  return `chat:user:${userId}:contexts:all`;
+}
+
+function keyUserContextsByType(userId, type) {
+  return `chat:user:${userId}:contexts:${type}`;
+}
+
+function keyUserDeletedContext(userId, contextId) {
+  return `chat:user:${userId}:deleted:${contextId}`;
+}
+
 function keyUserReads(userId) {
   return `chat:user:${userId}:reads`;
 }
 
 function keyRate(userId) {
   return `chat:rate:${userId}`;
+}
+
+function resolveContextType(contextId, explicitType) {
+  const type = (explicitType || '').toString().trim();
+  if (type && CONTEXT_TYPES.has(type)) return type;
+  const prefix = String(contextId || '').split(':')[0];
+  return CONTEXT_TYPES.has(prefix) ? prefix : null;
+}
+
+function userContextSets(userId, contextType) {
+  const keys = [keyUserContexts(userId), keyUserContextsAll(userId)];
+  if (contextType) keys.push(keyUserContextsByType(userId, contextType));
+  return keys;
 }
 
 export async function checkRateLimit(userId) {
@@ -128,7 +153,7 @@ export async function recordMessage(context, author, { body, mentions = [], flag
 
 export async function readMessages(contextId, { limit = 50, before } = {}) {
   const messagesKey = keyMessages(contextId);
-  const raw = await redis.lrange(messagesKey, -LIST_FETCH_WINDOW, -1);
+  const raw = await redis.lrange(messagesKey, 0, -1);
   const parsed = raw
     .map((r) => {
       try {
@@ -155,13 +180,46 @@ export async function getContextMeta(contextId) {
   return meta;
 }
 
-export async function touchContextForUser(userId, contextId) {
-  await redis.sadd(keyUserContexts(userId), contextId);
+export async function touchContextForUser(userId, contextId, contextType) {
+  const type = resolveContextType(contextId, contextType);
+  const deletedKey = keyUserDeletedContext(userId, contextId);
+  const wasDeleted = await redis.get(deletedKey);
+  if (wasDeleted) return;
+  const keys = userContextSets(userId, type);
+  await Promise.all(keys.map((key) => redis.sadd(key, contextId)));
 }
 
-export async function touchContextsForUsers(userIds, contextId) {
+export async function touchContextsForUsers(userIds, contextId, contextType) {
   const unique = Array.from(new Set(userIds.filter(Boolean)));
-  await Promise.all(unique.map((id) => touchContextForUser(id, contextId)));
+  await Promise.all(unique.map((id) => touchContextForUser(id, contextId, contextType)));
+}
+
+export async function deleteContextForUser(userId, contextId, contextType) {
+  const type = resolveContextType(contextId, contextType);
+  const keys = userContextSets(userId, type);
+  await Promise.all(keys.map((key) => redis.srem(key, contextId)));
+  await redis.set(keyUserDeletedContext(userId, contextId), new Date().toISOString());
+}
+
+export async function hardDeleteContext(contextId) {
+  const messagesKey = keyMessages(contextId);
+  const metaKey = keyMeta(contextId);
+  await redis.del(messagesKey, metaKey);
+
+  const contextSets = await redis.keys('chat:user:*:contexts*');
+  if (Array.isArray(contextSets) && contextSets.length) {
+    await Promise.all(contextSets.map((key) => redis.srem(key, contextId)));
+  }
+
+  const readKeys = await redis.keys('chat:user:*:reads');
+  if (Array.isArray(readKeys) && readKeys.length) {
+    await Promise.all(readKeys.map((key) => redis.hdel(key, contextId)));
+  }
+
+  const deletedMarkers = await redis.keys(`chat:user:*:deleted:${contextId}`);
+  if (Array.isArray(deletedMarkers) && deletedMarkers.length) {
+    await redis.del(...deletedMarkers);
+  }
 }
 
 export async function listContextsForUser(userId) {

@@ -15,7 +15,10 @@ import {
   setLastRead,
   touchContextsForUsers,
   recordMessage,
+  deleteContextForUser,
+  hardDeleteContext,
 } from '../../_lib/chat.js';
+import { normalizeRole, PORTAL_ROLES } from '../../_lib/portalAuth.js';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -30,7 +33,7 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const wantsWrite = req.method === 'POST';
+  const wantsWrite = req.method === 'POST' || req.method === 'DELETE';
   const actor = await requirePortalAccess(req, res, { write: wantsWrite });
   if (!actor) return;
 
@@ -43,7 +46,7 @@ export default async function handler(req, res) {
       const before = req.query?.before;
       const { items, hasMore } = await readMessages(context.contextId, { limit, before });
       const nowIso = new Date().toISOString();
-      await touchContextsForUsers([actor.email], context.contextId);
+      await touchContextsForUsers([actor.email], context.contextId, context.type);
       await setLastRead(actor.email, context.contextId, nowIso);
       return ok(res, { ok: true, messages: items, hasMore, lastRead: nowIso });
     }
@@ -64,10 +67,25 @@ export default async function handler(req, res) {
       const saved = await recordMessage(context, author, { body: text, mentions, flags });
 
       const participants = context.participants || [];
-      await touchContextsForUsers([actor.email, ...mentions, ...participants], context.contextId);
+      await touchContextsForUsers([actor.email, ...mentions, ...participants], context.contextId, context.type);
 
       const meta = await getContextMeta(context.contextId);
       return ok(res, { ok: true, message: saved, meta });
+    }
+
+    if (req.method === 'DELETE') {
+      const hardMode = String(req.query?.mode || '').toLowerCase() === 'hard';
+      if (hardMode && normalizeRole(actor.role) !== PORTAL_ROLES.superuser) {
+        return bad(res, 'forbidden', 403);
+      }
+
+      if (hardMode) {
+        await hardDeleteContext(context.contextId);
+      } else {
+        await deleteContextForUser(actor.email, context.contextId, context.type);
+      }
+
+      return ok(res, { ok: true, mode: hardMode ? 'hard' : 'soft' });
     }
 
     return methodNotAllowed(res);

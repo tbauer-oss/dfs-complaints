@@ -17,15 +17,17 @@ class ChatService {
   }
 
   Future<List<PortalUserSummary>> fetchStaffUsers() async {
-    final uri = api.buildUri('/api/admin/users', query: {'role': 'staff'});
+    final uri = api.buildUri('/api/admin/users', query: {'scope': 'staff', 'includeInactive': 'false'});
     final response = await http.get(uri, headers: api.portalHeaders());
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final list = jsonBody['users'] as List<dynamic>? ?? const [];
-    return list
+    final users = list
         .whereType<Map<String, dynamic>>()
         .map(PortalUserSummary.fromJson)
         .toList(growable: false);
+    users.sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    return users;
   }
 
   Future<List<ChatConversationSummary>> fetchConversations() async {
@@ -50,7 +52,8 @@ class ChatService {
     final messages = (jsonBody['messages'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(ChatMessage.fromJson)
-        .toList(growable: false);
+        .toList(growable: false)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return ChatTimelineResponse(
       messages: messages,
       hasMore: jsonBody['hasMore'] == true,
@@ -69,6 +72,13 @@ class ChatService {
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
+  }
+
+  Future<void> deleteConversation(String contextId, {bool hard = false}) async {
+    final query = <String, dynamic>{if (hard) 'mode': 'hard'};
+    final uri = api.buildUri('/api/admin/chat/$contextId', query: query.isEmpty ? null : query);
+    final response = await http.delete(uri, headers: api.portalHeaders());
+    api.assertSuccess(response);
   }
 }
 
