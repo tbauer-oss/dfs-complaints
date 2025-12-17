@@ -35,7 +35,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _loadMessages();
+    _resetAndLoad();
   }
 
   @override

@@ -16,6 +16,23 @@ const FLAG_WHITELIST = new Set(['todo']);
 const MAX_BODY_LENGTH = 2000;
 const CONTEXT_TYPES = new Set(Object.values(CONTEXT_PREFIXES));
 
+export function normalizeUserId(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+  const lowered = value.toLowerCase();
+  if (!lowered.includes('@')) return lowered;
+  return Buffer.from(lowered, 'utf8').toString('base64url').replace(/=+$/, '');
+}
+
+export function userIdAliases(raw) {
+  const aliases = new Set();
+  const normalized = normalizeUserId(raw);
+  if (normalized) aliases.add(normalized);
+  const email = String(raw || '').trim().toLowerCase();
+  if (email && email.includes('@')) aliases.add(email);
+  return Array.from(aliases.values());
+}
+
 export function parseContextId(raw) {
   const value = String(raw || '').trim();
   if (!value.includes(':')) return null;
@@ -25,15 +42,20 @@ export function parseContextId(raw) {
   if (!normalizedPrefix || !reference) return null;
 
   if (normalizedPrefix === 'dm') {
-    const parts = rest
+    const rawParts = rest
       .join(':')
       .split(':')
       .map((p) => String(p || '').trim().toLowerCase())
       .filter(Boolean);
-    if (parts.length !== 2) return null;
-    const [a, b] = parts.sort();
-    const contextId = `dm:${a}:${b}`;
-    return { contextId, type: 'dm', reference: `${a}:${b}`, participants: [a, b] };
+    if (rawParts.length !== 2) return null;
+    const normalizedParts = rawParts.map((p) => normalizeUserId(p)).filter(Boolean);
+    if (normalizedParts.length !== 2) return null;
+    const [a, b] = normalizedParts.sort();
+    const [rawA, rawB] = rawParts.sort();
+    const normalizedId = `dm:${a}:${b}`;
+    const legacyId = `dm:${rawA}:${rawB}`;
+    const contextId = legacyId.includes('@') ? legacyId : normalizedId;
+    return { contextId, canonicalId: normalizedId, type: 'dm', reference: `${a}:${b}`, participants: [a, b] };
   }
 
   return {
@@ -236,6 +258,6 @@ export async function setLastRead(userId, contextId, timestamp) {
 
 export function resolveAuthor(actor) {
   const id = actor?.email || actor?.id || 'unknown';
-  const name = actor?.displayName || actor?.name || actor?.email || id;
+  const name = actor?.displayName || actor?.name || actor?.id || 'Unbekannt';
   return { id, name };
 }

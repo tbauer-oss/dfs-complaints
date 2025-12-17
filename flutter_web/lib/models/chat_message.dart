@@ -82,21 +82,55 @@ class ChatConversationSummary {
   final ChatContextMeta? meta;
   final DateTime? lastRead;
   final bool unread;
+  final List<ChatParticipant> participants;
 
   const ChatConversationSummary({
     required this.contextId,
     required this.meta,
     required this.lastRead,
     required this.unread,
+    this.participants = const [],
   });
+
+  String titleFor(String currentUserId) {
+    final isDm = meta?.type == ChatContextType.dm || participants.isNotEmpty;
+    if (isDm && participants.isNotEmpty) {
+      final other = participants.firstWhere(
+        (p) => p.userId != currentUserId,
+        orElse: () => participants.first,
+      );
+      if (other.displayName.trim().isNotEmpty) return other.displayName.trim();
+    }
+    if (meta?.reference != null && meta!.reference.trim().isNotEmpty) {
+      return meta!.reference.trim();
+    }
+    return 'Konversation';
+  }
 
   factory ChatConversationSummary.fromJson(Map<String, dynamic> json) {
     final metaJson = json['meta'];
+    final participants = (json['participants'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ChatParticipant.fromJson)
+        .toList(growable: false);
     return ChatConversationSummary(
       contextId: json['contextId'] as String,
       meta: metaJson is Map<String, dynamic> ? ChatContextMeta.fromJson(metaJson) : null,
       lastRead: json['lastRead'] != null ? DateTime.tryParse(json['lastRead'] as String) : null,
       unread: json['unread'] == true,
+      participants: participants,
     );
   }
+}
+
+class ChatParticipant {
+  final String userId;
+  final String displayName;
+
+  const ChatParticipant({required this.userId, required this.displayName});
+
+  factory ChatParticipant.fromJson(Map<String, dynamic> json) => ChatParticipant(
+        userId: (json['userId'] ?? '').toString(),
+        displayName: (json['displayName'] ?? '').toString(),
+      );
 }
