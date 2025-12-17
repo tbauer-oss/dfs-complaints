@@ -6,9 +6,7 @@ const MAX_BODY_LENGTH = 2000;
 export function normalizeUserId(raw) {
   const value = String(raw || '').trim();
   if (!value) return null;
-  const lowered = value.toLowerCase();
-  if (!lowered.includes('@')) return lowered;
-  return Buffer.from(lowered, 'utf8').toString('base64url').replace(/=+$/, '');
+  return value.toLowerCase();
 }
 
 export function buildConversationId(userA, userB) {
@@ -19,8 +17,12 @@ export function buildConversationId(userA, userB) {
   return `dm:${min}:${max}`;
 }
 
+const DM_ID_PATTERN = '[a-z0-9@._+%-]+';
+
 export function isConversationId(value) {
-  return /^(dm:[a-z0-9_-]+:[a-z0-9_-]+|grp:[a-z0-9-]+)$/i.test(String(value || '').trim());
+  return new RegExp(`^(dm:${DM_ID_PATTERN}:${DM_ID_PATTERN}|grp:[a-z0-9-]+)$`, 'i').test(
+    String(value || '').trim()
+  );
 }
 
 export function buildGroupId(uuid) {

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     const title = (body?.title || '').toString();
     const initialBody = body?.initialMessage;
 
-    const selfId = normalizeUserId(actor.email || actor.id);
+    const selfId = normalizeUserId(actor.email);
     const memberIds = Array.from(new Set([...rawMembers, selfId].map((m) => normalizeUserId(m)).filter(Boolean)));
     if (!selfId || memberIds.length < 2) return bad(res, 'invalid members', 400);
 

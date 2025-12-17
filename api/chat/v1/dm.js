@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     const body = readJson(req);
     const otherRaw = body?.otherUid ?? body?.participant ?? body?.userId ?? '';
 
-    const selfId = normalizeUserId(actor.email || actor.id);
+    const selfId = normalizeUserId(actor.email);
     const peerId = normalizeUserId(otherRaw);
     if (!selfId || typeof otherRaw !== 'string' || !peerId) return bad(res, 'invalid payload', 400);
     if (selfId === peerId) return bad(res, 'invalid payload', 400);

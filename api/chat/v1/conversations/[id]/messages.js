@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     const actor = getAuthUser(req);
     if (!actor) return bad(res, 'unauthorized', 401);
 
-    const uid = normalizeUserId(actor.email || actor.id);
+    const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
     const meta = await fetchConversationMeta(client, convId);
@@ -41,14 +41,22 @@ export default async function handler(req, res) {
 
     const membersKey = keyConversationMembers(convId);
     const membersKeyExists = Boolean(await client.exists(membersKey));
-    const memberCount = membersKeyExists ? Number(await client.scard(membersKey)) || 0 : 0;
-    let isMember = membersKeyExists && (await client.sismember(membersKey, uid)) === 1;
+    const members = membersKeyExists ? await client.smembers(membersKey) : [];
+    const memberCount = members.length;
+    const convIdParts = convId.split(':').slice(1);
+    let isMember = members.includes(uid);
     let repairedMembership = false;
 
     if (!isMember && memberCount === 0) {
       const fallbackParticipants = Array.from(new Set([...(meta.participants || []), meta.p1, meta.p2].filter(Boolean)));
       if (fallbackParticipants.includes(uid) && fallbackParticipants.length > 0) {
         await client.sadd(membersKey, fallbackParticipants);
+        members.push(...fallbackParticipants);
+        isMember = true;
+        repairedMembership = true;
+      } else if (convIdParts.includes(uid)) {
+        await client.sadd(membersKey, convIdParts);
+        members.push(...convIdParts);
         isMember = true;
         repairedMembership = true;
       }
@@ -65,7 +73,11 @@ export default async function handler(req, res) {
       metaP2: meta.p2 || null,
     });
 
-    if (!isMember) return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
+    if (!isMember) {
+      const currentMembers = membersKeyExists ? members : await client.smembers(membersKey);
+      console.warn('[chat/v1/messages] membership_mismatch', { uid, convId, members: currentMembers });
+      return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
+    }
 
     if (req.method === 'GET') {
       const afterTs = parseTimestamp(req.query?.afterTs);
