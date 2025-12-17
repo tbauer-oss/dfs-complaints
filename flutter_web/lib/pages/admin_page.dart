@@ -333,6 +333,20 @@ class _AdminPageState extends State<AdminPage> {
   bool get _isPortalReadonly => _portalRole == PORTAL_ROLES['readonly'];
   bool get _isPortalSales => _portalIsSales;
 
+  String get _portalEmail {
+    final profile = _portalProfile;
+    if (profile == null) return '';
+    final direct = profile['email'] ?? profile['contactEmail'] ?? profile['userEmail'];
+    if (direct != null && direct.toString().trim().isNotEmpty) {
+      return direct.toString();
+    }
+    final user = profile['user'];
+    if (user is Map && user['email'] != null && user['email'].toString().trim().isNotEmpty) {
+      return user['email'].toString();
+    }
+    return '';
+  }
+
   Map<String, dynamic>? get _portalProfile =>
       widget.portalProfile ?? widget.api.portalProfile;
 
@@ -4788,6 +4802,7 @@ class _AdminPageState extends State<AdminPage> {
                     child: selected == null
                         ? InternalChatOverview(
                             chatService: _chatService,
+                            currentUserId: _portalEmail,
                             onSelect: (conv) => setModalState(() => selected = conv),
                             onClose: () => Navigator.of(context).maybePop(),
                           )
