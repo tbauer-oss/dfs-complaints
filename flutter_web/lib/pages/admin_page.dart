@@ -347,6 +347,12 @@ class _AdminPageState extends State<AdminPage> {
     return '';
   }
 
+  String get _portalUserId {
+    final email = _portalEmail;
+    if (email.isEmpty) return '';
+    return ChatService.normalizeUserId(email);
+  }
+
   Map<String, dynamic>? get _portalProfile =>
       widget.portalProfile ?? widget.api.portalProfile;
 
@@ -4802,14 +4808,14 @@ class _AdminPageState extends State<AdminPage> {
                     child: selected == null
                         ? InternalChatOverview(
                             chatService: _chatService,
-                            currentUserId: _portalEmail,
+                            currentUserId: _portalUserId,
                             onSelect: (conv) => setModalState(() => selected = conv),
                             onClose: () => Navigator.of(context).maybePop(),
                           )
                         : InternalChatPanel(
                             chatService: _chatService,
                             contextId: selected!.contextId,
-                            title: selected!.meta?.reference ?? selected!.contextId,
+                            title: selected!.titleFor(_portalUserId),
                             onClose: () => setModalState(() => selected = null),
                           ),
                   ),

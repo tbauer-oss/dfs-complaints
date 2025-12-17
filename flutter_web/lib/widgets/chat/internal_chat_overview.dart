@@ -60,6 +60,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     item: item,
                     onTap: () => widget.onSelect(item),
                     onDelete: () => _deleteConversation(item),
+                    currentUserId: widget.currentUserId,
                   );
                 },
               );
@@ -114,6 +115,10 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
         meta: meta,
         lastRead: null,
         unread: false,
+        participants: [
+          ChatParticipant(userId: widget.currentUserId, displayName: ''),
+          ChatParticipant(userId: ChatService.normalizeUserId(selected.email), displayName: selected.displayName),
+        ],
       ),
     );
   }
@@ -237,8 +242,9 @@ class _ConversationTile extends StatelessWidget {
   final ChatConversationSummary item;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final String currentUserId;
 
-  const _ConversationTile({required this.item, required this.onTap, this.onDelete});
+  const _ConversationTile({required this.item, required this.onTap, required this.currentUserId, this.onDelete});
 
   IconData _iconForType(ChatContextType? type) {
     switch (type) {
@@ -261,18 +267,21 @@ class _ConversationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final meta = item.meta;
+    final type = meta?.type ?? (item.participants.isNotEmpty ? ChatContextType.dm : null);
     final ts = meta?.updatedAt != null
         ? '${meta!.updatedAt!.toLocal()}'
         : '—';
     final subtitle = meta?.lastMessage ?? 'Keine Nachrichten';
 
+    final title = item.titleFor(currentUserId);
+
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        child: Icon(_iconForType(meta?.type), color: Theme.of(context).colorScheme.primary),
+        child: Icon(_iconForType(type), color: Theme.of(context).colorScheme.primary),
       ),
-      title: Text(meta?.reference ?? item.contextId),
+      title: Text(title),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

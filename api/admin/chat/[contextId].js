@@ -17,6 +17,7 @@ import {
   recordMessage,
   deleteContextForUser,
   hardDeleteContext,
+  userIdAliases,
 } from '../../_lib/chat.js';
 import { normalizeRole, PORTAL_ROLES } from '../../_lib/portalAuth.js';
 
@@ -46,8 +47,9 @@ export default async function handler(req, res) {
       const before = req.query?.before;
       const { items, hasMore } = await readMessages(context.contextId, { limit, before });
       const nowIso = new Date().toISOString();
-      await touchContextsForUsers([actor.email], context.contextId, context.type);
-      await setLastRead(actor.email, context.contextId, nowIso);
+      const actorIds = userIdAliases(actor.email);
+      await touchContextsForUsers(actorIds, context.contextId, context.type);
+      await Promise.all(actorIds.map((id) => setLastRead(id, context.contextId, nowIso)));
       return ok(res, { ok: true, messages: items, hasMore, lastRead: nowIso });
     }
 
@@ -67,7 +69,11 @@ export default async function handler(req, res) {
       const saved = await recordMessage(context, author, { body: text, mentions, flags });
 
       const participants = context.participants || [];
-      await touchContextsForUsers([actor.email, ...mentions, ...participants], context.contextId, context.type);
+      const actorIds = userIdAliases(actor.email);
+      const participantIds = participants.flatMap((p) => userIdAliases(p));
+      const mentionIds = mentions.flatMap((m) => userIdAliases(m));
+      const allIds = Array.from(new Set([...actorIds, ...participantIds, ...mentionIds]));
+      await touchContextsForUsers(allIds, context.contextId, context.type);
 
       const meta = await getContextMeta(context.contextId);
       return ok(res, { ok: true, message: saved, meta });
@@ -82,7 +88,8 @@ export default async function handler(req, res) {
       if (hardMode) {
         await hardDeleteContext(context.contextId);
       } else {
-        await deleteContextForUser(actor.email, context.contextId, context.type);
+        const actorIds = userIdAliases(actor.email);
+        await Promise.all(actorIds.map((id) => deleteContextForUser(id, context.contextId, context.type)));
       }
 
       return ok(res, { ok: true, mode: hardMode ? 'hard' : 'soft' });

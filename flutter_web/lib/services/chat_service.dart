@@ -12,8 +12,14 @@ class ChatService {
   ChatService(this.api);
 
   String directContextId(String userA, String userB) {
-    final sorted = [userA.trim().toLowerCase(), userB.trim().toLowerCase()]..sort();
+    final sorted = [normalizeUserId(userA), normalizeUserId(userB)]..sort();
     return 'dm:${sorted.first}:${sorted.last}';
+  }
+
+  static String normalizeUserId(String value) {
+    final trimmed = value.trim().toLowerCase();
+    if (!trimmed.contains('@')) return trimmed;
+    return base64Url.encode(utf8.encode(trimmed)).replaceAll('=', '');
   }
 
   Future<List<PortalUserSummary>> fetchStaffUsers() async {
