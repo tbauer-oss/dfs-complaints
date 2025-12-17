@@ -12,9 +12,17 @@ const CONTEXT_PREFIXES = {
 };
 
 const FLAG_WHITELIST = new Set(['todo']);
-
 const MAX_BODY_LENGTH = 2000;
 const CONTEXT_TYPES = new Set(Object.values(CONTEXT_PREFIXES));
+
+const CHAT_PREFIX = 'dfs:chat:v2';
+
+const keyMessages = (contextId) => `${CHAT_PREFIX}:ctx:${contextId}:msgs`;
+const keyMetaHash = () => `${CHAT_PREFIX}:meta`;
+const keyUserContexts = (userId) => `${CHAT_PREFIX}:user:${userId}:contexts`;
+const keyUserContextActivity = (userId) => `${CHAT_PREFIX}:user:${userId}:activity`;
+const keyUserReads = (userId) => `${CHAT_PREFIX}:user:${userId}:reads`;
+const keyRate = (userId) => `${CHAT_PREFIX}:rate:${userId}`;
 
 export function normalizeUserId(raw) {
   const value = String(raw || '').trim();
@@ -42,24 +50,17 @@ export function parseContextId(raw) {
   if (!normalizedPrefix || !reference) return null;
 
   if (normalizedPrefix === 'dm') {
-    const rawParts = rest
+    const parts = rest
       .join(':')
       .split(':')
       .map((p) => String(p || '').trim())
       .filter(Boolean);
-    if (rawParts.length !== 2) return null;
-    const normalizedParts = rawParts.map((p) => normalizeUserId(p)).filter(Boolean);
+    if (parts.length !== 2) return null;
+    const normalizedParts = parts.map((p) => normalizeUserId(p)).filter(Boolean);
     if (normalizedParts.length !== 2) return null;
     const [a, b] = normalizedParts.sort();
-    const [rawA, rawB] = rawParts.sort();
-    const canonicalId = `dm:${a}:${b}`;
-    const legacyId = `dm:${rawA}:${rawB}`;
-    const isLegacy = legacyId.includes('@') || legacyId !== canonicalId;
-    const contextId = canonicalId;
     return {
-      contextId,
-      canonicalId,
-      legacyId: isLegacy ? legacyId : null,
+      contextId: `dm:${a}:${b}`,
       type: 'dm',
       reference: `${a}:${b}`,
       participants: [a, b],
@@ -82,7 +83,6 @@ export function buildDmContext(userA, userB) {
 }
 
 export async function migrateLegacyContext(context) {
-  if (!context?.legacyId || context.legacyId === context.contextId) return context;
   return context;
 }
 
@@ -110,43 +110,21 @@ export function sanitizeFlags(input) {
   return Array.from(new Set(arr.map((f) => String(f || '').trim().toLowerCase()).filter((f) => FLAG_WHITELIST.has(f))));
 }
 
-function keyMessages(contextId) {
-  return `chat:conv:${contextId}:msgs`;
-}
-
-function keyLegacyMessages(contextId) {
-  return `chat:${contextId}:messages`;
-}
-
-function keyMeta(contextId) {
-  return `chat:conv:${contextId}`;
-}
-
-function keyLegacyMeta(contextId) {
-  return `chat:${contextId}:meta`;
-}
-
-function keyUserContexts(userId) {
-  return `chat:user:${userId}:convs`;
-}
-
-function keyUserContextActivity(userId) {
-  return `chat:user:${userId}:convs:last`;
-}
-
-function keyUserReads(userId) {
-  return `chat:user:${userId}:reads`;
-}
-
-function keyRate(userId) {
-  return `chat:rate:${userId}`;
-}
-
 function resolveContextType(contextId, explicitType) {
   const type = (explicitType || '').toString().trim();
   if (type && CONTEXT_TYPES.has(type)) return type;
   const prefix = String(contextId || '').split(':')[0];
   return CONTEXT_TYPES.has(prefix) ? prefix : null;
+}
+
+function parseMeta(rawValue) {
+  if (!rawValue) return null;
+  try {
+    const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function checkRateLimit(userId) {
@@ -172,28 +150,27 @@ export async function recordMessage(context, author, { body, mentions = [], flag
     flags,
   };
 
-  const payload = JSON.stringify(message);
-  await redis.rpush(keyMessages(context.contextId), payload);
-
-  await redis.hset(keyMeta(context.contextId), {
+  const meta = {
     contextId: context.contextId,
     type: context.type,
     reference: context.reference,
     updatedAt: timestamp,
     lastMessage: body.slice(0, 240),
     lastAuthor: author.name,
-  });
+    participants: Array.isArray(context.participants) ? context.participants : undefined,
+  };
+
+  const pipeline = redis.pipeline();
+  pipeline.rpush(keyMessages(context.contextId), JSON.stringify(message));
+  pipeline.hset(keyMetaHash(), { [context.contextId]: JSON.stringify(meta) });
+  await pipeline.exec();
 
   return message;
 }
 
 export async function readMessages(contextId, { limit = 50, before } = {}) {
-  const [primaryRaw, legacyRaw] = await Promise.all([
-    redis.lrange(keyMessages(contextId), 0, -1),
-    redis.lrange(keyLegacyMessages(contextId), 0, -1),
-  ]);
-
-  const parsed = [...legacyRaw, ...primaryRaw]
+  const raw = await redis.lrange(keyMessages(contextId), 0, -1);
+  const parsed = (raw || [])
     .map((r) => {
       try {
         const obj = JSON.parse(r);
@@ -203,17 +180,10 @@ export async function readMessages(contextId, { limit = 50, before } = {}) {
       }
     })
     .filter(Boolean)
-    .reduce((acc, cur) => {
-      acc.set(cur.id, cur);
-      return acc;
-    }, new Map());
-
-  const sorted = Array.from(parsed.values()).sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   const cutoff = before ? new Date(before).getTime() : null;
-  const filtered = cutoff ? sorted.filter((m) => new Date(m.timestamp).getTime() < cutoff) : sorted;
+  const filtered = cutoff ? parsed.filter((m) => new Date(m.timestamp).getTime() < cutoff) : parsed;
   const slice = filtered.length > limit ? filtered.slice(filtered.length - limit) : filtered;
   return {
     items: slice,
@@ -222,46 +192,61 @@ export async function readMessages(contextId, { limit = 50, before } = {}) {
 }
 
 export async function getContextMeta(contextId) {
-  const [primary, legacy] = await Promise.all([
-    redis.hgetall(keyMeta(contextId)),
-    redis.hgetall(keyLegacyMeta(contextId)),
-  ]);
-
-  const meta = primary && Object.keys(primary).length > 0 ? primary : legacy;
-  if (!meta || Object.keys(meta).length === 0) return null;
-  return meta;
+  const raw = await redis.hget(keyMetaHash(), contextId);
+  return parseMeta(raw);
 }
 
 export async function touchContextForUser(userId, contextId, contextType, updatedAt = null) {
+  const uid = normalizeUserId(userId);
+  if (!uid || !contextId) return;
   const type = resolveContextType(contextId, contextType);
   if (!type) return;
   const timestamp = updatedAt || new Date().toISOString();
-  await Promise.all([
-    redis.sadd(keyUserContexts(userId), contextId),
-    redis.hset(keyUserContextActivity(userId), { [contextId]: timestamp }),
-  ]);
+  const pipeline = redis.pipeline();
+  pipeline.sadd(keyUserContexts(uid), contextId);
+  pipeline.hset(keyUserContextActivity(uid), { [contextId]: timestamp });
+  await pipeline.exec();
 }
 
 export async function touchContextsForUsers(userIds, contextId, contextType, updatedAt = null) {
-  const unique = Array.from(new Set(userIds.filter(Boolean)));
+  const unique = Array.from(new Set((userIds || []).map((id) => normalizeUserId(id)).filter(Boolean)));
   await Promise.all(unique.map((id) => touchContextForUser(id, contextId, contextType, updatedAt)));
 }
 
 export async function deleteContextForUser(userId, contextId, contextType) {
-  await Promise.all([
-    redis.srem(keyUserContexts(userId), contextId),
-    redis.hdel(keyUserContextActivity(userId), contextId),
-  ]);
+  const uid = normalizeUserId(userId);
+  if (!uid || !contextId) return;
+  const type = resolveContextType(contextId, contextType);
+  if (!type) return;
+  const pipeline = redis.pipeline();
+  pipeline.srem(keyUserContexts(uid), contextId);
+  pipeline.hdel(keyUserContextActivity(uid), contextId);
+  pipeline.hdel(keyUserReads(uid), contextId);
+  await pipeline.exec();
 }
 
 export async function hardDeleteContext(contextId) {
-  await redis.del(keyMessages(contextId), keyMeta(contextId), keyLegacyMessages(contextId), keyLegacyMeta(contextId));
+  const meta = await getContextMeta(contextId);
+  const participants = Array.isArray(meta?.participants) ? meta.participants : [];
+  const pipeline = redis.pipeline();
+  pipeline.del(keyMessages(contextId));
+  pipeline.hdel(keyMetaHash(), contextId);
+  for (const userId of participants) {
+    const uid = normalizeUserId(userId);
+    if (!uid) continue;
+    pipeline.srem(keyUserContexts(uid), contextId);
+    pipeline.hdel(keyUserContextActivity(uid), contextId);
+    pipeline.hdel(keyUserReads(uid), contextId);
+  }
+  await pipeline.exec();
 }
 
 export async function listContextsForUser(userId) {
+  const uid = normalizeUserId(userId);
+  if (!uid) return [];
   const [ids, activityRaw] = await Promise.all([
-    redis.smembers(keyUserContexts(userId)),
-    redis.hgetall(keyUserContextActivity(userId)),
+    redis.smembers(keyUserContexts(uid)),
+    redis.hgetall(keyUserContextActivity(uid)),
   ]);
   const activity = activityRaw || {};
   const items = (ids || []).map((contextId) => ({
@@ -279,11 +264,15 @@ export async function listContextsForUser(userId) {
 }
 
 export async function getLastReads(userId) {
-  return await redis.hgetall(keyUserReads(userId));
+  const uid = normalizeUserId(userId);
+  if (!uid) return {};
+  return (await redis.hgetall(keyUserReads(uid))) || {};
 }
 
 export async function setLastRead(userId, contextId, timestamp) {
-  await redis.hset(keyUserReads(userId), { [contextId]: timestamp });
+  const uid = normalizeUserId(userId);
+  if (!uid || !contextId) return;
+  await redis.hset(keyUserReads(uid), { [contextId]: timestamp });
 }
 
 export function resolveAuthor(actor) {
@@ -295,9 +284,10 @@ export function resolveAuthor(actor) {
 export function describeKeySchema(contextId, userId) {
   return {
     messagesKey: keyMessages(contextId),
-    metaKey: keyMeta(contextId),
+    metaKey: keyMetaHash(),
     userContextsKey: keyUserContexts(userId),
     userContextActivityKey: keyUserContextActivity(userId),
     userReadsKey: keyUserReads(userId),
+    rateLimitKey: keyRate(userId),
   };
 }
