@@ -4,20 +4,40 @@ export const config = { runtime: 'nodejs' };
 import {
   handlePreflight, setCors, ok, bad, methodNotAllowed, readJson
 } from '../_lib/http.js';
-import { usersList, userSave, userDelete, pendingDelete } from '../_lib/store.js';
+import { usersList, userSave, userDelete, pendingDelete, portalUsersList } from '../_lib/store.js';
 import { requirePortalAccess } from './_guard.js';
+import { normalizeRole, normalizeStatus, PORTAL_ROLES } from '../_lib/portalAuth.js';
 
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS (Preflight) direkt beantworten
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'users' });
+  const wantsStaffList = req.method === 'GET' && String(req.query?.role || '').toLowerCase() === 'staff';
+  const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: wantsStaffList ? undefined : 'users' });
   if (!actor) return;
 
   try {
     // ---- LIST ----
     if (req.method === 'GET') {
+      if (wantsStaffList) {
+        const list = await portalUsersList();
+        const staff = list
+          .map((u) => ({
+            email: String(u.email || '').toLowerCase(),
+            displayName: u.displayName || u.contact || u.company || '',
+            role: normalizeRole(u.role),
+            portalStatus: normalizeStatus(u.portalStatus, u.revoked),
+            isPRRC: u.isPRRC === true,
+            assignedDepartments: Array.isArray(u.assignedDepartments)
+              ? u.assignedDepartments.filter(Boolean).map((d) => String(d))
+              : [],
+          }))
+          .filter((u) => u.portalStatus === 'active' && u.role !== PORTAL_ROLES.user);
+
+        return ok(res, { users: staff });
+      }
+
       const list = await usersList();
 
       const out = list.map(u => ({

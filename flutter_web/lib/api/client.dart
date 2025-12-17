@@ -454,6 +454,26 @@ class ApiClient {
     return Uri.parse('$base$path');
   }
 
+  /// Öffentlicher Helfer zum Bauen einer URI mit Query-Parametern.
+  Uri buildUri(String path, {Map<String, dynamic>? query}) {
+    final uri = _u(path);
+    if (query == null || query.isEmpty) return uri;
+    final qp = <String, String>{};
+    query.forEach((key, value) {
+      if (value == null) return;
+      qp[key] = value.toString();
+    });
+    return uri.replace(queryParameters: qp);
+  }
+
+  /// Auth-Header für DFS-Portal-Aufrufe (inkl. JWT / Admin-Secret Fallback).
+  Map<String, String> portalHeaders() => _adminHeaders(auth: true);
+
+  void assertSuccess(http.Response response) {
+    if (_ok2xx(response.statusCode)) return;
+    throw ApiError(response.statusCode, _extractMessage(response.body));
+  }
+
   // Öffentlicher Wrapper für Rep-POST (mit X-Gate: rep + Bearer)
   Future<Map<String, dynamic>> repPostJson(String path, Map<String, dynamic> body) {
     return _repPostJson(path, body);

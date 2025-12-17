@@ -14,6 +14,7 @@ import '../api/client.dart';
 import '../models/capa_report.dart';
 import '../models/country.dart';
 import '../models/complaint.dart' show ComplaintUpload;
+import '../models/chat_message.dart';
 import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
@@ -21,12 +22,16 @@ import '../models/portal_user.dart' show PortalUserSummary;
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
+import '../services/chat_service.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/password_field.dart';
 import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import '../widgets/fmea_risk_check_dialog.dart';
+import '../widgets/chat/internal_chat_fab.dart';
+import '../widgets/chat/internal_chat_overview.dart';
+import '../widgets/chat/internal_chat_panel.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
@@ -167,6 +172,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaDashboard',
     'fmea',
     'prrc',
+    'internalChat',
     'stats',
     'pending',
     'users',
@@ -196,6 +202,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaDashboard',
     'fmea',
     'prrc',
+    'internalChat',
     'stats',
     'pending',
     'users',
@@ -220,6 +227,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'internalChat',
     'fmea',
     'audits',
     'stats',
@@ -237,6 +245,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaDashboard',
     'fmea',
     'prrc',
+    'internalChat',
     'stats',
     'audits',
   ],
@@ -246,6 +255,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'capaReports',
     'prrc',
+    'internalChat',
     'stats',
     'audits',
   ],
@@ -310,6 +320,7 @@ class _AdminPageState extends State<AdminPage> {
   static const int _repReminderDefaultDelayDays = 4;
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
   late final AdminApi _api;
+  late final ChatService _chatService;
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
@@ -900,6 +911,7 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _api = AdminApi(onNewsChanged: widget.api.clearAllNewsCaches);
+    _chatService = ChatService(widget.api);
     bool _truthy(dynamic flag) {
       if (flag == null) return false;
       if (flag is bool) return flag;
@@ -4744,10 +4756,55 @@ class _AdminPageState extends State<AdminPage> {
                 ],
               ),
             ),
+            floatingActionButton: InternalChatFab(onTap: _openInternalChat),
+            floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
             bottomNavigationBar: LegalFooter(api: widget.api),
           );
         },
       ),
+    );
+  }
+
+  void _openInternalChat() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        ChatConversationSummary? selected;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return FractionallySizedBox(
+              heightFactor: 0.85,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: selected == null
+                        ? InternalChatOverview(
+                            chatService: _chatService,
+                            onSelect: (conv) => setModalState(() => selected = conv),
+                            onClose: () => Navigator.of(context).maybePop(),
+                            currentUserId: (_portalProfile?['email'] ?? _portalProfile?['mail'] ?? '').toString(),
+                          )
+                        : InternalChatPanel(
+                            chatService: _chatService,
+                            contextId: selected!.contextId,
+                            title: selected!.meta?.reference ?? selected!.contextId,
+                            onClose: () => setModalState(() => selected = null),
+                          ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -5799,7 +5856,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Connect+ Content & Communication',
         subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'faq', 'products', 'push'],
+        tileIds: ['news', 'faq', 'products', 'push', 'internalChat'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ System Administration',
@@ -5836,6 +5893,7 @@ class _AdminPageState extends State<AdminPage> {
     _ensureMenuTilePresent('audits');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
+    _ensureMenuTilePresent('internalChat');
   }
 
   Future<void> _loadAdminUiConfigFromServer() async {
@@ -7672,6 +7730,19 @@ class _AdminPageState extends State<AdminPage> {
           compact: compact,
           count: _pushResult?.totalTokens,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pushBroadcast),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'internalChat':
+        return AdminTilePro(
+          label: 'Interne Nachrichten',
+          subtitle: 'Chat für DFS Connect+',
+          icon: Icons.forum_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          compact: compact,
+          onTap: isPreview ? () {} : _openInternalChat,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
