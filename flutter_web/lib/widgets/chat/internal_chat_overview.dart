@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
@@ -201,14 +203,16 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
   final TextEditingController _groupTitleController = TextEditingController();
   Future<List<ChatUserSummary>>? _userSearchFuture;
   final Set<String> _selectedIds = {};
+  final Map<String, ChatUserSummary> _selectedUsers = {};
+  Timer? _searchDebounce;
   bool _creating = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _userSearchController.addListener(_runSearch);
-    _runSearch();
+    _userSearchController.addListener(_onSearchChanged);
+    _runSearch(immediate: true);
   }
 
   @override
@@ -216,10 +220,22 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
     _tabController.dispose();
     _userSearchController.dispose();
     _groupTitleController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
-  void _runSearch() {
+  void _onSearchChanged() => _runSearch();
+
+  void _runSearch({bool immediate = false}) {
+    _searchDebounce?.cancel();
+    if (immediate) {
+      _performSearch();
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 300), _performSearch);
+  }
+
+  void _performSearch() {
     setState(() {
       _userSearchFuture = widget.chatService.searchUsers(_userSearchController.text);
     });
@@ -315,6 +331,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
                   return ListTile(
                     leading: CircleAvatar(child: Text(user.displayName.characters.first.toUpperCase())),
                     title: Text(user.displayName),
+                    subtitle: Text(user.email),
                     trailing: allowMulti
                         ? Checkbox(
                             value: selected,
@@ -322,8 +339,10 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
                               setState(() {
                                 if (value == true) {
                                   _selectedIds.add(user.userId);
+                                  _selectedUsers[user.userId] = user;
                                 } else {
                                   _selectedIds.remove(user.userId);
+                                  _selectedUsers.remove(user.userId);
                                 }
                               });
                             },
@@ -336,8 +355,10 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
                               setState(() {
                                 if (selected) {
                                   _selectedIds.remove(user.userId);
+                                  _selectedUsers.remove(user.userId);
                                 } else {
                                   _selectedIds.add(user.userId);
+                                  _selectedUsers[user.userId] = user;
                                 }
                               });
                             } else {
@@ -368,10 +389,16 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
             spacing: 6,
             runSpacing: 6,
             children: _selectedIds
-                .map((id) => Chip(
-                      label: Text(id),
-                      onDeleted: () => setState(() => _selectedIds.remove(id)),
-                    ))
+                .map((id) {
+                  final label = _selectedUsers[id]?.displayName ?? id;
+                  return Chip(
+                    label: Text(label),
+                    onDeleted: () => setState(() {
+                      _selectedIds.remove(id);
+                      _selectedUsers.remove(id);
+                    }),
+                  );
+                })
                 .toList(),
           ),
         ),
