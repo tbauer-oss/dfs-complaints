@@ -148,16 +148,18 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    controller: _scrollController,
-                    itemCount: _messages.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final msg = _messages[index];
-                      return _ChatMessageTile(message: msg);
-                    },
-                  ),
+                  child: _messages.isEmpty
+                      ? const Center(child: Text('Keine Nachrichten vorhanden'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(12),
+                          controller: _scrollController,
+                          itemCount: _messages.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final msg = _messages[index];
+                            return _ChatMessageTile(message: msg);
+                          },
+                        ),
                 ),
               ],
             ),

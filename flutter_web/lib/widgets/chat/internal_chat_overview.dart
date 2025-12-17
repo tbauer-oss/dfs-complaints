@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/chat_message.dart';
 import '../../models/portal_user.dart';
@@ -265,7 +266,7 @@ class _ConversationTile extends StatelessWidget {
     final meta = item.meta;
     final type = meta?.type ?? (item.participants.isNotEmpty ? ChatContextType.dm : null);
     final ts = meta?.updatedAt != null
-        ? '${meta!.updatedAt!.toLocal()}'
+        ? DateFormat('dd.MM.yyyy HH:mm').format(meta!.updatedAt!.toLocal())
         : '—';
     final subtitle = meta?.lastMessage ?? 'Keine Nachrichten';
 
