@@ -2,7 +2,7 @@
 
 enum ChatMessageType { user, system }
 
-enum ChatContextType { complaint, capa, audit, doc, general }
+enum ChatContextType { complaint, capa, audit, doc, general, dm }
 
 class ChatMessage {
   final String id;

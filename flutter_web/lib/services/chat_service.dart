@@ -4,11 +4,29 @@ import 'package:http/http.dart' as http;
 
 import '../api/client.dart';
 import '../models/chat_message.dart';
+import '../models/portal_user.dart';
 
 class ChatService {
   final ApiClient api;
 
   ChatService(this.api);
+
+  String directContextId(String userA, String userB) {
+    final sorted = [userA.trim().toLowerCase(), userB.trim().toLowerCase()]..sort();
+    return 'dm:${sorted.first}:${sorted.last}';
+  }
+
+  Future<List<PortalUserSummary>> fetchStaffUsers() async {
+    final uri = api.buildUri('/api/admin/users', query: {'role': 'staff'});
+    final response = await http.get(uri, headers: api.portalHeaders());
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    final list = jsonBody['users'] as List<dynamic>? ?? const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(PortalUserSummary.fromJson)
+        .toList(growable: false);
+  }
 
   Future<List<ChatConversationSummary>> fetchConversations() async {
     final uri = api.buildUri('/api/admin/chat/conversations');

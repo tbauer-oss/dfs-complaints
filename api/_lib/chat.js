@@ -8,6 +8,7 @@ const CONTEXT_PREFIXES = {
   audit: 'audit',
   doc: 'doc',
   general: 'general',
+  dm: 'dm',
 };
 
 const FLAG_WHITELIST = new Set(['todo']);
@@ -22,6 +23,19 @@ export function parseContextId(raw) {
   const normalizedPrefix = CONTEXT_PREFIXES[prefix];
   const reference = rest.join(':').trim();
   if (!normalizedPrefix || !reference) return null;
+
+  if (normalizedPrefix === 'dm') {
+    const parts = rest
+      .join(':')
+      .split(':')
+      .map((p) => String(p || '').trim().toLowerCase())
+      .filter(Boolean);
+    if (parts.length !== 2) return null;
+    const [a, b] = parts.sort();
+    const contextId = `dm:${a}:${b}`;
+    return { contextId, type: 'dm', reference: `${a}:${b}`, participants: [a, b] };
+  }
+
   return {
     contextId: `${normalizedPrefix}:${reference}`,
     type: normalizedPrefix,

@@ -63,7 +63,8 @@ export default async function handler(req, res) {
       const author = resolveAuthor(actor);
       const saved = await recordMessage(context, author, { body: text, mentions, flags });
 
-      await touchContextsForUsers([actor.email, ...mentions], context.contextId);
+      const participants = context.participants || [];
+      await touchContextsForUsers([actor.email, ...mentions, ...participants], context.contextId);
 
       const meta = await getContextMeta(context.contextId);
       return ok(res, { ok: true, message: saved, meta });

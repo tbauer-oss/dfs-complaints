@@ -172,6 +172,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaDashboard',
     'fmea',
     'prrc',
+    'internalChat',
     'stats',
     'pending',
     'users',
@@ -201,6 +202,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaDashboard',
     'fmea',
     'prrc',
+    'internalChat',
     'stats',
     'pending',
     'users',
@@ -225,6 +227,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'open',
     'all',
     'complaintList',
+    'internalChat',
     'fmea',
     'audits',
     'stats',
@@ -242,6 +245,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaDashboard',
     'fmea',
     'prrc',
+    'internalChat',
     'stats',
     'audits',
   ],
@@ -251,6 +255,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'capaReports',
     'prrc',
+    'internalChat',
     'stats',
     'audits',
   ],
@@ -5850,7 +5855,7 @@ class _AdminPageState extends State<AdminPage> {
       const _AdminMenuSectionState(
         title: 'Connect+ Content & Communication',
         subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'faq', 'products', 'push'],
+        tileIds: ['news', 'faq', 'products', 'push', 'internalChat'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ System Administration',
@@ -5887,6 +5892,7 @@ class _AdminPageState extends State<AdminPage> {
     _ensureMenuTilePresent('audits');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
+    _ensureMenuTilePresent('internalChat');
   }
 
   Future<void> _loadAdminUiConfigFromServer() async {
@@ -7723,6 +7729,19 @@ class _AdminPageState extends State<AdminPage> {
           compact: compact,
           count: _pushResult?.totalTokens,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pushBroadcast),
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'internalChat':
+        return AdminTilePro(
+          label: 'Interne Nachrichten',
+          subtitle: 'Chat für DFS Connect+',
+          icon: Icons.forum_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          compact: compact,
+          onTap: isPreview ? () {} : _openInternalChat,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
