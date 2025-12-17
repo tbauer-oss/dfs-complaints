@@ -11,7 +11,7 @@ import {
   userIdAliases,
   normalizeUserId,
 } from '../../_lib/chat.js';
-import { portalUsersList } from '../../_lib/store.js';
+import { buildPortalUserDirectory } from '../../_lib/userDirectory.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -35,13 +35,7 @@ export default async function handler(req, res) {
     const peerIds = userIdAliases(peer);
     await touchContextsForUsers([...actorIds, ...peerIds], context.contextId, context.type);
 
-    const portalUsers = await portalUsersList();
-    const userDirectory = new Map();
-    for (const u of portalUsers) {
-      const userId = normalizeUserId(u.email);
-      if (!userId) continue;
-      userDirectory.set(userId, u.displayName || u.contact || u.company || '');
-    }
+    const userDirectory = await buildPortalUserDirectory();
 
     const participants = context.participants.map((p) => ({
       userId: p,

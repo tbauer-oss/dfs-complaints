@@ -4786,41 +4786,51 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   void _openInternalChat() {
+    final directoryLoader = _chatService.loadDisplayNameDirectory();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (ctx) {
         ChatConversationSummary? selected;
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return FractionallySizedBox(
-              heightFactor: 0.85,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: selected == null
-                        ? InternalChatOverview(
-                            chatService: _chatService,
-                            currentUserId: _portalUserId,
-                            onSelect: (conv) => setModalState(() => selected = conv),
-                            onClose: () => Navigator.of(context).maybePop(),
-                          )
-                        : InternalChatPanel(
-                            chatService: _chatService,
-                            contextId: selected!.contextId,
-                            title: selected!.titleFor(_portalUserId),
-                            onClose: () => setModalState(() => selected = null),
-                          ),
+        return FutureBuilder<Map<String, String>>(
+          future: directoryLoader,
+          builder: (context, directorySnapshot) {
+            if (directorySnapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final directory = directorySnapshot.data ?? const {};
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                return FractionallySizedBox(
+                  heightFactor: 0.85,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: selected == null
+                            ? InternalChatOverview(
+                                chatService: _chatService,
+                                currentUserId: _portalUserId,
+                                onSelect: (conv) => setModalState(() => selected = conv),
+                                onClose: () => Navigator.of(context).maybePop(),
+                              )
+                            : InternalChatPanel(
+                                chatService: _chatService,
+                                contextId: selected!.contextId,
+                                title: selected!.resolvedTitle(_portalUserId, directory),
+                                onClose: () => setModalState(() => selected = null),
+                              ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );

@@ -8,6 +8,8 @@ import '../models/portal_user.dart';
 
 class ChatService {
   final ApiClient api;
+  Future<List<PortalUserSummary>>? _staffUsersFuture;
+  Future<Map<String, String>>? _displayNameDirectoryFuture;
 
   ChatService(this.api);
 
@@ -17,8 +19,14 @@ class ChatService {
     return base64Url.encode(utf8.encode(trimmed)).replaceAll('=', '');
   }
 
-  Future<List<PortalUserSummary>> fetchStaffUsers() async {
-    final uri = api.buildUri('/api/admin/users', query: {'scope': 'staff', 'includeInactive': 'false'});
+  Future<List<PortalUserSummary>> fetchStaffUsers({bool forceRefresh = false}) {
+    if (_staffUsersFuture != null && !forceRefresh) return _staffUsersFuture!;
+    _staffUsersFuture = _loadStaffUsers();
+    return _staffUsersFuture!;
+  }
+
+  Future<List<PortalUserSummary>> _loadStaffUsers() async {
+    final uri = api.buildUri('/api/admin/users', query: {'scope': 'staff', 'includeInactive': 'true'});
     final response = await http.get(uri, headers: api.portalHeaders());
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
@@ -29,6 +37,23 @@ class ChatService {
         .toList(growable: false);
     users.sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return users;
+  }
+
+  Future<Map<String, String>> loadDisplayNameDirectory({bool forceRefresh = false}) async {
+    if (_displayNameDirectoryFuture != null && !forceRefresh) return _displayNameDirectoryFuture!;
+    _displayNameDirectoryFuture = fetchStaffUsers(forceRefresh: forceRefresh).then((users) {
+      final map = <String, String>{};
+      for (final user in users) {
+        final email = user.email.trim().toLowerCase();
+        final displayName = user.resolvedDisplayName.trim();
+        if (email.isEmpty || displayName.isEmpty) continue;
+        final normalized = normalizeUserId(email);
+        map[email] = displayName;
+        map[normalized] = displayName;
+      }
+      return map;
+    });
+    return _displayNameDirectoryFuture!;
   }
 
   Future<List<ChatConversationSummary>> fetchConversations() async {

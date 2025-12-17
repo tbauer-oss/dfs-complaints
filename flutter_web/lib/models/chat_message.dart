@@ -1,5 +1,7 @@
 // lib/models/chat_message.dart
 
+import 'dart:convert';
+
 enum ChatMessageType { user, system }
 
 enum ChatContextType { complaint, capa, audit, doc, general, dm }
@@ -92,6 +94,70 @@ class ChatConversationSummary {
     this.participants = const [],
   });
 
+  bool get isDirectMessage => meta?.type == ChatContextType.dm || participants.isNotEmpty;
+
+  String? otherEmail(String currentUserId) {
+    final normalizedCurrentUserId = currentUserId.trim();
+    final normalizedCurrentEmail = _decodeUserId(normalizedCurrentUserId) ?? normalizedCurrentUserId;
+    if (participants.isNotEmpty) {
+      final other = participants.firstWhere(
+        (p) => p.userId != normalizedCurrentUserId,
+        orElse: () => participants.first,
+      );
+      final decoded = _decodeUserId(other.userId);
+      if (decoded != null) return decoded;
+    }
+
+    if (meta?.type == ChatContextType.dm || contextId.startsWith('dm:')) {
+      final parts = contextId.split(':').skip(1).toList();
+      if (parts.length >= 2) {
+        final cleanedParts = parts.map(_decodeUserId).whereType<String>().toList();
+        if (cleanedParts.length == 2) {
+          return cleanedParts.firstWhere(
+            (p) => p != normalizedCurrentEmail,
+            orElse: () => cleanedParts.first,
+          );
+        }
+      }
+    }
+
+    return null;
+  }
+
+  String resolvedTitle(String currentUserId, Map<String, String> displayNameDirectory) {
+    if (isDirectMessage) {
+      final normalizedCurrentId = currentUserId.trim();
+      if (participants.isNotEmpty) {
+        final other = participants.firstWhere(
+          (p) => p.userId != normalizedCurrentId,
+          orElse: () => participants.first,
+        );
+        if (other.displayName.trim().isNotEmpty) {
+          return other.displayName.trim();
+        }
+      }
+
+      final email = otherEmail(normalizedCurrentId);
+      if (email != null) {
+        final lowerEmail = email.toLowerCase();
+        final normalizedEmail = _normalizeUserId(email);
+        final name =
+            displayNameDirectory[lowerEmail]?.trim() ?? displayNameDirectory[normalizedEmail]?.trim();
+        if (name != null && name.isNotEmpty) return name;
+      }
+
+      final reference = meta?.reference?.trim() ?? '';
+      if (reference.isNotEmpty && !reference.contains('@')) return reference;
+
+      return 'Unbekannter Nutzer';
+    }
+
+    final reference = meta?.reference?.trim() ?? '';
+    if (reference.contains('@')) return 'Unbekannter Nutzer';
+    if (reference.isNotEmpty) return reference;
+    return 'Konversation';
+  }
+
   String titleFor(String currentUserId) {
     final isDm = meta?.type == ChatContextType.dm || participants.isNotEmpty;
     if (isDm && participants.isNotEmpty) {
@@ -133,4 +199,25 @@ class ChatParticipant {
         userId: (json['userId'] ?? '').toString(),
         displayName: (json['displayName'] ?? '').toString(),
       );
+}
+
+String? _decodeUserId(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  if (trimmed.contains('@')) return trimmed.toLowerCase();
+  try {
+    final padded = trimmed.padRight((trimmed.length + 3) ~/ 4 * 4, '=');
+    final decoded = utf8.decode(base64Url.decode(padded));
+    if (decoded.contains('@')) return decoded.toLowerCase();
+  } catch (_) {
+    return null;
+  }
+  return null;
+}
+
+String _normalizeUserId(String value) {
+  final trimmed = value.trim().toLowerCase();
+  if (trimmed.isEmpty) return '';
+  if (!trimmed.contains('@')) return trimmed;
+  return base64Url.encode(utf8.encode(trimmed)).replaceAll('=', '');
 }
