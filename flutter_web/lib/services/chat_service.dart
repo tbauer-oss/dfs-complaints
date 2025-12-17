@@ -60,17 +60,55 @@ class ChatService {
   Future<ChatConversationSummary> ensureDirectConversation(
     String participantId,
     String participantDisplayName,
+    {String? currentUserId, String? currentUserDisplayName}
   ) async {
     final uri = api.buildUri('/api/chat/v1/dm');
     final payload = {
       'otherUid': participantId,
-      'displayName': participantDisplayName,
     };
     final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
-    final data = jsonBody['conversation'] as Map<String, dynamic>;
-    return ChatConversationSummary.fromJson(data);
+    final convId = (jsonBody['convId'] ?? jsonBody['conversationId'] ?? '').toString();
+    if (convId.isEmpty) throw Exception('invalid conversation response');
+
+    try {
+      final conversations = await fetchConversations();
+      final found = conversations.firstWhere(
+        (c) => c.conversationId == convId,
+        orElse: () => ChatConversationSummary(
+          conversationId: convId,
+          type: 'dm',
+          title: participantDisplayName,
+          participants: [
+            ChatParticipant(userId: participantId, displayName: participantDisplayName),
+            if (currentUserId != null)
+              ChatParticipant(
+                userId: currentUserId,
+                displayName: currentUserDisplayName ?? 'Du',
+              ),
+          ],
+          lastMessage: null,
+          lastAuthor: null,
+          lastMessageAt: null,
+        ),
+      );
+      return found;
+    } catch (_) {
+      return ChatConversationSummary(
+        conversationId: convId,
+        type: 'dm',
+        title: participantDisplayName,
+        participants: [
+          ChatParticipant(userId: participantId, displayName: participantDisplayName),
+          if (currentUserId != null)
+            ChatParticipant(userId: currentUserId, displayName: currentUserDisplayName ?? 'Du'),
+        ],
+        lastMessage: null,
+        lastAuthor: null,
+        lastMessageAt: null,
+      );
+    }
   }
 
   Future<ChatConversationSummary> createGroup({

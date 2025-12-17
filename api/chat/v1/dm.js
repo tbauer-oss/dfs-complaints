@@ -5,17 +5,13 @@ import { bad, handlePreflight, methodNotAllowed, ok, readJson, setCors } from '.
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { redis } from '../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
-import { purgeLegacyChatKeys } from './_lib/cleanup.js';
 import {
-  buildConversationSummary,
-  buildProfilesMap,
-  ensureDmConversation,
+  buildConversationId,
+  keyConversationMembers,
+  keyConversationMeta,
+  keyUserConversations,
   normalizeUserId,
-  readUserProfile,
-  registerConversationForUsers,
-  upsertUserProfile,
-} from './_lib/store.js';
-import { buildConversationId, toIsoTimestamp } from './_lib/schema.js';
+} from './_lib/schema.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -34,40 +30,47 @@ export default async function handler(req, res) {
 
     const selfId = normalizeUserId(actor.email || actor.id);
     const peerId = normalizeUserId(otherRaw);
-    if (!selfId || !peerId) return bad(res, 'invalid participants', 400);
-    if (selfId === peerId) return bad(res, 'cannot chat with self', 400);
-
-    await purgeLegacyChatKeys(client);
+    if (!selfId || typeof otherRaw !== 'string' || !peerId) return bad(res, 'invalid payload', 400);
+    if (selfId === peerId) return bad(res, 'invalid payload', 400);
 
     const convId = buildConversationId(selfId, peerId);
-    const participants = [selfId, peerId];
-    const convMeta = await ensureDmConversation(client, selfId, peerId);
+    if (!convId) return bad(res, 'invalid payload', 400);
+    const metaKey = keyConversationMeta(convId);
+    let metaExists = false;
 
-    const actorDisplayName = actor.displayName || actor.name || actor.id || 'Unbekannter Nutzer';
-    const peerProfile = await readUserProfile(client, peerId);
-    const peerDisplayName = peerProfile?.displayName || 'Unbekannter Nutzer';
+    try {
+      metaExists = Boolean(await client.exists(metaKey));
+      console.info('[chat/v1/dm] create', { uid: selfId, otherUid: peerId, convId, metaExists });
 
-    await upsertUserProfile(client, selfId, { displayName: actorDisplayName });
-    await upsertUserProfile(client, peerId, { displayName: peerDisplayName });
+      if (!metaExists) {
+        const nowIso = new Date().toISOString();
+        const pipeline = typeof client.multi === 'function' ? client.multi() : null;
 
-    const tsMs = Date.now();
-    await registerConversationForUsers(client, convId, participants, tsMs);
+        if (pipeline) {
+          pipeline.hset(metaKey, { type: 'dm', createdAt: nowIso, updatedAt: nowIso, lastMsgAt: 0 });
+          pipeline.sadd(keyConversationMembers(convId), [selfId, peerId]);
+          pipeline.zadd(keyUserConversations(selfId), { score: 0, member: convId });
+          pipeline.zadd(keyUserConversations(peerId), { score: 0, member: convId });
+          await pipeline.exec();
+        } else {
+          await Promise.all([
+            client.hset(metaKey, { type: 'dm', createdAt: nowIso, updatedAt: nowIso, lastMsgAt: 0 }),
+            client.sadd(keyConversationMembers(convId), [selfId, peerId]),
+            client.zadd(keyUserConversations(selfId), { score: 0, member: convId }),
+            client.zadd(keyUserConversations(peerId), { score: 0, member: convId }),
+          ]);
+        }
+      }
 
-    const profiles = buildProfilesMap([
-      { userId: selfId, displayName: actorDisplayName },
-      { userId: peerId, displayName: peerDisplayName },
-    ]);
-    const summary = buildConversationSummary(
-      { ...convMeta, updatedAt: convMeta.updatedAt || toIsoTimestamp(tsMs), lastMsgAt: convMeta.lastMsgAt || toIsoTimestamp(tsMs) },
-      profiles,
-      selfId
-    );
+      logRedisUsage('[chat/v1/dm] ensured', counters, { conversation: convId, metaExists });
 
-    logRedisUsage('[chat/v1/dm] created', counters, { conversation: convId });
-
-    return ok(res, { ok: true, conversation: summary });
+      return ok(res, { convId });
+    } catch (redisErr) {
+      console.error('[chat/v1/dm] redis error', redisErr);
+      return bad(res, 'dm_create_failed', 500);
+    }
   } catch (err) {
     console.error('[chat/v1/dm] error', err);
-    return bad(res, 'server error', 500);
+    return bad(res, 'dm_create_failed', 500);
   }
 }
