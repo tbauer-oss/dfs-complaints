@@ -20,7 +20,13 @@ export function buildConversationId(userA, userB) {
 }
 
 export function isConversationId(value) {
-  return /^dm:[a-z0-9_-]+:[a-z0-9_-]+$/i.test(String(value || '').trim());
+  return /^(dm:[a-z0-9_-]+:[a-z0-9_-]+|grp:[a-z0-9-]+)$/i.test(String(value || '').trim());
+}
+
+export function buildGroupId(uuid) {
+  const id = (uuid || '').toString().trim();
+  if (!id) return null;
+  return `grp:${id}`;
 }
 
 export function buildMessageId(convId, timestampMs) {
@@ -38,6 +44,10 @@ export function keyUserConversations(uid) {
 
 export function keyConversationMeta(convId) {
   return `${PREFIX}:conv:${convId}:meta`;
+}
+
+export function keyConversationMembers(convId) {
+  return `${PREFIX}:conv:${convId}:members`;
 }
 
 export function keyConversationMessages(convId) {

@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     const profiles = buildProfilesMap(profileEntries.filter(Boolean));
 
     const conversations = metaList
-      .map((meta) => buildConversationSummary(meta, profiles))
+      .map((meta) => buildConversationSummary(meta, profiles, uid))
       .sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
 
     logRedisUsage('[chat/v1/conversations] read-only', counters, { conversations: conversations.length });

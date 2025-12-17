@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../api/client.dart';
 import '../models/chat_message.dart';
 import '../models/portal_user.dart';
+import '../models/chat_user.dart';
 
 class ChatService {
   final ApiClient api;
@@ -62,7 +63,7 @@ class ChatService {
   ) async {
     final uri = api.buildUri('/api/chat/v1/dm');
     final payload = {
-      'participant': participantId,
+      'otherUid': participantId,
       'displayName': participantDisplayName,
     };
     final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
@@ -70,6 +71,33 @@ class ChatService {
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final data = jsonBody['conversation'] as Map<String, dynamic>;
     return ChatConversationSummary.fromJson(data);
+  }
+
+  Future<ChatConversationSummary> createGroup({
+    required String title,
+    required List<String> memberUids,
+    String? initialMessage,
+  }) async {
+    final uri = api.buildUri('/api/chat/v1/groups');
+    final payload = {
+      'title': title,
+      'memberUids': memberUids,
+      if (initialMessage != null && initialMessage.trim().isNotEmpty) 'initialMessage': initialMessage,
+    };
+    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = jsonBody['conversation'] as Map<String, dynamic>;
+    return ChatConversationSummary.fromJson(data);
+  }
+
+  Future<List<ChatUserSummary>> searchUsers(String query) async {
+    final uri = api.buildUri('/api/chat/v1/users', query: {'query': query, 'limit': '50'});
+    final response = await http.get(uri, headers: api.portalHeaders());
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    final list = jsonBody['users'] as List<dynamic>? ?? const [];
+    return list.whereType<Map<String, dynamic>>().map(ChatUserSummary.fromJson).toList(growable: false);
   }
 
   Future<ChatTimelineResponse> fetchMessages(

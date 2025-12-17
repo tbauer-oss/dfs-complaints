@@ -3,17 +3,21 @@
 class ChatParticipant {
   final String userId;
   final String displayName;
+  final String? avatar;
 
-  const ChatParticipant({required this.userId, required this.displayName});
+  const ChatParticipant({required this.userId, required this.displayName, this.avatar});
 
   factory ChatParticipant.fromJson(Map<String, dynamic> json) => ChatParticipant(
         userId: (json['userId'] ?? '').toString(),
         displayName: (json['displayName'] ?? '').toString(),
+        avatar: json['avatar']?.toString(),
       );
 }
 
 class ChatConversationSummary {
   final String conversationId;
+  final String type;
+  final String title;
   final List<ChatParticipant> participants;
   final String? lastMessage;
   final String? lastAuthor;
@@ -21,6 +25,8 @@ class ChatConversationSummary {
 
   const ChatConversationSummary({
     required this.conversationId,
+    required this.type,
+    required this.title,
     required this.participants,
     this.lastMessage,
     this.lastAuthor,
@@ -34,6 +40,8 @@ class ChatConversationSummary {
         .toList();
     return ChatConversationSummary(
       conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
+      type: (json['type'] ?? 'dm').toString(),
+      title: (json['title'] ?? '').toString(),
       participants: participants,
       lastMessage: json['lastMessage']?.toString(),
       lastAuthor: json['lastAuthor']?.toString(),
@@ -44,6 +52,7 @@ class ChatConversationSummary {
   }
 
   String titleFor(String currentUserId) {
+    if (title.isNotEmpty) return title;
     final match = participants.firstWhere(
       (p) => p.userId != currentUserId,
       orElse: () => participants.isNotEmpty
@@ -88,7 +97,7 @@ class ChatMessage {
         conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
         authorId: (json['authorId'] ?? '').toString(),
         authorName: (json['authorDisplayName'] ?? json['authorName'] ?? json['author'] ?? '').toString(),
-        timestamp: DateTime.parse(json['timestamp'] as String),
+        timestamp: DateTime.tryParse((json['timestamp'] ?? json['ts']).toString()) ?? DateTime.now(),
         body: (json['body'] ?? '').toString(),
         pending: false,
       );
