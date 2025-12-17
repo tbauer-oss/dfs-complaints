@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
-import '../../models/portal_user.dart';
+import '../../models/chat_user.dart';
 import '../../services/chat_service.dart';
 
 class InternalChatOverview extends StatefulWidget {
@@ -24,6 +24,7 @@ class InternalChatOverview extends StatefulWidget {
 
 class _InternalChatOverviewState extends State<InternalChatOverview> {
   late Future<List<ChatConversationSummary>> _loader;
+  final TextEditingController _searchController = TextEditingController();
   List<ChatConversationSummary> _conversations = const [];
   bool _loading = true;
 
@@ -31,6 +32,13 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   void initState() {
     super.initState();
     _loader = _loadConversations();
+    _searchController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<List<ChatConversationSummary>> _loadConversations() async {
@@ -47,14 +55,26 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     await _loadConversations();
   }
 
-  Future<void> _startConversation(PortalUserSummary? user) async {
-    if (user == null) return;
-    final conversation = await widget.chatService.ensureDirectConversation(
-      user.email,
-      user.label,
+  Future<void> _openNewConversationDialog() async {
+    final result = await showDialog<ChatConversationSummary>(
+      context: context,
+      builder: (context) => _NewConversationDialog(
+        chatService: widget.chatService,
+        currentUserId: widget.currentUserId,
+      ),
     );
-    await _refresh();
-    widget.onSelect(conversation);
+    if (result != null) {
+      await _refresh();
+      widget.onSelect(result);
+    }
+  }
+
+  List<ChatConversationSummary> get _filteredConversations {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _conversations;
+    return _conversations
+        .where((c) => c.titleFor(widget.currentUserId).toLowerCase().contains(query))
+        .toList(growable: false);
   }
 
   @override
@@ -62,15 +82,17 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(onClose: widget.onClose),
+        _Header(onClose: widget.onClose, onNew: _openNewConversationDialog),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: _StaffPicker(
-            chatService: widget.chatService,
-            onPick: _startConversation,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Chats durchsuchen',
+              prefixIcon: Icon(Icons.search),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refresh,
@@ -80,22 +102,23 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                 if (_loading && !snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final convs = snapshot.data ?? _conversations;
+                final convs = snapshot.data ?? _filteredConversations;
                 if (convs.isEmpty) {
                   return ListView(
                     children: const [
                       Padding(
                         padding: EdgeInsets.all(24),
-                        child: Center(child: Text('Noch keine Chats. Starte eine Direktnachricht.')),
+                        child: Center(child: Text('Noch keine Chats. Starte eine neue Konversation.')),
                       ),
                     ],
                   );
                 }
+                final displayList = _filteredConversations;
                 return ListView.separated(
-                  itemCount: convs.length,
+                  itemCount: displayList.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
-                    final item = convs[index];
+                    final item = displayList[index];
                     final title = item.titleFor(widget.currentUserId);
                     final subtitle = item.lastMessage ?? 'Keine Nachrichten';
                     final timestamp = item.lastMessageAt;
@@ -132,7 +155,8 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
 
 class _Header extends StatelessWidget {
   final VoidCallback onClose;
-  const _Header({required this.onClose});
+  final VoidCallback onNew;
+  const _Header({required this.onClose, required this.onNew});
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +170,11 @@ class _Header extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ),
+          ElevatedButton.icon(
+            onPressed: onNew,
+            icon: const Icon(Icons.chat),
+            label: const Text('Neue Konversation'),
+          ),
           IconButton(
             icon: const Icon(Icons.close),
             onPressed: onClose,
@@ -156,64 +185,210 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _StaffPicker extends StatelessWidget {
+class _NewConversationDialog extends StatefulWidget {
   final ChatService chatService;
-  final ValueChanged<PortalUserSummary?> onPick;
+  final String currentUserId;
 
-  const _StaffPicker({required this.chatService, required this.onPick});
+  const _NewConversationDialog({required this.chatService, required this.currentUserId});
+
+  @override
+  State<_NewConversationDialog> createState() => _NewConversationDialogState();
+}
+
+class _NewConversationDialogState extends State<_NewConversationDialog> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final TextEditingController _userSearchController = TextEditingController();
+  final TextEditingController _groupTitleController = TextEditingController();
+  Future<List<ChatUserSummary>>? _userSearchFuture;
+  final Set<String> _selectedIds = {};
+  bool _creating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _userSearchController.addListener(_runSearch);
+    _runSearch();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _userSearchController.dispose();
+    _groupTitleController.dispose();
+    super.dispose();
+  }
+
+  void _runSearch() {
+    setState(() {
+      _userSearchFuture = widget.chatService.searchUsers(_userSearchController.text);
+    });
+  }
+
+  Future<void> _startDm(ChatUserSummary user) async {
+    setState(() => _creating = true);
+    try {
+      final conversation = await widget.chatService.ensureDirectConversation(user.userId, user.displayName);
+      if (mounted) Navigator.of(context).pop(conversation);
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  Future<void> _createGroup() async {
+    if (_selectedIds.isEmpty) return;
+    setState(() => _creating = true);
+    try {
+      final conversation = await widget.chatService.createGroup(
+        title: _groupTitleController.text.trim().isEmpty ? 'Gruppe' : _groupTitleController.text.trim(),
+        memberUids: _selectedIds.toList(growable: false),
+      );
+      if (mounted) Navigator.of(context).pop(conversation);
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<PortalUserSummary>>(
-      future: chatService.fetchStaffUsers(),
-      builder: (context, snapshot) {
-        final users = snapshot.data ?? const <PortalUserSummary>[];
-        return Autocomplete<PortalUserSummary>(
-          displayStringForOption: (option) => option.label,
-          optionsBuilder: (textEditingValue) {
-            final query = textEditingValue.text.toLowerCase();
-            if (query.isEmpty) return const Iterable.empty();
-            return users.where((u) => u.label.toLowerCase().contains(query));
-          },
-          onSelected: onPick,
-          fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              decoration: const InputDecoration(
-                labelText: 'Direktnachricht starten',
-                hintText: 'Name eingeben',
-                prefixIcon: Icon(Icons.search),
+    return AlertDialog(
+      title: const Text('Neue Konversation'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(text: 'Chat'),
+                Tab(text: 'Gruppe'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 360,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildUserPicker(onSelect: _startDm, allowMulti: false),
+                  _buildGroupPicker(),
+                ],
               ),
-              onSubmitted: (_) => onSubmitted(),
-            );
-          },
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                child: SizedBox(
-                  width: 320,
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (context, index) {
-                      final option = options.elementAt(index);
-                      return ListTile(
-                        title: Text(option.label),
-                        subtitle: Text(option.role),
-                        onTap: () => onSelected(option),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _creating ? null : () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+      ],
+    );
+  }
+
+  Widget _buildUserPicker({required Function(ChatUserSummary) onSelect, required bool allowMulti}) {
+    return Column(
+      children: [
+        TextField(
+          controller: _userSearchController,
+          decoration: const InputDecoration(
+            labelText: 'Nutzer suchen',
+            prefixIcon: Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: FutureBuilder<List<ChatUserSummary>>(
+            future: _userSearchFuture,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final users = snapshot.data ?? const [];
+              if (users.isEmpty) {
+                return const Center(child: Text('Keine Nutzer gefunden'));
+              }
+              return ListView.builder(
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  final user = users[index];
+                  final selected = _selectedIds.contains(user.userId);
+                  return ListTile(
+                    leading: CircleAvatar(child: Text(user.displayName.characters.first.toUpperCase())),
+                    title: Text(user.displayName),
+                    trailing: allowMulti
+                        ? Checkbox(
+                            value: selected,
+                            onChanged: (value) {
+                              setState(() {
+                                if (value == true) {
+                                  _selectedIds.add(user.userId);
+                                } else {
+                                  _selectedIds.remove(user.userId);
+                                }
+                              });
+                            },
+                          )
+                        : null,
+                    onTap: _creating
+                        ? null
+                        : () {
+                            if (allowMulti) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedIds.remove(user.userId);
+                                } else {
+                                  _selectedIds.add(user.userId);
+                                }
+                              });
+                            } else {
+                              onSelect(user);
+                            }
+                          },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGroupPicker() {
+    return Column(
+      children: [
+        TextField(
+          controller: _groupTitleController,
+          decoration: const InputDecoration(labelText: 'Gruppenname'),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _selectedIds
+                .map((id) => Chip(
+                      label: Text(id),
+                      onDeleted: () => setState(() => _selectedIds.remove(id)),
+                    ))
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: _buildUserPicker(onSelect: (_) {}, allowMulti: true)),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            onPressed: _creating || _selectedIds.isEmpty ? null : _createGroup,
+            icon: _creating
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.group_add),
+            label: const Text('Gruppe erstellen'),
+          ),
+        ),
+      ],
     );
   }
 }

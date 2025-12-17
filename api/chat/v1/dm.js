@@ -9,7 +9,7 @@ import { purgeLegacyChatKeys } from './_lib/cleanup.js';
 import {
   buildConversationSummary,
   buildProfilesMap,
-  ensureConversation,
+  ensureDmConversation,
   normalizeUserId,
   readUserProfile,
   registerConversationForUsers,
@@ -30,11 +30,10 @@ export default async function handler(req, res) {
 
   try {
     const body = readJson(req);
-    const participantRaw = body?.participant ?? body?.userId ?? '';
-    const participantDisplayName = (body?.displayName ?? body?.participantDisplayName ?? '').toString().trim();
+    const otherRaw = body?.otherUid ?? body?.participant ?? body?.userId ?? '';
 
     const selfId = normalizeUserId(actor.email || actor.id);
-    const peerId = normalizeUserId(participantRaw);
+    const peerId = normalizeUserId(otherRaw);
     if (!selfId || !peerId) return bad(res, 'invalid participants', 400);
     if (selfId === peerId) return bad(res, 'cannot chat with self', 400);
 
@@ -42,11 +41,11 @@ export default async function handler(req, res) {
 
     const convId = buildConversationId(selfId, peerId);
     const participants = [selfId, peerId];
-    const convMeta = await ensureConversation(client, convId, participants);
+    const convMeta = await ensureDmConversation(client, selfId, peerId);
 
     const actorDisplayName = actor.displayName || actor.name || actor.id || 'Unbekannter Nutzer';
     const peerProfile = await readUserProfile(client, peerId);
-    const peerDisplayName = peerProfile?.displayName || participantDisplayName || 'Unbekannter Nutzer';
+    const peerDisplayName = peerProfile?.displayName || 'Unbekannter Nutzer';
 
     await upsertUserProfile(client, selfId, { displayName: actorDisplayName });
     await upsertUserProfile(client, peerId, { displayName: peerDisplayName });
@@ -58,7 +57,11 @@ export default async function handler(req, res) {
       { userId: selfId, displayName: actorDisplayName },
       { userId: peerId, displayName: peerDisplayName },
     ]);
-    const summary = buildConversationSummary({ ...convMeta, updatedAt: convMeta.updatedAt || toIsoTimestamp(tsMs) }, profiles);
+    const summary = buildConversationSummary(
+      { ...convMeta, updatedAt: convMeta.updatedAt || toIsoTimestamp(tsMs), lastMsgAt: convMeta.lastMsgAt || toIsoTimestamp(tsMs) },
+      profiles,
+      selfId
+    );
 
     logRedisUsage('[chat/v1/dm] created', counters, { conversation: convId });
 
