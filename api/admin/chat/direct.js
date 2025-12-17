@@ -33,7 +33,8 @@ export default async function handler(req, res) {
     const context = await migrateLegacyContext(contextRaw);
     const actorIds = userIdAliases(actor.email);
     const peerIds = userIdAliases(peer);
-    await touchContextsForUsers([...actorIds, ...peerIds], context.contextId, context.type);
+    const touchTs = new Date().toISOString();
+    await touchContextsForUsers([...actorIds, ...peerIds], context.contextId, context.type, touchTs);
 
     const userDirectory = await buildPortalUserDirectory();
 
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
     if (meta) {
       meta = { ...meta, reference };
     } else {
-      meta = { contextId: context.contextId, type: 'dm', reference };
+      meta = { contextId: context.contextId, type: 'dm', reference, updatedAt: touchTs };
     }
 
     return ok(res, {

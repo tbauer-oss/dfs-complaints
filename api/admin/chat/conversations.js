@@ -30,12 +30,19 @@ export default async function handler(req, res) {
   try {
     const includeMeta = toBool(req.query?.meta ?? 'true');
     const userKeys = userIdAliases(actor.email);
-    const contextsSet = new Set();
+    const contextsMap = new Map();
     const readEntries = [];
 
     for (const key of userKeys) {
       const ctxs = await listContextsForUser(key);
-      ctxs.forEach((c) => contextsSet.add(c));
+      for (const ctx of ctxs) {
+        const existing = contextsMap.get(ctx.contextId);
+        const ts = ctx.lastActivity ? new Date(ctx.lastActivity).getTime() : 0;
+        const prevTs = existing?.lastActivity ? new Date(existing.lastActivity).getTime() : 0;
+        if (!existing || ts > prevTs) {
+          contextsMap.set(ctx.contextId, { ...ctx });
+        }
+      }
       const r = await getLastReads(key);
       if (r) readEntries.push(r);
     }
@@ -61,20 +68,21 @@ export default async function handler(req, res) {
     const selfDisplayName = actor?.displayName || actor?.name || actor?.id || 'Unbekannter Nutzer';
 
     const entries = await Promise.all(
-      Array.from(contextsSet.values()).map(async (contextId) => {
+      Array.from(contextsMap.values()).map(async ({ contextId, lastActivity }) => {
         const parsedRaw = parseContextId(contextId);
         if (!parsedRaw) return null;
         const parsed = await migrateLegacyContext(parsedRaw);
         const normalizedContextId = parsed.contextId;
-        contextsSet.add(normalizedContextId);
         const participants = (parsed?.participants || []).map((p) => ({
           userId: p,
           displayName: p === selfId ? selfDisplayName : userDirectory.get(p) || 'Unbekannter Nutzer',
         }));
         const lastRead = reads?.[normalizedContextId] ?? null;
         const metaRaw = includeMeta ? await getContextMeta(normalizedContextId) : null;
-        const updatedAt = metaRaw?.updatedAt || null;
-        const unread = updatedAt && (!lastRead || new Date(updatedAt).getTime() > new Date(lastRead).getTime());
+        const updatedAt = metaRaw?.updatedAt || lastActivity || null;
+        const unread = updatedAt && lastRead
+          ? new Date(updatedAt).getTime() > new Date(lastRead).getTime()
+          : false;
         let meta = metaRaw || null;
         if (parsed?.type === 'dm') {
           const other = participants.find((p) => p.userId !== selfId) || participants[0];
@@ -82,8 +90,10 @@ export default async function handler(req, res) {
           if (meta) {
             meta = { ...meta, reference };
           } else {
-            meta = { contextId: normalizedContextId, type: 'dm', reference };
+            meta = { contextId: normalizedContextId, type: 'dm', reference, updatedAt };
           }
+        } else if (!meta && updatedAt) {
+          meta = { contextId: normalizedContextId, type: parsed?.type, reference: parsed?.reference || '', updatedAt };
         }
         return {
           contextId: normalizedContextId,
@@ -102,6 +112,8 @@ export default async function handler(req, res) {
       const tB = b.meta?.updatedAt ? new Date(b.meta.updatedAt).getTime() : 0;
       return tB - tA;
     });
+
+    console.info('[admin/chat/conversations] read-only', { contexts: filteredEntries.length, writes: 0 });
 
     return ok(res, { ok: true, contexts: filteredEntries });
   } catch (err) {

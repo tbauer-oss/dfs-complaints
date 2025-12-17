@@ -13,7 +13,6 @@ import {
   sanitizeBody,
   sanitizeFlags,
   sanitizeMentions,
-  setLastRead,
   touchContextsForUsers,
   recordMessage,
   deleteContextForUser,
@@ -48,11 +47,12 @@ export default async function handler(req, res) {
       const limit = parseLimit(req.query?.limit);
       const before = req.query?.before;
       const { items, hasMore } = await readMessages(context.contextId, { limit, before });
-      const nowIso = new Date().toISOString();
-      const actorIds = userIdAliases(actor.email);
-      await touchContextsForUsers(actorIds, context.contextId, context.type);
-      await Promise.all(actorIds.map((id) => setLastRead(id, context.contextId, nowIso)));
-      return ok(res, { ok: true, messages: items, hasMore, lastRead: nowIso });
+      console.info('[admin/chat/:contextId] read-only', {
+        contextId: context.contextId,
+        messages: items.length,
+        writes: 0,
+      });
+      return ok(res, { ok: true, messages: items, hasMore, empty: items.length === 0 });
     }
 
     if (req.method === 'POST') {
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
       const participantIds = participants.flatMap((p) => userIdAliases(p));
       const mentionIds = mentions.flatMap((m) => userIdAliases(m));
       const allIds = Array.from(new Set([...actorIds, ...participantIds, ...mentionIds]));
-      await touchContextsForUsers(allIds, context.contextId, context.type);
+      await touchContextsForUsers(allIds, context.contextId, context.type, saved.timestamp);
 
       const meta = await getContextMeta(context.contextId);
       return ok(res, { ok: true, message: saved, meta });

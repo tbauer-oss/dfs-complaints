@@ -83,58 +83,6 @@ export function buildDmContext(userA, userB) {
 
 export async function migrateLegacyContext(context) {
   if (!context?.legacyId || context.legacyId === context.contextId) return context;
-
-  const legacyMessagesKey = keyMessages(context.legacyId);
-  const canonicalMessagesKey = keyMessages(context.contextId);
-  const legacyMetaKey = keyMeta(context.legacyId);
-  const canonicalMetaKey = keyMeta(context.contextId);
-
-  const legacyMessages = await redis.lrange(legacyMessagesKey, 0, -1);
-  if (legacyMessages && legacyMessages.length > 0) {
-    await redis.rpush(canonicalMessagesKey, ...legacyMessages);
-    await redis.del(legacyMessagesKey);
-  }
-
-  const legacyMeta = await redis.hgetall(legacyMetaKey);
-  if (legacyMeta && Object.keys(legacyMeta).length > 0) {
-    await redis.hset(canonicalMetaKey, { ...legacyMeta, contextId: context.contextId });
-    await redis.del(legacyMetaKey);
-  }
-
-  const contextSetKeys = await redis.keys('chat:user:*:contexts*');
-  if (Array.isArray(contextSetKeys) && contextSetKeys.length) {
-    for (const key of contextSetKeys) {
-      const present = await redis.sismember(key, context.legacyId);
-      if (present) {
-        await redis.sadd(key, context.contextId);
-        await redis.srem(key, context.legacyId);
-      }
-    }
-  }
-
-  const readKeys = await redis.keys('chat:user:*:reads');
-  if (Array.isArray(readKeys) && readKeys.length) {
-    for (const key of readKeys) {
-      const ts = await redis.hget(key, context.legacyId);
-      if (ts) {
-        await redis.hset(key, { [context.contextId]: ts });
-        await redis.hdel(key, context.legacyId);
-      }
-    }
-  }
-
-  const deletedMarkers = await redis.keys(`chat:user:*:deleted:${context.legacyId}`);
-  if (Array.isArray(deletedMarkers) && deletedMarkers.length) {
-    for (const key of deletedMarkers) {
-      const userId = key.split(':')[2];
-      const ts = await redis.get(key);
-      if (userId && ts) {
-        await redis.set(keyUserDeletedContext(userId, context.contextId), ts);
-      }
-    }
-    await redis.del(...deletedMarkers);
-  }
-
   return context;
 }
 
@@ -163,27 +111,27 @@ export function sanitizeFlags(input) {
 }
 
 function keyMessages(contextId) {
+  return `chat:conv:${contextId}:msgs`;
+}
+
+function keyLegacyMessages(contextId) {
   return `chat:${contextId}:messages`;
 }
 
 function keyMeta(contextId) {
+  return `chat:conv:${contextId}`;
+}
+
+function keyLegacyMeta(contextId) {
   return `chat:${contextId}:meta`;
 }
 
 function keyUserContexts(userId) {
-  return `chat:user:${userId}:contexts`;
+  return `chat:user:${userId}:convs`;
 }
 
-function keyUserContextsAll(userId) {
-  return `chat:user:${userId}:contexts:all`;
-}
-
-function keyUserContextsByType(userId, type) {
-  return `chat:user:${userId}:contexts:${type}`;
-}
-
-function keyUserDeletedContext(userId, contextId) {
-  return `chat:user:${userId}:deleted:${contextId}`;
+function keyUserContextActivity(userId) {
+  return `chat:user:${userId}:convs:last`;
 }
 
 function keyUserReads(userId) {
@@ -199,12 +147,6 @@ function resolveContextType(contextId, explicitType) {
   if (type && CONTEXT_TYPES.has(type)) return type;
   const prefix = String(contextId || '').split(':')[0];
   return CONTEXT_TYPES.has(prefix) ? prefix : null;
-}
-
-function userContextSets(userId, contextType) {
-  const keys = [keyUserContexts(userId), keyUserContextsAll(userId)];
-  if (contextType) keys.push(keyUserContextsByType(userId, contextType));
-  return keys;
 }
 
 export async function checkRateLimit(userId) {
@@ -231,8 +173,7 @@ export async function recordMessage(context, author, { body, mentions = [], flag
   };
 
   const payload = JSON.stringify(message);
-  const messagesKey = keyMessages(context.contextId);
-  await redis.rpush(messagesKey, payload);
+  await redis.rpush(keyMessages(context.contextId), payload);
 
   await redis.hset(keyMeta(context.contextId), {
     contextId: context.contextId,
@@ -247,9 +188,12 @@ export async function recordMessage(context, author, { body, mentions = [], flag
 }
 
 export async function readMessages(contextId, { limit = 50, before } = {}) {
-  const messagesKey = keyMessages(contextId);
-  const raw = await redis.lrange(messagesKey, 0, -1);
-  const parsed = raw
+  const [primaryRaw, legacyRaw] = await Promise.all([
+    redis.lrange(keyMessages(contextId), 0, -1),
+    redis.lrange(keyLegacyMessages(contextId), 0, -1),
+  ]);
+
+  const parsed = [...legacyRaw, ...primaryRaw]
     .map((r) => {
       try {
         const obj = JSON.parse(r);
@@ -258,10 +202,18 @@ export async function readMessages(contextId, { limit = 50, before } = {}) {
         return null;
       }
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .reduce((acc, cur) => {
+      acc.set(cur.id, cur);
+      return acc;
+    }, new Map());
+
+  const sorted = Array.from(parsed.values()).sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
 
   const cutoff = before ? new Date(before).getTime() : null;
-  const filtered = cutoff ? parsed.filter((m) => new Date(m.timestamp).getTime() < cutoff) : parsed;
+  const filtered = cutoff ? sorted.filter((m) => new Date(m.timestamp).getTime() < cutoff) : sorted;
   const slice = filtered.length > limit ? filtered.slice(filtered.length - limit) : filtered;
   return {
     items: slice,
@@ -270,55 +222,60 @@ export async function readMessages(contextId, { limit = 50, before } = {}) {
 }
 
 export async function getContextMeta(contextId) {
-  const meta = await redis.hgetall(keyMeta(contextId));
+  const [primary, legacy] = await Promise.all([
+    redis.hgetall(keyMeta(contextId)),
+    redis.hgetall(keyLegacyMeta(contextId)),
+  ]);
+
+  const meta = primary && Object.keys(primary).length > 0 ? primary : legacy;
   if (!meta || Object.keys(meta).length === 0) return null;
   return meta;
 }
 
-export async function touchContextForUser(userId, contextId, contextType) {
+export async function touchContextForUser(userId, contextId, contextType, updatedAt = null) {
   const type = resolveContextType(contextId, contextType);
-  const deletedKey = keyUserDeletedContext(userId, contextId);
-  const wasDeleted = await redis.get(deletedKey);
-  if (wasDeleted) return;
-  const keys = userContextSets(userId, type);
-  await Promise.all(keys.map((key) => redis.sadd(key, contextId)));
+  if (!type) return;
+  const timestamp = updatedAt || new Date().toISOString();
+  await Promise.all([
+    redis.sadd(keyUserContexts(userId), contextId),
+    redis.hset(keyUserContextActivity(userId), { [contextId]: timestamp }),
+  ]);
 }
 
-export async function touchContextsForUsers(userIds, contextId, contextType) {
+export async function touchContextsForUsers(userIds, contextId, contextType, updatedAt = null) {
   const unique = Array.from(new Set(userIds.filter(Boolean)));
-  await Promise.all(unique.map((id) => touchContextForUser(id, contextId, contextType)));
+  await Promise.all(unique.map((id) => touchContextForUser(id, contextId, contextType, updatedAt)));
 }
 
 export async function deleteContextForUser(userId, contextId, contextType) {
-  const type = resolveContextType(contextId, contextType);
-  const keys = userContextSets(userId, type);
-  await Promise.all(keys.map((key) => redis.srem(key, contextId)));
-  await redis.set(keyUserDeletedContext(userId, contextId), new Date().toISOString());
+  await Promise.all([
+    redis.srem(keyUserContexts(userId), contextId),
+    redis.hdel(keyUserContextActivity(userId), contextId),
+  ]);
 }
 
 export async function hardDeleteContext(contextId) {
-  const messagesKey = keyMessages(contextId);
-  const metaKey = keyMeta(contextId);
-  await redis.del(messagesKey, metaKey);
-
-  const contextSets = await redis.keys('chat:user:*:contexts*');
-  if (Array.isArray(contextSets) && contextSets.length) {
-    await Promise.all(contextSets.map((key) => redis.srem(key, contextId)));
-  }
-
-  const readKeys = await redis.keys('chat:user:*:reads');
-  if (Array.isArray(readKeys) && readKeys.length) {
-    await Promise.all(readKeys.map((key) => redis.hdel(key, contextId)));
-  }
-
-  const deletedMarkers = await redis.keys(`chat:user:*:deleted:${contextId}`);
-  if (Array.isArray(deletedMarkers) && deletedMarkers.length) {
-    await redis.del(...deletedMarkers);
-  }
+  await redis.del(keyMessages(contextId), keyMeta(contextId), keyLegacyMessages(contextId), keyLegacyMeta(contextId));
 }
 
 export async function listContextsForUser(userId) {
-  return await redis.smembers(keyUserContexts(userId));
+  const [ids, activityRaw] = await Promise.all([
+    redis.smembers(keyUserContexts(userId)),
+    redis.hgetall(keyUserContextActivity(userId)),
+  ]);
+  const activity = activityRaw || {};
+  const items = (ids || []).map((contextId) => ({
+    contextId,
+    lastActivity: activity[contextId] || null,
+  }));
+
+  items.sort((a, b) => {
+    const tA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+    const tB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+    return tB - tA;
+  });
+
+  return items;
 }
 
 export async function getLastReads(userId) {
@@ -333,4 +290,14 @@ export function resolveAuthor(actor) {
   const id = actor?.email || actor?.id || 'unknown';
   const name = actor?.displayName || actor?.name || actor?.id || 'Unbekannt';
   return { id, name };
+}
+
+export function describeKeySchema(contextId, userId) {
+  return {
+    messagesKey: keyMessages(contextId),
+    metaKey: keyMeta(contextId),
+    userContextsKey: keyUserContexts(userId),
+    userContextActivityKey: keyUserContextActivity(userId),
+    userReadsKey: keyUserReads(userId),
+  };
 }
