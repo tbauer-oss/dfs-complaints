@@ -148,6 +148,14 @@ class LegalFooter extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            Text(
+              '© Copyright by DFS-Diamon GmbH',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 16),
             if (trailing != null) ...[
               trailing!,
               const SizedBox(width: 8),
