@@ -4790,7 +4790,6 @@ class _AdminPageState extends State<AdminPage> {
                             chatService: _chatService,
                             onSelect: (conv) => setModalState(() => selected = conv),
                             onClose: () => Navigator.of(context).maybePop(),
-                            currentUserId: (_portalProfile?['email'] ?? _portalProfile?['mail'] ?? '').toString(),
                           )
                         : InternalChatPanel(
                             chatService: _chatService,
