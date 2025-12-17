@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   const { client, counters } = createTrackedRedis();
 
   try {
-    const uid = normalizeUserId(actor.email || actor.id);
+    const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
     const convRefs = await listUserConversations(client, uid);
