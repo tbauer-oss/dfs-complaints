@@ -37,14 +37,22 @@ export default async function handler(req, res) {
 
     const userDirectory = await buildPortalUserDirectory();
 
+    const selfId = normalizeUserId(actor.email);
+    const selfDisplayName =
+      actor?.displayName || actor?.name || actor?.id || userDirectory.get(selfId) || 'Unbekannter Nutzer';
+
+    const peerAliases = userIdAliases(peer);
+    const peerId = context.participants.find((p) => p !== selfId) || context.participants[0];
+    const peerDisplayName =
+      peerAliases.map((a) => userDirectory.get(a)).find(Boolean) || userDirectory.get(peerId) || 'Unbekannter Nutzer';
+
     const participants = context.participants.map((p) => ({
       userId: p,
-      displayName: userDirectory.get(p) || 'Unbekannter Nutzer',
+      displayName: p === selfId ? selfDisplayName : peerDisplayName,
     }));
 
     const metaRaw = await getContextMeta(context.contextId);
     let meta = metaRaw || null;
-    const selfId = normalizeUserId(actor.email);
     const other = participants.find((p) => p.userId !== selfId) || participants[0];
     const reference = other.displayName || 'Direktnachricht';
     if (meta) {

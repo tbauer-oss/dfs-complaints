@@ -45,7 +45,7 @@ export function parseContextId(raw) {
     const rawParts = rest
       .join(':')
       .split(':')
-      .map((p) => String(p || '').trim().toLowerCase())
+      .map((p) => String(p || '').trim())
       .filter(Boolean);
     if (rawParts.length !== 2) return null;
     const normalizedParts = rawParts.map((p) => normalizeUserId(p)).filter(Boolean);

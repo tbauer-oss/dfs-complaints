@@ -57,6 +57,9 @@ export default async function handler(req, res) {
 
     const userDirectory = await buildPortalUserDirectory();
 
+    const selfId = normalizeUserId(actor.email);
+    const selfDisplayName = actor?.displayName || actor?.name || actor?.id || 'Unbekannter Nutzer';
+
     const entries = await Promise.all(
       Array.from(contextsSet.values()).map(async (contextId) => {
         const parsedRaw = parseContextId(contextId);
@@ -66,7 +69,7 @@ export default async function handler(req, res) {
         contextsSet.add(normalizedContextId);
         const participants = (parsed?.participants || []).map((p) => ({
           userId: p,
-          displayName: userDirectory.get(p) || 'Unbekannter Nutzer',
+          displayName: p === selfId ? selfDisplayName : userDirectory.get(p) || 'Unbekannter Nutzer',
         }));
         const lastRead = reads?.[normalizedContextId] ?? null;
         const metaRaw = includeMeta ? await getContextMeta(normalizedContextId) : null;
@@ -74,7 +77,6 @@ export default async function handler(req, res) {
         const unread = updatedAt && (!lastRead || new Date(updatedAt).getTime() > new Date(lastRead).getTime());
         let meta = metaRaw || null;
         if (parsed?.type === 'dm') {
-          const selfId = normalizeUserId(actor.email);
           const other = participants.find((p) => p.userId !== selfId) || participants[0];
           const reference = other.displayName || 'Direktnachricht';
           if (meta) {
