@@ -22,8 +22,18 @@ export function resolvePortalDisplayName(user) {
   const username = user.username || user.userName || '';
 
   const composedName = combinedName(firstName, lastName);
+  const picked = pickName(user.displayName, fullName, composedName, username, user.contact, user.company);
+  if (picked) return picked;
 
-  return pickName(user.displayName, fullName, composedName, username, user.contact, user.company);
+  const email = (user.email || '').toString();
+  if (email.includes('@')) {
+    const local = email.split('@')[0]
+      .replace(/[._-]+/g, ' ')
+      .trim();
+    if (local) return local;
+  }
+
+  return '';
 }
 
 export async function buildPortalUserDirectory() {

@@ -6,7 +6,7 @@ import {
 } from '../_lib/http.js';
 import { usersList, userSave, userDelete, pendingDelete, portalUsersList } from '../_lib/store.js';
 import { requirePortalAccess } from './_guard.js';
-import { normalizeRole, normalizeStatus, PORTAL_ROLES } from '../_lib/portalAuth.js';
+import { normalizeRole, normalizeStatus } from '../_lib/portalAuth.js';
 import { resolvePortalDisplayName } from '../_lib/userDirectory.js';
 
 export default async function handler(req, res) {
@@ -50,7 +50,7 @@ export default async function handler(req, res) {
                 : [],
             };
           })
-          .filter((u) => (includeInactive || u.portalStatus === 'active') && u.role !== PORTAL_ROLES.user)
+          .filter((u) => includeInactive || u.portalStatus === 'active')
           .sort((a, b) => {
             const nameA = (a.displayName || a.fullName || a.username || a.email || '').toString();
             const nameB = (b.displayName || b.fullName || b.username || b.email || '').toString();
