@@ -6,6 +6,7 @@ import { requirePortalAccess } from '../_guard.js';
 import {
   checkRateLimit,
   getContextMeta,
+  migrateLegacyContext,
   parseContextId,
   readMessages,
   resolveAuthor,
@@ -38,7 +39,8 @@ export default async function handler(req, res) {
   const actor = await requirePortalAccess(req, res, { write: wantsWrite });
   if (!actor) return;
 
-  const context = parseContextId(req.query?.contextId);
+  const parsedContext = parseContextId(req.query?.contextId);
+  const context = parsedContext ? await migrateLegacyContext(parsedContext) : null;
   if (!context) return bad(res, 'invalid context', 400);
 
   try {

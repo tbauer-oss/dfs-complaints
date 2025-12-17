@@ -100,27 +100,8 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   Future<void> _startNewConversation() async {
     final selected = await _pickStaffUser();
     if (selected == null) return;
-    final contextId = widget.chatService.directContextId(widget.currentUserId, selected.email);
-    final meta = ChatContextMeta(
-      contextId: contextId,
-      type: ChatContextType.dm,
-      reference: selected.displayName.isNotEmpty ? selected.displayName : 'Unbekannter Nutzer',
-      updatedAt: null,
-      lastMessage: null,
-      lastAuthor: null,
-    );
-    widget.onSelect(
-      ChatConversationSummary(
-        contextId: contextId,
-        meta: meta,
-        lastRead: null,
-        unread: false,
-        participants: [
-          ChatParticipant(userId: widget.currentUserId, displayName: ''),
-          ChatParticipant(userId: ChatService.normalizeUserId(selected.email), displayName: selected.displayName),
-        ],
-      ),
-    );
+    final context = await widget.chatService.ensureDirectConversation(selected.email);
+    widget.onSelect(context);
   }
 
   Future<PortalUserSummary?> _pickStaffUser() async {
