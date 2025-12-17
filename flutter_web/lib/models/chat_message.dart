@@ -126,11 +126,29 @@ class ChatConversationSummary {
 
   String resolvedTitle(String currentUserId, Map<String, String> displayNameDirectory) {
     if (isDirectMessage) {
-      final email = otherEmail(currentUserId);
+      final normalizedCurrentId = currentUserId.trim();
+      if (participants.isNotEmpty) {
+        final other = participants.firstWhere(
+          (p) => p.userId != normalizedCurrentId,
+          orElse: () => participants.first,
+        );
+        if (other.displayName.trim().isNotEmpty) {
+          return other.displayName.trim();
+        }
+      }
+
+      final email = otherEmail(normalizedCurrentId);
       if (email != null) {
-        final name = displayNameDirectory[email.toLowerCase()]?.trim();
+        final lowerEmail = email.toLowerCase();
+        final normalizedEmail = _normalizeUserId(email);
+        final name =
+            displayNameDirectory[lowerEmail]?.trim() ?? displayNameDirectory[normalizedEmail]?.trim();
         if (name != null && name.isNotEmpty) return name;
       }
+
+      final reference = meta?.reference?.trim() ?? '';
+      if (reference.isNotEmpty && !reference.contains('@')) return reference;
+
       return 'Unbekannter Nutzer';
     }
 
@@ -195,4 +213,11 @@ String? _decodeUserId(String value) {
     return null;
   }
   return null;
+}
+
+String _normalizeUserId(String value) {
+  final trimmed = value.trim().toLowerCase();
+  if (trimmed.isEmpty) return '';
+  if (!trimmed.contains('@')) return trimmed;
+  return base64Url.encode(utf8.encode(trimmed)).replaceAll('=', '');
 }

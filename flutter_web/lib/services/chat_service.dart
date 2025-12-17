@@ -47,7 +47,9 @@ class ChatService {
         final email = user.email.trim().toLowerCase();
         final displayName = user.resolvedDisplayName.trim();
         if (email.isEmpty || displayName.isEmpty) continue;
+        final normalized = normalizeUserId(email);
         map[email] = displayName;
+        map[normalized] = displayName;
       }
       return map;
     });
