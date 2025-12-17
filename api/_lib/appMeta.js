@@ -2,6 +2,9 @@
 const APP_META_KEY = process.env.APP_META_KEY || 'dfs:app:meta';
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || '';
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const BLOB_TOKEN = (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_TOKEN || '').trim();
+const BLOB_BASE_URL = (process.env.BLOB_BASE_URL || 'https://blob.vercel-storage.com').replace(/\/+$/, '');
+const BLOB_APP_META_PATH = (process.env.APP_META_BLOB_PATH || 'meta/app-meta.json').replace(/^\/+/, '');
 
 const CACHE_TTL_MS = 30_000;
 let _cachedMeta = null;
@@ -111,21 +114,55 @@ async function upstashSet(meta) {
   return res.ok;
 }
 
+async function blobGet() {
+  if (!BLOB_TOKEN) return null;
+  const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
+    headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) return null;
+  try {
+    return await res.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+async function blobSet(meta) {
+  if (!BLOB_TOKEN) return false;
+  const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${BLOB_TOKEN}`,
+      'Content-Type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify(meta),
+  });
+  return res.ok;
+}
+
 export async function loadAppMeta({ refresh = false } = {}) {
   const now = Date.now();
   if (!refresh && _cachedMeta && now - _cachedAt < CACHE_TTL_MS) {
     return _cachedMeta;
   }
 
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-    global.__APP_META__ = global.__APP_META__ || defaultAppMeta();
-    _cachedMeta = sanitizeAppMeta(global.__APP_META__);
-    _cachedAt = now;
-    return _cachedMeta;
+  let meta = null;
+
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    meta = await upstashGet();
   }
 
-  const stored = await upstashGet();
-  const meta = sanitizeAppMeta(stored || defaultAppMeta());
+  if (!meta && BLOB_TOKEN) {
+    meta = await blobGet();
+  }
+
+  if (!meta) {
+    global.__APP_META__ = global.__APP_META__ || defaultAppMeta();
+    meta = global.__APP_META__;
+  }
+
+  meta = sanitizeAppMeta(meta || defaultAppMeta());
   _cachedMeta = meta;
   _cachedAt = now;
   return meta;
@@ -133,18 +170,28 @@ export async function loadAppMeta({ refresh = false } = {}) {
 
 export async function persistAppMeta(meta) {
   const sanitized = sanitizeAppMeta(meta);
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-    global.__APP_META__ = sanitized;
-    _cachedMeta = sanitized;
-    _cachedAt = Date.now();
-    return true;
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    const ok = await upstashSet(sanitized);
+    if (ok) {
+      _cachedMeta = sanitized;
+      _cachedAt = Date.now();
+      return true;
+    }
   }
-  const ok = await upstashSet(sanitized);
-  if (ok) {
-    _cachedMeta = sanitized;
-    _cachedAt = Date.now();
+
+  if (BLOB_TOKEN) {
+    const ok = await blobSet(sanitized);
+    if (ok) {
+      _cachedMeta = sanitized;
+      _cachedAt = Date.now();
+      return true;
+    }
   }
-  return ok;
+
+  global.__APP_META__ = sanitized;
+  _cachedMeta = sanitized;
+  _cachedAt = Date.now();
+  return true;
 }
 
 export async function updateAppMeta(partial) {
