@@ -76,7 +76,7 @@ export async function ensureConversation(redis, convId, participants) {
 }
 
 export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
-  const entries = await redis.zrevrange(keyUserConversations(uid), 0, limit - 1, { withScores: true });
+  const entries = await redis.zrange(keyUserConversations(uid), 0, limit - 1, { withScores: true, rev: true });
   return (entries || []).map((row) => ({
     convId: row.member,
     lastActivityTs: Number(row.score) || 0,
@@ -171,7 +171,10 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
   const cappedLimit = Math.min(Math.max(Number(limit) || 0, 1), 200);
 
   if (beforeTs !== null) {
-    const members = await redis.zrevrangebyscore(key, beforeTs - 1, 0, { limit: { offset: 0, count: cappedLimit } });
+    const members = await redis.zrangebyscore(key, beforeTs - 1, 0, {
+      limit: { offset: 0, count: cappedLimit },
+      rev: true,
+    });
     const hasMore = members.length === cappedLimit;
     const messages = await fetchMessagesByIds(redis, members);
     return { messages, hasMoreBefore: hasMore, hasMoreAfter: false };
