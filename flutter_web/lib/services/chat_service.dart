@@ -1,5 +1,6 @@
 // lib/services/chat_service.dart
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 import '../api/client.dart';
@@ -9,7 +10,6 @@ import '../models/portal_user.dart';
 class ChatService {
   final ApiClient api;
   Future<List<PortalUserSummary>>? _staffUsersFuture;
-  Future<Map<String, String>>? _displayNameDirectoryFuture;
 
   ChatService(this.api);
 
@@ -17,6 +17,11 @@ class ChatService {
     final trimmed = value.trim().toLowerCase();
     if (!trimmed.contains('@')) return trimmed;
     return base64Url.encode(utf8.encode(trimmed)).replaceAll('=', '');
+  }
+
+  String buildMessageId(String convId) {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    return '$convId:$ts';
   }
 
   Future<List<PortalUserSummary>> fetchStaffUsers({bool forceRefresh = false}) {
@@ -39,93 +44,67 @@ class ChatService {
     return users;
   }
 
-  Future<Map<String, String>> loadDisplayNameDirectory({bool forceRefresh = false}) async {
-    if (_displayNameDirectoryFuture != null && !forceRefresh) return _displayNameDirectoryFuture!;
-    _displayNameDirectoryFuture = fetchStaffUsers(forceRefresh: forceRefresh).then((users) {
-      final map = <String, String>{};
-      for (final user in users) {
-        final email = user.email.trim().toLowerCase();
-        final displayName = user.resolvedDisplayName.trim();
-        if (email.isEmpty || displayName.isEmpty) continue;
-        final normalized = normalizeUserId(email);
-        map[email] = displayName;
-        map[normalized] = displayName;
-      }
-      return map;
-    });
-    return _displayNameDirectoryFuture!;
-  }
-
   Future<List<ChatConversationSummary>> fetchConversations() async {
-    final uri = api.buildUri('/api/admin/chat/conversations');
+    final uri = api.buildUri('/api/chat/v1/conversations');
     final response = await http.get(uri, headers: api.portalHeaders());
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
-    final list = jsonBody['contexts'] as List<dynamic>? ?? const [];
+    final list = jsonBody['conversations'] as List<dynamic>? ?? const [];
     return list
         .whereType<Map<String, dynamic>>()
         .map(ChatConversationSummary.fromJson)
         .toList(growable: false);
   }
 
-  Future<ChatTimelineResponse> fetchMessages(String contextId, {int limit = 50, String? before}) async {
+  Future<ChatConversationSummary> ensureDirectConversation(
+    String participantId,
+    String participantDisplayName,
+  ) async {
+    final uri = api.buildUri('/api/chat/v1/dm');
+    final payload = {
+      'participant': participantId,
+      'displayName': participantDisplayName,
+    };
+    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = jsonBody['conversation'] as Map<String, dynamic>;
+    return ChatConversationSummary.fromJson(data);
+  }
+
+  Future<ChatTimelineResponse> fetchMessages(
+    String convId, {
+    int limit = 50,
+    int? afterTs,
+    int? beforeTs,
+  }) async {
     final query = <String, dynamic>{'limit': '$limit'};
-    if (before != null) query['before'] = before;
-    final uri = api.buildUri('/api/admin/chat/$contextId', query: query);
+    if (afterTs != null) query['afterTs'] = '$afterTs';
+    if (beforeTs != null) query['beforeTs'] = '$beforeTs';
+    final uri = api.buildUri('/api/chat/v1/conversations/$convId/messages', query: query);
     final response = await http.get(uri, headers: api.portalHeaders());
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final messages = (jsonBody['messages'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(ChatMessage.fromJson)
-        .toList(growable: false)
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        .toList(growable: false);
     return ChatTimelineResponse(
       messages: messages,
-      hasMore: jsonBody['hasMore'] == true,
-      lastRead: jsonBody['lastRead'] as String?,
+      hasMoreBefore: jsonBody['hasMoreBefore'] == true,
+      hasMoreAfter: jsonBody['hasMoreAfter'] == true,
     );
   }
 
-  Future<ChatMessage> sendMessage(String contextId, String body, {List<String>? mentions, List<String>? flags}) async {
-    final uri = api.buildUri('/api/admin/chat/$contextId');
+  Future<ChatMessage> sendMessage(String convId, String body, {String? msgId}) async {
+    final uri = api.buildUri('/api/chat/v1/conversations/$convId/messages');
     final payload = {
       'body': body,
-      'mentions': mentions ?? const <String>[],
-      'flags': flags ?? const <String>[],
+      if (msgId != null) 'msgId': msgId,
     };
     final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
   }
-
-  Future<void> deleteConversation(String contextId, {bool hard = false}) async {
-    final query = <String, dynamic>{if (hard) 'mode': 'hard'};
-    final uri = api.buildUri('/api/admin/chat/$contextId', query: query.isEmpty ? null : query);
-    final response = await http.delete(uri, headers: api.portalHeaders());
-    api.assertSuccess(response);
-  }
-
-  Future<ChatConversationSummary> ensureDirectConversation(String participant) async {
-    final uri = api.buildUri('/api/admin/chat/direct');
-    final payload = {'participant': participant};
-    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
-    api.assertSuccess(response);
-    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
-    final contextJson = jsonBody['context'] as Map<String, dynamic>;
-    return ChatConversationSummary.fromJson(contextJson);
-  }
-}
-
-class ChatTimelineResponse {
-  final List<ChatMessage> messages;
-  final bool hasMore;
-  final String? lastRead;
-
-  ChatTimelineResponse({
-    required this.messages,
-    required this.hasMore,
-    required this.lastRead,
-  });
 }

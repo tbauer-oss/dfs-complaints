@@ -1,6 +1,13 @@
 // api/_lib/userDirectory.js
-import { normalizeUserId } from './chat.js';
 import { portalUsersList } from './store.js';
+
+function normalizeUserId(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+  const lowered = value.toLowerCase();
+  if (!lowered.includes('@')) return lowered;
+  return Buffer.from(lowered, 'utf8').toString('base64url').replace(/=+$/, '');
+}
 
 function pickName(...candidates) {
   for (const candidate of candidates) {
