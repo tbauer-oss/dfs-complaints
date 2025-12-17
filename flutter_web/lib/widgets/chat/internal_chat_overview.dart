@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../models/chat_message.dart';
 import '../../models/portal_user.dart';
@@ -7,16 +6,16 @@ import '../../services/chat_service.dart';
 
 class InternalChatOverview extends StatefulWidget {
   final ChatService chatService;
-  final ValueChanged<ChatConversationSummary> onSelect;
-  final VoidCallback? onClose;
   final String currentUserId;
+  final ValueChanged<ChatConversationSummary> onSelect;
+  final VoidCallback onClose;
 
   const InternalChatOverview({
     super.key,
     required this.chatService,
-    required this.onSelect,
-    this.onClose,
     required this.currentUserId,
+    required this.onSelect,
+    required this.onClose,
   });
 
   @override
@@ -25,333 +24,196 @@ class InternalChatOverview extends StatefulWidget {
 
 class _InternalChatOverviewState extends State<InternalChatOverview> {
   late Future<List<ChatConversationSummary>> _loader;
-  Future<List<PortalUserSummary>>? _staffLoader;
-  late Future<Map<String, String>> _directoryLoader;
+  List<ChatConversationSummary> _conversations = const [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _loader = widget.chatService.fetchConversations();
-    _directoryLoader = widget.chatService.loadDisplayNameDirectory();
+    _loader = _loadConversations();
+  }
+
+  Future<List<ChatConversationSummary>> _loadConversations() async {
+    setState(() => _loading = true);
+    final convs = await widget.chatService.fetchConversations();
+    setState(() {
+      _conversations = convs;
+      _loading = false;
+    });
+    return convs;
+  }
+
+  Future<void> _refresh() async {
+    await _loadConversations();
+  }
+
+  Future<void> _startConversation(PortalUserSummary? user) async {
+    if (user == null) return;
+    final conversation = await widget.chatService.ensureDirectConversation(
+      user.email,
+      user.label,
+    );
+    await _refresh();
+    widget.onSelect(conversation);
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _OverviewHeader(onClose: widget.onClose, onStartConversation: _startNewConversation),
+        _Header(onClose: widget.onClose),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _StaffPicker(
+            chatService: widget.chatService,
+            onPick: _startConversation,
+          ),
+        ),
+        const SizedBox(height: 8),
         Expanded(
-          child: FutureBuilder<List<ChatConversationSummary>>(
-            future: _loader,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final list = snapshot.data ?? const [];
-              if (list.isEmpty) {
-                return _EmptyState(
-                  onStartConversation: _startNewConversation,
-                );
-              }
-              return FutureBuilder<Map<String, String>>(
-                future: _directoryLoader,
-                builder: (context, directorySnapshot) {
-                  if (directorySnapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final directory = directorySnapshot.data ?? const {};
-                  return ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final item = list[index];
-                      final title = item.resolvedTitle(widget.currentUserId, directory);
-                      return _ConversationTile(
-                        item: item,
-                        displayName: title,
-                        onTap: () => widget.onSelect(item),
-                        onDelete: () => _deleteConversation(item),
-                      );
-                    },
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: FutureBuilder<List<ChatConversationSummary>>(
+              future: _loader,
+              builder: (context, snapshot) {
+                if (_loading && !snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final convs = snapshot.data ?? _conversations;
+                if (convs.isEmpty) {
+                  return ListView(
+                    children: const [
+                      Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: Text('Noch keine Chats. Starte eine Direktnachricht.')),
+                      ),
+                    ],
                   );
-                },
-              );
-            },
+                }
+                return ListView.separated(
+                  itemCount: convs.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = convs[index];
+                    final title = item.titleFor(widget.currentUserId);
+                    final subtitle = item.lastMessage ?? 'Keine Nachrichten';
+                    final timestamp = item.lastMessageAt;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
+                      ),
+                      title: Text(title),
+                      subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      trailing: timestamp != null
+                          ? Text(_formatTime(timestamp), style: Theme.of(context).textTheme.labelMedium)
+                          : null,
+                      onTap: () => widget.onSelect(item),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ),
       ],
     );
   }
 
-  Future<void> _deleteConversation(ChatConversationSummary item) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Konversation löschen'),
-        content: const Text('Wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).maybePop(false),
-            child: const Text('Abbrechen'),
+  String _formatTime(DateTime ts) {
+    final now = DateTime.now();
+    final sameDay = now.year == ts.year && now.month == ts.month && now.day == ts.day;
+    if (sameDay) {
+      return '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
+    }
+    return '${ts.day.toString().padLeft(2, '0')}.${ts.month.toString().padLeft(2, '0')}';
+  }
+}
+
+class _Header extends StatelessWidget {
+  final VoidCallback onClose;
+  const _Header({required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Interner Chat',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Löschen'),
-          )
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: onClose,
+          ),
         ],
       ),
     );
-
-    if (confirmed != true) return;
-    await widget.chatService.deleteConversation(item.contextId);
-    setState(() {
-      _loader = widget.chatService.fetchConversations();
-    });
   }
+}
 
-  Future<void> _startNewConversation() async {
-    final selected = await _pickStaffUser();
-    if (selected == null) return;
-    final context = await widget.chatService.ensureDirectConversation(selected.email);
-    widget.onSelect(context);
-  }
+class _StaffPicker extends StatelessWidget {
+  final ChatService chatService;
+  final ValueChanged<PortalUserSummary?> onPick;
 
-  Future<PortalUserSummary?> _pickStaffUser() async {
-    _staffLoader ??= widget.chatService.fetchStaffUsers();
-    return showDialog<PortalUserSummary>(
-      context: context,
-      builder: (context) {
-        String query = '';
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Neue Konversation'),
-              content: SizedBox(
-                width: 420,
-                child: FutureBuilder<List<PortalUserSummary>>(
-                  future: _staffLoader,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final users = snapshot.data ?? const [];
-                    final filtered = users
-                        .where((u) {
-                          final name = u.resolvedDisplayName.toLowerCase();
-                          return name.contains(query);
-                        })
-                        .toList();
-                    filtered.sort((a, b) => a.sortKey.compareTo(b.sortKey));
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          decoration: const InputDecoration(
-                            labelText: 'Mitarbeiter suchen',
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                          autofocus: true,
-                          onChanged: (v) => setState(() => query = v.trim().toLowerCase()),
-                        ),
-                        const SizedBox(height: 12),
-                        Flexible(
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final user = filtered[index];
-                              final subtitle = _userSubtitle(user);
-                              return ListTile(
-                                leading: const Icon(Icons.person_outline),
-                                title: Text(user.resolvedDisplayName.isNotEmpty
-                                    ? user.resolvedDisplayName
-                                    : 'Unbekannter Nutzer'),
-                                subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-                                onTap: () => Navigator.of(context).pop(user),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+  const _StaffPicker({required this.chatService, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<PortalUserSummary>>(
+      future: chatService.fetchStaffUsers(),
+      builder: (context, snapshot) {
+        final users = snapshot.data ?? const <PortalUserSummary>[];
+        return Autocomplete<PortalUserSummary>(
+          displayStringForOption: (option) => option.label,
+          optionsBuilder: (textEditingValue) {
+            final query = textEditingValue.text.toLowerCase();
+            if (query.isEmpty) return const Iterable.empty();
+            return users.where((u) => u.label.toLowerCase().contains(query));
+          },
+          onSelected: onPick,
+          fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+            return TextField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: const InputDecoration(
+                labelText: 'Direktnachricht starten',
+                hintText: 'Name eingeben',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onSubmitted: (_) => onSubmitted(),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                child: SizedBox(
+                  width: 320,
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final option = options.elementAt(index);
+                      return ListTile(
+                        title: Text(option.label),
+                        subtitle: Text(option.role),
+                        onTap: () => onSelected(option),
+                      );
+                    },
+                  ),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  child: const Text('Abbrechen'),
-                ),
-              ],
             );
           },
         );
       },
-    );
-  }
-
-  String _userSubtitle(PortalUserSummary user) {
-    if (user.assignedDepartments.isNotEmpty) {
-      return user.assignedDepartments.join(' • ');
-    }
-    if (user.role.isNotEmpty) return user.role;
-    return '';
-  }
-}
-
-class _OverviewHeader extends StatelessWidget {
-  final VoidCallback? onClose;
-  final VoidCallback onStartConversation;
-
-  const _OverviewHeader({this.onClose, required this.onStartConversation});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      color: Theme.of(context).colorScheme.surfaceVariant,
-      child: Row(
-        children: [
-          const Icon(Icons.forum_outlined, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            'Konversationen',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: onStartConversation,
-            icon: const Icon(Icons.add_comment_outlined),
-            label: const Text('Neue Konversation'),
-          ),
-          IconButton(
-            onPressed: onClose,
-            icon: const Icon(Icons.close),
-          )
-        ],
-      ),
-    );
-  }
-}
-
-class _ConversationTile extends StatelessWidget {
-  final ChatConversationSummary item;
-  final String displayName;
-  final VoidCallback onTap;
-  final VoidCallback? onDelete;
-
-  const _ConversationTile({required this.item, required this.displayName, required this.onTap, this.onDelete});
-
-  IconData _iconForType(ChatContextType? type) {
-    switch (type) {
-      case ChatContextType.dm:
-        return Icons.forum_outlined;
-      case ChatContextType.capa:
-        return Icons.fact_check_outlined;
-      case ChatContextType.audit:
-        return Icons.search_outlined;
-      case ChatContextType.doc:
-        return Icons.description_outlined;
-      case ChatContextType.general:
-        return Icons.apartment_outlined;
-      case ChatContextType.complaint:
-      default:
-        return Icons.report_outlined;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final meta = item.meta;
-    final type = meta?.type ?? (item.participants.isNotEmpty ? ChatContextType.dm : null);
-    final ts = meta?.updatedAt != null
-        ? DateFormat('dd.MM.yyyy HH:mm').format(meta!.updatedAt!.toLocal())
-        : '—';
-    final subtitle = meta?.lastMessage ?? 'Keine Nachrichten';
-
-    return ListTile(
-      onTap: onTap,
-      leading: CircleAvatar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        child: Icon(_iconForType(type), color: Theme.of(context).colorScheme.primary),
-      ),
-      title: Text(displayName),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-          Text(ts, style: Theme.of(context).textTheme.labelSmall),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (item.unread) const _UnreadBadge(),
-          PopupMenuButton<String>(
-            tooltip: 'Aktionen',
-            onSelected: (value) {
-              if (value == 'delete' && onDelete != null) onDelete!();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem<String>(
-                value: 'delete',
-                child: ListTile(
-                  leading: Icon(Icons.delete_outline),
-                  title: Text('Konversation löschen'),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Text(
-        'Neu',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final VoidCallback onStartConversation;
-
-  const _EmptyState({required this.onStartConversation});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.forum_outlined, size: 42),
-          const SizedBox(height: 12),
-          const Text('Keine Konversationen vorhanden.'),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: onStartConversation,
-            icon: const Icon(Icons.add_comment_outlined),
-            label: const Text('Neue Konversation'),
-          ),
-        ],
-      ),
     );
   }
 }

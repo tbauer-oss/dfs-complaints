@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
@@ -5,16 +7,16 @@ import '../../services/chat_service.dart';
 
 class InternalChatPanel extends StatefulWidget {
   final ChatService chatService;
-  final String contextId;
-  final String? title;
-  final VoidCallback? onClose;
+  final ChatConversationSummary conversation;
+  final String currentUserId;
+  final VoidCallback onBack;
 
   const InternalChatPanel({
     super.key,
     required this.chatService,
-    required this.contextId,
-    this.title,
-    this.onClose,
+    required this.conversation,
+    required this.currentUserId,
+    required this.onBack,
   });
 
   @override
@@ -22,269 +24,303 @@ class InternalChatPanel extends StatefulWidget {
 }
 
 class _InternalChatPanelState extends State<InternalChatPanel> {
-  final TextEditingController _composer = TextEditingController();
+  final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Timer? _pollTimer;
+  List<ChatMessage> _messages = const [];
   bool _loading = true;
   bool _sending = false;
-  bool _hasMore = false;
-  bool _loadingOlder = false;
-  List<ChatMessage> _messages = const [];
-  String? _cursorBefore;
+  bool _hasMoreBefore = false;
+
+  String get _convId => widget.conversation.conversationId;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
-    _resetAndLoad();
+    _loadInitial();
+    _startPolling();
   }
 
   @override
   void didUpdateWidget(covariant InternalChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.contextId != widget.contextId) {
-      _resetAndLoad();
+    if (oldWidget.conversation.conversationId != widget.conversation.conversationId) {
+      _messages = const [];
+      _loading = true;
+      _hasMoreBefore = false;
+      _loadInitial();
     }
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
+    _controller.dispose();
     _scrollController.dispose();
-    _composer.dispose();
     super.dispose();
   }
 
-  Future<void> _loadMessages({bool older = false}) async {
-    if (older && (_loadingOlder || !_hasMore)) return;
+  Future<void> _loadInitial() async {
+    final timeline = await widget.chatService.fetchMessages(_convId, limit: 50);
     setState(() {
-      if (!older) {
-        _loading = true;
-      } else {
-        _loadingOlder = true;
-      }
-    });
-    final response = await widget.chatService.fetchMessages(widget.contextId, limit: 50, before: _cursorBefore);
-    if (!mounted) return;
-    setState(() {
-      _hasMore = response.hasMore;
-      _cursorBefore = response.hasMore && response.messages.isNotEmpty
-          ? response.messages.first.timestamp.toIso8601String()
-          : null;
-      _messages = _mergeMessages(response.messages);
+      _messages = timeline.messages;
+      _hasMoreBefore = timeline.hasMoreBefore;
       _loading = false;
-      _loadingOlder = false;
     });
+    _scrollToBottom();
   }
 
-  List<ChatMessage> _mergeMessages(List<ChatMessage> incoming) {
-    final map = <String, ChatMessage>{
-      for (final msg in _messages) msg.id: msg,
-    };
-    for (final msg in incoming) {
-      map[msg.id] = msg;
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _pollNewMessages());
+  }
+
+  Future<void> _pollNewMessages() async {
+    if (_messages.isEmpty) {
+      await _loadInitial();
+      return;
+    }
+    final lastTs = _messages.last.timestamp.millisecondsSinceEpoch;
+    final timeline = await widget.chatService.fetchMessages(_convId, afterTs: lastTs, limit: 50);
+    if (timeline.messages.isEmpty) return;
+    setState(() {
+      _messages = _mergeMessages([..._messages, ...timeline.messages]);
+    });
+    _scrollToBottom();
+  }
+
+  List<ChatMessage> _mergeMessages(List<ChatMessage> items) {
+    final map = <String, ChatMessage>{};
+    for (final m in items) {
+      map[m.id] = m;
     }
     final merged = map.values.toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return merged;
   }
 
-  void _resetAndLoad() {
+  Future<void> _loadOlder() async {
+    if (_messages.isEmpty || !_hasMoreBefore) return;
+    final before = _messages.first.timestamp.millisecondsSinceEpoch;
+    final timeline = await widget.chatService.fetchMessages(_convId, beforeTs: before, limit: 30);
+    if (timeline.messages.isEmpty) return;
     setState(() {
-      _loading = true;
-      _loadingOlder = false;
-      _hasMore = false;
-      _messages = const [];
-      _cursorBefore = null;
-      _composer.clear();
+      _messages = _mergeMessages([...timeline.messages, ..._messages]);
+      _hasMoreBefore = timeline.hasMoreBefore;
     });
-    _loadMessages();
   }
 
   Future<void> _send() async {
-    final text = _composer.text.trim();
-    if (text.isEmpty) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
+    final tempId = widget.chatService.buildMessageId(_convId);
+    final authorName = widget.conversation.displayNameFor(widget.currentUserId);
+    final optimistic = ChatMessage(
+      id: tempId,
+      conversationId: _convId,
+      authorId: widget.currentUserId,
+      authorName: authorName,
+      timestamp: DateTime.now(),
+      body: text,
+      pending: true,
+    );
+
+    setState(() {
+      _messages = _mergeMessages([..._messages, optimistic]);
+      _controller.clear();
+    });
+    _scrollToBottom();
+
     try {
-      final sent = await widget.chatService.sendMessage(widget.contextId, text);
+      final saved = await widget.chatService.sendMessage(_convId, text, msgId: tempId);
       setState(() {
-        _messages = [..._messages, sent];
-        _composer.clear();
+        _messages = _mergeMessages([
+          ..._messages.where((m) => m.id != tempId),
+          saved,
+        ]);
       });
+      _scrollToBottom();
+    } catch (err) {
+      setState(() {
+        _messages = _messages.where((m) => m.id != tempId).toList();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Senden fehlgeschlagen: $err')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients || _loading || _loadingOlder || !_hasMore) return;
-    if (_scrollController.position.pixels <= 24) {
-      _loadMessages(older: true);
-    }
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final title = widget.conversation.titleFor(widget.currentUserId);
     return Column(
       children: [
-        _PanelHeader(title: widget.title ?? 'Interner Chat', onClose: widget.onClose),
-        if (_loading)
-          const Expanded(child: Center(child: CircularProgressIndicator()))
-        else
-          Expanded(
-            child: Column(
-              children: [
-                if (_hasMore)
-                  Align(
-                    alignment: Alignment.center,
-                    child: TextButton.icon(
-                      onPressed: () => _loadMessages(older: true),
-                      icon: const Icon(Icons.history),
-                      label: const Text('Ältere Nachrichten laden'),
+        _PanelHeader(title: title, onBack: widget.onBack),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    if (_hasMoreBefore)
+                      TextButton.icon(
+                        onPressed: _loadOlder,
+                        icon: const Icon(Icons.history),
+                        label: const Text('Ältere Nachrichten laden'),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = _messages[index];
+                          final isMe = msg.authorId == widget.currentUserId;
+                          return Align(
+                            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              child: Card(
+                                color: isMe
+                                    ? Theme.of(context).colorScheme.primaryContainer
+                                    : Theme.of(context).colorScheme.surfaceVariant,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        msg.authorName,
+                                        style: Theme.of(context).textTheme.labelMedium,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(msg.body),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _formatTime(msg.timestamp),
+                                            style: Theme.of(context).textTheme.labelSmall,
+                                          ),
+                                          if (msg.pending)
+                                            const Padding(
+                                              padding: EdgeInsets.only(left: 6),
+                                              child: Icon(Icons.watch_later, size: 14),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                if (_loadingOlder)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8.0),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                Expanded(
-                  child: _messages.isEmpty
-                      ? const Center(child: Text('Keine Nachrichten vorhanden'))
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(12),
-                          controller: _scrollController,
-                          itemCount: _messages.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final msg = _messages[index];
-                            return _ChatMessageTile(message: msg);
-                          },
-                        ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _composer,
-                  maxLines: 4,
-                  minLines: 1,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _send(),
-                  decoration: const InputDecoration(
-                    hintText: 'Nachricht eingeben…',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: _sending
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.send),
-                color: theme.colorScheme.primary,
-                onPressed: _sending ? null : _send,
-              ),
-            ],
-          ),
+        ),
+        _InputBar(
+          controller: _controller,
+          sending: _sending,
+          onSend: _send,
         ),
       ],
     );
+  }
+
+  String _formatTime(DateTime ts) {
+    final h = ts.hour.toString().padLeft(2, '0');
+    final m = ts.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }
 
 class _PanelHeader extends StatelessWidget {
   final String title;
-  final VoidCallback? onClose;
+  final VoidCallback onBack;
 
-  const _PanelHeader({required this.title, this.onClose});
+  const _PanelHeader({required this.title, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: Theme.of(context).colorScheme.surfaceVariant,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
-          const Icon(Icons.chat_bubble_outline, size: 18),
-          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: onBack,
+          ),
           Expanded(
             child: Text(
               title,
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: onClose,
-          )
         ],
       ),
     );
   }
 }
 
-class _ChatMessageTile extends StatelessWidget {
-  final ChatMessage message;
+class _InputBar extends StatelessWidget {
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
 
-  const _ChatMessageTile({required this.message});
+  const _InputBar({
+    required this.controller,
+    required this.sending,
+    required this.onSend,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final ts = TimeOfDay.fromDateTime(message.timestamp).format(context);
-    final headline = Text.rich(
-      TextSpan(
-        text: message.authorName,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-        children: [
-          const TextSpan(text: ' • '),
-          TextSpan(text: ts, style: const TextStyle(fontWeight: FontWeight.w400)),
-        ],
-      ),
-    );
-
-    final flags = message.flags;
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          headline,
-          const SizedBox(height: 4),
-          Text(message.body),
-          if (message.mentions.isNotEmpty || flags.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final m in message.mentions)
-                  Chip(
-                    label: Text('@$m'),
-                    avatar: const Icon(Icons.alternate_email, size: 18),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                for (final f in flags)
-                  Chip(
-                    label: Text(f.toUpperCase()),
-                    backgroundColor: Colors.amber.shade100,
-                    visualDensity: VisualDensity.compact,
-                  ),
-              ],
-            )
-          ]
-        ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                maxLines: 3,
+                minLines: 1,
+                decoration: const InputDecoration(
+                  labelText: 'Nachricht',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => onSend(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: sending ? null : onSend,
+              icon: const Icon(Icons.send),
+              label: const Text('Senden'),
+            ),
+          ],
+        ),
       ),
     );
   }
