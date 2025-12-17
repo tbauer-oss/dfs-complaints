@@ -40,11 +40,33 @@ export async function buildPortalUserDirectory() {
   const directory = new Map();
   const users = await portalUsersList();
   for (const user of users) {
-    const userId = normalizeUserId(user.email);
-    if (!userId) continue;
+    const aliases = new Set();
+    const email = (user.email || '').toString().trim().toLowerCase();
+    if (email) aliases.add(email);
+    const emailId = normalizeUserId(email);
+    if (emailId) {
+      aliases.add(emailId);
+      aliases.add(emailId.toLowerCase());
+    }
+
+    const username = (user.username || user.userName || user.login || '').toString().trim().toLowerCase();
+    if (username) aliases.add(username);
+    const usernameId = normalizeUserId(username);
+    if (usernameId) {
+      aliases.add(usernameId);
+      aliases.add(usernameId.toLowerCase());
+    }
+
+    for (const alias of Array.from(aliases.values())) {
+      aliases.add(alias.toLowerCase());
+    }
+
     const displayName = resolvePortalDisplayName(user);
     if (!displayName) continue;
-    directory.set(userId, displayName);
+
+    for (const alias of aliases) {
+      directory.set(alias, displayName);
+    }
   }
   return directory;
 }
