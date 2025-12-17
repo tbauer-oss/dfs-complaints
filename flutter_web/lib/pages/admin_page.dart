@@ -5777,32 +5777,32 @@ class _AdminPageState extends State<AdminPage> {
     final sections = [
       // Neue Kachel "User-Datenbank" im DFS Portal Startscreen (nur für Superuser sichtbar)
       const _AdminMenuSectionState(
-        title: 'Reklamationen',
+        title: 'Connect+ Complaints',
         subtitle: 'Offene Fälle, Suche und Kennzahlen',
         tileIds: ['open', 'all', 'complaintList', 'prrc', 'stats'],
       ),
       const _AdminMenuSectionState(
-        title: 'Qualitätsmanagement',
+        title: 'Connect+ Quality',
         subtitle: 'FMEA, CAPA / 8D-Reports verwalten',
         tileIds: ['capaDashboard', 'capaReports', 'fmea', 'audits'],
       ),
       const _AdminMenuSectionState(
-        title: 'Kunden',
+        title: 'Connect+ Customer Management',
         subtitle: 'Anträge prüfen und Kunden anlegen',
         tileIds: ['pending', 'users', 'createCustomer'],
       ),
       const _AdminMenuSectionState(
-        title: 'Vertreter',
+        title: 'Connect+ Sales & Partner Management',
         subtitle: 'Teams steuern und Wissen bereitstellen',
         tileIds: ['reps', 'downloads', 'wiki'],
       ),
       const _AdminMenuSectionState(
-        title: 'Kommunikation & Inhalte',
+        title: 'Connect+ Content & Communication',
         subtitle: 'Informationen und Push-Kanäle pflegen',
         tileIds: ['news', 'faq', 'products', 'push'],
       ),
       const _AdminMenuSectionState(
-        title: 'System & Konfiguration',
+        title: 'Connect+ System Administration',
         subtitle: 'Kataloge, Versionen, Testmodus und Monitoring',
         tileIds: ['portalUsers', 'catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity'],
       ),
