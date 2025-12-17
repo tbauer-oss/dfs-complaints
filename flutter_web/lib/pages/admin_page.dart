@@ -4770,7 +4770,7 @@ class _AdminPageState extends State<AdminPage> {
         elevation: 0,
       ),
       icon: const Icon(Icons.home_outlined),
-      label: const Text('Dashboard'),
+      label: const Text('Zurück zum Dashboard'),
       onPressed: () => setState(() => _view = AdminView.menu),
     );
 
