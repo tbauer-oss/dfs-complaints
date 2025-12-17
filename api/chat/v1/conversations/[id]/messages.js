@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { bad, handlePreflight, methodNotAllowed, ok, readJson, setCors } from '../../../../_lib/http.js';
-import { requirePortalAccess } from '../../../../admin/_guard.js';
+import { getAuthUser } from '../../../../_lib/auth.js';
 import { redis } from '../../../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from '../../_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from '../../_lib/cleanup.js';
@@ -13,18 +13,14 @@ import {
   normalizeUserId,
   readMessages,
   registerConversationForUsers,
-  requireParticipant,
   upsertUserProfile,
   validateMessageBody,
 } from '../../_lib/store.js';
-import { buildMessageId, parseTimestamp } from '../../_lib/schema.js';
+import { buildMessageId, keyConversationMembers, parseTimestamp } from '../../_lib/schema.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
-
-  const actor = await requirePortalAccess(req, res, { write: req.method === 'POST' });
-  if (!actor) return;
 
   const { id } = req.query || {};
   const convId = String(id || '').trim();
@@ -34,11 +30,22 @@ export default async function handler(req, res) {
   const { client, counters } = createTrackedRedis(redis);
 
   try {
+    const actor = getAuthUser(req);
+    if (!actor) return bad(res, 'unauthorized', 401);
+
+    const uid = normalizeUserId(actor.email || actor.id);
+    if (!uid) return bad(res, 'invalid user', 400);
+
     const meta = await fetchConversationMeta(client, convId);
     if (!meta) return bad(res, 'conversation not found', 404);
 
-    const uid = normalizeUserId(actor.email || actor.id);
-    if (!uid || !requireParticipant(meta, uid)) return bad(res, 'forbidden', 403);
+    const membersKey = keyConversationMembers(convId);
+    const membersKeyExists = Boolean(await client.exists(membersKey));
+    const isMember = membersKeyExists && (await client.sismember(membersKey, uid)) === 1;
+
+    console.info('[chat/v1/messages] access', { uid, convId, membersKeyExists, isMember });
+
+    if (!isMember) return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
 
     if (req.method === 'GET') {
       const afterTs = parseTimestamp(req.query?.afterTs);

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 
@@ -31,6 +32,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   bool _loading = true;
   bool _sending = false;
   bool _hasMoreBefore = false;
+  String? _errorMessage;
 
   String get _convId => widget.conversation.conversationId;
 
@@ -45,10 +47,13 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   void didUpdateWidget(covariant InternalChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.conversation.conversationId != widget.conversation.conversationId) {
+      _stopPolling();
       _messages = const [];
       _loading = true;
       _hasMoreBefore = false;
+      _errorMessage = null;
       _loadInitial();
+      _startPolling();
     }
   }
 
@@ -61,32 +66,69 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   Future<void> _loadInitial() async {
-    final timeline = await widget.chatService.fetchMessages(_convId, limit: 50);
-    setState(() {
-      _messages = timeline.messages;
-      _hasMoreBefore = timeline.hasMoreBefore;
-      _loading = false;
-    });
-    _scrollToBottom();
+    try {
+      final timeline = await widget.chatService.fetchMessages(_convId, limit: 50);
+      if (!mounted) return;
+      setState(() {
+        _messages = timeline.messages;
+        _hasMoreBefore = timeline.hasMoreBefore;
+        _loading = false;
+        _errorMessage = null;
+      });
+      _scrollToBottom();
+    } catch (err) {
+      _handleLoadError(err);
+    }
   }
 
   void _startPolling() {
+    if (_errorMessage != null) return;
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _pollNewMessages());
   }
 
-  Future<void> _pollNewMessages() async {
-    if (_messages.isEmpty) {
-      await _loadInitial();
-      return;
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  void _handleLoadError(Object err, {bool showSnackBar = true}) {
+    String message = 'Fehler beim Laden der Nachrichten';
+    if (err is ApiError && (err.status == 401 || err.status == 403)) {
+      message = 'Keine Berechtigung';
     }
-    final lastTs = _messages.last.timestamp.millisecondsSinceEpoch;
-    final timeline = await widget.chatService.fetchMessages(_convId, afterTs: lastTs, limit: 50);
-    if (timeline.messages.isEmpty) return;
+
+    _stopPolling();
+    if (!mounted) return;
     setState(() {
-      _messages = _mergeMessages([..._messages, ...timeline.messages]);
+      _loading = false;
+      _errorMessage = message;
     });
-    _scrollToBottom();
+
+    if (showSnackBar && message != 'Keine Berechtigung') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
+  Future<void> _pollNewMessages() async {
+    try {
+      if (_messages.isEmpty) {
+        await _loadInitial();
+        return;
+      }
+      final lastTs = _messages.last.timestamp.millisecondsSinceEpoch;
+      final timeline = await widget.chatService.fetchMessages(_convId, afterTs: lastTs, limit: 50);
+      if (timeline.messages.isEmpty) return;
+      if (!mounted) return;
+      setState(() {
+        _messages = _mergeMessages([..._messages, ...timeline.messages]);
+      });
+      _scrollToBottom();
+    } catch (err) {
+      _handleLoadError(err, showSnackBar: false);
+    }
   }
 
   List<ChatMessage> _mergeMessages(List<ChatMessage> items) {
@@ -101,13 +143,18 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   Future<void> _loadOlder() async {
     if (_messages.isEmpty || !_hasMoreBefore) return;
-    final before = _messages.first.timestamp.millisecondsSinceEpoch;
-    final timeline = await widget.chatService.fetchMessages(_convId, beforeTs: before, limit: 30);
-    if (timeline.messages.isEmpty) return;
-    setState(() {
-      _messages = _mergeMessages([...timeline.messages, ..._messages]);
-      _hasMoreBefore = timeline.hasMoreBefore;
-    });
+    try {
+      final before = _messages.first.timestamp.millisecondsSinceEpoch;
+      final timeline = await widget.chatService.fetchMessages(_convId, beforeTs: before, limit: 30);
+      if (timeline.messages.isEmpty) return;
+      if (!mounted) return;
+      setState(() {
+        _messages = _mergeMessages([...timeline.messages, ..._messages]);
+        _hasMoreBefore = timeline.hasMoreBefore;
+      });
+    } catch (err) {
+      _handleLoadError(err);
+    }
   }
 
   Future<void> _send() async {
@@ -175,6 +222,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
+              : _errorMessage != null
+                  ? Center(child: Text(_errorMessage!))
               : Column(
                   children: [
                     if (_hasMoreBefore)
