@@ -7,6 +7,7 @@ import {
 import { usersList, userSave, userDelete, pendingDelete, portalUsersList } from '../_lib/store.js';
 import { requirePortalAccess } from './_guard.js';
 import { normalizeRole, normalizeStatus, PORTAL_ROLES } from '../_lib/portalAuth.js';
+import { resolvePortalDisplayName } from '../_lib/userDirectory.js';
 
 export default async function handler(req, res) {
   // CORS-Header setzen + OPTIONS (Preflight) direkt beantworten
@@ -22,23 +23,37 @@ export default async function handler(req, res) {
     // ---- LIST ----
     if (req.method === 'GET') {
       if (wantsStaffList) {
-        const includeInactive = String(req.query?.includeInactive ?? 'false').toLowerCase() === 'true';
+        const includeInactive = String(req.query?.includeInactive ?? 'true').toLowerCase() === 'true';
         const list = await portalUsersList();
         const staff = list
-          .map((u) => ({
-            email: String(u.email || '').toLowerCase(),
-            displayName: u.displayName || u.contact || u.company || '',
-            role: normalizeRole(u.role),
-            portalStatus: normalizeStatus(u.portalStatus, u.revoked),
-            isPRRC: u.isPRRC === true,
-            assignedDepartments: Array.isArray(u.assignedDepartments)
-              ? u.assignedDepartments.filter(Boolean).map((d) => String(d))
-              : [],
-          }))
+          .map((u) => {
+            const email = String(u.email || '').toLowerCase();
+            const role = normalizeRole(u.role);
+            const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
+            const firstName = (u.firstName || u.firstname || u.first_name || '').toString().trim();
+            const lastName = (u.lastName || u.lastname || u.last_name || '').toString().trim();
+            const fullName = (u.fullName || u.full_name || u.name || '').toString().trim();
+            const username = (u.username || u.userName || '').toString().trim();
+            const displayName = resolvePortalDisplayName(u);
+            return {
+              email,
+              displayName,
+              fullName,
+              firstName,
+              lastName,
+              username,
+              role,
+              portalStatus,
+              isPRRC: u.isPRRC === true || u.isPrrc === true,
+              assignedDepartments: Array.isArray(u.assignedDepartments)
+                ? u.assignedDepartments.filter(Boolean).map((d) => String(d))
+                : [],
+            };
+          })
           .filter((u) => (includeInactive || u.portalStatus === 'active') && u.role !== PORTAL_ROLES.user)
           .sort((a, b) => {
-            const nameA = (a.displayName || a.email || '').toString();
-            const nameB = (b.displayName || b.email || '').toString();
+            const nameA = (a.displayName || a.fullName || a.username || a.email || '').toString();
+            const nameB = (b.displayName || b.fullName || b.username || b.email || '').toString();
             return nameA.localeCompare(nameB, 'de', { sensitivity: 'base' });
           });
 
