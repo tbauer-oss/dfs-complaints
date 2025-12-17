@@ -25,11 +25,13 @@ class InternalChatOverview extends StatefulWidget {
 class _InternalChatOverviewState extends State<InternalChatOverview> {
   late Future<List<ChatConversationSummary>> _loader;
   Future<List<PortalUserSummary>>? _staffLoader;
+  late Future<Map<String, String>> _directoryLoader;
 
   @override
   void initState() {
     super.initState();
     _loader = widget.chatService.fetchConversations();
+    _directoryLoader = widget.chatService.loadDisplayNameDirectory();
   }
 
   @override
@@ -50,17 +52,27 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                   onStartConversation: _startNewConversation,
                 );
               }
-              return ListView.separated(
-                padding: const EdgeInsets.all(12),
-                itemCount: list.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, index) {
-                  final item = list[index];
-                  return _ConversationTile(
-                    item: item,
-                    onTap: () => widget.onSelect(item),
-                    onDelete: () => _deleteConversation(item),
-                    currentUserId: widget.currentUserId,
+              return FutureBuilder<Map<String, String>>(
+                future: _directoryLoader,
+                builder: (context, directorySnapshot) {
+                  if (directorySnapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final directory = directorySnapshot.data ?? const {};
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final item = list[index];
+                      final title = item.resolvedTitle(widget.currentUserId, directory);
+                      return _ConversationTile(
+                        item: item,
+                        displayName: title,
+                        onTap: () => widget.onSelect(item),
+                        onDelete: () => _deleteConversation(item),
+                      );
+                    },
                   );
                 },
               );
@@ -125,10 +137,11 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final users = snapshot.data ?? const [];
                     final filtered = users
                         .where((u) {
-                          final name = (u.displayName.isNotEmpty ? u.displayName : u.label).toLowerCase();
+                          final name = u.resolvedDisplayName.toLowerCase();
                           return name.contains(query);
                         })
                         .toList();
+                    filtered.sort((a, b) => a.sortKey.compareTo(b.sortKey));
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -150,7 +163,9 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                               final subtitle = _userSubtitle(user);
                               return ListTile(
                                 leading: const Icon(Icons.person_outline),
-                                title: Text(user.displayName.isNotEmpty ? user.displayName : 'Unbekannter Nutzer'),
+                                title: Text(user.resolvedDisplayName.isNotEmpty
+                                    ? user.resolvedDisplayName
+                                    : 'Unbekannter Nutzer'),
                                 subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
                                 onTap: () => Navigator.of(context).pop(user),
                               );
@@ -221,11 +236,11 @@ class _OverviewHeader extends StatelessWidget {
 
 class _ConversationTile extends StatelessWidget {
   final ChatConversationSummary item;
+  final String displayName;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
-  final String currentUserId;
 
-  const _ConversationTile({required this.item, required this.onTap, required this.currentUserId, this.onDelete});
+  const _ConversationTile({required this.item, required this.displayName, required this.onTap, this.onDelete});
 
   IconData _iconForType(ChatContextType? type) {
     switch (type) {
@@ -254,15 +269,13 @@ class _ConversationTile extends StatelessWidget {
         : '—';
     final subtitle = meta?.lastMessage ?? 'Keine Nachrichten';
 
-    final title = item.titleFor(currentUserId);
-
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surface,
         child: Icon(_iconForType(type), color: Theme.of(context).colorScheme.primary),
       ),
-      title: Text(title),
+      title: Text(displayName),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

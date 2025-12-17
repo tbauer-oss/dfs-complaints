@@ -12,7 +12,7 @@ import {
   userIdAliases,
   normalizeUserId,
 } from '../../_lib/chat.js';
-import { portalUsersList } from '../../_lib/store.js';
+import { buildPortalUserDirectory } from '../../_lib/userDirectory.js';
 
 function toBool(val) {
   return String(val || '').toLowerCase() === 'true';
@@ -55,13 +55,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const portalUsers = await portalUsersList();
-    const userDirectory = new Map();
-    for (const u of portalUsers) {
-      const userId = normalizeUserId(u.email);
-      if (!userId) continue;
-      userDirectory.set(userId, u.displayName || u.contact || u.company || '');
-    }
+    const userDirectory = await buildPortalUserDirectory();
 
     const entries = await Promise.all(
       Array.from(contextsSet.values()).map(async (contextId) => {
