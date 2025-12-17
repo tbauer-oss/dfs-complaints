@@ -59,6 +59,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                   return _ConversationTile(
                     item: item,
                     onTap: () => widget.onSelect(item),
+                    onDelete: () => _deleteConversation(item),
                   );
                 },
               );
@@ -69,6 +70,32 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     );
   }
 
+  Future<void> _deleteConversation(ChatConversationSummary item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konversation löschen'),
+        content: const Text('Wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).maybePop(false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Löschen'),
+          )
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await widget.chatService.deleteConversation(item.contextId);
+    setState(() {
+      _loader = widget.chatService.fetchConversations();
+    });
+  }
+
   Future<void> _startNewConversation() async {
     final selected = await _pickStaffUser();
     if (selected == null) return;
@@ -76,7 +103,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     final meta = ChatContextMeta(
       contextId: contextId,
       type: ChatContextType.dm,
-      reference: selected.displayName.isNotEmpty ? selected.displayName : selected.email,
+      reference: selected.displayName.isNotEmpty ? selected.displayName : 'Unbekannter Nutzer',
       updatedAt: null,
       lastMessage: null,
       lastAuthor: null,
@@ -111,8 +138,10 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     }
                     final users = snapshot.data ?? const [];
                     final filtered = users
-                        .where((u) =>
-                            u.email.toLowerCase().contains(query) || u.displayName.toLowerCase().contains(query))
+                        .where((u) {
+                          final name = (u.displayName.isNotEmpty ? u.displayName : u.label).toLowerCase();
+                          return name.contains(query);
+                        })
                         .toList();
                     return Column(
                       mainAxisSize: MainAxisSize.min,
@@ -132,10 +161,11 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final user = filtered[index];
+                              final subtitle = _userSubtitle(user);
                               return ListTile(
                                 leading: const Icon(Icons.person_outline),
-                                title: Text(user.displayName.isNotEmpty ? user.displayName : user.email),
-                                subtitle: Text(user.email),
+                                title: Text(user.displayName.isNotEmpty ? user.displayName : 'Unbekannter Nutzer'),
+                                subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
                                 onTap: () => Navigator.of(context).pop(user),
                               );
                             },
@@ -157,6 +187,14 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
         );
       },
     );
+  }
+
+  String _userSubtitle(PortalUserSummary user) {
+    if (user.assignedDepartments.isNotEmpty) {
+      return user.assignedDepartments.join(' • ');
+    }
+    if (user.role.isNotEmpty) return user.role;
+    return '';
   }
 }
 
@@ -198,8 +236,9 @@ class _OverviewHeader extends StatelessWidget {
 class _ConversationTile extends StatelessWidget {
   final ChatConversationSummary item;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
-  const _ConversationTile({required this.item, required this.onTap});
+  const _ConversationTile({required this.item, required this.onTap, this.onDelete});
 
   IconData _iconForType(ChatContextType? type) {
     switch (type) {
@@ -241,7 +280,29 @@ class _ConversationTile extends StatelessWidget {
           Text(ts, style: Theme.of(context).textTheme.labelSmall),
         ],
       ),
-      trailing: item.unread ? const _UnreadBadge() : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (item.unread) const _UnreadBadge(),
+          PopupMenuButton<String>(
+            tooltip: 'Aktionen',
+            onSelected: (value) {
+              if (value == 'delete' && onDelete != null) onDelete!();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String>(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline),
+                  title: Text('Konversation löschen'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

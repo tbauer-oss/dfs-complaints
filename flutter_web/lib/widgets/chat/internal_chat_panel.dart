@@ -23,31 +23,80 @@ class InternalChatPanel extends StatefulWidget {
 
 class _InternalChatPanelState extends State<InternalChatPanel> {
   final TextEditingController _composer = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   bool _loading = true;
   bool _sending = false;
   bool _hasMore = false;
+  bool _loadingOlder = false;
   List<ChatMessage> _messages = const [];
   String? _cursorBefore;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadMessages();
   }
 
+  @override
+  void didUpdateWidget(covariant InternalChatPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contextId != widget.contextId) {
+      _resetAndLoad();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _composer.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadMessages({bool older = false}) async {
+    if (older && (_loadingOlder || !_hasMore)) return;
     setState(() {
-      if (!older) _loading = true;
+      if (!older) {
+        _loading = true;
+      } else {
+        _loadingOlder = true;
+      }
     });
     final response = await widget.chatService.fetchMessages(widget.contextId, limit: 50, before: _cursorBefore);
+    if (!mounted) return;
     setState(() {
       _hasMore = response.hasMore;
       _cursorBefore = response.hasMore && response.messages.isNotEmpty
           ? response.messages.first.timestamp.toIso8601String()
           : null;
-      _messages = older ? [...response.messages, ..._messages] : response.messages;
+      _messages = _mergeMessages(response.messages);
       _loading = false;
+      _loadingOlder = false;
     });
+  }
+
+  List<ChatMessage> _mergeMessages(List<ChatMessage> incoming) {
+    final map = <String, ChatMessage>{
+      for (final msg in _messages) msg.id: msg,
+    };
+    for (final msg in incoming) {
+      map[msg.id] = msg;
+    }
+    final merged = map.values.toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return merged;
+  }
+
+  void _resetAndLoad() {
+    setState(() {
+      _loading = true;
+      _loadingOlder = false;
+      _hasMore = false;
+      _messages = const [];
+      _cursorBefore = null;
+      _composer.clear();
+    });
+    _loadMessages();
   }
 
   Future<void> _send() async {
@@ -62,6 +111,13 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       });
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients || _loading || _loadingOlder || !_hasMore) return;
+    if (_scrollController.position.pixels <= 24) {
+      _loadMessages(older: true);
     }
   }
 
@@ -86,9 +142,15 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                       label: const Text('Ältere Nachrichten laden'),
                     ),
                   ),
+                if (_loadingOlder)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8.0),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.all(12),
+                    controller: _scrollController,
                     itemCount: _messages.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {

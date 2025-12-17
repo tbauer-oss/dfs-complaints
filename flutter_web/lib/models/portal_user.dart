@@ -29,4 +29,6 @@ class PortalUserSummary {
       );
 
   String get label => displayName.isNotEmpty ? displayName : email;
+
+  String get sortKey => label.toLowerCase();
 }

@@ -13,7 +13,8 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const wantsStaffList = req.method === 'GET' && String(req.query?.role || '').toLowerCase() === 'staff';
+  const wantsStaffList =
+    req.method === 'GET' && String(req.query?.scope || req.query?.role || '').toLowerCase() === 'staff';
   const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: wantsStaffList ? undefined : 'users' });
   if (!actor) return;
 
@@ -21,6 +22,7 @@ export default async function handler(req, res) {
     // ---- LIST ----
     if (req.method === 'GET') {
       if (wantsStaffList) {
+        const includeInactive = String(req.query?.includeInactive ?? 'false').toLowerCase() === 'true';
         const list = await portalUsersList();
         const staff = list
           .map((u) => ({
@@ -33,7 +35,12 @@ export default async function handler(req, res) {
               ? u.assignedDepartments.filter(Boolean).map((d) => String(d))
               : [],
           }))
-          .filter((u) => u.portalStatus === 'active' && u.role !== PORTAL_ROLES.user);
+          .filter((u) => (includeInactive || u.portalStatus === 'active') && u.role !== PORTAL_ROLES.user)
+          .sort((a, b) => {
+            const nameA = (a.displayName || a.email || '').toString();
+            const nameB = (b.displayName || b.email || '').toString();
+            return nameA.localeCompare(nameB, 'de', { sensitivity: 'base' });
+          });
 
         return ok(res, { users: staff });
       }
