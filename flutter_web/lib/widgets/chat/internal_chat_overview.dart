@@ -244,8 +244,18 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
   Future<void> _startDm(ChatUserSummary user) async {
     setState(() => _creating = true);
     try {
-      final conversation = await widget.chatService.ensureDirectConversation(user.userId, user.displayName);
+      final conversation = await widget.chatService.ensureDirectConversation(
+        user.userId,
+        user.displayName,
+        currentUserId: widget.currentUserId,
+      );
       if (mounted) Navigator.of(context).pop(conversation);
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chat konnte nicht gestartet werden: $err')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _creating = false);
     }
