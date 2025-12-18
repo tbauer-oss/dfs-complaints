@@ -36,12 +36,14 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   bool _sending = false;
   bool _hasMoreBefore = false;
   String? _errorMessage;
+  String _myId = '';
 
   String get _convId => widget.conversation.conversationId;
 
   @override
   void initState() {
     super.initState();
+    _myId = _normalizeId(widget.currentUserId);
     _loadInitial();
     _startPolling();
   }
@@ -57,6 +59,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       _errorMessage = null;
       _loadInitial();
       _startPolling();
+    }
+    final normalizedId = _normalizeId(widget.currentUserId);
+    if (normalizedId.isNotEmpty && normalizedId != _myId) {
+      setState(() => _myId = normalizedId);
     }
   }
 
@@ -164,7 +170,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _myId.isEmpty) return;
     setState(() => _sending = true);
     final tempId = widget.chatService.buildMessageId(_convId);
     final authorName = _displayNameForCurrentUser();
@@ -173,6 +179,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       conversationId: _convId,
       authorId: widget.currentUserId,
       authorName: authorName,
+      authorEmail: _myId,
+      authorUid: widget.currentUserId,
+      sender: widget.currentUserId,
+      senderEmail: _myId,
       timestamp: DateTime.now(),
       body: text,
       pending: true,
@@ -232,17 +242,15 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   bool _isMessageFromCurrentUser(ChatMessage msg) {
-    final normalizedCurrent = widget.currentUserId.trim().toLowerCase();
-    final normalizedAuthor = msg.authorId.trim().toLowerCase();
-    final normalizedSenderEmail = (msg.senderEmail ?? '').trim().toLowerCase();
-
-    if (normalizedCurrent.isEmpty) {
-      return msg.authorId == widget.currentUserId;
-    }
-
-    return normalizedAuthor == normalizedCurrent ||
-        (normalizedSenderEmail.isNotEmpty &&
-            normalizedSenderEmail == normalizedCurrent);
+    final author = _firstNonEmpty([
+      _normalizeId(msg.authorEmail),
+      _normalizeId(msg.authorUid),
+      _normalizeId(msg.sender),
+      _normalizeId(msg.senderEmail),
+      _normalizeId(msg.authorId),
+    ]);
+    final isMe = author.isNotEmpty && _myId.isNotEmpty && author == _myId;
+    return isMe;
   }
 
   String _displayNameForCurrentUser() {
@@ -255,6 +263,15 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     if (widget.onMarkAsRead == null) return;
     final lastTs = _messages.isNotEmpty ? _messages.last.timestamp.millisecondsSinceEpoch : null;
     widget.onMarkAsRead!(widget.conversation.conversationId, lastTs);
+  }
+
+  String _normalizeId(String? value) => (value ?? '').trim().toLowerCase();
+
+  String _firstNonEmpty(List<String> values) {
+    for (final value in values) {
+      if (value.trim().isNotEmpty) return value.trim();
+    }
+    return '';
   }
 
   void _showMembersDialog(List<String> members) {
@@ -291,6 +308,19 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     final title = widget.conversation.titleFor(widget.currentUserId);
     final memberNames = widget.conversation.memberDisplayNames(excludeUserId: widget.currentUserId);
     final membersLabel = memberNames.isEmpty ? null : widget.conversation.membersLabelFor(widget.currentUserId);
+    if (_myId.isEmpty) {
+      return Column(
+        children: [
+          _PanelHeader(
+            title: title,
+            subtitle: membersLabel,
+            onBack: widget.onBack,
+            onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
+          ),
+          const Expanded(child: Center(child: CircularProgressIndicator())),
+        ],
+      );
+    }
     return Column(
       children: [
         _PanelHeader(
@@ -321,81 +351,62 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                           final msg = _messages[index];
                           final isMe = _isMessageFromCurrentUser(msg);
                           final theme = Theme.of(context);
-                          return LayoutBuilder(
-                            builder: (context, constraints) {
-                              final maxBubbleWidth = constraints.maxWidth * 0.75;
-                              final backgroundColor = isMe
-                                  ? theme.colorScheme.primary.withOpacity(0.18)
-                                  : theme.colorScheme.onSurface.withOpacity(0.06);
-                              final radius = isMe
-                                  ? const BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      topRight: Radius.circular(16),
-                                      bottomLeft: Radius.circular(4),
-                                      bottomRight: Radius.circular(16),
-                                    )
-                                  : const BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      topRight: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
-                                      bottomRight: Radius.circular(4),
-                                    );
+                          final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
+                          final timeString = _formatTime(msg.timestamp);
+                          final backgroundColor = isMe
+                              ? theme.colorScheme.primary.withOpacity(0.18)
+                              : theme.colorScheme.surface.withOpacity(0.10);
+                          final radius = BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isMe ? 16 : 4),
+                            bottomRight: Radius.circular(isMe ? 4 : 16),
+                          );
 
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                child: Align(
-                                  alignment:
-                                      isMe ? Alignment.centerRight : Alignment.centerLeft,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: backgroundColor,
-                                        borderRadius: radius,
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 10),
-                                        child: Column(
-                                          crossAxisAlignment: isMe
-                                              ? CrossAxisAlignment.end
-                                              : CrossAxisAlignment.start,
-                                          children: [
-                                            if (!isMe)
-                                              Padding(
-                                                padding: const EdgeInsets.only(bottom: 4),
-                                                child: Text(
-                                                  _displayNameFor(msg),
-                                                  style:
-                                                      theme.textTheme.labelMedium,
-                                                ),
-                                              ),
-                                            Text(msg.body),
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  _formatTime(msg.timestamp),
-                                                  style:
-                                                      theme.textTheme.labelSmall,
-                                                ),
-                                                if (msg.pending)
-                                                  const Padding(
-                                                    padding: EdgeInsets.only(left: 6),
-                                                    child:
-                                                        Icon(Icons.watch_later, size: 14),
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
+                          return Align(
+                            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: bubbleWidth),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: backgroundColor,
+                                  borderRadius: radius,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!isMe)
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Text(
+                                          _displayNameFor(msg),
+                                          style: theme.textTheme.labelMedium,
                                         ),
                                       ),
+                                    Text(msg.body),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          timeString,
+                                          style: theme.textTheme.labelSmall,
+                                        ),
+                                        if (msg.pending)
+                                          const Padding(
+                                            padding: EdgeInsets.only(left: 6),
+                                            child: Icon(Icons.watch_later, size: 14),
+                                          ),
+                                      ],
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              );
-                            },
+                              ),
+                            ),
                           );
                         },
                       ),

@@ -141,6 +141,9 @@ class ChatMessage {
   final String conversationId;
   final String authorId;
   final String authorName;
+  final String? authorEmail;
+  final String? authorUid;
+  final String? sender;
   final String? senderEmail;
   final DateTime timestamp;
   final String body;
@@ -153,6 +156,9 @@ class ChatMessage {
     required this.authorName,
     required this.timestamp,
     required this.body,
+    this.authorEmail,
+    this.authorUid,
+    this.sender,
     this.senderEmail,
     this.pending = false,
   });
@@ -162,6 +168,9 @@ class ChatMessage {
         conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
         authorId: (json['authorId'] ?? json['senderUid'] ?? '').toString(),
         authorName: _extractAuthorName(json),
+        authorEmail: (json['authorEmail'] ?? json['senderEmail'])?.toString(),
+        authorUid: json['authorUid']?.toString(),
+        sender: json['sender']?.toString(),
         senderEmail: json['senderEmail']?.toString(),
         timestamp: _parseTimestamp(json['timestamp'] ?? json['ts'] ?? json['tsMs']),
         body: (json['body'] ?? json['text'] ?? '').toString(),
@@ -173,6 +182,9 @@ class ChatMessage {
         conversationId: conversationId,
         authorId: authorId,
         authorName: authorName,
+        authorEmail: authorEmail,
+        authorUid: authorUid,
+        sender: sender,
         senderEmail: senderEmail,
         timestamp: timestamp,
         body: body,

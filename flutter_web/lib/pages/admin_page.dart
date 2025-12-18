@@ -358,6 +358,8 @@ class _AdminPageState extends State<AdminPage> {
     return ChatService.normalizeUserId(email);
   }
 
+  String get _portalChatId => _portalEmail.trim().toLowerCase();
+
   String _chatLastReadKey(String convId) {
     final email = _portalEmail.trim().toLowerCase();
     return 'chat:lastReadAt:$email:$convId';
@@ -4898,7 +4900,7 @@ class _AdminPageState extends State<AdminPage> {
                     child: selected == null
                         ? InternalChatOverview(
                             chatService: _chatService,
-                            currentUserId: _portalUserId,
+                            currentUserId: _portalChatId,
                             onConversationsLoaded: _handleConversationsSnapshot,
                             onSelect: (conv) {
                               _markConversationRead(conv);
@@ -4909,7 +4911,7 @@ class _AdminPageState extends State<AdminPage> {
                         : InternalChatPanel(
                             chatService: _chatService,
                             conversation: selected!,
-                            currentUserId: _portalUserId,
+                            currentUserId: _portalChatId,
                             onBack: () => setModalState(() => selected = null),
                             onMarkAsRead: _handleConversationSeen,
                           ),
