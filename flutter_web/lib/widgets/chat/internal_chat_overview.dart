@@ -169,6 +169,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final title = item.titleFor(widget.currentUserId);
                     final subtitle =
                         item.lastMessagePreview ?? item.lastMessage ?? 'Keine Nachrichten';
+                    final membersLabel = item.membersLabelFor(widget.currentUserId);
                     final timestamp = item.lastMessageAt;
                     final isDeleting = _deletingIds.contains(item.conversationId);
                     return ListTile(
@@ -176,7 +177,15 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                         child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
                       ),
                       title: Text(title),
-                      subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (membersLabel != null)
+                            Text(membersLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
                       trailing: Wrap(
                         crossAxisAlignment: WrapCrossAlignment.center,
                         spacing: 4,

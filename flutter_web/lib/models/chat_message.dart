@@ -27,6 +27,8 @@ class ChatConversationSummary {
   final String? lastMessagePreview;
   final String? lastAuthor;
   final DateTime? lastMessageAt;
+  final int? memberCount;
+  final List<String> membersPreview;
 
   const ChatConversationSummary({
     required this.conversationId,
@@ -37,6 +39,8 @@ class ChatConversationSummary {
     this.lastMessagePreview,
     this.lastAuthor,
     this.lastMessageAt,
+    this.memberCount,
+    this.membersPreview = const [],
   });
 
   factory ChatConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -55,6 +59,11 @@ class ChatConversationSummary {
       lastMessageAt: json['lastMessageAt'] != null
           ? DateTime.tryParse(json['lastMessageAt'].toString())
           : null,
+      memberCount: json['memberCount'] is num ? (json['memberCount'] as num).toInt() : null,
+      membersPreview: (json['membersPreview'] as List<dynamic>? ?? const [])
+          .map((v) => v.toString())
+          .where((v) => v.isNotEmpty)
+          .toList(growable: false),
     );
   }
 
@@ -62,6 +71,7 @@ class ChatConversationSummary {
     if (title.isNotEmpty) {
       return title.contains('@') ? deriveDisplayNameFromEmail(title) : title;
     }
+    if (type == 'group') return _groupTitle(currentUserId);
     final match = participants.firstWhere(
       (p) => p.userId != currentUserId,
       orElse: () => participants.isNotEmpty
@@ -79,6 +89,53 @@ class ChatConversationSummary {
           : ChatParticipant(userId: userId, displayName: 'Unbekannt'),
     );
     return match.displayName.isEmpty ? 'Unbekannt' : match.displayName;
+  }
+
+  String? membersLabelFor(String userId) {
+    if (type != 'group') return null;
+    final names = _memberDisplayNames(excludeUserId: userId);
+    if (names.isEmpty) return null;
+    final preview = names.take(3).toList();
+    final remaining = (memberCount ?? names.length) - preview.length;
+    final suffix = remaining > 0 ? ' +$remaining' : '';
+    return 'Mitglieder: ${preview.join(', ')}$suffix';
+  }
+
+  String _groupTitle(String currentUserId) {
+    final names = _memberDisplayNames(excludeUserId: currentUserId);
+    if (names.isEmpty) return 'Gruppe';
+    final preview = names.take(3).toList();
+    final remaining = (memberCount ?? names.length) - preview.length;
+    final suffix = remaining > 0 ? ' +$remaining' : '';
+    return '${preview.join(', ')}$suffix';
+  }
+
+  List<String> _memberDisplayNames({String? excludeUserId}) {
+    final byProfile = participants
+        .where((p) => excludeUserId == null || p.userId != excludeUserId)
+        .map((p) => p.displayName.isNotEmpty ? p.displayName : (p.email ?? p.userId))
+        .whereType<String>()
+        .map((value) => deriveDisplayName(value, email: value))
+        .toList();
+
+    final fromPreview = membersPreview
+        .where((email) => excludeUserId == null || email != excludeUserId)
+        .map((email) => deriveDisplayName(null, email: email))
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    final combined = [...byProfile, ...fromPreview];
+    final seen = <String>{};
+    final result = <String>[];
+    for (final name in combined) {
+      final normalized = name.trim();
+      if (normalized.isEmpty) continue;
+      final key = normalized.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      result.add(normalized);
+    }
+    return result;
   }
 }
 
