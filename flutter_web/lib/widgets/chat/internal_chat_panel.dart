@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../api/client.dart';
@@ -40,6 +41,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   String? _errorMessage;
   String _myId = '';
   late ChatConversationSummary _activeSummary;
+  List<PlatformFile> _pendingAttachments = const [];
 
   String get _convId => _activeSummary.conversationId;
 
@@ -180,9 +182,38 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     }
   }
 
+  Future<void> _pickAttachments() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+      if (result == null) return;
+      if (!mounted) return;
+      setState(() {
+        _pendingAttachments = result.files;
+      });
+    } catch (_) {}
+  }
+
+  void _removeAttachment(int index) {
+    if (index < 0 || index >= _pendingAttachments.length) return;
+    setState(() {
+      _pendingAttachments = [
+        ..._pendingAttachments.take(index),
+        ..._pendingAttachments.skip(index + 1),
+      ];
+    });
+  }
+
   Future<void> _send() async {
+    if (_sending || _myId.isEmpty) return;
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending || _myId.isEmpty) return;
+    final attachmentLabel = _pendingAttachments.isEmpty
+        ? ''
+        : _pendingAttachments.map((f) => '📎 ${f.name}').join('\n');
+    final composed = [if (text.isNotEmpty) text, if (attachmentLabel.isNotEmpty) attachmentLabel]
+        .join('\n')
+        .trim();
+    if (composed.isEmpty) return;
+
     setState(() => _sending = true);
     final tempId = widget.chatService.buildMessageId(_convId);
     final authorName = _displayNameForCurrentUser();
@@ -196,19 +227,20 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       sender: widget.currentUserId,
       senderEmail: _myId,
       timestamp: DateTime.now(),
-      body: text,
+      body: composed,
       pending: true,
     );
 
     setState(() {
       _messages = _mergeMessages([..._messages, optimistic]);
       _controller.clear();
+      _pendingAttachments = const [];
     });
     _updateConversationSummary(optimistic);
     _scrollToBottom();
 
     try {
-      final saved = await widget.chatService.sendMessage(_convId, text, msgId: tempId);
+      final saved = await widget.chatService.sendMessage(_convId, composed, msgId: tempId);
       setState(() {
         _messages = _mergeMessages([
           ..._messages.where((m) => m.id != tempId),
@@ -497,10 +529,33 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             ),
           ),
         ),
+        if (_pendingAttachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(_pendingAttachments.length, (index) {
+                  final file = _pendingAttachments[index];
+                  return Chip(
+                    avatar: const Icon(Icons.attach_file_outlined, size: 18),
+                    label: Text(file.name, overflow: TextOverflow.ellipsis),
+                    deleteIcon: const Icon(Icons.close, size: 18),
+                    onDeleted: () => _removeAttachment(index),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  );
+                }),
+              ),
+            ),
+          ),
         _InputBar(
           controller: _controller,
           sending: _sending,
           onSend: _send,
+          onPickAttachment: _pickAttachments,
+          hasPendingAttachments: _pendingAttachments.isNotEmpty,
         ),
       ],
     );
@@ -599,11 +654,15 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onPickAttachment;
+  final bool hasPendingAttachments;
 
   const _InputBar({
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.onPickAttachment,
+    this.hasPendingAttachments = false,
   });
 
   @override
@@ -628,8 +687,13 @@ class _InputBar extends StatelessWidget {
           children: [
             IconButton(
               tooltip: 'Datei anhängen (UI)',
-              icon: Icon(Icons.attach_file_outlined, color: theme.colorScheme.onSurfaceVariant),
-              onPressed: () {},
+              icon: Icon(
+                Icons.attach_file_outlined,
+                color: hasPendingAttachments
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              onPressed: sending ? null : onPickAttachment,
             ),
             const SizedBox(width: 6),
             Expanded(
