@@ -29,7 +29,11 @@ export default async function handler(req, res) {
   const hasRedisEnv = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 
   try {
-    await purgeLegacyChatKeys(client);
+    try {
+      await purgeLegacyChatKeys(client);
+    } catch (err) {
+      console.warn('[chat/v1/dm] cleanup skipped', err);
+    }
 
     let body = {};
     try {
