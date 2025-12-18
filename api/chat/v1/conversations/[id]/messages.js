@@ -65,7 +65,13 @@ export default async function handler(req, res) {
 
     const membersKey = keyConversationMembers(convId);
     const members = await rdb.smembers(membersKey);
-    const isMember = Boolean(await rdb.sismember(membersKey, uid));
+
+    const isGroupConversation = convId?.startsWith('grp:');
+    const normalizedMembers =
+      (isGroupConversation && Array.isArray(members?.[0]) ? members[0] : members) || [];
+    const isMember = isGroupConversation
+      ? normalizedMembers.includes(uid)
+      : Boolean(await rdb.sismember(membersKey, uid));
 
     if (!isMember) {
       console.warn('[chat/v1/messages] membership_denied', {
@@ -73,7 +79,7 @@ export default async function handler(req, res) {
         uid,
         convId,
         membersKey,
-        members,
+        members: normalizedMembers,
       });
       return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
     }
