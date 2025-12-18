@@ -78,6 +78,7 @@ class ChatMessage {
   final String conversationId;
   final String authorId;
   final String authorName;
+  final String? senderEmail;
   final DateTime timestamp;
   final String body;
   final bool pending;
@@ -89,16 +90,18 @@ class ChatMessage {
     required this.authorName,
     required this.timestamp,
     required this.body,
+    this.senderEmail,
     this.pending = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
         id: (json['id'] ?? json['msgId'] ?? '').toString(),
         conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
-        authorId: (json['authorId'] ?? '').toString(),
-        authorName: (json['authorDisplayName'] ?? json['authorName'] ?? json['author'] ?? '').toString(),
-        timestamp: DateTime.tryParse((json['timestamp'] ?? json['ts']).toString()) ?? DateTime.now(),
-        body: (json['body'] ?? '').toString(),
+        authorId: (json['authorId'] ?? json['senderUid'] ?? '').toString(),
+        authorName: _extractAuthorName(json),
+        senderEmail: json['senderEmail']?.toString(),
+        timestamp: _parseTimestamp(json['timestamp'] ?? json['ts'] ?? json['tsMs']),
+        body: (json['body'] ?? json['text'] ?? '').toString(),
         pending: false,
       );
 
@@ -107,10 +110,41 @@ class ChatMessage {
         conversationId: conversationId,
         authorId: authorId,
         authorName: authorName,
+        senderEmail: senderEmail,
         timestamp: timestamp,
         body: body,
         pending: pending ?? this.pending,
       );
+}
+
+String _extractAuthorName(Map<String, dynamic> json) {
+  final senderName = json['senderName']?.toString();
+  if (senderName != null && senderName.trim().isNotEmpty) return senderName.trim();
+  final authorDisplayName = json['authorDisplayName']?.toString();
+  if (authorDisplayName != null && authorDisplayName.trim().isNotEmpty) return authorDisplayName.trim();
+  final authorName = json['authorName']?.toString();
+  if (authorName != null && authorName.trim().isNotEmpty) return authorName.trim();
+  final author = json['author']?.toString();
+  if (author != null && author.trim().isNotEmpty) return author.trim();
+  final email = json['senderEmail']?.toString();
+  if (email != null && email.trim().isNotEmpty) return email.trim();
+  return 'Unbekannt';
+}
+
+DateTime _parseTimestamp(dynamic raw) {
+  if (raw == null) return DateTime.now();
+  if (raw is num) {
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(raw.toInt());
+    } catch (_) {}
+  }
+  final parsedNumber = num.tryParse(raw.toString());
+  if (parsedNumber != null) {
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(parsedNumber.toInt());
+    } catch (_) {}
+  }
+  return DateTime.tryParse(raw.toString()) ?? DateTime.now();
 }
 
 class ChatTimelineResponse {

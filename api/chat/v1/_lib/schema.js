@@ -44,6 +44,10 @@ export function keyUserConversations(uid) {
   return `${PREFIX}:user:${uid}:convs`;
 }
 
+export function keyUserInbox(uid) {
+  return `chat:inbox:${uid}`;
+}
+
 export function keyConversationMeta(convId) {
   return `${PREFIX}:conv:${convId}:meta`;
 }

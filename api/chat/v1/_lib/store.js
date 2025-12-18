@@ -11,6 +11,7 @@ import {
   keyMessage,
   keyUser,
   keyUserConversations,
+  keyUserInbox,
   normalizeUserId,
   parseParticipantList,
   sanitizeBody,
@@ -30,8 +31,8 @@ export async function readUserProfile(redis, uid) {
   if (!profile || Object.keys(profile).length === 0) return null;
   return {
     userId: uid,
-    displayName: safeDisplayName(profile.displayName),
-    email: profile.email || null,
+    displayName: safeDisplayName(profile.displayName, profile.email || uid),
+    email: profile.email || uid,
     avatar: profile.avatarUrl || profile.avatar || null,
     active: profile.active !== undefined ? String(profile.active) === 'true' : true,
   };
@@ -158,29 +159,48 @@ export async function createGroupConversation(redis, title, members, createdBy) 
 
 export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
   const rdb = createRedisAdapter(redis);
-  const entries = await rdb.zrange(keyUserConversations(uid), 0, limit - 1, { withScores: true, rev: true });
-  return (entries || []).map((row) => ({
-    convId: row.member,
-    lastActivityTs: Number(row.score) || 0,
-  }));
+  const normalizedLimit = Math.min(Math.max(Number(limit) || 0, 1), 500);
+
+  async function readInbox(key) {
+    const rows = await rdb.zrange(key, 0, normalizedLimit - 1, { withScores: true, rev: true });
+    return (rows || []).map((row) => ({
+      convId: row.member,
+      lastActivityTs: Number(row.score) || 0,
+    }));
+  }
+
+  const primary = await readInbox(keyUserInbox(uid));
+  if (primary.length > 0) return primary;
+  const legacy = await readInbox(keyUserConversations(uid));
+  if (legacy.length > 0) {
+    await Promise.all(
+      legacy.map((entry) => rdb.zadd(keyUserInbox(uid), { score: entry.lastActivityTs, member: entry.convId }))
+    );
+  }
+  return legacy;
 }
 
 export async function registerConversationForUsers(redis, convId, participants, tsMs) {
   const rdb = createRedisAdapter(redis);
   const score = Number(tsMs || Date.now());
-  for (const uid of participants) {
-    await rdb.zadd(keyUserConversations(uid), { score, member: convId });
+  for (const uid of participants || []) {
+    await Promise.all([
+      rdb.zadd(keyUserInbox(uid), { score, member: convId }),
+      rdb.zadd(keyUserConversations(uid), { score, member: convId }),
+    ]);
   }
 }
 
 export function buildMessagePayload(convId, author, body, timestampMs, providedMessageId) {
   const msgId = providedMessageId?.startsWith(`${convId}:`) ? providedMessageId : buildMessageId(convId, timestampMs);
   const ts = Number(msgId.split(':').pop());
+  const senderEmail = author.email || author.userId || null;
   return {
     msgId,
     convId,
     senderUid: author.userId,
-    senderName: safeDisplayName(author.displayName, 'Unbekannter Nutzer'),
+    senderEmail,
+    senderName: safeDisplayName(author.displayName, senderEmail || 'Unbekannter Nutzer'),
     body: body || '',
     timestampMs: ts || timestampMs,
   };
@@ -200,9 +220,11 @@ export async function appendMessage(redis, convMeta, messagePayload) {
     msgId: messagePayload.msgId,
     convId: convMeta.convId,
     senderUid: messagePayload.senderUid,
+    senderEmail: messagePayload.senderEmail || messagePayload.senderUid,
     senderName: messagePayload.senderName,
     text: messagePayload.body,
-    ts: timestampIso,
+    ts: messagePayload.timestampMs,
+    tsIso: timestampIso,
   });
 
   await rdb.zadd(keyConversationMessages(convMeta.convId), {
@@ -221,6 +243,10 @@ export async function appendMessage(redis, convMeta, messagePayload) {
   return {
     id: messagePayload.msgId,
     convId: convMeta.convId,
+    senderEmail: messagePayload.senderEmail || null,
+    senderName: messagePayload.senderName,
+    text: messagePayload.body,
+    ts: messagePayload.timestampMs,
     authorId: messagePayload.senderUid,
     authorDisplayName: messagePayload.senderName,
     body: messagePayload.body,
@@ -230,13 +256,20 @@ export async function appendMessage(redis, convMeta, messagePayload) {
 
 function hydrateMessage(msgId, raw) {
   if (!raw || Object.keys(raw).length === 0) return null;
+  const tsValue = raw.ts ?? raw.timestamp ?? raw.tsIso;
+  const tsMs = Number(tsValue);
+  const timestampIso = Number.isFinite(tsMs) && tsMs > 0 ? new Date(tsMs).toISOString() : raw.tsIso || raw.timestamp || raw.ts;
   return {
     id: msgId,
     convId: raw.convId,
+    senderEmail: raw.senderEmail || raw.sender || null,
+    senderName: raw.senderName || raw.author || raw.senderEmail || 'Unbekannter Nutzer',
+    text: raw.text || raw.body || '',
+    ts: Number.isFinite(tsMs) && tsMs > 0 ? tsMs : null,
     authorId: raw.senderUid || raw.authorId,
-    authorDisplayName: raw.senderName || raw.author || 'Unbekannter Nutzer',
+    authorDisplayName: raw.senderName || raw.author || raw.senderEmail || 'Unbekannter Nutzer',
     body: raw.text || raw.body || '',
-    timestamp: raw.ts || raw.timestamp,
+    timestamp: timestampIso,
   };
 }
 
@@ -292,7 +325,8 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
 export function buildConversationSummary(meta, profiles, currentUserId) {
   const participants = meta.participants.map((uid) => ({
     userId: uid,
-    displayName: profiles.get(uid)?.displayName || 'Unbekannter Nutzer',
+    displayName: safeDisplayName(profiles.get(uid)?.displayName, profiles.get(uid)?.email || uid),
+    email: profiles.get(uid)?.email || uid,
     avatar: profiles.get(uid)?.avatar || null,
   }));
   const lastActivity = meta.lastMsgAt || meta.updatedAt || meta.createdAt;
@@ -325,7 +359,8 @@ export function buildProfilesMap(list = []) {
   for (const entry of list) {
     if (entry?.userId) {
       map.set(entry.userId, {
-        displayName: safeDisplayName(entry.displayName),
+        displayName: safeDisplayName(entry.displayName, entry.email || entry.userId),
+        email: entry.email || entry.userId,
         avatar: entry.avatar || null,
       });
     }
