@@ -5,7 +5,8 @@ import { bad, handlePreflight, methodNotAllowed, ok, setCors } from '../../_lib/
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { portalUsersList } from '../../_lib/store.js';
 import { resolvePortalDisplayName } from '../../_lib/userDirectory.js';
-import { normalizeUserId } from './_lib/schema.js';
+import { keyAvatarMap, normalizeUserId } from './_lib/schema.js';
+import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
 
 function clampLimit(raw) {
   const parsed = Number(raw || 50);
@@ -13,7 +14,7 @@ function clampLimit(raw) {
   return Math.min(Math.max(parsed, 1), 200);
 }
 
-function normalizePortalUser(user) {
+function normalizePortalUser(user, avatarUrl) {
   const email = String(user?.email || '').trim().toLowerCase();
   const uid = normalizeUserId(email || user?.uid || user?.id || '');
   if (!uid) return null;
@@ -23,7 +24,9 @@ function normalizePortalUser(user) {
   const activeFlag = portalStatus ? portalStatus === 'active' : user?.active !== false && user?.revoked !== true;
   const role = String(user?.role || '').trim().toLowerCase() || 'user';
 
-  return { uid, displayName, email, role, active: !!activeFlag };
+  const avatar = (user?.avatar || user?.avatarUrl || user?.photoUrl || avatarUrl || '').toString().trim();
+
+  return { uid, displayName, email, role, active: !!activeFlag, avatar: avatar || undefined };
 }
 
 function sortUsers(a, b) {
@@ -42,12 +45,21 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return methodNotAllowed(res);
 
+  const { client, counters } = createTrackedRedis();
+
   try {
     const query = req.query?.query?.toString().trim() || '';
     const limit = clampLimit(req.query?.limit);
 
     const portalUsers = await portalUsersList();
-    const normalized = portalUsers.map(normalizePortalUser).filter(Boolean);
+    const avatarMap = await client.hgetall(keyAvatarMap());
+    const normalized = portalUsers
+      .map((u) => {
+        const normalizedUid = normalizeUserId(u?.email);
+        const avatar = normalizedUid ? avatarMap?.[normalizedUid] : undefined;
+        return normalizePortalUser(u, avatar);
+      })
+      .filter(Boolean);
 
     const filtered = query
       ? normalized.filter((u) => {
@@ -66,6 +78,8 @@ export default async function handler(req, res) {
         limit,
       });
     }
+
+    logRedisUsage('[chat/v1/users] read-only', counters, { users: sorted.length });
 
     return ok(res, { users: sorted });
   } catch (err) {

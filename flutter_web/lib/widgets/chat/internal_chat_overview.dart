@@ -659,8 +659,19 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
                 itemBuilder: (context, index) {
                   final user = users[index];
                   final selected = _selectedIds.contains(user.userId);
+                  final theme = Theme.of(context);
+                  final displayName = user.displayName.trim().isNotEmpty ? user.displayName : user.email;
+                  final fallbackInitial = displayName.isNotEmpty
+                      ? displayName.characters.first.toUpperCase()
+                      : user.email.characters.first.toUpperCase();
+                  final hasAvatar = user.avatar != null && user.avatar!.isNotEmpty;
                   return ListTile(
-                    leading: CircleAvatar(child: Text(user.displayName.characters.first.toUpperCase())),
+                    leading: CircleAvatar(
+                      backgroundImage: hasAvatar ? NetworkImage(user.avatar!) : null,
+                      backgroundColor: hasAvatar ? null : theme.colorScheme.primaryContainer,
+                      foregroundColor: hasAvatar ? null : theme.colorScheme.onPrimaryContainer,
+                      child: hasAvatar ? null : Text(fallbackInitial),
+                    ),
                     title: Text(user.displayName),
                     subtitle: Text(user.email),
                     trailing: allowMulti
