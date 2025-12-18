@@ -29,6 +29,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   final TextEditingController _searchController = TextEditingController();
   List<ChatConversationSummary> _conversations = const [];
   bool _loading = true;
+  final Set<String> _deletingIds = {};
 
   @override
   void initState() {
@@ -79,6 +80,50 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
         .toList(growable: false);
   }
 
+  Future<void> _deleteConversation(ChatConversationSummary conversation) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konversation löschen?'),
+        content: Text(
+          'Möchtest du die Konversation "${conversation.titleFor(widget.currentUserId)}" wirklich löschen?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.delete),
+            label: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _deletingIds.add(conversation.conversationId));
+
+    try {
+      await widget.chatService.deleteConversation(conversation.conversationId);
+      if (!mounted) return;
+      setState(() {
+        _conversations = _conversations
+            .where((c) => c.conversationId != conversation.conversationId)
+            .toList(growable: false);
+        _deletingIds.remove(conversation.conversationId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Konversation gelöscht')),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _deletingIds.remove(conversation.conversationId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Löschen fehlgeschlagen: $err')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -125,15 +170,32 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final subtitle =
                         item.lastMessagePreview ?? item.lastMessage ?? 'Keine Nachrichten';
                     final timestamp = item.lastMessageAt;
+                    final isDeleting = _deletingIds.contains(item.conversationId);
                     return ListTile(
                       leading: CircleAvatar(
                         child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
                       ),
                       title: Text(title),
                       subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-                      trailing: timestamp != null
-                          ? Text(_formatTime(timestamp), style: Theme.of(context).textTheme.labelMedium)
-                          : null,
+                      trailing: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 4,
+                        children: [
+                          if (timestamp != null)
+                            Text(_formatTime(timestamp), style: Theme.of(context).textTheme.labelMedium),
+                          IconButton(
+                            icon: isDeleting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.delete_outline),
+                            onPressed: isDeleting ? null : () => _deleteConversation(item),
+                            tooltip: 'Konversation löschen',
+                          ),
+                        ],
+                      ),
                       onTap: () => widget.onSelect(item),
                     );
                   },
