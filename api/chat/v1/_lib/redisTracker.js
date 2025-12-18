@@ -10,6 +10,7 @@ const READ_OPS = new Set([
   'lrange',
   'mget',
   'scan',
+  'sismember',
   'smembers',
   'zcard',
   'zrange',

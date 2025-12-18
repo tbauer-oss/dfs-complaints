@@ -40,42 +40,17 @@ export default async function handler(req, res) {
     if (!meta) return bad(res, 'conversation not found', 404);
 
     const membersKey = keyConversationMembers(convId);
-    const membersKeyExists = Boolean(await client.exists(membersKey));
-    const members = membersKeyExists ? await client.smembers(membersKey) : [];
-    const memberCount = members.length;
-    const convIdParts = convId.split(':').slice(1);
-    let isMember = members.includes(uid);
-    let repairedMembership = false;
-
-    if (!isMember && memberCount === 0) {
-      const fallbackParticipants = Array.from(new Set([...(meta.participants || []), meta.p1, meta.p2].filter(Boolean)));
-      if (fallbackParticipants.includes(uid) && fallbackParticipants.length > 0) {
-        await client.sadd(membersKey, fallbackParticipants);
-        members.push(...fallbackParticipants);
-        isMember = true;
-        repairedMembership = true;
-      } else if (convIdParts.includes(uid)) {
-        await client.sadd(membersKey, convIdParts);
-        members.push(...convIdParts);
-        isMember = true;
-        repairedMembership = true;
-      }
-    }
-
-    console.info('[chat/v1/messages] access', {
-      uid,
-      convId,
-      membersKeyExists,
-      memberCount,
-      isMember,
-      repairedMembership,
-      metaP1: meta.p1 || null,
-      metaP2: meta.p2 || null,
-    });
+    const members = await client.smembers(membersKey);
+    const isMember = Boolean(await client.sismember(membersKey, uid));
 
     if (!isMember) {
-      const currentMembers = membersKeyExists ? members : await client.smembers(membersKey);
-      console.warn('[chat/v1/messages] membership_mismatch', { uid, convId, members: currentMembers });
+      console.warn('[chat/v1/messages] membership_denied', {
+        email: actor.email,
+        uid,
+        convId,
+        membersKey,
+        members,
+      });
       return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
     }
 

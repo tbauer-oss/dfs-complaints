@@ -5,6 +5,7 @@ import { bad, handlePreflight, methodNotAllowed, ok, readJson, setCors } from '.
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { redis } from '../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
+import { purgeLegacyChatKeys } from './_lib/cleanup.js';
 import {
   buildConversationId,
   keyConversationMembers,
@@ -25,25 +26,27 @@ export default async function handler(req, res) {
   const { client, counters } = createTrackedRedis(redis);
 
   try {
+    await purgeLegacyChatKeys(client);
+
     const body = readJson(req);
-    const otherRaw = body?.otherUid ?? body?.participant ?? body?.userId ?? '';
+    const otherRaw = body?.otherEmail || '';
 
-    const selfId = normalizeUserId(actor.email);
-    const peerId = normalizeUserId(otherRaw);
-    if (!selfId || typeof otherRaw !== 'string' || !peerId) return bad(res, 'invalid payload', 400);
-    if (selfId === peerId) return bad(res, 'invalid payload', 400);
+    const selfEmail = normalizeUserId(actor.email);
+    const peerEmail = normalizeUserId(otherRaw);
+    if (!selfEmail || typeof otherRaw !== 'string' || !peerEmail) return bad(res, 'invalid payload', 400);
+    if (selfEmail === peerEmail) return bad(res, 'invalid payload', 400);
 
-    const convId = buildConversationId(selfId, peerId);
+    const convId = buildConversationId(selfEmail, peerEmail);
     if (!convId) return bad(res, 'invalid payload', 400);
     const metaKey = keyConversationMeta(convId);
     let metaExists = false;
 
     try {
       metaExists = Boolean(await client.exists(metaKey));
-      console.info('[chat/v1/dm] create', { uid: selfId, otherUid: peerId, convId, metaExists });
+      console.info('[chat/v1/dm] create', { uid: selfEmail, otherUid: peerEmail, convId, metaExists });
 
       const nowIso = new Date().toISOString();
-      const participants = [selfId, peerId].sort();
+      const participants = [selfEmail, peerEmail].sort();
       const existingMeta = metaExists ? await client.hgetall(metaKey) : null;
       const createdAt = existingMeta?.createdAt || existingMeta?.created_at || nowIso;
       const updatedAt = existingMeta?.updatedAt || existingMeta?.updated_at || existingMeta?.lastMsgAt || nowIso;
@@ -64,8 +67,8 @@ export default async function handler(req, res) {
           p2,
         });
         pipeline.sadd(keyConversationMembers(convId), participants);
-        pipeline.zadd(keyUserConversations(selfId), { score: 0, member: convId });
-        pipeline.zadd(keyUserConversations(peerId), { score: 0, member: convId });
+        pipeline.zadd(keyUserConversations(selfEmail), { score: 0, member: convId });
+        pipeline.zadd(keyUserConversations(peerEmail), { score: 0, member: convId });
         await pipeline.exec();
       } else {
         await Promise.all([
@@ -79,8 +82,8 @@ export default async function handler(req, res) {
             p2,
           }),
           client.sadd(keyConversationMembers(convId), participants),
-          client.zadd(keyUserConversations(selfId), { score: 0, member: convId }),
-          client.zadd(keyUserConversations(peerId), { score: 0, member: convId }),
+          client.zadd(keyUserConversations(selfEmail), { score: 0, member: convId }),
+          client.zadd(keyUserConversations(peerEmail), { score: 0, member: convId }),
         ]);
       }
 
