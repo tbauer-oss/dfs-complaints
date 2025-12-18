@@ -48,6 +48,16 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   String get _convId => _activeSummary.conversationId;
 
+  String? _conversationAvatarUrl() {
+    final participant = _activeSummary.participants.firstWhere(
+      (p) => _myId.isEmpty || p.userId != _myId,
+      orElse: () => _activeSummary.participants.isNotEmpty ? _activeSummary.participants.first : null,
+    );
+    final avatar = participant?.avatar;
+    if (avatar == null || avatar.isEmpty) return null;
+    return avatar;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -352,8 +362,14 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     notifier.value = [...merged];
   }
 
-  void _showMembersDialog(List<String> members) {
-    if (members.isEmpty) return;
+  void _showMembersDialog(List<ChatParticipant> members, {List<String> fallbackNames = const []}) {
+    if (members.isEmpty && fallbackNames.isEmpty) return;
+    final theme = Theme.of(context);
+    final effectiveMembers = members.isNotEmpty
+        ? members
+        : fallbackNames
+            .map((name) => ChatParticipant(userId: name, displayName: name))
+            .toList(growable: false);
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -362,12 +378,22 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
           constraints: const BoxConstraints(maxHeight: 320, minWidth: 360),
           child: ListView.separated(
             shrinkWrap: true,
-            itemCount: members.length,
+            itemCount: effectiveMembers.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (_, index) => ListTile(
               dense: true,
-              leading: const Icon(Icons.person_outline),
-              title: Text(members[index]),
+              leading: _buildAvatar(
+                theme,
+                avatarUrl: effectiveMembers[index].avatar,
+                label: effectiveMembers[index].displayName.isNotEmpty
+                    ? effectiveMembers[index].displayName
+                    : (effectiveMembers[index].email ?? effectiveMembers[index].userId),
+              ),
+              title: Text(
+                effectiveMembers[index].displayName.isNotEmpty
+                    ? effectiveMembers[index].displayName
+                    : (effectiveMembers[index].email ?? 'Unbekannt'),
+              ),
             ),
           ),
         ),
@@ -386,6 +412,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     final title = _activeSummary.titleFor(widget.currentUserId);
     final memberNames = _activeSummary.memberDisplayNames(excludeUserId: widget.currentUserId);
     final membersLabel = memberNames.isEmpty ? null : _activeSummary.membersLabelFor(widget.currentUserId);
+    final memberParticipants = _activeSummary.participants
+        .where((p) => p.userId != widget.currentUserId)
+        .toList(growable: false);
+    final headerAvatarUrl = _conversationAvatarUrl();
     if (_myId.isEmpty) {
       return Column(
         children: [
@@ -394,7 +424,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             subtitle: membersLabel,
             onBack: widget.onBack,
             showBackButton: widget.showBackButton,
-            onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
+            avatarUrl: headerAvatarUrl,
+            onShowMembers: memberParticipants.isEmpty && memberNames.isEmpty
+                ? null
+                : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
           ),
           const Expanded(child: Center(child: CircularProgressIndicator())),
         ],
@@ -413,7 +446,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             subtitle: membersLabel,
             onBack: widget.onBack,
             showBackButton: widget.showBackButton,
-            onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
+            avatarUrl: headerAvatarUrl,
+            onShowMembers: memberParticipants.isEmpty && memberNames.isEmpty
+                ? null
+                : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
           ),
           Expanded(
             child: Container(
@@ -604,12 +640,31 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 }
 
+Widget _buildAvatar(
+  ThemeData theme, {
+  String? avatarUrl,
+  required String label,
+  double radius = 20,
+}) {
+  final trimmed = label.trim();
+  final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
+  final fallback = trimmed.isNotEmpty ? trimmed.characters.first.toUpperCase() : '?';
+  return CircleAvatar(
+    radius: radius,
+    backgroundImage: hasAvatar ? NetworkImage(avatarUrl!) : null,
+    backgroundColor: hasAvatar ? null : theme.colorScheme.primaryContainer,
+    foregroundColor: hasAvatar ? null : theme.colorScheme.onPrimaryContainer,
+    child: hasAvatar ? null : Text(fallback),
+  );
+}
+
 class _PanelHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback onBack;
   final bool showBackButton;
   final VoidCallback? onShowMembers;
+  final String? avatarUrl;
 
   const _PanelHeader({
     required this.title,
@@ -617,6 +672,7 @@ class _PanelHeader extends StatelessWidget {
     required this.showBackButton,
     this.subtitle,
     this.onShowMembers,
+    this.avatarUrl,
   });
 
   @override
@@ -648,11 +704,7 @@ class _PanelHeader extends StatelessWidget {
             )
           else
             const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: theme.colorScheme.primaryContainer,
-            foregroundColor: theme.colorScheme.onPrimaryContainer,
-            child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
-          ),
+          _buildAvatar(theme, avatarUrl: avatarUrl, label: title),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
