@@ -11,6 +11,7 @@ class InternalChatOverview extends StatefulWidget {
   final String currentUserId;
   final ValueChanged<ChatConversationSummary> onSelect;
   final VoidCallback onClose;
+  final ValueChanged<List<ChatConversationSummary>>? onConversationsLoaded;
 
   const InternalChatOverview({
     super.key,
@@ -18,6 +19,7 @@ class InternalChatOverview extends StatefulWidget {
     required this.currentUserId,
     required this.onSelect,
     required this.onClose,
+    this.onConversationsLoaded,
   });
 
   @override
@@ -51,11 +53,41 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
       _conversations = convs;
       _loading = false;
     });
+    widget.onConversationsLoaded?.call(convs);
     return convs;
   }
 
   Future<void> _refresh() async {
     await _loadConversations();
+  }
+
+  void _showMembersDialog(List<String> members) {
+    if (members.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Mitglieder anzeigen'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 320, minWidth: 360),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: members.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, index) => ListTile(
+              dense: true,
+              leading: const Icon(Icons.person_outline),
+              title: Text(members[index]),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openNewConversationDialog() async {
@@ -169,7 +201,9 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final title = item.titleFor(widget.currentUserId);
                     final subtitle =
                         item.lastMessagePreview ?? item.lastMessage ?? 'Keine Nachrichten';
-                    final membersLabel = item.membersLabelFor(widget.currentUserId);
+                    final memberNames = item.memberDisplayNames(excludeUserId: widget.currentUserId);
+                    final membersLabel =
+                        memberNames.isNotEmpty ? item.membersLabelFor(widget.currentUserId) : null;
                     final timestamp = item.lastMessageAt;
                     final isDeleting = _deletingIds.contains(item.conversationId);
                     return ListTile(
@@ -182,7 +216,18 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (membersLabel != null)
-                            Text(membersLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            GestureDetector(
+                              onTap: () => _showMembersDialog(memberNames),
+                              child: Tooltip(
+                                message: 'Mitglieder anzeigen',
+                                child: Text(
+                                  membersLabel,
+                                  maxLines: 3,
+                                  softWrap: true,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
                           Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
                         ],
                       ),
