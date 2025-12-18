@@ -30,6 +30,7 @@ class ChatConversationSummary {
   final int? memberCount;
   final List<String> membersPreview;
   final bool isArchived;
+  final Map<String, dynamic>? meta;
 
   const ChatConversationSummary({
     required this.conversationId,
@@ -43,6 +44,7 @@ class ChatConversationSummary {
     this.memberCount,
     this.membersPreview = const [],
     this.isArchived = false,
+    this.meta,
   });
 
   factory ChatConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -50,6 +52,9 @@ class ChatConversationSummary {
         .whereType<Map<String, dynamic>>()
         .map(ChatParticipant.fromJson)
         .toList();
+    final meta = json['meta'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(json['meta'] as Map<String, dynamic>)
+        : null;
     return ChatConversationSummary(
       conversationId: (json['id'] ?? json['convId'] ?? json['conversationId'] ?? '').toString(),
       type: (json['type'] ?? 'dm').toString(),
@@ -67,6 +72,7 @@ class ChatConversationSummary {
           .where((v) => v.isNotEmpty)
           .toList(growable: false),
       isArchived: json['isArchived'] == true || json['archived'] == true,
+      meta: meta,
     );
   }
 
@@ -82,6 +88,7 @@ class ChatConversationSummary {
     int? memberCount,
     List<String>? membersPreview,
     bool? isArchived,
+    Map<String, dynamic>? meta,
   }) {
     return ChatConversationSummary(
       conversationId: conversationId ?? this.conversationId,
@@ -95,7 +102,17 @@ class ChatConversationSummary {
       memberCount: memberCount ?? this.memberCount,
       membersPreview: membersPreview ?? this.membersPreview,
       isArchived: isArchived ?? this.isArchived,
+      meta: meta ?? this.meta,
     );
+  }
+
+  bool get isGroup => type == 'group' || conversationId.startsWith('grp:');
+
+  String? get groupIconId {
+    final icon = meta?['groupIcon'];
+    if (icon == null) return null;
+    final value = icon.toString().trim();
+    return value.isEmpty ? null : value;
   }
 
   String titleFor(String currentUserId) {

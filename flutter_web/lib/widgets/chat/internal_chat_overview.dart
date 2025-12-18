@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_user.dart';
 import '../../services/chat_service.dart';
+import 'group_icon_picker.dart';
 
 class InternalChatOverview extends StatefulWidget {
   final ChatService chatService;
@@ -110,6 +111,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
       if ((a.lastMessagePreview ?? a.lastMessage ?? '') !=
           (b.lastMessagePreview ?? b.lastMessage ?? '')) return false;
       if (a.isArchived != b.isArchived) return false;
+      if ((a.groupIconId ?? '') != (b.groupIconId ?? '')) return false;
     }
     return true;
   }
@@ -306,6 +308,19 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final hasUnread =
                         item.lastAuthor != null && item.lastAuthor != widget.currentUserId;
                     final isDeleting = _deletingIds.contains(item.conversationId);
+                    final isGroup = item.isGroup;
+                    final groupIcon = iconForGroupIconId(item.groupIconId);
+                    final dmPeer = !isGroup
+                        ? item.participants.firstWhere(
+                            (p) => p.userId != widget.currentUserId,
+                            orElse: () => item.participants.isNotEmpty
+                                ? item.participants.first
+                                : ChatParticipant(userId: 'peer', displayName: title),
+                          )
+                        : null;
+                    final dmFallbackInitial = (dmPeer?.displayName.trim().isNotEmpty ?? false)
+                        ? dmPeer!.displayName.characters.first.toUpperCase()
+                        : '?';
                     return Card(
                       margin: EdgeInsets.zero,
                       elevation: 0,
@@ -326,10 +341,15 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                                 radius: 22,
                                 backgroundColor: theme.colorScheme.primaryContainer,
                                 foregroundColor: theme.colorScheme.onPrimaryContainer,
-                                child: Text(
-                                  title.isNotEmpty ? title.characters.first.toUpperCase() : '?',
-                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                ),
+                                child: groupIcon != null
+                                    ? Icon(groupIcon)
+                                    : Text(
+                                        title.isNotEmpty
+                                            ? title.characters.first.toUpperCase()
+                                            : '?',
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(fontWeight: FontWeight.w700),
+                                      ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -383,6 +403,26 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                                 ),
                               ),
                               const SizedBox(width: 8),
+                              if (!isGroup)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: CircleAvatar(
+                                    radius: 16,
+                                    backgroundImage: (dmPeer?.avatar?.isNotEmpty ?? false)
+                                        ? NetworkImage(dmPeer!.avatar!)
+                                        : null,
+                                    backgroundColor: (dmPeer?.avatar?.isNotEmpty ?? false)
+                                        ? null
+                                        : theme.colorScheme.primaryContainer,
+                                    foregroundColor: (dmPeer?.avatar?.isNotEmpty ?? false)
+                                        ? null
+                                        : theme.colorScheme.onPrimaryContainer,
+                                    child: (dmPeer?.avatar?.isNotEmpty ?? false)
+                                        ? null
+                                        : Text(dmFallbackInitial),
+                                  ),
+                                ),
+                              if (!isGroup) const SizedBox(width: 6),
                               Column(
                                 children: [
                                   IconButton(
@@ -454,6 +494,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
   final Map<String, ChatUserSummary> _selectedUsers = {};
   Timer? _searchDebounce;
   bool _creating = false;
+  String? _selectedGroupIconId;
 
   @override
   void initState() {
@@ -489,6 +530,14 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
     });
   }
 
+  Future<void> _pickGroupIcon() async {
+    final selected = await showGroupIconPicker(context, initialIconId: _selectedGroupIconId);
+    if (selected == null) return;
+    setState(() {
+      _selectedGroupIconId = selected.isEmpty ? null : selected;
+    });
+  }
+
   Future<void> _startDm(ChatUserSummary user) async {
     setState(() => _creating = true);
     try {
@@ -516,6 +565,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
       final conversation = await widget.chatService.createGroup(
         title: _groupTitleController.text.trim().isEmpty ? 'Gruppe' : _groupTitleController.text.trim(),
         memberUids: _selectedIds.toList(growable: false),
+        groupIcon: _selectedGroupIconId,
       );
       if (mounted) Navigator.of(context).pop(conversation);
     } finally {
@@ -641,6 +691,25 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
           decoration: const InputDecoration(labelText: 'Gruppenname'),
         ),
         const SizedBox(height: 8),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Builder(
+            builder: (context) {
+              final previewIcon = iconForGroupIconId(_selectedGroupIconId);
+              return CircleAvatar(
+                child: previewIcon != null ? Icon(previewIcon) : const Text('G'),
+              );
+            },
+          ),
+          title: const Text('Gruppen-Icon'),
+          subtitle: Text(_selectedGroupIconId ?? 'Optional'),
+          trailing: OutlinedButton.icon(
+            onPressed: _creating ? null : _pickGroupIcon,
+            icon: const Icon(Icons.image_outlined),
+            label: Text(_selectedGroupIconId == null ? 'Icon wählen' : 'Icon ändern'),
+          ),
+        ),
+        const SizedBox(height: 4),
         Align(
           alignment: Alignment.centerLeft,
           child: Wrap(
