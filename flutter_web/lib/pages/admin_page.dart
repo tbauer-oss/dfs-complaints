@@ -11313,6 +11313,51 @@ class _AdminPageState extends State<AdminPage> {
     final statusColor = (String status) => status == 'active'
         ? theme.colorScheme.secondaryContainer
         : theme.colorScheme.errorContainer;
+    String initialsFor(PortalUser u) {
+      final source = (u.displayName?.trim().isNotEmpty == true ? u.displayName : u.email).trim();
+      if (source.isEmpty) return '?';
+      final parts = source.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      if (parts.length >= 2) {
+        return (parts[0].characters.first + parts[1].characters.first).toUpperCase();
+      }
+      return source.characters.first.toUpperCase();
+    }
+
+    Widget buildAvatar(PortalUser u) {
+      final hasAvatar = u.avatar != null && u.avatar!.isNotEmpty;
+      final avatar = CircleAvatar(
+        radius: 22,
+        backgroundImage: hasAvatar ? NetworkImage(u.avatar!) : null,
+        backgroundColor: hasAvatar ? null : theme.colorScheme.primaryContainer,
+        foregroundColor: hasAvatar ? null : theme.colorScheme.onPrimaryContainer,
+        child: hasAvatar ? null : Text(initialsFor(u)),
+      );
+      final isActive = u.portalStatus == 'active';
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          avatar,
+          Positioned(
+            bottom: -2,
+            right: -2,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: statusColor(u.portalStatus),
+                shape: BoxShape.circle,
+                border: Border.all(color: theme.colorScheme.surface, width: 2),
+              ),
+              child: Icon(
+                isActive ? Icons.check : Icons.pause,
+                size: 10,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     final filteredUsers = _filterPortalUsers();
     final roleOptions = <String>{
       'Alle Rollen',
@@ -11515,13 +11560,7 @@ class _AdminPageState extends State<AdminPage> {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    backgroundColor: statusColor(u.portalStatus),
-                                    child: Icon(
-                                      isActive ? Icons.check : Icons.pause,
-                                      color: theme.colorScheme.onSurface,
-                                    ),
-                                  ),
+                                  buildAvatar(u),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
@@ -14625,6 +14664,7 @@ class PortalUser {
   final String? displayName;
   final String role;
   final String portalStatus;
+  final String? avatar;
   final String? createdAt;
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
@@ -14637,6 +14677,7 @@ class PortalUser {
     required this.displayName,
     required this.role,
     required this.portalStatus,
+    this.avatar,
     this.createdAt,
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
@@ -14650,6 +14691,7 @@ class PortalUser {
         displayName: (j['displayName'] ?? '').toString(),
         role: j['role'] ?? PORTAL_ROLES['user']!,
         portalStatus: j['portalStatus'] ?? 'inactive',
+        avatar: j['avatar']?.toString(),
         createdAt: j['createdAt']?.toString(),
         assignedDepartments: (j['assignedDepartments'] is List)
             ? List<String>.from((j['assignedDepartments'] as List).map((e) => e.toString().trim()))
