@@ -29,6 +29,7 @@ class ChatConversationSummary {
   final DateTime? lastMessageAt;
   final int? memberCount;
   final List<String> membersPreview;
+  final bool isArchived;
 
   const ChatConversationSummary({
     required this.conversationId,
@@ -41,6 +42,7 @@ class ChatConversationSummary {
     this.lastMessageAt,
     this.memberCount,
     this.membersPreview = const [],
+    this.isArchived = false,
   });
 
   factory ChatConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -64,6 +66,35 @@ class ChatConversationSummary {
           .map((v) => v.toString())
           .where((v) => v.isNotEmpty)
           .toList(growable: false),
+      isArchived: json['isArchived'] == true || json['archived'] == true,
+    );
+  }
+
+  ChatConversationSummary copyWith({
+    String? conversationId,
+    String? type,
+    String? title,
+    List<ChatParticipant>? participants,
+    String? lastMessage,
+    String? lastMessagePreview,
+    String? lastAuthor,
+    DateTime? lastMessageAt,
+    int? memberCount,
+    List<String>? membersPreview,
+    bool? isArchived,
+  }) {
+    return ChatConversationSummary(
+      conversationId: conversationId ?? this.conversationId,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      participants: participants ?? this.participants,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+      lastAuthor: lastAuthor ?? this.lastAuthor,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      memberCount: memberCount ?? this.memberCount,
+      membersPreview: membersPreview ?? this.membersPreview,
+      isArchived: isArchived ?? this.isArchived,
     );
   }
 
