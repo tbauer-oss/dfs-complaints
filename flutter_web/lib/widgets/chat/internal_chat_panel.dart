@@ -263,6 +263,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         ]);
       });
       _updateConversationSummary(saved);
+      await _refreshSidebarConversations();
       _scrollToBottom();
       _notifySeen();
     } catch (err) {
@@ -361,6 +362,25 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       return bDate.compareTo(aDate);
     });
     notifier.value = [...merged];
+  }
+
+  Future<void> _refreshSidebarConversations() async {
+    final notifier = widget.conversationListNotifier;
+    if (notifier == null) return;
+    try {
+      final convs = await widget.chatService.fetchConversations();
+      final deduped = <String, ChatConversationSummary>{};
+      for (final conv in convs) {
+        deduped[conv.conversationId] = conv;
+      }
+      final sorted = deduped.values.toList()
+        ..sort((a, b) {
+          final aDate = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
+        });
+      notifier.value = [...sorted];
+    } catch (_) {}
   }
 
   void _showMembersDialog(List<ChatParticipant> members, {List<String> fallbackNames = const []}) {
