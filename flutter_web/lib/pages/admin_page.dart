@@ -31,6 +31,7 @@ import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
 import '../widgets/fmea_risk_check_dialog.dart';
 import '../widgets/chat/internal_chat_fab.dart';
+import '../widgets/chat/internal_chat_overview.dart';
 import '../widgets/chat/internal_chat_panel.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
@@ -4959,7 +4960,7 @@ class _AdminPageState extends State<AdminPage> {
                                             ),
                                           ),
                                         ),
-                                        child: InternalChatSidebar(
+                                        child: InternalChatOverview(
                                           chatService: _chatService,
                                           currentUserId: _portalChatId,
                                           onConversationsLoaded: _handleConversationsSnapshot,
