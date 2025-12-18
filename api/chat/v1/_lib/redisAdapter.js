@@ -1,6 +1,13 @@
 // api/chat/v1/_lib/redisAdapter.js
+import { Redis as UpstashRedis } from '@upstash/redis';
+
 const isDev = process.env.NODE_ENV !== 'production';
 let commandFallbackLogged = false;
+const restRedis =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? new UpstashRedis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN })
+    : null;
+const warnedFallbacks = new Set();
 
 function unwrapResult(result, fallback) {
   if (result && typeof result === 'object' && 'result' in result) {
@@ -45,6 +52,16 @@ function logCommandFallback(op) {
   console.debug(`[chat/redisAdapter] using command fallback for ${op}`);
 }
 
+function logRestFallback(op) {
+  if (warnedFallbacks.has(op)) return;
+  warnedFallbacks.add(op);
+  console.warn(`[redisAdapter] fallback to REST for ${op}`);
+}
+
+function hasFn(obj, name) {
+  return Boolean(obj && typeof obj[name] === 'function');
+}
+
 function parseWithScores(result) {
   const list = ensureArray(result);
   if (list.length === 0) return [];
@@ -60,13 +77,22 @@ function parseWithScores(result) {
 }
 
 export function createRedisAdapter(redis) {
-  const hasCommand = typeof redis.command === 'function';
-  const hasZrange = typeof redis.zrange === 'function';
-  const hasZrevrange = typeof redis.zrevrange === 'function';
+  const hasCommand = hasFn(redis, 'command');
+  const hasZrange = hasFn(redis, 'zrange');
+  const hasZrevrange = hasFn(redis, 'zrevrange');
 
-  const runCommand = async (args) => {
-    logCommandFallback(args[0]);
-    return redis.command(args);
+  const callOrFallback = async (primaryFnName, args, { restCall, commandArgs } = {}) => {
+    if (hasFn(redis, primaryFnName)) return redis[primaryFnName](...args);
+    if (restRedis && restCall) {
+      logRestFallback(primaryFnName.toUpperCase());
+      return restCall();
+    }
+    if (hasCommand && commandArgs) {
+      logCommandFallback(commandArgs[0]);
+      return redis.command(commandArgs);
+    }
+    logRestFallback(primaryFnName.toUpperCase());
+    return undefined;
   };
 
   return {
@@ -74,75 +100,90 @@ export function createRedisAdapter(redis) {
     hasZrange,
     hasZrevrange,
 
+    async get(key) {
+      const value = await callOrFallback('get', [key], {
+        restCall: () => restRedis?.get(key),
+        commandArgs: ['GET', key],
+      });
+      return unwrapResult(value, null);
+    },
+
+    async set(key, value, options) {
+      return callOrFallback('set', [key, value, options], {
+        restCall: () => restRedis?.set(key, value, options),
+        commandArgs: ['SET', key, value],
+      });
+    },
+
     async getJson(key, fallback = null) {
-      if (typeof redis.get === 'function') {
-        return parseJson(await redis.get(key), fallback);
-      }
-      if (hasCommand) {
-        return parseJson(await runCommand(['GET', key]), fallback);
-      }
-      throw new Error('Redis client missing GET support');
+      return parseJson(await this.get(key), fallback);
     },
 
-    async setJson(key, value) {
+    async setJson(key, value, options) {
       const payload = JSON.stringify(value ?? null);
-      if (typeof redis.set === 'function') {
-        return redis.set(key, payload);
-      }
-      if (hasCommand) {
-        return runCommand(['SET', key, payload]);
-      }
-      throw new Error('Redis client missing SET support');
+      return this.set(key, payload, options);
     },
 
-    async zrevrange(key, start, stop) {
-      if (typeof redis.zrevrange === 'function') {
-        return ensureArray(await redis.zrevrange(key, start, stop));
+    async zrevrange(key, start, stop, withScores = false) {
+      if (hasFn(redis, 'zrevrange')) {
+        return ensureArray(await redis.zrevrange(key, start, stop, { withScores }));
       }
       if (hasZrange) {
-        return ensureArray(await redis.zrange(key, start, stop, { rev: true }));
+        const raw = await redis.zrange(key, start, stop, { rev: true, withScores });
+        return withScores ? parseWithScores(raw) : ensureArray(raw);
       }
-      if (hasCommand) {
-        return ensureArray(await runCommand(['ZREVRANGE', key, String(start), String(stop)]));
-      }
-      throw new Error('Redis client missing ZREVRANGE support');
+      const raw = await callOrFallback('zrevrange', [key, start, stop], {
+        restCall: () => restRedis?.zrange(key, start, stop, { rev: true, withScores }),
+        commandArgs: ['ZREVRANGE', key, String(start), String(stop)].concat(withScores ? ['WITHSCORES'] : []),
+      });
+      return withScores ? parseWithScores(raw) : ensureArray(raw);
     },
 
     async zrange(key, start, stop, options = {}) {
       if (hasZrange) {
-        return ensureArray(await redis.zrange(key, start, stop, options));
-      }
-      if (hasCommand) {
-        const args = ['ZRANGE', key, String(start), String(stop)];
-        if (options?.rev) args.push('REV');
-        if (options?.withScores) args.push('WITHSCORES');
-        const raw = await runCommand(args);
+        const raw = await redis.zrange(key, start, stop, options);
         return options?.withScores ? parseWithScores(raw) : ensureArray(raw);
       }
-      throw new Error('Redis client missing ZRANGE support');
+      const args = ['ZRANGE', key, String(start), String(stop)];
+      if (options?.rev) args.push('REV');
+      if (options?.withScores) args.push('WITHSCORES');
+      const raw = await callOrFallback('zrange', [key, start, stop, options], {
+        restCall: () => restRedis?.zrange(key, start, stop, options),
+        commandArgs: args,
+      });
+      return options?.withScores ? parseWithScores(raw) : ensureArray(raw);
     },
 
-    async zrangebyscore(key, min, max, { limit, offset, rev } = {}) {
-      if (typeof redis.zrangebyscore === 'function') {
-        return ensureArray(await redis.zrangebyscore(key, min, max, { limit, offset, rev }));
+    async zrangebyscore(key, min, max, { limit, offset, rev, withScores } = {}) {
+      if (hasFn(redis, 'zrangebyscore')) {
+        const raw = await redis.zrangebyscore(key, min, max, { limit, offset, rev, withScores });
+        return withScores ? parseWithScores(raw) : ensureArray(raw);
       }
       if (hasZrange) {
-        const options = { byScore: true };
-        if (rev) options.rev = true;
+        const options = { byScore: true, rev, withScores };
         if (limit !== undefined) {
           options.limit = { offset: Number(offset) || 0, count: Number(limit) || 0 };
         }
-        return ensureArray(await redis.zrange(key, min, max, options));
+        const raw = await redis.zrange(key, min, max, options);
+        return withScores ? parseWithScores(raw) : ensureArray(raw);
       }
-      if (hasCommand) {
-        const args = [rev ? 'ZREVRANGEBYSCORE' : 'ZRANGEBYSCORE', key, String(rev ? max : min), String(rev ? min : max)];
-        if (limit !== undefined) {
-          args.push('LIMIT', String(Number(offset) || 0), String(Number(limit) || 0));
-        }
-        const raw = await runCommand(args);
-        return ensureArray(raw);
+      const command = [rev ? 'ZREVRANGEBYSCORE' : 'ZRANGEBYSCORE', key, String(rev ? max : min), String(rev ? min : max)];
+      if (withScores) command.push('WITHSCORES');
+      if (limit !== undefined) {
+        command.push('LIMIT', String(Number(offset) || 0), String(Number(limit) || 0));
       }
-      throw new Error('Redis client missing ZRANGEBYSCORE support');
+      const raw = await callOrFallback('zrangebyscore', [key, min, max, { limit, offset, rev, withScores }], {
+        restCall: () =>
+          restRedis?.zrange(key, min, max, {
+            byScore: true,
+            rev,
+            withScores,
+            offset: Number(offset) || 0,
+            count: limit !== undefined ? Number(limit) || 0 : undefined,
+          }),
+        commandArgs: command,
+      });
+      return withScores ? parseWithScores(raw) : ensureArray(raw);
     },
 
     async zadd(key, scoreOrEntries, memberMaybe) {
@@ -159,153 +200,169 @@ export function createRedisAdapter(redis) {
         entries.push({ score: scoreOrEntries, member: memberMaybe });
       }
 
-      if (typeof redis.zadd === 'function') {
+      if (hasFn(redis, 'zadd')) {
         return redis.zadd(key, ...entries);
       }
-      if (hasCommand) {
-        const args = ['ZADD', key];
-        for (const entry of entries) {
-          args.push(String(entry.score), entry.member);
-        }
-        return runCommand(args);
+      const args = ['ZADD', key];
+      for (const entry of entries) {
+        args.push(String(entry.score), entry.member);
       }
-      throw new Error('Redis client missing ZADD support');
+      return callOrFallback('zadd', [key, entries], {
+        restCall: () => restRedis?.zadd(key, ...entries),
+        commandArgs: args,
+      });
     },
 
     async zrem(key, members) {
       const list = Array.isArray(members) ? members : [members];
-      if (typeof redis.zrem === 'function') {
+      if (hasFn(redis, 'zrem')) {
         return redis.zrem(key, ...list);
       }
-      if (hasCommand) {
-        return runCommand(['ZREM', key, ...list]);
-      }
-      throw new Error('Redis client missing ZREM support');
+      return callOrFallback('zrem', [key, ...list], {
+        restCall: () => restRedis?.zrem(key, ...list),
+        commandArgs: ['ZREM', key, ...list],
+      });
     },
 
     async sadd(key, ...members) {
-      if (typeof redis.sadd === 'function') {
+      if (hasFn(redis, 'sadd')) {
         return redis.sadd(key, ...members);
       }
-      if (hasCommand) {
-        return runCommand(['SADD', key, ...members]);
-      }
-      throw new Error('Redis client missing SADD support');
+      return callOrFallback('sadd', [key, ...members], {
+        restCall: () => restRedis?.sadd(key, ...members),
+        commandArgs: ['SADD', key, ...members],
+      });
     },
 
     async smembers(key) {
-      if (typeof redis.smembers === 'function') {
-        return ensureArray(await redis.smembers(key));
+      let raw;
+      if (hasFn(redis, 'smembers')) {
+        raw = await redis.smembers(key);
+      } else {
+        raw = await callOrFallback('smembers', [key], {
+          restCall: () => restRedis?.smembers(key),
+          commandArgs: ['SMEMBERS', key],
+        });
       }
-      if (hasCommand) {
-        return ensureArray(await runCommand(['SMEMBERS', key]));
-      }
-      throw new Error('Redis client missing SMEMBERS support');
+      return ensureArray(raw);
     },
 
     async sismember(key, member) {
-      if (typeof redis.sismember === 'function') {
+      if (hasFn(redis, 'sismember')) {
         return Boolean(await redis.sismember(key, member));
       }
-      if (hasCommand) {
-        const value = await runCommand(['SISMEMBER', key, member]);
-        return ensureNumber(value) === 1;
-      }
-      throw new Error('Redis client missing SISMEMBER support');
+      const value = await callOrFallback('sismember', [key, member], {
+        restCall: () => restRedis?.sismember(key, member),
+        commandArgs: ['SISMEMBER', key, member],
+      });
+      return ensureNumber(value) === 1 || value === true;
     },
 
     async hset(key, objOrPairs) {
-      if (typeof redis.hset === 'function') {
+      if (hasFn(redis, 'hset')) {
         return redis.hset(key, objOrPairs);
       }
-      if (hasCommand) {
-        if (Array.isArray(objOrPairs)) {
-          return runCommand(['HSET', key, ...objOrPairs.flat()]);
-        }
-        const args = ['HSET', key];
+      const args = ['HSET', key];
+      if (Array.isArray(objOrPairs)) {
+        args.push(...objOrPairs.flat());
+      } else {
         for (const [field, value] of Object.entries(objOrPairs || {})) {
           args.push(field, value);
         }
-        return runCommand(args);
       }
-      throw new Error('Redis client missing HSET support');
+      return callOrFallback('hset', [key, objOrPairs], {
+        restCall: () => restRedis?.hset(key, objOrPairs),
+        commandArgs: args,
+      });
     },
 
     async hgetall(key) {
-      if (typeof redis.hgetall === 'function') {
-        return ensureObject(await redis.hgetall(key));
+      let raw;
+      if (hasFn(redis, 'hgetall')) {
+        raw = await redis.hgetall(key);
+      } else {
+        raw = await callOrFallback('hgetall', [key], {
+          restCall: () => restRedis?.hgetall(key),
+          commandArgs: ['HGETALL', key],
+        });
       }
-      if (hasCommand) {
-        const raw = await runCommand(['HGETALL', key]);
-        const pairs = ensureArray(raw);
-        const obj = {};
-        for (let i = 0; i < pairs.length; i += 2) {
-          if (pairs[i] === undefined) continue;
-          obj[pairs[i]] = pairs[i + 1];
-        }
-        return obj;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+      const pairs = ensureArray(raw);
+      const obj = {};
+      for (let i = 0; i < pairs.length; i += 2) {
+        if (pairs[i] === undefined) continue;
+        obj[pairs[i]] = pairs[i + 1];
       }
-      throw new Error('Redis client missing HGETALL support');
+      return obj;
     },
 
     async del(...keys) {
-      if (typeof redis.del === 'function') {
+      if (hasFn(redis, 'del')) {
         return redis.del(...keys);
       }
-      if (hasCommand) {
-        return runCommand(['DEL', ...keys]);
-      }
-      throw new Error('Redis client missing DEL support');
+      return callOrFallback('del', keys, {
+        restCall: () => restRedis?.del(...keys),
+        commandArgs: ['DEL', ...keys],
+      });
     },
 
     async exists(key) {
-      if (typeof redis.exists === 'function') {
-        return ensureNumber(await redis.exists(key));
+      let value;
+      if (hasFn(redis, 'exists')) {
+        value = await redis.exists(key);
+      } else {
+        value = await callOrFallback('exists', [key], {
+          restCall: () => restRedis?.exists(key),
+          commandArgs: ['EXISTS', key],
+        });
       }
-      if (hasCommand) {
-        return ensureNumber(await runCommand(['EXISTS', key]));
-      }
-      throw new Error('Redis client missing EXISTS support');
+      return ensureNumber(value);
     },
 
     async zcard(key) {
-      if (typeof redis.zcard === 'function') {
-        return ensureNumber(await redis.zcard(key));
+      let value;
+      if (hasFn(redis, 'zcard')) {
+        value = await redis.zcard(key);
+      } else {
+        value = await callOrFallback('zcard', [key], {
+          restCall: () => restRedis?.zcard(key),
+          commandArgs: ['ZCARD', key],
+        });
       }
-      if (hasCommand) {
-        return ensureNumber(await runCommand(['ZCARD', key]));
-      }
-      throw new Error('Redis client missing ZCARD support');
+      return ensureNumber(value);
     },
 
     async keys(pattern) {
-      if (typeof redis.keys === 'function') {
-        return ensureArray(await redis.keys(pattern));
+      let value;
+      if (hasFn(redis, 'keys')) {
+        value = await redis.keys(pattern);
+      } else {
+        value = await callOrFallback('keys', [pattern], {
+          restCall: () => restRedis?.keys(pattern),
+          commandArgs: ['KEYS', pattern],
+        });
       }
-      if (hasCommand) {
-        return ensureArray(await runCommand(['KEYS', pattern]));
-      }
-      throw new Error('Redis client missing KEYS support');
+      return ensureArray(value);
     },
 
     async scan(cursor, { match, count } = {}) {
-      if (typeof redis.scan === 'function') {
+      if (hasFn(redis, 'scan')) {
         const raw = await redis.scan(cursor, { match, count });
         if (Array.isArray(raw)) return raw;
         if (raw && typeof raw === 'object') return { cursor: raw.cursor ?? 0, keys: raw.keys ?? [] };
         return { cursor: 0, keys: [] };
       }
-      if (hasCommand) {
-        const args = ['SCAN', String(cursor)];
-        if (match) args.push('MATCH', match);
-        if (count) args.push('COUNT', String(count));
-        const raw = await runCommand(args);
-        const parsed = ensureArray(raw);
-        const nextCursor = parsed[0] ?? 0;
-        const keys = Array.isArray(parsed[1]) ? parsed[1] : [];
-        return { cursor: Number(nextCursor), keys };
-      }
-      throw new Error('Redis client missing SCAN support');
+      const args = ['SCAN', String(cursor)];
+      if (match) args.push('MATCH', match);
+      if (count) args.push('COUNT', String(count));
+      const raw = await callOrFallback('scan', [cursor, { match, count }], {
+        restCall: () => restRedis?.scan(cursor, { match, count }),
+        commandArgs: args,
+      });
+      const parsed = ensureArray(raw);
+      const nextCursor = parsed[0] ?? 0;
+      const keys = Array.isArray(parsed[1]) ? parsed[1] : [];
+      return { cursor: Number(nextCursor), keys };
     },
   };
 }
