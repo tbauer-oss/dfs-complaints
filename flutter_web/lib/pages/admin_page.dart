@@ -10609,7 +10609,8 @@ class _AdminPageState extends State<AdminPage> {
   void _updatePortalUserAvatarLocal(String email, String? avatarUrl) {
     final idx = _portalUsers.indexWhere((p) => p.email == email);
     if (idx >= 0) {
-      _portalUsers[idx] = _portalUsers[idx].copyWith(avatar: avatarUrl);
+      _portalUsers[idx] =
+          _portalUsers[idx].copyWith(avatar: avatarUrl, avatarUrl: avatarUrl);
     }
   }
 
@@ -10653,6 +10654,7 @@ class _AdminPageState extends State<AdminPage> {
         _updatePortalUserAvatarLocal(user.email, url);
         _portalUserAvatarBusy[user.email] = false;
       });
+      await _refreshPortalUsers();
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Avatar gespeichert.')));
     } catch (e) {
@@ -11424,10 +11426,11 @@ class _AdminPageState extends State<AdminPage> {
     }
 
     Widget buildAvatar(PortalUser u) {
-      final hasAvatar = u.avatar != null && u.avatar!.isNotEmpty;
+      final resolvedAvatar = u.avatarUrl ?? u.avatar;
+      final hasAvatar = resolvedAvatar != null && resolvedAvatar.isNotEmpty;
       final avatar = CircleAvatar(
         radius: 22,
-        backgroundImage: hasAvatar ? NetworkImage(u.avatar!) : null,
+        backgroundImage: hasAvatar ? NetworkImage(resolvedAvatar!) : null,
         backgroundColor: hasAvatar ? null : theme.colorScheme.primaryContainer,
         foregroundColor: hasAvatar ? null : theme.colorScheme.onPrimaryContainer,
         child: hasAvatar ? null : Text(initialsFor(u)),
@@ -14796,6 +14799,7 @@ class PortalUser {
   final String role;
   final String portalStatus;
   final String? avatar;
+  final String? avatarUrl;
   final String? createdAt;
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
@@ -14809,6 +14813,7 @@ class PortalUser {
     required this.role,
     required this.portalStatus,
     this.avatar,
+    this.avatarUrl,
     this.createdAt,
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
@@ -14823,6 +14828,7 @@ class PortalUser {
         role: j['role'] ?? PORTAL_ROLES['user']!,
         portalStatus: j['portalStatus'] ?? 'inactive',
         avatar: (j['avatar'] ?? j['avatarUrl'] ?? j['avatar_url'])?.toString(),
+        avatarUrl: (j['avatarUrl'] ?? j['avatar'] ?? j['avatar_url'])?.toString(),
         createdAt: j['createdAt']?.toString(),
         assignedDepartments: (j['assignedDepartments'] is List)
             ? List<String>.from((j['assignedDepartments'] as List).map((e) => e.toString().trim()))
@@ -14842,6 +14848,7 @@ class PortalUser {
     String? role,
     String? portalStatus,
     String? avatar,
+    String? avatarUrl,
     String? createdAt,
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
@@ -14855,6 +14862,7 @@ class PortalUser {
       role: role ?? this.role,
       portalStatus: portalStatus ?? this.portalStatus,
       avatar: avatar ?? this.avatar,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       createdAt: createdAt ?? this.createdAt,
       assignedDepartments: assignedDepartments ?? this.assignedDepartments,
       tilePermissions: tilePermissions ?? this.tilePermissions,
