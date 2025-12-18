@@ -4903,11 +4903,90 @@ class _AdminPageState extends State<AdminPage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final mediaQuery = MediaQuery.of(context);
-            final maxDialogHeight = mediaQuery.size.height * 0.85;
-            final maxDialogWidth = math.min(1200.0, mediaQuery.size.width * 0.95);
+            final maxDialogHeight = mediaQuery.size.height * 0.9;
+            final maxDialogWidth = math.min(1220.0, mediaQuery.size.width * 0.97);
             return LayoutBuilder(
               builder: (context, constraints) {
                 final theme = Theme.of(context);
+                final isCompact = constraints.maxWidth < 960;
+
+                Widget buildSidebar() {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      border: isCompact
+                          ? null
+                          : Border(
+                              right: BorderSide(color: theme.colorScheme.outlineVariant),
+                            ),
+                    ),
+                    child: InternalChatOverview(
+                      chatService: _chatService,
+                      currentUserId: _portalChatId,
+                      onConversationsLoaded: _handleConversationsSnapshot,
+                      conversationListNotifier: _conversationListNotifier,
+                      showHeaderActions: selected == null,
+                      onSelect: (conv) {
+                        _markConversationRead(conv);
+                        setModalState(() => selected = conv);
+                      },
+                    ),
+                  );
+                }
+
+                Widget buildChatArea() {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.surface,
+                          theme.colorScheme.surfaceVariant.withOpacity(0.12),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    child: selected == null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 48,
+                                    color: theme.colorScheme.outline,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Konversation auswählen, um Nachrichten zu lesen.',
+                                    style: theme.textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Neue Chats können links gestartet werden.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : InternalChatPanel(
+                            chatService: _chatService,
+                            conversation: selected!,
+                            currentUserId: _portalChatId,
+                            onBack: () => setModalState(() => selected = null),
+                            onMarkAsRead: _handleConversationSeen,
+                            conversationListNotifier: _conversationListNotifier,
+                          ),
+                  );
+                }
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                   child: Center(
@@ -4970,93 +5049,44 @@ class _AdminPageState extends State<AdminPage> {
                                   ),
                                 ),
                                 Expanded(
-                                  child: Row(
-                                    children: [
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          minWidth: 320,
-                                          maxWidth: 420,
-                                        ),
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: theme.colorScheme.surface,
-                                            border: Border(
-                                              right: BorderSide(
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    switchInCurve: Curves.easeOut,
+                                    switchOutCurve: Curves.easeIn,
+                                    child: isCompact
+                                        ? Stack(
+                                            children: [
+                                              Positioned.fill(
+                                                child: buildSidebar(),
+                                              ),
+                                              if (selected != null)
+                                                Positioned.fill(
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      color: theme.colorScheme.surface,
+                                                    ),
+                                                    child: buildChatArea(),
+                                                  ),
+                                                ),
+                                            ],
+                                          )
+                                        : Row(
+                                            children: [
+                                              ConstrainedBox(
+                                                constraints: const BoxConstraints(
+                                                  minWidth: 320,
+                                                  maxWidth: 380,
+                                                ),
+                                                child: buildSidebar(),
+                                              ),
+                                              VerticalDivider(
+                                                width: 1,
+                                                thickness: 1,
                                                 color: theme.colorScheme.outlineVariant,
                                               ),
-                                            ),
+                                              Expanded(child: buildChatArea()),
+                                            ],
                                           ),
-                                          child: InternalChatOverview(
-                                            chatService: _chatService,
-                                            currentUserId: _portalChatId,
-                                            onConversationsLoaded: _handleConversationsSnapshot,
-                                            conversationListNotifier: _conversationListNotifier,
-                                            showHeaderActions: selected == null,
-                                            onSelect: (conv) {
-                                              _markConversationRead(conv);
-                                              setModalState(() => selected = conv);
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                      VerticalDivider(
-                                        width: 1,
-                                        thickness: 1,
-                                        color: theme.colorScheme.outlineVariant,
-                                      ),
-                                      Expanded(
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: [
-                                                theme.colorScheme.surface,
-                                                theme.colorScheme.surfaceVariant.withOpacity(0.14),
-                                              ],
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                            ),
-                                          ),
-                                          child: selected == null
-                                              ? Center(
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.all(32),
-                                                    child: Column(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.chat_bubble_outline,
-                                                          size: 48,
-                                                          color: theme.colorScheme.outline,
-                                                        ),
-                                                        const SizedBox(height: 12),
-                                                        Text(
-                                                          'Konversation auswählen, um Nachrichten zu lesen.',
-                                                          style: theme.textTheme.titleMedium,
-                                                          textAlign: TextAlign.center,
-                                                        ),
-                                                        const SizedBox(height: 6),
-                                                        Text(
-                                                          'Neue Chats können links gestartet werden.',
-                                                          style: theme.textTheme.bodyMedium?.copyWith(
-                                                            color: theme.colorScheme.onSurfaceVariant,
-                                                          ),
-                                                          textAlign: TextAlign.center,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                )
-                                              : InternalChatPanel(
-                                                  chatService: _chatService,
-                                                  conversation: selected!,
-                                                  currentUserId: _portalChatId,
-                                                  onBack: () => setModalState(() => selected = null),
-                                                  onMarkAsRead: _handleConversationSeen,
-                                                  conversationListNotifier: _conversationListNotifier,
-                                                ),
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                 ),
                               ],

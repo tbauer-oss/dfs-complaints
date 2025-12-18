@@ -398,169 +398,198 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       );
     }
     final theme = Theme.of(context);
-    return Column(
-      children: [
-        _PanelHeader(
-          title: title,
-          subtitle: membersLabel,
-          onBack: widget.onBack,
-          onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
-        ),
-        Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.06),
-              border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(left: BorderSide(color: theme.colorScheme.outlineVariant)),
+      ),
+      child: Column(
+        children: [
+          _PanelHeader(
+            title: title,
+            subtitle: membersLabel,
+            onBack: widget.onBack,
+            onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
+          ),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.surfaceVariant.withOpacity(0.2),
+                    theme.colorScheme.surface,
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                       ? Center(child: Text(_errorMessage!))
-                      : Column(
-                          children: [
-                            if (_hasMoreBefore)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: TextButton.icon(
-                                  onPressed: _loadOlder,
-                                  icon: const Icon(Icons.history),
-                                  label: const Text('Ältere Nachrichten laden'),
+                      : Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                          child: Column(
+                            children: [
+                              if (_hasMoreBefore)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                                    ),
+                                    onPressed: _loadOlder,
+                                    icon: const Icon(Icons.history),
+                                    label: const Text('Ältere Nachrichten laden'),
+                                  ),
                                 ),
-                              ),
-                            Expanded(
-                              child: Scrollbar(
-                                controller: _scrollController,
-                                child: ListView.builder(
+                              Expanded(
+                                child: Scrollbar(
                                   controller: _scrollController,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  itemCount: _messages.length,
-                                  itemBuilder: (context, index) {
-                                    final msg = _messages[index];
-                                    final isMe = _isMessageFromCurrentUser(msg);
-                                    final bubbleWidth = MediaQuery.of(context).size.width * 0.7;
-                                    final timeString = _formatTime(msg.timestamp);
-                                    final backgroundColor = isMe
-                                        ? const Color(0x1A0A63A8)
-                                        : theme.colorScheme.onSurfaceVariant.withOpacity(0.08);
-                                    final radius = BorderRadius.only(
-                                      topLeft: const Radius.circular(18),
-                                      topRight: const Radius.circular(18),
-                                      bottomLeft: Radius.circular(isMe ? 18 : 6),
-                                      bottomRight: Radius.circular(isMe ? 6 : 18),
-                                    );
+                                  child: ListView.builder(
+                                    controller: _scrollController,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    itemCount: _messages.length,
+                                    itemBuilder: (context, index) {
+                                      final msg = _messages[index];
+                                      final isMe = _isMessageFromCurrentUser(msg);
+                                      final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
+                                      final timeString = _formatTime(msg.timestamp);
+                                      final backgroundColor = isMe
+                                          ? theme.colorScheme.primaryContainer.withOpacity(0.8)
+                                          : theme.colorScheme.surface;
+                                      final textColor = isMe
+                                          ? theme.colorScheme.onPrimaryContainer
+                                          : theme.colorScheme.onSurface;
+                                      final radius = BorderRadius.only(
+                                        topLeft: const Radius.circular(18),
+                                        topRight: const Radius.circular(18),
+                                        bottomLeft: Radius.circular(isMe ? 18 : 6),
+                                        bottomRight: Radius.circular(isMe ? 6 : 18),
+                                      );
 
-                                    return Align(
-                                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                                      child: ConstrainedBox(
-                                        constraints: BoxConstraints(maxWidth: bubbleWidth),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              color: backgroundColor,
-                                              borderRadius: radius,
-                                              border: Border.all(
-                                                color: theme.colorScheme.outlineVariant.withOpacity(0.15),
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: theme.shadowColor.withOpacity(0.04),
-                                                  blurRadius: 12,
-                                                  offset: const Offset(0, 4),
+                                      return Align(
+                                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(maxWidth: bubbleWidth),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: backgroundColor,
+                                                borderRadius: radius,
+                                                border: Border.all(
+                                                  color: theme.colorScheme.outlineVariant.withOpacity(0.2),
                                                 ),
-                                              ],
-                                            ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (!isMe)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(bottom: 4),
-                                                    child: Text(
-                                                      _displayNameFor(msg),
-                                                      style: theme.textTheme.labelMedium?.copyWith(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: theme.colorScheme.onSurfaceVariant,
-                                                      ),
-                                                    ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: theme.shadowColor.withOpacity(0.06),
+                                                    blurRadius: 12,
+                                                    offset: const Offset(0, 4),
                                                   ),
-                                                Text(
-                                                  msg.body,
-                                                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Row(
+                                                ],
+                                              ),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                                   mainAxisSize: MainAxisSize.min,
                                                   children: [
-                                                    Text(
-                                                      timeString,
-                                                      style: theme.textTheme.labelSmall?.copyWith(
-                                                        color: theme.colorScheme.onSurfaceVariant,
-                                                      ),
-                                                    ),
-                                                    if (msg.pending)
+                                                    if (!isMe)
                                                       Padding(
-                                                        padding: const EdgeInsets.only(left: 6),
-                                                        child: Icon(
-                                                          Icons.watch_later,
-                                                          size: 14,
-                                                          color: theme.colorScheme.onSurfaceVariant,
+                                                        padding: const EdgeInsets.only(bottom: 4),
+                                                        child: Text(
+                                                          _displayNameFor(msg),
+                                                          style: theme.textTheme.labelMedium?.copyWith(
+                                                            fontWeight: FontWeight.w700,
+                                                            color: theme.colorScheme.onSurfaceVariant,
+                                                          ),
                                                         ),
                                                       ),
+                                                    Text(
+                                                      msg.body,
+                                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                                        height: 1.35,
+                                                        color: textColor,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          timeString,
+                                                          style: theme.textTheme.labelSmall?.copyWith(
+                                                            color: isMe
+                                                                ? theme.colorScheme.onPrimaryContainer.withOpacity(0.9)
+                                                                : theme.colorScheme.onSurfaceVariant,
+                                                          ),
+                                                        ),
+                                                        if (msg.pending)
+                                                          Padding(
+                                                            padding: const EdgeInsets.only(left: 6),
+                                                            child: Icon(
+                                                              Icons.watch_later,
+                                                              size: 14,
+                                                              color: isMe
+                                                                  ? theme.colorScheme.onPrimaryContainer
+                                                                  : theme.colorScheme.onSurfaceVariant,
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
                                                   ],
                                                 ),
-                                              ],
+                                              ),
                                             ),
                                           ),
-                                          ),
                                         ),
-                                      ),
-                                    );
-                                  },
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                              if (_pendingAttachments.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8, top: 4),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: _pendingAttachments
+                                          .map((file) => Chip(
+                                                label: Text(file.name),
+                                                deleteIcon: const Icon(Icons.close_rounded),
+                                                onDeleted: () {
+                                                  setState(() {
+                                                    _pendingAttachments = _pendingAttachments
+                                                        .where((f) => f.identifier != file.identifier)
+                                                        .toList();
+                                                  });
+                                                },
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
             ),
           ),
-        ),
-        if (_pendingAttachments.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(_pendingAttachments.length, (index) {
-                  final file = _pendingAttachments[index];
-                  return Chip(
-                    avatar: const Icon(Icons.attach_file_outlined, size: 18),
-                    label: Text(file.name, overflow: TextOverflow.ellipsis),
-                    deleteIcon: const Icon(Icons.close, size: 18),
-                    onDeleted: () => _removeAttachment(index),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  );
-                }),
-              ),
-            ),
+          _InputBar(
+            controller: _controller,
+            sending: _sending,
+            onSend: _send,
+            onPickAttachment: _pickAttachments,
+            canSend: _controller.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty,
+            hasPendingAttachments: _pendingAttachments.isNotEmpty,
           ),
-        _InputBar(
-          controller: _controller,
-          sending: _sending,
-          onSend: _send,
-          onPickAttachment: _pickAttachments,
-          canSend: _controller.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty,
-          hasPendingAttachments: _pendingAttachments.isNotEmpty,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -584,15 +613,15 @@ class _PanelHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final isCompact = MediaQuery.of(context).size.width < 900;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withOpacity(0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: theme.shadowColor.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -646,11 +675,12 @@ class _PanelHeader extends StatelessWidget {
             icon: Icon(Icons.search_rounded, color: theme.colorScheme.onSurfaceVariant),
             onPressed: () {},
           ),
-          IconButton(
-            tooltip: 'Mitglieder anzeigen',
-            icon: const Icon(Icons.group_outlined),
-            onPressed: onShowMembers,
-          ),
+          if (onShowMembers != null)
+            IconButton(
+              tooltip: 'Mitglieder anzeigen',
+              icon: const Icon(Icons.group_outlined),
+              onPressed: onShowMembers,
+            ),
         ],
       ),
     );
