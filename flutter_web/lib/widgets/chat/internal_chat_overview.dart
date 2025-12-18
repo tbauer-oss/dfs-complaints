@@ -11,6 +11,8 @@ class InternalChatOverview extends StatefulWidget {
   final String currentUserId;
   final ValueChanged<ChatConversationSummary> onSelect;
   final ValueChanged<List<ChatConversationSummary>>? onConversationsLoaded;
+  final ValueNotifier<List<ChatConversationSummary>>? conversationListNotifier;
+  final bool showHeaderActions;
 
   const InternalChatOverview({
     super.key,
@@ -18,6 +20,8 @@ class InternalChatOverview extends StatefulWidget {
     required this.currentUserId,
     required this.onSelect,
     this.onConversationsLoaded,
+    this.conversationListNotifier,
+    this.showHeaderActions = true,
   });
 
   @override
@@ -30,17 +34,20 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   List<ChatConversationSummary> _conversations = const [];
   bool _loading = true;
   final Set<String> _deletingIds = {};
-  bool _archivePlaceholder = false;
+  bool _showArchived = false;
+  bool _notifierPushInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _loader = _loadConversations();
     _searchController.addListener(() => setState(() {}));
+    widget.conversationListNotifier?.addListener(_syncFromNotifier);
   }
 
   @override
   void dispose() {
+    widget.conversationListNotifier?.removeListener(_syncFromNotifier);
     _searchController.dispose();
     super.dispose();
   }
@@ -48,16 +55,63 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   Future<List<ChatConversationSummary>> _loadConversations() async {
     setState(() => _loading = true);
     final convs = await widget.chatService.fetchConversations();
-    setState(() {
-      _conversations = convs;
-      _loading = false;
-    });
-    widget.onConversationsLoaded?.call(convs);
-    return convs;
+    _setConversations(convs);
+    setState(() => _loading = false);
+    return _conversations;
   }
 
   Future<void> _refresh() async {
     await _loadConversations();
+  }
+
+  void _syncFromNotifier() {
+    if (_notifierPushInProgress) return;
+    final incoming = widget.conversationListNotifier?.value;
+    if (incoming == null) return;
+    final normalized = _sorted(incoming);
+    if (_listMatches(normalized)) return;
+    setState(() => _conversations = normalized);
+  }
+
+  void _setConversations(List<ChatConversationSummary> next) {
+    final sorted = _sorted(next);
+    setState(() => _conversations = sorted);
+    _pushToNotifier(sorted);
+    widget.onConversationsLoaded?.call(sorted);
+  }
+
+  void _pushToNotifier(List<ChatConversationSummary> next) {
+    if (widget.conversationListNotifier == null) return;
+    _notifierPushInProgress = true;
+    widget.conversationListNotifier!.value = [...next];
+    _notifierPushInProgress = false;
+  }
+
+  List<ChatConversationSummary> _sorted(List<ChatConversationSummary> items) {
+    final copy = [...items];
+    copy.sort((a, b) {
+      final aDate = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return copy;
+  }
+
+  bool _listMatches(List<ChatConversationSummary> incoming) {
+    if (incoming.length != _conversations.length) return false;
+    for (var i = 0; i < incoming.length; i++) {
+      final a = incoming[i];
+      final b = _conversations[i];
+      if (a.conversationId != b.conversationId) return false;
+      final aTs = a.lastMessageAt?.millisecondsSinceEpoch ?? 0;
+      final bTs = b.lastMessageAt?.millisecondsSinceEpoch ?? 0;
+      if (aTs != bTs) return false;
+      if ((a.lastAuthor ?? '') != (b.lastAuthor ?? '')) return false;
+      if ((a.lastMessagePreview ?? a.lastMessage ?? '') !=
+          (b.lastMessagePreview ?? b.lastMessage ?? '')) return false;
+      if (a.isArchived != b.isArchived) return false;
+    }
+    return true;
   }
 
   void _showMembersDialog(List<String> members) {
@@ -105,8 +159,10 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
 
   List<ChatConversationSummary> get _filteredConversations {
     final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return _conversations;
-    return _conversations
+    final archivedFiltered = _conversations.where((c) =>
+        _showArchived ? c.isArchived == true : (c.isArchived != true)).toList(growable: false);
+    if (query.isEmpty) return archivedFiltered;
+    return archivedFiltered
         .where((c) => c.titleFor(widget.currentUserId).toLowerCase().contains(query))
         .toList(growable: false);
   }
@@ -137,12 +193,11 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     try {
       await widget.chatService.deleteConversation(conversation.conversationId);
       if (!mounted) return;
-      setState(() {
-        _conversations = _conversations
-            .where((c) => c.conversationId != conversation.conversationId)
-            .toList(growable: false);
-        _deletingIds.remove(conversation.conversationId);
-      });
+      _deletingIds.remove(conversation.conversationId);
+      final next = _conversations
+          .where((c) => c.conversationId != conversation.conversationId)
+          .toList(growable: false);
+      _setConversations(next);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Konversation gelöscht')),
       );
@@ -161,58 +216,59 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: Card(
-            elevation: 0,
-            color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Chats, Personen oder Gruppen suchen',
-                        prefixIcon: const Icon(Icons.search),
-                        filled: true,
-                        fillColor: theme.colorScheme.surface.withOpacity(0.65),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+        if (widget.showHeaderActions)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Card(
+              elevation: 0,
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Chats, Personen oder Gruppen suchen',
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: theme.colorScheme.surface.withOpacity(0.65),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                          ),
                         ),
+                        onChanged: (_) => setState(() {}),
                       ),
-                      onChanged: (_) => setState(() {}),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Tooltip(
-                    message: 'Archivierte Konversationen (UI Placeholder)',
-                    child: FilterChip(
-                      visualDensity: VisualDensity.compact,
-                      label: const Text('Archiv'),
-                      selected: _archivePlaceholder,
-                      onSelected: (value) => setState(() => _archivePlaceholder = value),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: _showArchived ? 'Archivierte Konversationen' : 'Inbox',
+                      child: FilterChip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(_showArchived ? 'Archiv' : 'Inbox'),
+                        selected: _showArchived,
+                        onSelected: (value) => setState(() => _showArchived = value),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton.icon(
-                    onPressed: _openNewConversationDialog,
-                    icon: const Icon(Icons.forum_rounded),
-                    label: const Text('Neue Konversation'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    const SizedBox(width: 10),
+                    FilledButton.icon(
+                      onPressed: _openNewConversationDialog,
+                      icon: const Icon(Icons.forum_rounded),
+                      label: const Text('Neue Konversation'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refresh,

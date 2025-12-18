@@ -816,118 +816,101 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Hinweis: Diese Seite wird aktuell nicht als Einstieg für den internen Chat verwendet
-    // (siehe _openInternalChat in admin_page.dart mit InternalChatOverview/InternalChatPanel).
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final debugBanner = Container(
-          height: 32,
-          width: double.infinity,
-          color: Colors.red,
-          alignment: Alignment.center,
-          child: Text(
-            'DEBUG ACTIVE: complaint_chat_page.dart | width: ${width.toStringAsFixed(0)}',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-          ),
-        );
-
-        return Column(
-          children: [
-            debugBanner,
-            Expanded(
-              child: Scaffold(
-                backgroundColor:
-                    theme.colorScheme.surfaceVariant.withOpacity(0.25),
-                body: SafeArea(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 1260,
-                        maxHeight: 960,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(22),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.shadowColor.withOpacity(0.12),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Column(
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 900;
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1260, maxHeight: 960),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.shadowColor.withOpacity(0.12),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                          child: Row(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Chip(
-                                      avatar: Icon(
-                                        _currentRole == ComplaintChatRole.admin
-                                            ? Icons.verified_user_outlined
-                                            : Icons.badge_outlined,
-                                      ),
-                                      label: Text(
-                                          _currentRole == ComplaintChatRole.admin
-                                              ? 'Admin aktiv'
-                                              : 'Vertreter aktiv'),
-                                    ),
-                                  ],
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Interner Chat',
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(fontWeight: FontWeight.w800)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Zweispaltiges Messenger-Layout mit klarer Rollenanzeige.',
+                                    style: theme.textTheme.bodyMedium
+                                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
                               ),
-                              const Divider(height: 1),
-                              Expanded(
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final isWide = constraints.maxWidth >= 900;
-                                    final showList =
-                                        isWide || _activeConversation == null;
-                                    final showChat =
-                                        isWide || _activeConversation != null;
-
-                                    return Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        if (showList)
-                                          if (isWide)
-                                            _buildSidebar(isWide)
-                                          else
-                                            Expanded(
-                                                child: _buildSidebar(isWide)),
-                                        if (showList && showChat && isWide)
-                                          VerticalDivider(
-                                            width: 1,
-                                            color: theme.colorScheme.outlineVariant
-                                                .withOpacity(0.6),
-                                          ),
-                                        if (showChat)
-                                          Expanded(
-                                            child: _buildChatPane(isWide),
-                                          ),
-                                      ],
-                                    );
-                                  },
+                              const Spacer(),
+                              Chip(
+                                avatar: Icon(
+                                  _currentRole == ComplaintChatRole.admin
+                                      ? Icons.verified_user_outlined
+                                      : Icons.badge_outlined,
                                 ),
+                                label: Text(_currentRole == ComplaintChatRole.admin
+                                    ? 'Admin aktiv'
+                                    : 'Vertreter aktiv'),
                               ),
                             ],
                           ),
                         ),
-                      ),
+                        const Divider(height: 1),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, _) {
+                              final showList = isWide || _activeConversation == null;
+                              final showChat = isWide || _activeConversation != null;
+
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (showList)
+                                    if (isWide)
+                                      _buildSidebar(isWide)
+                                    else
+                                      Expanded(child: _buildSidebar(isWide)),
+                                  if (showList && showChat && isWide)
+                                    VerticalDivider(
+                                      width: 1,
+                                      color: theme.colorScheme.outlineVariant.withOpacity(0.6),
+                                    ),
+                                  if (showChat)
+                                    Expanded(
+                                      child: _buildChatPane(isWide),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 

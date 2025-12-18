@@ -330,6 +330,8 @@ class _AdminPageState extends State<AdminPage> {
   final Map<String, String> _portalTilePermissions = {};
   final Map<String, int> _chatLastReadMs = {};
   List<ChatConversationSummary> _chatCachedConversations = const [];
+  final ValueNotifier<List<ChatConversationSummary>> _conversationListNotifier =
+      ValueNotifier<List<ChatConversationSummary>>([]);
   Timer? _chatUnreadTimer;
   bool _chatHasUnread = false;
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
@@ -409,12 +411,20 @@ class _AdminPageState extends State<AdminPage> {
     try {
       final convs = await _chatService.fetchConversations();
       _chatCachedConversations = convs;
+      _conversationListNotifier.value = [...convs];
       _recalculateChatUnread(convs);
     } catch (_) {}
   }
 
+  void _syncConversationListFromNotifier() {
+    final list = _conversationListNotifier.value;
+    _chatCachedConversations = list;
+    _recalculateChatUnread(list);
+  }
+
   void _handleConversationsSnapshot(List<ChatConversationSummary> conversations) {
     _chatCachedConversations = conversations;
+    _conversationListNotifier.value = [...conversations];
     _recalculateChatUnread(conversations);
   }
 
@@ -1019,6 +1029,7 @@ class _AdminPageState extends State<AdminPage> {
     super.initState();
     _api = AdminApi(onNewsChanged: widget.api.clearAllNewsCaches);
     _chatService = ChatService(widget.api);
+    _conversationListNotifier.addListener(_syncConversationListFromNotifier);
     bool _truthy(dynamic flag) {
       if (flag == null) return false;
       if (flag is bool) return flag;
@@ -1140,6 +1151,8 @@ class _AdminPageState extends State<AdminPage> {
     _portalUserPasswordCtrl.dispose();
     _portalUserPasswordRepeatCtrl.dispose();
     _portalUserDepartmentCtrl.dispose();
+    _conversationListNotifier.removeListener(_syncConversationListFromNotifier);
+    _conversationListNotifier.dispose();
     _chatUnreadTimer?.cancel();
     _portalFeedPulseTimer?.cancel();
     super.dispose();
@@ -5082,6 +5095,8 @@ class _AdminPageState extends State<AdminPage> {
                                                           chatService: _chatService,
                                                           currentUserId: _portalChatId,
                                                           onConversationsLoaded: _handleConversationsSnapshot,
+                                                          conversationListNotifier: _conversationListNotifier,
+                                                          showHeaderActions: selected == null,
                                                           onSelect: (conv) {
                                                             _markConversationRead(conv);
                                                             setModalState(() => selected = conv);
@@ -5142,6 +5157,7 @@ class _AdminPageState extends State<AdminPage> {
                                                                 currentUserId: _portalChatId,
                                                                 onBack: () => setModalState(() => selected = null),
                                                                 onMarkAsRead: _handleConversationSeen,
+                                                                conversationListNotifier: _conversationListNotifier,
                                                               ),
                                                       ),
                                                     ),
@@ -5156,29 +5172,32 @@ class _AdminPageState extends State<AdminPage> {
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(18),
                                           ),
-                                          child: AnimatedSwitcher(
-                                            duration: const Duration(milliseconds: 220),
-                                            child: selected == null
-                                                ? InternalChatOverview(
-                                                    key: const ValueKey('chatOverview'),
-                                                    chatService: _chatService,
-                                                    currentUserId: _portalChatId,
-                                                    onConversationsLoaded: _handleConversationsSnapshot,
-                                                    onSelect: (conv) {
-                                                      _markConversationRead(conv);
-                                                      setModalState(() => selected = conv);
-                                                    },
-                                                  )
-                                                : InternalChatPanel(
-                                                    key: const ValueKey('chatPanel'),
-                                                    chatService: _chatService,
-                                                    conversation: selected!,
-                                                    currentUserId: _portalChatId,
-                                                    onBack: () => setModalState(() => selected = null),
-                                                    onMarkAsRead: _handleConversationSeen,
-                                                  ),
+                                            child: AnimatedSwitcher(
+                                              duration: const Duration(milliseconds: 220),
+                                              child: selected == null
+                                                  ? InternalChatOverview(
+                                                      key: const ValueKey('chatOverview'),
+                                                      chatService: _chatService,
+                                                      currentUserId: _portalChatId,
+                                                      onConversationsLoaded: _handleConversationsSnapshot,
+                                                      conversationListNotifier: _conversationListNotifier,
+                                                      showHeaderActions: selected == null,
+                                                      onSelect: (conv) {
+                                                        _markConversationRead(conv);
+                                                        setModalState(() => selected = conv);
+                                                      },
+                                                    )
+                                                  : InternalChatPanel(
+                                                      key: const ValueKey('chatPanel'),
+                                                      chatService: _chatService,
+                                                      conversation: selected!,
+                                                      currentUserId: _portalChatId,
+                                                      onBack: () => setModalState(() => selected = null),
+                                                      onMarkAsRead: _handleConversationSeen,
+                                                      conversationListNotifier: _conversationListNotifier,
+                                                    ),
+                                            ),
                                           ),
-                                        ),
                                 ),
                               ),
                             ],

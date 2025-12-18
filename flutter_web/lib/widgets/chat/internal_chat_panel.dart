@@ -13,6 +13,7 @@ class InternalChatPanel extends StatefulWidget {
   final String currentUserId;
   final VoidCallback onBack;
   final void Function(String convId, int? lastMessageTs)? onMarkAsRead;
+  final ValueNotifier<List<ChatConversationSummary>>? conversationListNotifier;
 
   const InternalChatPanel({
     super.key,
@@ -21,6 +22,7 @@ class InternalChatPanel extends StatefulWidget {
     required this.currentUserId,
     required this.onBack,
     this.onMarkAsRead,
+    this.conversationListNotifier,
   });
 
   @override
@@ -37,12 +39,14 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   bool _hasMoreBefore = false;
   String? _errorMessage;
   String _myId = '';
+  late ChatConversationSummary _activeSummary;
 
-  String get _convId => widget.conversation.conversationId;
+  String get _convId => _activeSummary.conversationId;
 
   @override
   void initState() {
     super.initState();
+    _activeSummary = widget.conversation;
     _myId = _normalizeId(widget.currentUserId);
     _loadInitial();
     _startPolling();
@@ -57,12 +61,16 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       _loading = true;
       _hasMoreBefore = false;
       _errorMessage = null;
+      _activeSummary = widget.conversation;
       _loadInitial();
       _startPolling();
     }
     final normalizedId = _normalizeId(widget.currentUserId);
     if (normalizedId.isNotEmpty && normalizedId != _myId) {
       setState(() => _myId = normalizedId);
+    }
+    if (oldWidget.conversation != widget.conversation) {
+      setState(() => _activeSummary = widget.conversation);
     }
   }
 
@@ -84,6 +92,9 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         _loading = false;
         _errorMessage = null;
       });
+      if (_messages.isNotEmpty) {
+        _updateConversationSummary(_messages.last);
+      }
       _scrollToBottom();
       _notifySeen();
     } catch (err) {
@@ -135,6 +146,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       setState(() {
         _messages = _mergeMessages([..._messages, ...timeline.messages]);
       });
+      _updateConversationSummary(_messages.last);
       _scrollToBottom();
       _notifySeen();
     } catch (err) {
@@ -192,6 +204,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       _messages = _mergeMessages([..._messages, optimistic]);
       _controller.clear();
     });
+    _updateConversationSummary(optimistic);
     _scrollToBottom();
 
     try {
@@ -202,6 +215,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
           saved,
         ]);
       });
+      _updateConversationSummary(saved);
       _scrollToBottom();
       _notifySeen();
     } catch (err) {
@@ -232,7 +246,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   String _displayNameFor(ChatMessage msg) {
     final directName = msg.authorName.trim();
     if (directName.isNotEmpty && directName != 'Unbekannt') return directName;
-    final participantName = widget.conversation.displayNameFor(msg.authorId);
+    final participantName = _activeSummary.displayNameFor(msg.authorId);
     if (participantName.isNotEmpty && participantName != 'Unbekannt') return participantName;
     if (msg.senderEmail != null && msg.senderEmail!.isNotEmpty) {
       return displayNameFromEmail(msg.senderEmail!);
@@ -254,7 +268,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   String _displayNameForCurrentUser() {
-    final candidate = widget.conversation.displayNameFor(widget.currentUserId);
+    final candidate = _activeSummary.displayNameFor(widget.currentUserId);
     if (candidate.isNotEmpty && candidate != 'Unbekannt') return candidate;
     return 'Du';
   }
@@ -262,7 +276,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   void _notifySeen() {
     if (widget.onMarkAsRead == null) return;
     final lastTs = _messages.isNotEmpty ? _messages.last.timestamp.millisecondsSinceEpoch : null;
-    widget.onMarkAsRead!(widget.conversation.conversationId, lastTs);
+    widget.onMarkAsRead!(_activeSummary.conversationId, lastTs);
   }
 
   String _normalizeId(String? value) => (value ?? '').trim().toLowerCase();
@@ -272,6 +286,34 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       if (value.trim().isNotEmpty) return value.trim();
     }
     return '';
+  }
+
+  void _updateConversationSummary(ChatMessage latest) {
+    final next = _activeSummary.copyWith(
+      lastMessage: latest.body,
+      lastMessagePreview: latest.body,
+      lastAuthor: latest.authorId,
+      lastMessageAt: latest.timestamp,
+    );
+    if (mounted) {
+      setState(() => _activeSummary = next);
+    } else {
+      _activeSummary = next;
+    }
+    _pushConversationUpdate(next);
+  }
+
+  void _pushConversationUpdate(ChatConversationSummary summary) {
+    final notifier = widget.conversationListNotifier;
+    if (notifier == null) return;
+    final current = List<ChatConversationSummary>.from(notifier.value);
+    final merged = [summary, ...current.where((c) => c.conversationId != summary.conversationId)];
+    merged.sort((a, b) {
+      final aDate = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    notifier.value = [...merged];
   }
 
   void _showMembersDialog(List<String> members) {
@@ -305,9 +347,9 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.conversation.titleFor(widget.currentUserId);
-    final memberNames = widget.conversation.memberDisplayNames(excludeUserId: widget.currentUserId);
-    final membersLabel = memberNames.isEmpty ? null : widget.conversation.membersLabelFor(widget.currentUserId);
+    final title = _activeSummary.titleFor(widget.currentUserId);
+    final memberNames = _activeSummary.memberDisplayNames(excludeUserId: widget.currentUserId);
+    final membersLabel = memberNames.isEmpty ? null : _activeSummary.membersLabelFor(widget.currentUserId);
     if (_myId.isEmpty) {
       return Column(
         children: [
