@@ -739,6 +739,8 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Hinweis: Diese Seite wird aktuell nicht als Einstieg für den internen Chat verwendet
+    // (siehe _openInternalChat in admin_page.dart mit InternalChatOverview/InternalChatPanel).
     return Scaffold(
       backgroundColor:
           theme.colorScheme.surfaceVariant.withOpacity(0.25),

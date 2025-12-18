@@ -166,9 +166,12 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: TextField(
             controller: _searchController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Chats durchsuchen',
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ),
@@ -195,7 +198,8 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                 final displayList = _filteredConversations;
                 return ListView.separated(
                   itemCount: displayList.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final item = displayList[index];
                     final title = item.titleFor(widget.currentUserId);
@@ -206,51 +210,92 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                         memberNames.isNotEmpty ? item.membersLabelFor(widget.currentUserId) : null;
                     final timestamp = item.lastMessageAt;
                     final isDeleting = _deletingIds.contains(item.conversationId);
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
-                      ),
-                      title: Text(title),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (membersLabel != null)
-                            GestureDetector(
-                              onTap: () => _showMembersDialog(memberNames),
-                              child: Tooltip(
-                                message: 'Mitglieder anzeigen',
-                                child: Text(
-                                  membersLabel,
-                                  maxLines: 3,
-                                  softWrap: true,
-                                  overflow: TextOverflow.ellipsis,
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => widget.onSelect(item),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            title,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                        if (timestamp != null)
+                                          Text(
+                                            _formatTime(timestamp),
+                                            style: Theme.of(context).textTheme.labelMedium,
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (membersLabel != null)
+                                      GestureDetector(
+                                        onTap: () => _showMembersDialog(memberNames),
+                                        child: Tooltip(
+                                          message: 'Mitglieder anzeigen',
+                                          child: Text(
+                                            membersLabel,
+                                            maxLines: 2,
+                                            softWrap: true,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                          ),
+                                        ),
+                                      ),
+                                    if (membersLabel != null) const SizedBox(height: 4),
+                                    Text(
+                                      subtitle,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                          Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-                        ],
-                      ),
-                      trailing: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 4,
-                        children: [
-                          if (timestamp != null)
-                            Text(_formatTime(timestamp), style: Theme.of(context).textTheme.labelMedium),
-                          IconButton(
-                            icon: isDeleting
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.delete_outline),
-                            onPressed: isDeleting ? null : () => _deleteConversation(item),
-                            tooltip: 'Konversation löschen',
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: isDeleting
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.delete_outline),
+                                onPressed: isDeleting ? null : () => _deleteConversation(item),
+                                tooltip: 'Konversation löschen',
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                      onTap: () => widget.onSelect(item),
                     );
                   },
                 );
@@ -279,17 +324,34 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+      ),
       child: Row(
         children: [
-          const Expanded(
-            child: Text(
-              'Interner Chat',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Interner Chat',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Konversationen durchsuchen oder neue Chats starten.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-          ElevatedButton.icon(
+          FilledButton.icon(
             onPressed: onNew,
             icon: const Icon(Icons.chat),
             label: const Text('Neue Konversation'),

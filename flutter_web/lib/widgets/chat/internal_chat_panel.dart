@@ -321,6 +321,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         ],
       );
     }
+    final theme = Theme.of(context);
     return Column(
       children: [
         _PanelHeader(
@@ -330,89 +331,106 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
           onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
         ),
         Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _errorMessage != null
-                  ? Center(child: Text(_errorMessage!))
-              : Column(
-                  children: [
-                    if (_hasMoreBefore)
-                      TextButton.icon(
-                        onPressed: _loadOlder,
-                        icon: const Icon(Icons.history),
-                        label: const Text('Ältere Nachrichten laden'),
-                      ),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        itemCount: _messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = _messages[index];
-                          final isMe = _isMessageFromCurrentUser(msg);
-                          final theme = Theme.of(context);
-                          final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
-                          final timeString = _formatTime(msg.timestamp);
-                          final backgroundColor = isMe
-                              ? theme.colorScheme.primary.withOpacity(0.18)
-                              : theme.colorScheme.surface.withOpacity(0.10);
-                          final radius = BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isMe ? 16 : 4),
-                            bottomRight: Radius.circular(isMe ? 4 : 16),
-                          );
-
-                          return Align(
-                            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: bubbleWidth),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                decoration: BoxDecoration(
-                                  color: backgroundColor,
-                                  borderRadius: radius,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.06),
+              border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(child: Text(_errorMessage!))
+                      : Column(
+                          children: [
+                            if (_hasMoreBefore)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: TextButton.icon(
+                                  onPressed: _loadOlder,
+                                  icon: const Icon(Icons.history),
+                                  label: const Text('Ältere Nachrichten laden'),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (!isMe)
-                                      Padding(
-                                        padding: const EdgeInsets.only(bottom: 4),
-                                        child: Text(
-                                          _displayNameFor(msg),
-                                          style: theme.textTheme.labelMedium,
+                              ),
+                            Expanded(
+                              child: Scrollbar(
+                                controller: _scrollController,
+                                child: ListView.builder(
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  itemCount: _messages.length,
+                                  itemBuilder: (context, index) {
+                                    final msg = _messages[index];
+                                    final isMe = _isMessageFromCurrentUser(msg);
+                                    final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
+                                    final timeString = _formatTime(msg.timestamp);
+                                    final backgroundColor = isMe
+                                        ? theme.colorScheme.primary.withOpacity(0.18)
+                                        : theme.colorScheme.surface.withOpacity(0.12);
+                                    final radius = BorderRadius.only(
+                                      topLeft: const Radius.circular(16),
+                                      topRight: const Radius.circular(16),
+                                      bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                                    );
+
+                                    return Align(
+                                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(maxWidth: bubbleWidth),
+                                        child: Container(
+                                          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                          decoration: BoxDecoration(
+                                            color: backgroundColor,
+                                            borderRadius: radius,
+                                            border: Border.all(
+                                              color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (!isMe)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(bottom: 4),
+                                                  child: Text(
+                                                    _displayNameFor(msg),
+                                                    style: theme.textTheme.labelMedium,
+                                                  ),
+                                                ),
+                                              Text(msg.body),
+                                              const SizedBox(height: 6),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    timeString,
+                                                    style: theme.textTheme.labelSmall,
+                                                  ),
+                                                  if (msg.pending)
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(left: 6),
+                                                      child: Icon(Icons.watch_later, size: 14),
+                                                    ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    Text(msg.body),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          timeString,
-                                          style: theme.textTheme.labelSmall,
-                                        ),
-                                        if (msg.pending)
-                                          const Padding(
-                                            padding: EdgeInsets.only(left: 6),
-                                            child: Icon(Icons.watch_later, size: 14),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
+                                    );
+                                  },
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                          ],
+                        ),
+            ),
+          ),
         ),
         _InputBar(
           controller: _controller,
@@ -440,8 +458,20 @@ class _PanelHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           IconButton(
@@ -454,7 +484,7 @@ class _PanelHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 if (subtitle != null)
                   GestureDetector(
@@ -463,7 +493,9 @@ class _PanelHeader extends StatelessWidget {
                       message: onShowMembers != null ? 'Mitglieder anzeigen' : null,
                       child: Text(
                         subtitle!,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                         maxLines: 3,
                         softWrap: true,
                         overflow: TextOverflow.ellipsis,
@@ -472,6 +504,12 @@ class _PanelHeader extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Mitglieder anzeigen',
+            icon: const Icon(Icons.group_outlined),
+            onPressed: onShowMembers,
           ),
         ],
       ),
@@ -492,10 +530,22 @@ class _InputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
         child: Row(
           children: [
             Expanded(
@@ -503,18 +553,33 @@ class _InputBar extends StatelessWidget {
                 controller: controller,
                 maxLines: 3,
                 minLines: 1,
-                decoration: const InputDecoration(
-                  labelText: 'Nachricht',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  hintText: 'Nachricht eingeben...',
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.35),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                  ),
+                  prefixIcon: const Icon(Icons.message_outlined),
                 ),
                 onSubmitted: (_) => onSend(),
               ),
             ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
+            const SizedBox(width: 10),
+            FilledButton.icon(
               onPressed: sending ? null : onSend,
               icon: const Icon(Icons.send),
               label: const Text('Senden'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ],
         ),
