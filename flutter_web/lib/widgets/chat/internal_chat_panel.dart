@@ -49,11 +49,12 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   String get _convId => _activeSummary.conversationId;
 
   String? _conversationAvatarUrl() {
+    if (_activeSummary.participants.isEmpty) return null;
     final participant = _activeSummary.participants.firstWhere(
       (p) => _myId.isEmpty || p.userId != _myId,
-      orElse: () => _activeSummary.participants.isNotEmpty ? _activeSummary.participants.first : null,
+      orElse: () => _activeSummary.participants.first,
     );
-    final avatar = participant?.avatar;
+    final avatar = participant.avatar;
     if (avatar == null || avatar.isEmpty) return null;
     return avatar;
   }
