@@ -355,16 +355,41 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   void _pushConversationUpdate(ChatConversationSummary summary) {
+    upsertConversation(summary);
+  }
+
+  void upsertConversation(ChatConversationSummary meta) {
     final notifier = widget.conversationListNotifier;
     if (notifier == null) return;
+    final normalized = meta.copyWith(
+      lastMessageAt: meta.lastMessageAt ?? DateTime.now(),
+      isArchived: meta.isArchived == true ? true : false,
+    );
     final current = List<ChatConversationSummary>.from(notifier.value);
-    final merged = [summary, ...current.where((c) => c.conversationId != summary.conversationId)];
-    merged.sort((a, b) {
-      final aDate = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return bDate.compareTo(aDate);
-    });
+    final merged = [
+      normalized,
+      ...current.where((c) => c.conversationId != normalized.conversationId),
+    ];
+    merged.sort((a, b) => _conversationSortDate(b).compareTo(_conversationSortDate(a)));
     notifier.value = [...merged];
+  }
+
+  DateTime _conversationSortDate(ChatConversationSummary conv) {
+    final meta = conv.meta ?? const {};
+    final updated = _parseDate(meta['updatedAt']) ?? _parseDate(meta['lastMsgAt']);
+    final created = _parseDate(meta['createdAt']);
+    return conv.lastMessageAt ?? updated ?? created ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    }
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 
   Future<void> _refreshSidebarConversations() async {
@@ -377,11 +402,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         deduped[conv.conversationId] = conv;
       }
       final sorted = deduped.values.toList()
-        ..sort((a, b) {
-          final aDate = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bDate = b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bDate.compareTo(aDate);
-        });
+        ..sort((a, b) => _conversationSortDate(b).compareTo(_conversationSortDate(a)));
       notifier.value = [...sorted];
     } catch (_) {}
   }

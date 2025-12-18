@@ -30,7 +30,6 @@ class InternalChatOverview extends StatefulWidget {
 }
 
 class _InternalChatOverviewState extends State<InternalChatOverview> {
-  late Future<List<ChatConversationSummary>> _loader;
   final TextEditingController _searchController = TextEditingController();
   List<ChatConversationSummary> _conversations = const [];
   bool _loading = true;
@@ -41,7 +40,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   @override
   void initState() {
     super.initState();
-    _loader = _loadConversations();
+    _loadConversations();
     _searchController.addListener(() => setState(() {}));
     widget.conversationListNotifier?.addListener(_syncFromNotifier);
   }
@@ -81,6 +80,18 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     widget.onConversationsLoaded?.call(sorted);
   }
 
+  void _upsertConversation(ChatConversationSummary meta) {
+    final normalized = meta.copyWith(
+      lastMessageAt: meta.lastMessageAt ?? DateTime.now(),
+      isArchived: meta.isArchived == true ? true : false,
+    );
+    final filtered = _conversations
+        .where((c) => c.conversationId != normalized.conversationId)
+        .toList(growable: false);
+    final merged = [...filtered, normalized];
+    _setConversations(_sorted(merged));
+  }
+
   void _pushToNotifier(List<ChatConversationSummary> next) {
     if (widget.conversationListNotifier == null) return;
     _notifierPushInProgress = true;
@@ -90,12 +101,26 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
 
   List<ChatConversationSummary> _sorted(List<ChatConversationSummary> items) {
     final copy = [...items];
-    copy.sort((a, b) {
-      final aDate = a.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = b.lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return bDate.compareTo(aDate);
-    });
+    copy.sort((a, b) => _sortDateFor(b).compareTo(_sortDateFor(a)));
     return copy;
+  }
+
+  DateTime _sortDateFor(ChatConversationSummary conv) {
+    final meta = conv.meta ?? const {};
+    final updated = _parseDate(meta['lastMsgAt']) ?? _parseDate(meta['updatedAt']);
+    final created = _parseDate(meta['createdAt']);
+    return conv.lastMessageAt ?? updated ?? created ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    }
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 
   bool _listMatches(List<ChatConversationSummary> incoming) {
@@ -154,7 +179,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
       ),
     );
     if (result != null) {
-      await _refresh();
+      _upsertConversation(result.copyWith(isArchived: false));
       widget.onSelect(result);
     }
   }
@@ -274,14 +299,13 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refresh,
-            child: FutureBuilder<List<ChatConversationSummary>>(
-              future: _loader,
-              builder: (context, snapshot) {
-                if (_loading && !snapshot.hasData) {
+            child: Builder(
+              builder: (context) {
+                if (_loading && _conversations.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final convs = snapshot.data ?? _filteredConversations;
-                if (convs.isEmpty) {
+                final displayList = _filteredConversations;
+                if (displayList.isEmpty) {
                   return ListView(
                     children: const [
                       Padding(
@@ -291,7 +315,6 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     ],
                   );
                 }
-                final displayList = _filteredConversations;
                 return ListView.separated(
                   itemCount: displayList.length,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
