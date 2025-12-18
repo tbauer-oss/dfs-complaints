@@ -90,15 +90,22 @@ export function createRedisAdapter(redis) {
       throw new Error('Redis client missing ZRANGE support');
     },
 
-    async zrangebyscore(key, min, max, options = {}) {
+    async zrangebyscore(key, min, max, { limit, offset, rev } = {}) {
       if (typeof redis.zrangebyscore === 'function') {
-        return ensureArray(await redis.zrangebyscore(key, min, max, options));
+        return ensureArray(await redis.zrangebyscore(key, min, max, { limit, offset, rev }));
+      }
+      if (hasZrange) {
+        const options = { byScore: true };
+        if (rev) options.rev = true;
+        if (limit !== undefined) {
+          options.limit = { offset: Number(offset) || 0, count: Number(limit) || 0 };
+        }
+        return ensureArray(await redis.zrange(key, min, max, options));
       }
       if (hasCommand) {
-        const args = ['ZRANGEBYSCORE', key, String(min), String(max)];
-        if (options?.rev) args.push('REV');
-        if (options?.limit) {
-          args.push('LIMIT', String(options.limit.offset || 0), String(options.limit.count || 0));
+        const args = [rev ? 'ZREVRANGEBYSCORE' : 'ZRANGEBYSCORE', key, String(rev ? max : min), String(rev ? min : max)];
+        if (limit !== undefined) {
+          args.push('LIMIT', String(Number(offset) || 0), String(Number(limit) || 0));
         }
         const raw = await runCommand(args);
         return ensureArray(raw);
