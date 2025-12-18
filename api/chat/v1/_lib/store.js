@@ -16,6 +16,7 @@ import {
   sanitizeBody,
   toIsoTimestamp,
 } from './schema.js';
+import { createRedisAdapter } from './redisAdapter.js';
 
 function safeDisplayName(name, fallback = 'Unbekannter Nutzer') {
   const value = String(name || '').trim();
@@ -24,7 +25,8 @@ function safeDisplayName(name, fallback = 'Unbekannter Nutzer') {
 }
 
 export async function readUserProfile(redis, uid) {
-  const profile = await redis.hgetall(keyUser(uid));
+  const rdb = createRedisAdapter(redis);
+  const profile = await rdb.hgetall(keyUser(uid));
   if (!profile || Object.keys(profile).length === 0) return null;
   return {
     userId: uid,
@@ -36,18 +38,20 @@ export async function readUserProfile(redis, uid) {
 }
 
 export async function upsertUserProfile(redis, uid, { displayName, avatarUrl }) {
+  const rdb = createRedisAdapter(redis);
   const payload = {};
   if (displayName) payload.displayName = displayName;
   if (avatarUrl) payload.avatarUrl = avatarUrl;
   if (Object.keys(payload).length === 0) return;
-  await redis.hset(keyUser(uid), payload);
+  await rdb.hset(keyUser(uid), payload);
 }
 
 async function readConversationParticipants(redis, convId, rawMeta) {
+  const rdb = createRedisAdapter(redis);
   const setKey = keyConversationMembers(convId);
-  const hasSet = await redis.exists(setKey);
+  const hasSet = await rdb.exists(setKey);
   if (hasSet) {
-    const members = await redis.smembers(setKey);
+    const members = await rdb.smembers(setKey);
     if (Array.isArray(members) && members.length > 0) return members;
   }
   const parsed = parseParticipantList(rawMeta);
@@ -60,9 +64,10 @@ async function readConversationParticipants(redis, convId, rawMeta) {
 
 export async function fetchConversationMeta(redis, convId) {
   if (!isConversationId(convId)) return null;
-  const raw = await redis.hgetall(keyConversationMeta(convId));
+  const rdb = createRedisAdapter(redis);
+  const raw = await rdb.hgetall(keyConversationMeta(convId));
   if (!raw || Object.keys(raw).length === 0) return null;
-  const participants = await readConversationParticipants(redis, convId, raw);
+  const participants = await readConversationParticipants(rdb, convId, raw);
   return {
     convId,
     type: raw.type || raw.kind || 'dm',
@@ -82,18 +87,20 @@ export async function fetchConversationMeta(redis, convId) {
 
 async function ensureMembersSet(redis, convId, participants) {
   if (!participants?.length) return;
+  const rdb = createRedisAdapter(redis);
   const setKey = keyConversationMembers(convId);
-  await redis.sadd(setKey, participants);
+  await rdb.sadd(setKey, participants);
 }
 
 export async function ensureDmConversation(redis, uidA, uidB) {
+  const rdb = createRedisAdapter(redis);
   const convId = buildConversationId(uidA, uidB);
   if (!convId) return null;
-  const existing = await fetchConversationMeta(redis, convId);
+  const existing = await fetchConversationMeta(rdb, convId);
   if (existing) return existing;
   const createdAt = toIsoTimestamp();
   const participants = [uidA, uidB];
-  await redis.hset(keyConversationMeta(convId), {
+  await rdb.hset(keyConversationMeta(convId), {
     convId,
     type: 'dm',
     createdAt,
@@ -118,11 +125,12 @@ export async function ensureDmConversation(redis, uidA, uidB) {
 }
 
 export async function createGroupConversation(redis, title, members, createdBy) {
+  const rdb = createRedisAdapter(redis);
   const filtered = Array.from(new Set((members || []).map((m) => normalizeUserId(m)).filter(Boolean)));
   if (filtered.length === 0) return null;
   const convId = buildGroupId(randomUUID());
   const createdAt = toIsoTimestamp();
-  await redis.hset(keyConversationMeta(convId), {
+  await rdb.hset(keyConversationMeta(convId), {
     convId,
     type: 'group',
     title: safeDisplayName(title, 'Gruppe'),
@@ -132,7 +140,7 @@ export async function createGroupConversation(redis, title, members, createdBy) 
     lastMsgAt: createdAt,
     participants: JSON.stringify(filtered),
   });
-  await ensureMembersSet(redis, convId, filtered);
+  await ensureMembersSet(rdb, convId, filtered);
   return {
     convId,
     type: 'group',
@@ -149,7 +157,8 @@ export async function createGroupConversation(redis, title, members, createdBy) 
 }
 
 export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
-  const entries = await redis.zrange(keyUserConversations(uid), 0, limit - 1, { withScores: true, rev: true });
+  const rdb = createRedisAdapter(redis);
+  const entries = await rdb.zrange(keyUserConversations(uid), 0, limit - 1, { withScores: true, rev: true });
   return (entries || []).map((row) => ({
     convId: row.member,
     lastActivityTs: Number(row.score) || 0,
@@ -157,9 +166,10 @@ export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
 }
 
 export async function registerConversationForUsers(redis, convId, participants, tsMs) {
+  const rdb = createRedisAdapter(redis);
   const score = Number(tsMs || Date.now());
   for (const uid of participants) {
-    await redis.zadd(keyUserConversations(uid), { score, member: convId });
+    await rdb.zadd(keyUserConversations(uid), { score, member: convId });
   }
 }
 
@@ -177,15 +187,16 @@ export function buildMessagePayload(convId, author, body, timestampMs, providedM
 }
 
 export async function appendMessage(redis, convMeta, messagePayload) {
+  const rdb = createRedisAdapter(redis);
   const timestampIso = toIsoTimestamp(messagePayload.timestampMs);
   const msgKey = keyMessage(messagePayload.msgId);
-  const exists = await redis.exists(msgKey);
+  const exists = await rdb.exists(msgKey);
   if (exists) {
-    const stored = await redis.hgetall(msgKey);
+    const stored = await rdb.hgetall(msgKey);
     return hydrateMessage(messagePayload.msgId, stored);
   }
 
-  await redis.hset(msgKey, {
+  await rdb.hset(msgKey, {
     msgId: messagePayload.msgId,
     convId: convMeta.convId,
     senderUid: messagePayload.senderUid,
@@ -194,12 +205,12 @@ export async function appendMessage(redis, convMeta, messagePayload) {
     ts: timestampIso,
   });
 
-  await redis.zadd(keyConversationMessages(convMeta.convId), {
+  await rdb.zadd(keyConversationMessages(convMeta.convId), {
     score: messagePayload.timestampMs,
     member: messagePayload.msgId,
   });
 
-  await redis.hset(keyConversationMeta(convMeta.convId), {
+  await rdb.hset(keyConversationMeta(convMeta.convId), {
     updatedAt: timestampIso,
     lastMsgAt: timestampIso,
     lastMsgId: messagePayload.msgId,
@@ -230,9 +241,10 @@ function hydrateMessage(msgId, raw) {
 }
 
 async function fetchMessagesByIds(redis, ids) {
+  const rdb = createRedisAdapter(redis);
   const items = [];
   for (const id of ids) {
-    const raw = await redis.hgetall(keyMessage(id));
+    const raw = await rdb.hgetall(keyMessage(id));
     const parsed = hydrateMessage(id, raw);
     if (parsed) items.push(parsed);
   }
@@ -241,11 +253,12 @@ async function fetchMessagesByIds(redis, ids) {
 }
 
 export async function readMessages(redis, convId, { afterTs = null, beforeTs = null, limit = 50 } = {}) {
+  const rdb = createRedisAdapter(redis);
   const key = keyConversationMessages(convId);
   const cappedLimit = Math.min(Math.max(Number(limit) || 0, 1), 200);
 
   if (beforeTs !== null) {
-    const members = await redis.zrangebyscore(key, beforeTs - 1, 0, {
+    const members = await rdb.zrangebyscore(key, beforeTs - 1, 0, {
       limit: { offset: 0, count: cappedLimit },
       rev: true,
     });
@@ -255,7 +268,7 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
   }
 
   if (afterTs !== null) {
-    const members = await redis.zrangebyscore(key, `(${afterTs}`, '+inf', {
+    const members = await rdb.zrangebyscore(key, `(${afterTs}`, '+inf', {
       limit: { offset: 0, count: cappedLimit },
     });
     const hasMore = members.length === cappedLimit;
@@ -263,8 +276,8 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
     return { messages, hasMoreBefore: false, hasMoreAfter: hasMore };
   }
 
-  const members = await redis.zrevrange(key, 0, cappedLimit - 1);
-  const total = await redis.zcard(key);
+  const members = await rdb.zrevrange(key, 0, cappedLimit - 1);
+  const total = await rdb.zcard(key);
   const hasMoreBefore = total > members.length;
   const messages = await fetchMessagesByIds(redis, members);
   return { messages, hasMoreBefore, hasMoreAfter: false };
@@ -315,6 +328,7 @@ export function buildProfilesMap(list = []) {
 }
 
 export async function searchActiveUsers(redis, query, limit = 50) {
+  const rdb = createRedisAdapter(redis);
   const q = (query || '').toString().trim().toLowerCase();
   const matches = [];
   let cursor = 0;
@@ -322,12 +336,12 @@ export async function searchActiveUsers(redis, query, limit = 50) {
   const matchPattern = `${keyUser('*')}`;
 
   do {
-    const result = await redis.scan(cursor, { match: matchPattern, count: 200 });
+    const result = await rdb.scan(cursor, { match: matchPattern, count: 200 });
     const nextCursor = Array.isArray(result) ? Number(result[0]) : Number(result.cursor || 0);
     const keys = Array.isArray(result) ? result[1] : result.keys || [];
 
     for (const key of keys) {
-      const profile = await redis.hgetall(key);
+      const profile = await rdb.hgetall(key);
       if (!profile || Object.keys(profile).length === 0) continue;
       const active = profile.active === undefined ? true : String(profile.active) === 'true';
       if (!active) continue;
