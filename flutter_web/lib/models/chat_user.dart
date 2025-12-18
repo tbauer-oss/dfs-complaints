@@ -6,13 +6,13 @@ class ChatUserSummary {
   final String userId;
   final String displayName;
   final String email;
-  final String? avatarUrl;
+  final String? avatar;
 
   const ChatUserSummary({
     required this.userId,
     required this.displayName,
     required this.email,
-    this.avatarUrl,
+    this.avatar,
   });
 
   factory ChatUserSummary.fromJson(Map<String, dynamic> json) => ChatUserSummary(
@@ -20,6 +20,19 @@ class ChatUserSummary {
         displayName:
             deriveDisplayName((json['displayName'] ?? '').toString(), email: (json['email'] ?? '').toString()),
         email: (json['email'] ?? '').toString(),
-        avatarUrl: json['avatar']?.toString() ?? json['avatarUrl']?.toString(),
+        avatar: _cleanAvatar(json['avatar'] ?? json['avatarUrl'] ?? json['photoUrl']),
       );
+
+  Map<String, dynamic> toJson() => {
+        'userId': userId,
+        'displayName': displayName,
+        'email': email,
+        if (avatar != null && avatar!.isNotEmpty) 'avatar': avatar,
+      };
+}
+
+String? _cleanAvatar(dynamic value) {
+  final str = value?.toString().trim();
+  if (str == null || str.isEmpty) return null;
+  return str;
 }

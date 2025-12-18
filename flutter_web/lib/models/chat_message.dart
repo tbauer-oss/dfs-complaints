@@ -14,8 +14,14 @@ class ChatParticipant {
         userId: (json['userId'] ?? '').toString(),
         displayName: deriveDisplayName((json['displayName'] ?? '').toString(), email: json['email']?.toString()),
         email: json['email']?.toString(),
-        avatar: json['avatar']?.toString(),
+        avatar: _cleanAvatar(json['avatar'] ?? json['avatarUrl'] ?? json['photoUrl']),
       );
+}
+
+String? _cleanAvatar(dynamic value) {
+  final str = value?.toString().trim();
+  if (str == null || str.isEmpty) return null;
+  return str;
 }
 
 class ChatConversationSummary {

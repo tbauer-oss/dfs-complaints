@@ -8,7 +8,6 @@ class PortalUserSummary {
   final String role;
   final String portalStatus;
   final String? avatar;
-  final String? avatarUrl;
   final bool isPrrc;
   final List<String> assignedDepartments;
 
@@ -22,7 +21,6 @@ class PortalUserSummary {
     required this.role,
     required this.portalStatus,
     this.avatar,
-    this.avatarUrl,
     this.isPrrc = false,
     this.assignedDepartments = const [],
   });
@@ -36,8 +34,7 @@ class PortalUserSummary {
         username: (json['username'] ?? json['userName'] ?? '').toString(),
         role: (json['role'] ?? '').toString(),
         portalStatus: (json['portalStatus'] ?? '').toString(),
-        avatar: (json['avatar'] ?? json['avatarUrl'] ?? json['avatar_url'])?.toString(),
-        avatarUrl: (json['avatarUrl'] ?? json['avatar'] ?? json['avatar_url'])?.toString(),
+        avatar: _cleanAvatar(json['avatar'] ?? json['avatarUrl'] ?? json['avatar_url'] ?? json['photoUrl']),
         isPrrc: json['isPRRC'] == true || json['isPrrc'] == true,
         assignedDepartments: (json['assignedDepartments'] as List?)
                 ?.whereType<String>()
@@ -45,6 +42,22 @@ class PortalUserSummary {
                 .toList(growable: false) ??
             const [],
       );
+
+  Map<String, dynamic> toJson() => {
+        'email': email,
+        'displayName': displayName,
+        'fullName': fullName,
+        'firstName': firstName,
+        'lastName': lastName,
+        'username': username,
+        'role': role,
+        'portalStatus': portalStatus,
+        if (avatar != null && avatar!.isNotEmpty) 'avatar': avatar,
+        'isPrrc': isPrrc,
+        'assignedDepartments': assignedDepartments,
+      };
+
+  String? get avatarUrl => avatar;
 
   String get resolvedDisplayName {
     final composedName = [firstName, lastName].map((v) => v.trim()).where((v) => v.isNotEmpty).join(' ').trim();
@@ -59,4 +72,10 @@ class PortalUserSummary {
   String get label => resolvedDisplayName.isNotEmpty ? resolvedDisplayName : 'Unbekannter Nutzer';
 
   String get sortKey => label.toLowerCase();
+}
+
+String? _cleanAvatar(dynamic value) {
+  final str = value?.toString().trim();
+  if (str == null || str.isEmpty) return null;
+  return str;
 }

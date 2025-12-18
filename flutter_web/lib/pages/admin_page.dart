@@ -10609,8 +10609,7 @@ class _AdminPageState extends State<AdminPage> {
   void _updatePortalUserAvatarLocal(String email, String? avatarUrl) {
     final idx = _portalUsers.indexWhere((p) => p.email == email);
     if (idx >= 0) {
-      _portalUsers[idx] =
-          _portalUsers[idx].copyWith(avatar: avatarUrl, avatarUrl: avatarUrl);
+      _portalUsers[idx] = _portalUsers[idx].copyWith(avatar: avatarUrl);
     }
   }
 
@@ -14799,7 +14798,6 @@ class PortalUser {
   final String role;
   final String portalStatus;
   final String? avatar;
-  final String? avatarUrl;
   final String? createdAt;
   final List<String> assignedDepartments;
   final Map<String, String> tilePermissions;
@@ -14813,7 +14811,6 @@ class PortalUser {
     required this.role,
     required this.portalStatus,
     this.avatar,
-    this.avatarUrl,
     this.createdAt,
     this.assignedDepartments = const <String>[],
     this.tilePermissions = const <String, String>{},
@@ -14827,8 +14824,7 @@ class PortalUser {
         displayName: (j['displayName'] ?? '').toString(),
         role: j['role'] ?? PORTAL_ROLES['user']!,
         portalStatus: j['portalStatus'] ?? 'inactive',
-        avatar: (j['avatar'] ?? j['avatarUrl'] ?? j['avatar_url'])?.toString(),
-        avatarUrl: (j['avatarUrl'] ?? j['avatar'] ?? j['avatar_url'])?.toString(),
+        avatar: _cleanAvatar(j['avatar'] ?? j['avatarUrl'] ?? j['avatar_url'] ?? j['photoUrl']),
         createdAt: j['createdAt']?.toString(),
         assignedDepartments: (j['assignedDepartments'] is List)
             ? List<String>.from((j['assignedDepartments'] as List).map((e) => e.toString().trim()))
@@ -14848,7 +14844,6 @@ class PortalUser {
     String? role,
     String? portalStatus,
     String? avatar,
-    String? avatarUrl,
     String? createdAt,
     List<String>? assignedDepartments,
     Map<String, String>? tilePermissions,
@@ -14856,13 +14851,13 @@ class PortalUser {
     bool? salesAllowed,
     bool? isPrrc,
   }) {
+    final resolvedAvatar = avatar ?? avatarUrl ?? this.avatar;
     return PortalUser(
       email: email,
       displayName: displayName ?? this.displayName,
       role: role ?? this.role,
       portalStatus: portalStatus ?? this.portalStatus,
-      avatar: avatar ?? this.avatar,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
+      avatar: resolvedAvatar,
       createdAt: createdAt ?? this.createdAt,
       assignedDepartments: assignedDepartments ?? this.assignedDepartments,
       tilePermissions: tilePermissions ?? this.tilePermissions,
@@ -14871,6 +14866,14 @@ class PortalUser {
       isPrrc: isPrrc ?? this.isPrrc,
     );
   }
+
+  String? get avatarUrl => avatar;
+}
+
+String? _cleanAvatar(dynamic value) {
+  final str = value?.toString().trim();
+  if (str == null || str.isEmpty) return null;
+  return str;
 }
 
 class ActiveUser {
