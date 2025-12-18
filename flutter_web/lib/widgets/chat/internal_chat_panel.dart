@@ -710,9 +710,9 @@ class _InputBar extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: Shortcuts(
-                shortcuts: const {
-                  const LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
-                  const LogicalKeySet(
+                shortcuts: {
+                  LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
+                  LogicalKeySet(
                     LogicalKeyboardKey.shift,
                     LogicalKeyboardKey.enter,
                   ): const DoNothingIntent(),
