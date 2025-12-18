@@ -28,7 +28,8 @@ export default async function handler(req, res) {
     const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
-    const convRefs = await listUserConversations(client, uid);
+    const limit = Number(req.query?.limit || 50);
+    const convRefs = await listUserConversations(client, uid, { limit });
     const metaList = [];
     for (const ref of convRefs) {
       const meta = await fetchConversationMeta(client, ref.convId);

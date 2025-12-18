@@ -3,13 +3,15 @@
 class ChatParticipant {
   final String userId;
   final String displayName;
+  final String? email;
   final String? avatar;
 
-  const ChatParticipant({required this.userId, required this.displayName, this.avatar});
+  const ChatParticipant({required this.userId, required this.displayName, this.email, this.avatar});
 
   factory ChatParticipant.fromJson(Map<String, dynamic> json) => ChatParticipant(
         userId: (json['userId'] ?? '').toString(),
         displayName: (json['displayName'] ?? '').toString(),
+        email: json['email']?.toString(),
         avatar: json['avatar']?.toString(),
       );
 }
@@ -20,6 +22,7 @@ class ChatConversationSummary {
   final String title;
   final List<ChatParticipant> participants;
   final String? lastMessage;
+  final String? lastMessagePreview;
   final String? lastAuthor;
   final DateTime? lastMessageAt;
 
@@ -29,6 +32,7 @@ class ChatConversationSummary {
     required this.title,
     required this.participants,
     this.lastMessage,
+    this.lastMessagePreview,
     this.lastAuthor,
     this.lastMessageAt,
   });
@@ -39,11 +43,12 @@ class ChatConversationSummary {
         .map(ChatParticipant.fromJson)
         .toList();
     return ChatConversationSummary(
-      conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
+      conversationId: (json['id'] ?? json['convId'] ?? json['conversationId'] ?? '').toString(),
       type: (json['type'] ?? 'dm').toString(),
       title: (json['title'] ?? '').toString(),
       participants: participants,
-      lastMessage: json['lastMessage']?.toString(),
+      lastMessage: json['lastMessage']?.toString() ?? json['lastMessagePreview']?.toString(),
+      lastMessagePreview: json['lastMessagePreview']?.toString() ?? json['lastMsgPreview']?.toString(),
       lastAuthor: json['lastAuthor']?.toString(),
       lastMessageAt: json['lastMessageAt'] != null
           ? DateTime.tryParse(json['lastMessageAt'].toString())

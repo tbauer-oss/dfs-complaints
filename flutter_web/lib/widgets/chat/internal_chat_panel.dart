@@ -256,46 +256,55 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
                           final isMe = msg.authorId == widget.currentUserId;
-                          return Align(
-                            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 520),
-                              child: Card(
-                                color: isMe
-                                    ? Theme.of(context).colorScheme.primaryContainer
-                                    : Theme.of(context).colorScheme.surfaceVariant,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _displayNameFor(msg),
-                                        style: Theme.of(context).textTheme.labelMedium,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(msg.body),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            _formatTime(msg.timestamp),
-                                            style: Theme.of(context).textTheme.labelSmall,
-                                          ),
-                                          if (msg.pending)
-                                            const Padding(
-                                              padding: EdgeInsets.only(left: 6),
-                                              child: Icon(Icons.watch_later, size: 14),
+                          return Row(
+                            mainAxisAlignment:
+                                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            children: [
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 520),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: isMe
+                                        ? Theme.of(context).colorScheme.primaryContainer
+                                        : Theme.of(context).colorScheme.surfaceVariant,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                      children: [
+                                        if (!isMe)
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 4),
+                                            child: Text(
+                                              _displayNameFor(msg),
+                                              style: Theme.of(context).textTheme.labelMedium,
                                             ),
-                                        ],
-                                      ),
-                                    ],
+                                          ),
+                                        Text(msg.body),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              _formatTime(msg.timestamp),
+                                              style: Theme.of(context).textTheme.labelSmall,
+                                            ),
+                                            if (msg.pending)
+                                              const Padding(
+                                                padding: EdgeInsets.only(left: 6),
+                                                child: Icon(Icons.watch_later, size: 14),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           );
                         },
                       ),

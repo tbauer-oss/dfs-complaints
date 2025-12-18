@@ -7,13 +7,16 @@ import {
   isConversationId,
   keyConversationMembers,
   keyConversationMeta,
+  keyConversationMetaLegacy,
   keyConversationMessages,
   keyMessage,
   keyUser,
   keyUserConversations,
   keyUserInbox,
   normalizeUserId,
+  metaScanPatterns,
   parseParticipantList,
+  parseConversationIdFromMetaKey,
   sanitizeBody,
   toIsoTimestamp,
 } from './schema.js';
@@ -23,6 +26,36 @@ function safeDisplayName(name, fallback = 'Unbekannter Nutzer') {
   const value = String(name || '').trim();
   if (!value) return fallback;
   return value;
+}
+
+function toTimestampMs(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  if (Number.isFinite(num)) return num;
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toIsoOrNull(value) {
+  if (!value) return null;
+  const ts = typeof value === 'number' ? value : Date.parse(value);
+  if (!Number.isFinite(ts)) return null;
+  return new Date(ts).toISOString();
+}
+
+async function persistConversationMeta(rdb, convId, payload) {
+  await Promise.all([
+    rdb.hset(keyConversationMeta(convId), payload),
+    rdb.hset(keyConversationMetaLegacy(convId), payload),
+  ]);
+}
+
+async function readConversationMetaHash(rdb, convId) {
+  const primary = await rdb.hgetall(keyConversationMeta(convId));
+  if (primary && Object.keys(primary).length > 0) return { payload: primary, source: 'primary' };
+  const legacy = await rdb.hgetall(keyConversationMetaLegacy(convId));
+  if (legacy && Object.keys(legacy).length > 0) return { payload: legacy, source: 'legacy' };
+  return { payload: null, source: null };
 }
 
 export async function readUserProfile(redis, uid) {
@@ -66,18 +99,21 @@ async function readConversationParticipants(redis, convId, rawMeta) {
 export async function fetchConversationMeta(redis, convId) {
   if (!isConversationId(convId)) return null;
   const rdb = createRedisAdapter(redis);
-  const raw = await rdb.hgetall(keyConversationMeta(convId));
+  const { payload: raw, source } = await readConversationMetaHash(rdb, convId);
   if (!raw || Object.keys(raw).length === 0) return null;
+  if (source === 'legacy') await persistConversationMeta(rdb, convId, raw);
   const participants = await readConversationParticipants(rdb, convId, raw);
+  const lastActivity = raw.lastMessageAt || raw.lastMsgAt || raw.updatedAt || raw.createdAt || null;
   return {
     convId,
     type: raw.type || raw.kind || 'dm',
     createdAt: raw.createdAt || null,
     updatedAt: raw.updatedAt || null,
-    lastMsgAt: raw.lastMsgAt || raw.updatedAt || null,
+    lastMsgAt: lastActivity,
+    lastMessageAt: lastActivity,
     lastMsgId: raw.lastMsgId || null,
     lastMsgAuthor: raw.lastMsgAuthor || null,
-    lastMsgPreview: raw.lastMsgPreview || null,
+    lastMsgPreview: raw.lastMsgPreview || raw.lastMessagePreview || null,
     title: raw.title || null,
     createdBy: raw.createdBy || null,
     participants,
@@ -101,12 +137,13 @@ export async function ensureDmConversation(redis, uidA, uidB) {
   if (existing) return existing;
   const createdAt = toIsoTimestamp();
   const participants = [uidA, uidB];
-  await rdb.hset(keyConversationMeta(convId), {
+  await persistConversationMeta(rdb, convId, {
     convId,
     type: 'dm',
     createdAt,
     updatedAt: createdAt,
     lastMsgAt: createdAt,
+    lastMessageAt: createdAt,
     participants: JSON.stringify(participants),
   });
   await ensureMembersSet(redis, convId, participants);
@@ -131,7 +168,7 @@ export async function createGroupConversation(redis, title, members, createdBy) 
   if (filtered.length === 0) return null;
   const convId = buildGroupId(randomUUID());
   const createdAt = toIsoTimestamp();
-  await rdb.hset(keyConversationMeta(convId), {
+  await persistConversationMeta(rdb, convId, {
     convId,
     type: 'group',
     title: safeDisplayName(title, 'Gruppe'),
@@ -139,6 +176,7 @@ export async function createGroupConversation(redis, title, members, createdBy) 
     createdAt,
     updatedAt: createdAt,
     lastMsgAt: createdAt,
+    lastMessageAt: createdAt,
     participants: JSON.stringify(filtered),
   });
   await ensureMembersSet(rdb, convId, filtered);
@@ -171,6 +209,9 @@ export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
 
   const primary = await readInbox(keyUserInbox(uid));
   if (primary.length > 0) return primary;
+  await rebuildInboxForUser(redis, uid);
+  const rebuilt = await readInbox(keyUserInbox(uid));
+  if (rebuilt.length > 0) return rebuilt;
   const legacy = await readInbox(keyUserConversations(uid));
   if (legacy.length > 0) {
     await Promise.all(
@@ -178,6 +219,56 @@ export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
     );
   }
   return legacy;
+}
+
+async function resolveLastActivity(rdb, convId, meta) {
+  const direct =
+    toTimestampMs(meta?.lastMsgAt) ||
+    toTimestampMs(meta?.lastMessageAt) ||
+    toTimestampMs(meta?.updatedAt) ||
+    toTimestampMs(meta?.createdAt);
+  if (direct) return direct;
+  const recent = await rdb.zrange(keyConversationMessages(convId), 0, 0, { withScores: true, rev: true });
+  const score = Array.isArray(recent) && recent.length > 0 ? Number(recent[0].score) : null;
+  if (Number.isFinite(score) && score > 0) return score;
+  return null;
+}
+
+async function iterateConversationIds(redis) {
+  const rdb = createRedisAdapter(redis);
+  const ids = new Set();
+  for (const pattern of metaScanPatterns()) {
+    let cursor = 0;
+    do {
+      const result = await rdb.scan(cursor, { match: pattern, count: 200 });
+      const nextCursor = Array.isArray(result) ? Number(result[0]) : Number(result.cursor || 0);
+      const keys = Array.isArray(result) ? result[1] : result.keys || [];
+      for (const key of keys) {
+        const convId = parseConversationIdFromMetaKey(key);
+        if (convId) ids.add(convId);
+      }
+      cursor = nextCursor;
+    } while (cursor !== 0);
+  }
+  return Array.from(ids.values());
+}
+
+export async function rebuildInboxForUser(redis, uid) {
+  const rdb = createRedisAdapter(redis);
+  const convIds = await iterateConversationIds(redis);
+  for (const convId of convIds) {
+    const meta = await fetchConversationMeta(rdb, convId);
+    if (!meta) continue;
+    if (!meta.participants.includes(uid)) continue;
+    const ts = await resolveLastActivity(rdb, convId, meta);
+    const score = Number.isFinite(ts) ? Number(ts) : Date.now();
+    for (const participant of meta.participants) {
+      await Promise.all([
+        rdb.zadd(keyUserInbox(participant), { score, member: convId }),
+        rdb.zadd(keyUserConversations(participant), { score, member: convId }),
+      ]);
+    }
+  }
 }
 
 export async function registerConversationForUsers(redis, convId, participants, tsMs) {
@@ -232,12 +323,15 @@ export async function appendMessage(redis, convMeta, messagePayload) {
     member: messagePayload.msgId,
   });
 
-  await rdb.hset(keyConversationMeta(convMeta.convId), {
+  const lastMessagePreview = messagePayload.body.slice(0, 240);
+  await persistConversationMeta(rdb, convMeta.convId, {
     updatedAt: timestampIso,
     lastMsgAt: timestampIso,
+    lastMessageAt: timestampIso,
     lastMsgId: messagePayload.msgId,
     lastMsgAuthor: messagePayload.senderName,
-    lastMsgPreview: messagePayload.body.slice(0, 240),
+    lastMsgPreview: lastMessagePreview,
+    lastMessagePreview,
   });
 
   return {
@@ -329,18 +423,20 @@ export function buildConversationSummary(meta, profiles, currentUserId) {
     email: profiles.get(uid)?.email || uid,
     avatar: profiles.get(uid)?.avatar || null,
   }));
-  const lastActivity = meta.lastMsgAt || meta.updatedAt || meta.createdAt;
+  const lastActivity = meta.lastMsgAt || meta.lastMessageAt || meta.updatedAt || meta.createdAt;
   const title = meta.type === 'group'
     ? meta.title || 'Gruppe'
     : participants.find((p) => p.userId !== currentUserId)?.displayName || 'Direktnachricht';
   return {
+    id: meta.convId,
     convId: meta.convId,
     type: meta.type || 'dm',
     title,
     participants,
-    lastMessage: meta.lastMsgPreview || null,
+    lastMessage: meta.lastMsgPreview || meta.lastMessagePreview || null,
+    lastMessagePreview: meta.lastMsgPreview || meta.lastMessagePreview || null,
     lastAuthor: meta.lastMsgAuthor || null,
-    lastMessageAt: lastActivity,
+    lastMessageAt: toIsoOrNull(lastActivity),
   };
 }
 

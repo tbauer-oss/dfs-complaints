@@ -3,6 +3,8 @@
 const PREFIX = 'chat:v1';
 const MAX_BODY_LENGTH = 2000;
 
+export const META_PREFIX = 'chat:conv:';
+
 export function normalizeUserId(raw) {
   const value = String(raw || '').trim();
   if (!value) return null;
@@ -49,6 +51,10 @@ export function keyUserInbox(uid) {
 }
 
 export function keyConversationMeta(convId) {
+  return `${META_PREFIX}${convId}`;
+}
+
+export function keyConversationMetaLegacy(convId) {
   return `${PREFIX}:conv:${convId}:meta`;
 }
 
@@ -80,6 +86,20 @@ export function parseTimestamp(value) {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) return null;
   return num;
+}
+
+export function metaScanPatterns() {
+  return [`${META_PREFIX}*`, keyConversationMetaLegacy('*')];
+}
+
+export function parseConversationIdFromMetaKey(key) {
+  if (!key) return null;
+  if (key.startsWith(META_PREFIX)) return key.slice(META_PREFIX.length);
+  const legacyPrefix = `${PREFIX}:conv:`;
+  if (key.startsWith(legacyPrefix) && key.endsWith(':meta')) {
+    return key.slice(legacyPrefix.length, -':meta'.length);
+  }
+  return null;
 }
 
 export function parseParticipantList(raw) {

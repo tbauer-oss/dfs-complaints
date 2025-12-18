@@ -13,14 +13,22 @@ import { requirePortalAccess } from '../../admin/_guard.js';
 import { redis } from '../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from './_lib/cleanup.js';
+import { createRedisAdapter } from './_lib/redisAdapter.js';
 import {
   buildConversationId,
   keyConversationMembers,
   keyConversationMeta,
-  keyUserConversations,
-  keyUserInbox,
+  keyConversationMetaLegacy,
   normalizeUserId,
 } from './_lib/schema.js';
+import { ensureDmConversation, fetchConversationMeta, registerConversationForUsers } from './_lib/store.js';
+
+function toTimestampMs(value) {
+  const num = Number(value);
+  if (Number.isFinite(num)) return num;
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -32,6 +40,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const { client, counters } = createTrackedRedis(redis);
+  const rdb = createRedisAdapter(client);
   const isDev = process.env.NODE_ENV !== 'production';
   const hasRedisEnv = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 
@@ -51,7 +60,11 @@ export default async function handler(req, res) {
     }
 
     const rawOther =
-      typeof body?.otherEmail === 'string' && body.otherEmail.trim() ? body.otherEmail : body?.otherUid;
+      typeof body?.peerEmail === 'string' && body.peerEmail.trim()
+        ? body.peerEmail
+        : typeof body?.otherEmail === 'string' && body.otherEmail.trim()
+          ? body.otherEmail
+          : body?.otherUid;
 
     const selfEmail = normalizeUserId(actor?.email);
     if (!selfEmail) return bad(res, 'unauthorized', 401);
@@ -67,13 +80,6 @@ export default async function handler(req, res) {
     if (!convId) return bad(res, 'invalid payload', 400);
     const [, a, b] = convId.split(':');
 
-    const metaKey = keyConversationMeta(convId);
-    const membersKey = keyConversationMembers(convId);
-    const z1 = keyUserConversations(a);
-    const z2 = keyUserConversations(b);
-    const inbox1 = keyUserInbox(a);
-    const inbox2 = keyUserInbox(b);
-
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();
 
@@ -87,43 +93,38 @@ export default async function handler(req, res) {
     }
 
     try {
-      const metaExists = Boolean(await client.exists(metaKey));
-      const existingCreatedAt = metaExists ? await client.hget(metaKey, 'createdAt') : null;
-      const existingLastMsgAt = metaExists ? await client.hget(metaKey, 'lastMsgAt') : null;
-      const metaPayload = {
-        type: 'dm',
-        updatedAt: nowIso,
-        createdAt: existingCreatedAt || nowIso,
-        lastMsgAt: existingLastMsgAt || existingCreatedAt || nowIso,
-        participants: JSON.stringify([a, b]),
-        p1: a,
-        p2: b,
-      };
+      const existing = await fetchConversationMeta(rdb, convId);
+      const meta = existing || (await ensureDmConversation(rdb, a, b));
+      const lastActivity =
+        meta?.lastMessageAt || meta?.lastMsgAt || meta?.updatedAt || meta?.createdAt || nowIso;
 
-      const pipeline = typeof client.multi === 'function' ? client.multi() : null;
-
-      if (pipeline) {
-        pipeline.sadd(membersKey, a, b);
-        pipeline.hset(metaKey, metaPayload);
-        pipeline.zadd(z1, { score: nowMs, member: convId });
-        pipeline.zadd(z2, { score: nowMs, member: convId });
-        pipeline.zadd(inbox1, { score: nowMs, member: convId });
-        pipeline.zadd(inbox2, { score: nowMs, member: convId });
-        await pipeline.exec();
-      } else {
-        await Promise.all([
-          client.sadd(membersKey, a, b),
-          client.hset(metaKey, metaPayload),
-          client.zadd(z1, { score: nowMs, member: convId }),
-          client.zadd(z2, { score: nowMs, member: convId }),
-          client.zadd(inbox1, { score: nowMs, member: convId }),
-          client.zadd(inbox2, { score: nowMs, member: convId }),
-        ]);
-      }
+      await registerConversationForUsers(rdb, convId, [a, b], toTimestampMs(lastActivity) || nowMs);
+      await Promise.all([
+        rdb.sadd(keyConversationMembers(convId), a, b),
+        rdb.hset(keyConversationMeta(convId), {
+          updatedAt: nowIso,
+          lastMsgAt: lastActivity,
+          lastMessageAt: lastActivity,
+          lastMsgPreview: meta?.lastMsgPreview || meta?.lastMessagePreview || '',
+          lastMessagePreview: meta?.lastMsgPreview || meta?.lastMessagePreview || '',
+          participants: JSON.stringify([a, b]),
+          p1: a,
+          p2: b,
+        }),
+        rdb.hset(keyConversationMetaLegacy(convId), {
+          updatedAt: nowIso,
+          lastMsgAt: lastActivity,
+          lastMessageAt: lastActivity,
+          lastMsgPreview: meta?.lastMsgPreview || meta?.lastMessagePreview || '',
+          lastMessagePreview: meta?.lastMsgPreview || meta?.lastMessagePreview || '',
+          participants: JSON.stringify([a, b]),
+          p1: a,
+          p2: b,
+        }),
+      ]);
 
       logRedisUsage('[chat/v1/dm] ensured', counters, {
         conversation: convId,
-        metaExists,
         participants: [a, b],
       });
 
