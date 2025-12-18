@@ -162,7 +162,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     final tempId = widget.chatService.buildMessageId(_convId);
-    final authorName = widget.conversation.displayNameFor(widget.currentUserId);
+    final authorName = _displayNameForCurrentUser();
     final optimistic = ChatMessage(
       id: tempId,
       conversationId: _convId,
@@ -213,6 +213,22 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     });
   }
 
+  String _displayNameFor(ChatMessage msg) {
+    final directName = msg.authorName.trim();
+    if (directName.isNotEmpty && directName != 'Unbekannt') return directName;
+    final participantName = widget.conversation.displayNameFor(msg.authorId);
+    if (participantName.isNotEmpty && participantName != 'Unbekannt') return participantName;
+    if (msg.senderEmail != null && msg.senderEmail!.isNotEmpty) return msg.senderEmail!;
+    if (msg.authorId.isNotEmpty) return msg.authorId;
+    return 'Unbekannter Nutzer';
+  }
+
+  String _displayNameForCurrentUser() {
+    final candidate = widget.conversation.displayNameFor(widget.currentUserId);
+    if (candidate.isNotEmpty && candidate != 'Unbekannt') return candidate;
+    return 'Du';
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.conversation.titleFor(widget.currentUserId);
@@ -255,7 +271,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                         isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        msg.authorName,
+                                        _displayNameFor(msg),
                                         style: Theme.of(context).textTheme.labelMedium,
                                       ),
                                       const SizedBox(height: 4),

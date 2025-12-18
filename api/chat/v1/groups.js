@@ -45,14 +45,20 @@ export default async function handler(req, res) {
     const convMeta = await createGroupConversation(client, title, memberIds, selfId);
     if (!convMeta) return bad(res, 'failed to create group', 500);
 
-    const actorDisplayName = actor.displayName || actor.name || actor.id || 'Unbekannter Nutzer';
+    const actorEmail = actor.email?.toString().trim().toLowerCase();
+    const actorDisplayName = actor.displayName || actor.name || actor.id || actorEmail || 'Unbekannter Nutzer';
     await upsertUserProfile(client, selfId, { displayName: actorDisplayName });
 
     const tsMs = Date.now();
     let metaForSummary = { ...convMeta, lastMsgAt: convMeta.lastMsgAt || convMeta.createdAt };
 
     if (validateMessageBody(initialBody)) {
-      const payload = buildMessagePayload(convMeta.convId, { userId: selfId, displayName: actorDisplayName }, initialBody, tsMs);
+      const payload = buildMessagePayload(
+        convMeta.convId,
+        { userId: selfId, displayName: actorDisplayName, email: actorEmail },
+        initialBody,
+        tsMs
+      );
       const message = await appendMessage(client, convMeta, payload);
       await registerConversationForUsers(client, convMeta.convId, convMeta.participants, payload.timestampMs);
       metaForSummary = {

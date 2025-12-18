@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { bad, handlePreflight, methodNotAllowed, ok, readJson, setCors } from '../../../../_lib/http.js';
 import { getAuthUser } from '../../../../_lib/auth.js';
 import { redis } from '../../../../_lib/redis.js';
+import { buildPortalUserDirectory } from '../../../../_lib/userDirectory.js';
 import { createTrackedRedis, logRedisUsage } from '../../_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from '../../_lib/cleanup.js';
 import { createRedisAdapter } from '../../_lib/redisAdapter.js';
@@ -89,9 +90,16 @@ export default async function handler(req, res) {
       ? requestedMessageId
       : buildMessageId(convId, tsMs);
 
+    const directory = await buildPortalUserDirectory();
+    const normalizedEmail = actor.email?.toString().trim().toLowerCase();
+    const directoryName = directory.get(uid) || (normalizedEmail ? directory.get(normalizedEmail) : null);
+    const authorDisplayName =
+      directoryName || actor.displayName || actor.name || actor.id || normalizedEmail || 'Unbekannter Nutzer';
+
     const authorProfile = {
       userId: uid,
-      displayName: actor.displayName || actor.name || actor.id || 'Unbekannter Nutzer',
+      displayName: authorDisplayName,
+      email: normalizedEmail,
     };
 
     await upsertUserProfile(rdb, uid, { displayName: authorProfile.displayName });

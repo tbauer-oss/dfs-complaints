@@ -13,7 +13,14 @@ import { requirePortalAccess } from '../../admin/_guard.js';
 import { redis } from '../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from './_lib/cleanup.js';
-import { keyConversationMembers, keyConversationMeta, keyUserConversations, normalizeUserId } from './_lib/schema.js';
+import {
+  buildConversationId,
+  keyConversationMembers,
+  keyConversationMeta,
+  keyUserConversations,
+  keyUserInbox,
+  normalizeUserId,
+} from './_lib/schema.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -56,13 +63,16 @@ export default async function handler(req, res) {
     if (!isString || !otherEmail || !isEmailLike) return bad(res, 'invalid payload', 400);
     if (selfEmail === otherEmail) return bad(res, 'invalid payload', 400);
 
-    const [a, b] = [selfEmail, otherEmail].map((s) => s.trim().toLowerCase()).sort();
-    const convId = `dm:${a}:${b}`;
+    const convId = buildConversationId(selfEmail, otherEmail);
+    if (!convId) return bad(res, 'invalid payload', 400);
+    const [, a, b] = convId.split(':');
 
     const metaKey = keyConversationMeta(convId);
     const membersKey = keyConversationMembers(convId);
     const z1 = keyUserConversations(a);
     const z2 = keyUserConversations(b);
+    const inbox1 = keyUserInbox(a);
+    const inbox2 = keyUserInbox(b);
 
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();
@@ -79,8 +89,16 @@ export default async function handler(req, res) {
     try {
       const metaExists = Boolean(await client.exists(metaKey));
       const existingCreatedAt = metaExists ? await client.hget(metaKey, 'createdAt') : null;
-      const metaPayload = { type: 'dm', updatedAt: nowIso };
-      if (!existingCreatedAt) metaPayload.createdAt = nowIso;
+      const existingLastMsgAt = metaExists ? await client.hget(metaKey, 'lastMsgAt') : null;
+      const metaPayload = {
+        type: 'dm',
+        updatedAt: nowIso,
+        createdAt: existingCreatedAt || nowIso,
+        lastMsgAt: existingLastMsgAt || existingCreatedAt || nowIso,
+        participants: JSON.stringify([a, b]),
+        p1: a,
+        p2: b,
+      };
 
       const pipeline = typeof client.multi === 'function' ? client.multi() : null;
 
@@ -89,6 +107,8 @@ export default async function handler(req, res) {
         pipeline.hset(metaKey, metaPayload);
         pipeline.zadd(z1, { score: nowMs, member: convId });
         pipeline.zadd(z2, { score: nowMs, member: convId });
+        pipeline.zadd(inbox1, { score: nowMs, member: convId });
+        pipeline.zadd(inbox2, { score: nowMs, member: convId });
         await pipeline.exec();
       } else {
         await Promise.all([
@@ -96,6 +116,8 @@ export default async function handler(req, res) {
           client.hset(metaKey, metaPayload),
           client.zadd(z1, { score: nowMs, member: convId }),
           client.zadd(z2, { score: nowMs, member: convId }),
+          client.zadd(inbox1, { score: nowMs, member: convId }),
+          client.zadd(inbox2, { score: nowMs, member: convId }),
         ]);
       }
 
