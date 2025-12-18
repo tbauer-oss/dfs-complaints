@@ -8,6 +8,7 @@ import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 import '../../utils/display_name_from_email.dart';
+import 'group_icon_picker.dart';
 
 class InternalChatPanel extends StatefulWidget {
   final ChatService chatService;
@@ -58,6 +59,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     if (avatar == null || avatar.isEmpty) return null;
     return avatar;
   }
+
+  IconData? _groupIconData() => iconForGroupIconId(_activeSummary.groupIconId);
 
   @override
   void initState() {
@@ -383,6 +386,46 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     } catch (_) {}
   }
 
+  void _applyMetaUpdate(Map<String, dynamic> nextMeta) {
+    final updated = _activeSummary.copyWith(meta: nextMeta);
+    if (mounted) {
+      setState(() => _activeSummary = updated);
+    } else {
+      _activeSummary = updated;
+    }
+    _pushConversationUpdate(updated);
+  }
+
+  Future<void> _changeGroupIcon() async {
+    if (!_activeSummary.isGroup) return;
+    final selection = await showGroupIconPicker(
+      context,
+      initialIconId: _activeSummary.groupIconId,
+    );
+    if (selection == null) return;
+    final nextMeta = {...?_activeSummary.meta};
+    if (selection.isEmpty) {
+      nextMeta.remove('groupIcon');
+    } else {
+      nextMeta['groupIcon'] = selection;
+    }
+
+    try {
+      final savedMeta = await widget.chatService.updateConversationMeta(_convId, nextMeta);
+      _applyMetaUpdate(savedMeta);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gruppen-Icon aktualisiert')),
+        );
+      }
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gruppen-Icon konnte nicht gespeichert werden: $err')),
+      );
+    }
+  }
+
   void _showMembersDialog(List<ChatParticipant> members, {List<String> fallbackNames = const []}) {
     if (members.isEmpty && fallbackNames.isEmpty) return;
     final theme = Theme.of(context);
@@ -437,6 +480,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         .where((p) => p.userId != widget.currentUserId)
         .toList(growable: false);
     final headerAvatarUrl = _conversationAvatarUrl();
+    final headerIcon = _activeSummary.isGroup ? _groupIconData() : null;
+    final changeGroupIcon = _activeSummary.isGroup ? _changeGroupIcon : null;
     if (_myId.isEmpty) {
       return Column(
         children: [
@@ -446,9 +491,11 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             onBack: widget.onBack,
             showBackButton: widget.showBackButton,
             avatarUrl: headerAvatarUrl,
+            avatarIcon: headerIcon,
             onShowMembers: memberParticipants.isEmpty && memberNames.isEmpty
                 ? null
                 : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
+            onChangeGroupIcon: changeGroupIcon,
           ),
           const Expanded(child: Center(child: CircularProgressIndicator())),
         ],
@@ -468,9 +515,11 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             onBack: widget.onBack,
             showBackButton: widget.showBackButton,
             avatarUrl: headerAvatarUrl,
+            avatarIcon: headerIcon,
             onShowMembers: memberParticipants.isEmpty && memberNames.isEmpty
                 ? null
                 : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
+            onChangeGroupIcon: changeGroupIcon,
           ),
           Expanded(
             child: Container(
@@ -666,6 +715,7 @@ Widget _buildAvatar(
   String? avatarUrl,
   required String label,
   double radius = 20,
+  IconData? icon,
 }) {
   final trimmed = label.trim();
   final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
@@ -675,9 +725,15 @@ Widget _buildAvatar(
     backgroundImage: hasAvatar ? NetworkImage(avatarUrl!) : null,
     backgroundColor: hasAvatar ? null : theme.colorScheme.primaryContainer,
     foregroundColor: hasAvatar ? null : theme.colorScheme.onPrimaryContainer,
-    child: hasAvatar ? null : Text(fallback),
+    child: hasAvatar
+        ? null
+        : icon != null
+            ? Icon(icon)
+            : Text(fallback),
   );
 }
+
+enum _PanelHeaderAction { showMembers, changeIcon }
 
 class _PanelHeader extends StatelessWidget {
   final String title;
@@ -686,6 +742,8 @@ class _PanelHeader extends StatelessWidget {
   final bool showBackButton;
   final VoidCallback? onShowMembers;
   final String? avatarUrl;
+  final IconData? avatarIcon;
+  final VoidCallback? onChangeGroupIcon;
 
   const _PanelHeader({
     required this.title,
@@ -694,6 +752,8 @@ class _PanelHeader extends StatelessWidget {
     this.subtitle,
     this.onShowMembers,
     this.avatarUrl,
+    this.avatarIcon,
+    this.onChangeGroupIcon,
   });
 
   @override
@@ -725,7 +785,12 @@ class _PanelHeader extends StatelessWidget {
             )
           else
             const SizedBox(width: 8),
-          _buildAvatar(theme, avatarUrl: avatarUrl, label: title),
+          _buildAvatar(
+            theme,
+            avatarUrl: avatarUrl,
+            label: title,
+            icon: avatarIcon,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -761,11 +826,31 @@ class _PanelHeader extends StatelessWidget {
             icon: Icon(Icons.search_rounded, color: theme.colorScheme.onSurfaceVariant),
             onPressed: () {},
           ),
-          if (onShowMembers != null)
-            IconButton(
-              tooltip: 'Mitglieder anzeigen',
-              icon: const Icon(Icons.group_outlined),
-              onPressed: onShowMembers,
+          if (onShowMembers != null || onChangeGroupIcon != null)
+            PopupMenuButton<_PanelHeaderAction>(
+              icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
+              onSelected: (action) {
+                switch (action) {
+                  case _PanelHeaderAction.showMembers:
+                    onShowMembers?.call();
+                    break;
+                  case _PanelHeaderAction.changeIcon:
+                    onChangeGroupIcon?.call();
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                if (onShowMembers != null)
+                  const PopupMenuItem(
+                    value: _PanelHeaderAction.showMembers,
+                    child: Text('Mitglieder anzeigen'),
+                  ),
+                if (onChangeGroupIcon != null)
+                  const PopupMenuItem(
+                    value: _PanelHeaderAction.changeIcon,
+                    child: Text('Gruppen-Icon ändern'),
+                  ),
+              ],
             ),
         ],
       ),

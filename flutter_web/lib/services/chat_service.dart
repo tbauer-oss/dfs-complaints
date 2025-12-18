@@ -115,12 +115,14 @@ class ChatService {
     required String title,
     required List<String> memberUids,
     String? initialMessage,
+    String? groupIcon,
   }) async {
     final uri = api.buildUri('/api/chat/v1/groups');
     final payload = {
       'title': title,
       'memberUids': memberUids,
       if (initialMessage != null && initialMessage.trim().isNotEmpty) 'initialMessage': initialMessage,
+      if (groupIcon != null) 'meta': {'groupIcon': groupIcon},
     };
     final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
     api.assertSuccess(response);
@@ -179,5 +181,19 @@ class ChatService {
     final response = await http.delete(uri, headers: api.portalHeaders());
     if (response.statusCode == 204) return;
     api.assertSuccess(response);
+  }
+
+  Future<Map<String, dynamic>> updateConversationMeta(
+    String convId,
+    Map<String, dynamic> meta,
+  ) async {
+    final uri = api.buildUri('/api/chat/v1/conversations/$convId/meta');
+    final response = await http.put(uri, headers: api.portalHeaders(), body: jsonEncode(meta));
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    if (jsonBody['meta'] is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(jsonBody['meta'] as Map<String, dynamic>);
+    }
+    return meta;
   }
 }
