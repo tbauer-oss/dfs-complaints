@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
+import '../../utils/display_name_from_email.dart';
 
 class InternalChatPanel extends StatefulWidget {
   final ChatService chatService;
@@ -218,7 +219,9 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     if (directName.isNotEmpty && directName != 'Unbekannt') return directName;
     final participantName = widget.conversation.displayNameFor(msg.authorId);
     if (participantName.isNotEmpty && participantName != 'Unbekannt') return participantName;
-    if (msg.senderEmail != null && msg.senderEmail!.isNotEmpty) return msg.senderEmail!;
+    if (msg.senderEmail != null && msg.senderEmail!.isNotEmpty) {
+      return displayNameFromEmail(msg.senderEmail!);
+    }
     if (msg.authorId.isNotEmpty) return msg.authorId;
     return 'Unbekannter Nutzer';
   }
