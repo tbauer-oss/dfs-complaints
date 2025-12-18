@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../api/client.dart';
 import '../../models/chat_message.dart';
@@ -50,6 +51,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     super.initState();
     _activeSummary = widget.conversation;
     _myId = _normalizeId(widget.currentUserId);
+    _controller.addListener(() => setState(() {}));
     _loadInitial();
     _startPolling();
   }
@@ -437,16 +439,16 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                   itemBuilder: (context, index) {
                                     final msg = _messages[index];
                                     final isMe = _isMessageFromCurrentUser(msg);
-                                    final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
+                                    final bubbleWidth = MediaQuery.of(context).size.width * 0.7;
                                     final timeString = _formatTime(msg.timestamp);
                                     final backgroundColor = isMe
-                                        ? theme.colorScheme.primaryContainer.withOpacity(0.32)
-                                        : theme.colorScheme.surfaceVariant.withOpacity(0.4);
+                                        ? const Color(0x1A0A63A8)
+                                        : theme.colorScheme.onSurfaceVariant.withOpacity(0.08);
                                     final radius = BorderRadius.only(
-                                      topLeft: const Radius.circular(16),
-                                      topRight: const Radius.circular(16),
-                                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                                      topLeft: const Radius.circular(18),
+                                      topRight: const Radius.circular(18),
+                                      bottomLeft: Radius.circular(isMe ? 18 : 6),
+                                      bottomRight: Radius.circular(isMe ? 6 : 18),
                                     );
 
                                     return Align(
@@ -460,13 +462,13 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                               color: backgroundColor,
                                               borderRadius: radius,
                                               border: Border.all(
-                                                color: theme.colorScheme.outlineVariant.withOpacity(0.25),
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: theme.shadowColor.withOpacity(0.06),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 2),
+                                                color: theme.colorScheme.outlineVariant.withOpacity(0.15),
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: theme.shadowColor.withOpacity(0.04),
+                                                  blurRadius: 12,
+                                                  offset: const Offset(0, 4),
                                                 ),
                                               ],
                                             ),
@@ -555,6 +557,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
           sending: _sending,
           onSend: _send,
           onPickAttachment: _pickAttachments,
+          canSend: _controller.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty,
           hasPendingAttachments: _pendingAttachments.isNotEmpty,
         ),
       ],
@@ -579,6 +582,7 @@ class _PanelHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isCompact = MediaQuery.of(context).size.width < 900;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
@@ -594,11 +598,14 @@ class _PanelHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            tooltip: 'Zur Übersicht',
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: onBack,
-          ),
+          if (isCompact)
+            IconButton(
+              tooltip: 'Zur Übersicht',
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: onBack,
+            )
+          else
+            const SizedBox(width: 8),
           CircleAvatar(
             backgroundColor: theme.colorScheme.primaryContainer,
             foregroundColor: theme.colorScheme.onPrimaryContainer,
@@ -656,12 +663,14 @@ class _InputBar extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onPickAttachment;
   final bool hasPendingAttachments;
+  final bool canSend;
 
   const _InputBar({
     required this.controller,
     required this.sending,
     required this.onSend,
     required this.onPickAttachment,
+    required this.canSend,
     this.hasPendingAttachments = false,
   });
 
@@ -685,44 +694,88 @@ class _InputBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            IconButton(
-              tooltip: 'Datei anhängen (UI)',
-              icon: Icon(
-                Icons.attach_file_outlined,
-                color: hasPendingAttachments
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
+            Tooltip(
+              message: 'Anhänge noch nicht verfügbar',
+              child: IconButton(
+                tooltip: 'Anhänge (noch nicht verfügbar)',
+                icon: Icon(
+                  Icons.attach_file_outlined,
+                  color: hasPendingAttachments
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                onPressed: null,
               ),
-              onPressed: sending ? null : onPickAttachment,
             ),
             const SizedBox(width: 6),
             Expanded(
-              child: TextField(
-                controller: controller,
-                maxLines: 3,
-                minLines: 1,
-                decoration: InputDecoration(
-                  hintText: 'Nachricht eingeben...',
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.45),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+              child: Shortcuts(
+                shortcuts: const {
+                  LogicalKeySet(LogicalKeyboardKey.enter): ActivateIntent(),
+                  LogicalKeySet(LogicalKeyboardKey.shift, LogicalKeyboardKey.enter):
+                      DoNothingIntent(),
+                },
+                child: Actions(
+                  actions: {
+                    ActivateIntent: CallbackAction<ActivateIntent>(
+                      onInvoke: (_) {
+                        if (canSend && !sending) {
+                          onSend();
+                        }
+                        return null;
+                      },
+                    ),
+                    DoNothingIntent: CallbackAction<DoNothingIntent>(
+                      onInvoke: (_) {
+                        final value = controller.value;
+                        final selection = value.selection;
+                        final newText = value.text.replaceRange(
+                          selection.start,
+                          selection.end,
+                          '\n',
+                        );
+                        controller.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(
+                            offset: selection.start + 1,
+                          ),
+                        );
+                        return null;
+                      },
+                    ),
+                  },
+                  child: Focus(
+                    autofocus: true,
+                    child: TextField(
+                      controller: controller,
+                      maxLines: 5,
+                      minLines: 1,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: 'Nachricht eingeben...',
+                        filled: true,
+                        fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                        ),
+                        prefixIcon:
+                            Icon(Icons.message_outlined, color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-                  ),
-                  prefixIcon: Icon(Icons.message_outlined, color: theme.colorScheme.onSurfaceVariant),
                 ),
-                onSubmitted: (_) => onSend(),
               ),
             ),
             const SizedBox(width: 10),
             FilledButton.icon(
-              onPressed: sending ? null : onSend,
+              onPressed: (!canSend || sending) ? null : onSend,
               icon: const Icon(Icons.send_rounded),
               label: const Text('Senden'),
               style: FilledButton.styleFrom(
