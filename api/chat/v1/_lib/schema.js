@@ -8,6 +8,7 @@ const META_PREFIX = 'chat:v1:conv:';
 const META_PREFIX_COMPAT = 'chat:conv:';
 const MSG_PREFIX = 'chat:v1:msg:';
 const MSG_PREFIX_LEGACY = 'chat:v1:conv:';
+const AVATAR_PREFIX = 'chat:v1:avatars';
 
 export function normalizeUserId(raw) {
   const value = String(raw || '').trim();
@@ -60,6 +61,10 @@ export function buildMessageId(convId, timestampMs) {
 
 export function keyUser(uid) {
   return `${PREFIX}:user:${uid}`;
+}
+
+export function keyAvatarMap() {
+  return AVATAR_PREFIX;
 }
 
 export function keyUserV2(uid) {
