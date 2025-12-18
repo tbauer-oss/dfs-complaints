@@ -148,16 +148,63 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            border: Border(
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Nachrichten',
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text('Alle Konversationen im Überblick',
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: theme.colorScheme.outline)),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Archiv',
+                onPressed: () {},
+                icon: Icon(Icons.archive_outlined,
+                    color: theme.colorScheme.outline),
+              ),
+              IconButton(
+                tooltip: 'Weitere Optionen',
+                onPressed: () {},
+                icon: Icon(Icons.more_vert, color: theme.colorScheme.outline),
+              ),
+            ],
+          ),
+        ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _searchCtrl,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
                     hintText: 'Betreff, Kontakt oder Ticketnummer suchen',
+                    filled: true,
+                    fillColor:
+                        theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -167,9 +214,17 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                 onPressed: _startConversation,
                 icon: const Icon(Icons.add_comment_outlined),
                 label: const Text('Neuer Chat'),
+                style: FilledButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
               ),
             ],
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Divider(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
         ),
         Expanded(
           child: filtered.isEmpty
@@ -190,44 +245,130 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                   ),
                 )
               : ListView.separated(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   itemBuilder: (_, i) {
                     final conv = filtered[i];
                     final unread = conv.unreadCount(_currentRole);
-                    return ListTile(
-                      selected: conv.id == _activeConversationId,
-                      onTap: () => _selectConversation(conv.id),
-                      leading: CircleAvatar(
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Text(conv.contactLabel.isEmpty
-                            ? 'C'
-                            : conv.contactLabel.substring(0, 1).toUpperCase()),
+                    final selected = conv.id == _activeConversationId;
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _selectConversation(conv.id),
+                        borderRadius: BorderRadius.circular(14),
+                        hoverColor:
+                            theme.colorScheme.primary.withOpacity(0.05),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border(
+                              left: BorderSide(
+                                color: selected
+                                    ? theme.colorScheme.primary
+                                    : Colors.transparent,
+                                width: 4,
+                              ),
+                            ),
+                            color: selected
+                                ? theme.colorScheme.primary
+                                    .withOpacity(0.06)
+                                : null,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor:
+                                    theme.colorScheme.primaryContainer,
+                                child: Text(conv.contactLabel.isEmpty
+                                    ? 'C'
+                                    : conv.contactLabel
+                                        .substring(0, 1)
+                                        .toUpperCase()),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            conv.subject,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.titleMedium
+                                                ?.copyWith(
+                                                    fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _formatConversationTime(
+                                              conv.lastActivity),
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                                  color:
+                                                      theme.colorScheme.outline),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      conv.messages.isNotEmpty
+                                          ? conv.messages.last.text
+                                          : 'Keine Nachrichten',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: theme.colorScheme.outline,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        Text(conv.contactLabel,
+                                            style: theme.textTheme.bodySmall),
+                                        if (conv.ticketNumber != null)
+                                          _chip(conv.ticketNumber!, theme),
+                                        if (conv.internalNumber != null)
+                                          _chip(conv.internalNumber!, theme),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                children: [
+                                  if (unread > 0)
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  Icon(Icons.chevron_right,
+                                      color: theme.colorScheme.outline),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      title: Text(conv.subject,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Wrap(
-                        spacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(conv.contactLabel,
-                              style: theme.textTheme.bodySmall),
-                          if (conv.ticketNumber != null)
-                            _chip(conv.ticketNumber!, theme),
-                          if (conv.internalNumber != null)
-                            _chip(conv.internalNumber!, theme),
-                        ],
-                      ),
-                      trailing: unread > 0
-                          ? Chip(
-                              label: Text('$unread neu'),
-                              avatar: const Icon(Icons.mark_chat_unread,
-                                  size: 16),
-                              backgroundColor:
-                                  theme.colorScheme.secondaryContainer,
-                            )
-                          : const SizedBox.shrink(),
                     );
                   },
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemCount: filtered.length,
                 ),
         ),
@@ -248,91 +389,168 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   Widget _buildConversationHeader(ComplaintChatConversation conv) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(conv.subject,
-            style:
-                theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Chip(
-              label: Text(conv.contactLabel),
-              avatar: const Icon(Icons.person_outline),
-            ),
-            if (conv.ticketNumber != null)
-              Chip(
-                label: Text('Ticket ${conv.ticketNumber}'),
-                avatar: const Icon(Icons.confirmation_number_outlined),
-              ),
-            if (conv.internalNumber != null)
-              Chip(
-                label: Text('DFS ${conv.internalNumber}'),
-                avatar: const Icon(Icons.badge_outlined),
-              ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
-      ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(conv.subject,
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Chip(
+                      label: Text(conv.contactLabel),
+                      avatar: const Icon(Icons.person_outline),
+                    ),
+                    if (conv.ticketNumber != null)
+                      Chip(
+                        label: Text('Ticket ${conv.ticketNumber}'),
+                        avatar:
+                            const Icon(Icons.confirmation_number_outlined),
+                      ),
+                    if (conv.internalNumber != null)
+                      Chip(
+                        label: Text('DFS ${conv.internalNumber}'),
+                        avatar: const Icon(Icons.badge_outlined),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Archivieren',
+                onPressed: () {},
+                icon:
+                    Icon(Icons.archive_outlined, color: theme.colorScheme.primary),
+              ),
+              IconButton(
+                tooltip: 'Info',
+                onPressed: () {},
+                icon: Icon(Icons.info_outline,
+                    color: theme.colorScheme.onSurfaceVariant),
+              ),
+              IconButton(
+                tooltip: 'Menü',
+                onPressed: () {},
+                icon: Icon(Icons.more_vert,
+                    color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildMessages(ComplaintChatConversation conv) {
     final theme = Theme.of(context);
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
       itemCount: conv.messages.length,
       itemBuilder: (_, i) {
         final m = conv.messages[i];
         final isMine = m.author == _currentRole;
+        final bubbleColor = isMine
+            ? const Color(0xFF0865A2).withOpacity(0.18)
+            : theme.colorScheme.surfaceVariant;
+        final radius = BorderRadius.only(
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(isMine ? 18 : 8),
+          bottomRight: Radius.circular(isMine ? 8 : 18),
+        );
+
         return Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 520),
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isMine
-                  ? theme.colorScheme.primaryContainer
-                  : theme.colorScheme.surfaceVariant,
-              borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.7,
+              minWidth: 160,
             ),
-            child: Column(
-              crossAxisAlignment:
-                  isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                Text(m.text, style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      m.author == ComplaintChatRole.admin
-                          ? Icons.verified_user_outlined
-                          : Icons.badge_outlined,
-                      size: 14,
-                      color: theme.colorScheme.outline,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: bubbleColor,
+                borderRadius: radius,
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  if (!isMine)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        m.author == ComplaintChatRole.admin
+                            ? 'Admin'
+                            : 'Vertreter',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      m.author == ComplaintChatRole.admin
-                          ? 'Admin'
-                          : 'Vertreter',
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: theme.colorScheme.outline),
+                  Text(
+                    m.text,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      _formatTime(m.createdAt),
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: theme.colorScheme.outline),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        m.author == ComplaintChatRole.admin
+                            ? Icons.verified_user_outlined
+                            : Icons.badge_outlined,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        m.author == ComplaintChatRole.admin
+                            ? 'Admin'
+                            : 'Vertreter',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _formatTime(m.createdAt),
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -348,98 +566,173 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}';
   }
 
+  String _formatConversationTime(DateTime dt) {
+    final now = DateTime.now();
+    if (now.difference(dt).inDays == 0) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    if (now.difference(dt).inDays == 1) return 'Gestern';
+    return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildComposer() {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _subjectCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Betreff',
-                  hintText: 'z. B. Rückfrage zur Prüfung',
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _contactCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Kontakt',
-                  hintText: 'Name oder Team',
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _ticketCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Ticketnummer (optional)',
-                  prefixIcon: Icon(Icons.confirmation_number_outlined),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _internalCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'DFS Reklamationsnr. (optional)',
-                  prefixIcon: Icon(Icons.badge_outlined),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _messageCtrl,
-          minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'Nachricht',
-            hintText: 'Direkt schreiben – Fotos/Videos können angehängt werden',
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -1),
           ),
-          onSubmitted: (_) => _sendMessage(),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            IconButton(
-              tooltip: 'Foto anhängen',
-              onPressed: () {},
-              icon: const Icon(Icons.photo_outlined),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _subjectCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Betreff',
+                    hintText: 'z. B. Rückfrage zur Prüfung',
+                    filled: true,
+                    fillColor:
+                        theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _contactCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Kontakt',
+                    hintText: 'Name oder Team',
+                    filled: true,
+                    fillColor:
+                        theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ticketCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Ticketnummer (optional)',
+                    prefixIcon: const Icon(Icons.confirmation_number_outlined),
+                    filled: true,
+                    fillColor:
+                        theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _internalCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'DFS-Reklamationsnummer (optional)',
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    filled: true,
+                    fillColor:
+                        theme.colorScheme.surfaceVariant.withOpacity(0.4),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
             ),
-            IconButton(
-              tooltip: 'Video anhängen',
-              onPressed: () {},
-              icon: const Icon(Icons.video_file_outlined),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: 'Emoji',
+                  onPressed: () {},
+                  icon: Icon(Icons.emoji_emotions_outlined,
+                      color: theme.colorScheme.outline),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _messageCtrl,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Nachricht schreiben…',
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Foto anhängen',
+                  onPressed: () {},
+                  icon: Icon(Icons.photo_outlined,
+                      color: theme.colorScheme.outline),
+                ),
+                IconButton(
+                  tooltip: 'Video anhängen',
+                  onPressed: () {},
+                  icon: Icon(Icons.video_file_outlined,
+                      color: theme.colorScheme.outline),
+                ),
+                const SizedBox(width: 4),
+                FilledButton(
+                  onPressed: _sendMessage,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.all(14),
+                    shape: const CircleBorder(),
+                  ),
+                  child: const Icon(Icons.send, size: 18),
+                ),
+              ],
             ),
-            const Spacer(),
-            FilledButton.icon(
-              onPressed: _sendMessage,
-              icon: const Icon(Icons.send),
-              label: const Text('Senden'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _currentRole == ComplaintChatRole.admin
-              ? 'Sie antworten als QM/Admin'
-              : 'Sie antworten als Vertreter',
-          style: theme.textTheme.labelMedium,
-        ),
-      ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _currentRole == ComplaintChatRole.admin
+                ? 'Sie antworten als QM/Admin'
+                : 'Sie antworten als Vertreter',
+            style: theme.textTheme.labelMedium,
+          ),
+        ],
+      ),
     );
   }
 
@@ -447,7 +740,11 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor:
+          theme.colorScheme.surfaceVariant.withOpacity(0.25),
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: theme.colorScheme.surface,
         title: const Text('Interner Chat QM ↔ Vertreter'),
         actions: [
           Padding(
@@ -472,29 +769,48 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
             children: [
               if (isWide)
                 SizedBox(
-                  width: 320,
+                  width: 330,
                   child: Card(
-                    margin: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
+                    elevation: 4,
                     child: _buildConversationList(isWide),
                   ),
                 ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (!isWide)
                         Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18)),
                           child: SizedBox(
-                            height: 260,
+                            height: 280,
                             child: _buildConversationList(isWide),
                           ),
                         ),
                       Expanded(
                         child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18)),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  theme.colorScheme.surface,
+                                  theme.colorScheme.surfaceVariant
+                                      .withOpacity(0.15),
+                                ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
                             child: _activeConversation == null
                                 ? _emptyConversationPlaceholder(theme)
                                 : Column(
@@ -503,13 +819,14 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                                     children: [
                                       _buildConversationHeader(
                                           _activeConversation!),
-                                      const Divider(height: 28),
                                       Expanded(
                                         child: _buildMessages(
                                             _activeConversation!),
                                       ),
-                                      const Divider(height: 28),
-                                      _buildComposer(),
+                                      Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: _buildComposer(),
+                                      ),
                                     ],
                                   ),
                           ),
