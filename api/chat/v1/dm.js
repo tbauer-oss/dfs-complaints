@@ -17,11 +17,14 @@ import { createRedisAdapter } from './_lib/redisAdapter.js';
 import {
   buildConversationId,
   keyConversationMembers,
-  keyConversationMeta,
-  keyConversationMetaLegacy,
   normalizeUserId,
 } from './_lib/schema.js';
-import { ensureDmConversation, fetchConversationMeta, registerConversationForUsers } from './_lib/store.js';
+import {
+  ensureDmConversation,
+  fetchConversationMeta,
+  persistConversationMeta,
+  registerConversationForUsers,
+} from './_lib/store.js';
 
 function toTimestampMs(value) {
   const num = Number(value);
@@ -101,17 +104,7 @@ export default async function handler(req, res) {
       await registerConversationForUsers(rdb, convId, [a, b], toTimestampMs(lastActivity) || nowMs);
       await Promise.all([
         rdb.sadd(keyConversationMembers(convId), a, b),
-        rdb.hset(keyConversationMeta(convId), {
-          updatedAt: nowIso,
-          lastMsgAt: lastActivity,
-          lastMessageAt: lastActivity,
-          lastMsgPreview: meta?.lastMsgPreview || meta?.lastMessagePreview || '',
-          lastMessagePreview: meta?.lastMsgPreview || meta?.lastMessagePreview || '',
-          participants: JSON.stringify([a, b]),
-          p1: a,
-          p2: b,
-        }),
-        rdb.hset(keyConversationMetaLegacy(convId), {
+        persistConversationMeta(rdb, convId, {
           updatedAt: nowIso,
           lastMsgAt: lastActivity,
           lastMessageAt: lastActivity,

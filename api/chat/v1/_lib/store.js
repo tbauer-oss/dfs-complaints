@@ -8,11 +8,16 @@ import {
   keyConversationMembers,
   keyConversationMeta,
   keyConversationMetaLegacy,
+  keyConversationMetaV2,
   keyConversationMessages,
+  keyConversationMessagesV2,
   keyMessage,
+  keyMessageV2,
   keyUser,
+  keyUserV2,
   keyUserConversations,
   keyUserInbox,
+  keyUserInboxV2,
   normalizeUserId,
   metaScanPatterns,
   parseParticipantList,
@@ -43,10 +48,49 @@ function toIsoOrNull(value) {
   return new Date(ts).toISOString();
 }
 
+function normalizeParticipants(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return Array.from(new Set(raw.map((p) => normalizeUserId(p)).filter(Boolean)));
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) return Array.from(new Set(parsed.map((p) => normalizeUserId(p)).filter(Boolean)));
+  } catch {}
+  return [];
+}
+
+function normalizeTimestamp(value) {
+  const ts = toTimestampMs(value);
+  return ts === null ? null : ts;
+}
+
 async function persistConversationMeta(rdb, convId, payload) {
+  const participants = normalizeParticipants(payload?.participants);
+  const createdAt = normalizeTimestamp(payload?.createdAt);
+  const updatedAt = normalizeTimestamp(payload?.updatedAt ?? payload?.lastMsgAt ?? payload?.lastMessageAt);
+  const lastMsgAt = normalizeTimestamp(
+    payload?.lastMsgAt ?? payload?.lastMessageAt ?? payload?.updatedAt ?? payload?.createdAt
+  );
+
+  const existingV2 = await rdb.getJson(keyConversationMetaV2(convId), {});
+  const merged = {
+    ...existingV2,
+    id: convId,
+    type: payload?.type || payload?.kind || existingV2.type || 'dm',
+    participants: participants.length > 0 ? participants : existingV2.participants || [],
+    createdAt: createdAt ?? existingV2.createdAt ?? null,
+    updatedAt: updatedAt ?? existingV2.updatedAt ?? createdAt ?? existingV2.createdAt ?? null,
+    lastMsgAt: lastMsgAt ?? existingV2.lastMsgAt ?? updatedAt ?? createdAt ?? null,
+    lastMsgPreview: payload?.lastMsgPreview ?? payload?.lastMessagePreview ?? existingV2.lastMsgPreview ?? null,
+    lastMsgAuthor: payload?.lastMsgAuthor ?? existingV2.lastMsgAuthor ?? null,
+    lastMsgId: payload?.lastMsgId ?? existingV2.lastMsgId ?? null,
+    title: payload?.title ?? existingV2.title ?? null,
+    createdBy: payload?.createdBy ?? existingV2.createdBy ?? null,
+  };
+
   await Promise.all([
     rdb.hset(keyConversationMeta(convId), payload),
     rdb.hset(keyConversationMetaLegacy(convId), payload),
+    rdb.setJson(keyConversationMetaV2(convId), merged),
   ]);
 }
 
@@ -60,7 +104,7 @@ async function readConversationMetaHash(rdb, convId) {
 
 export async function readUserProfile(redis, uid) {
   const rdb = createRedisAdapter(redis);
-  const profile = await rdb.hgetall(keyUser(uid));
+  const profile = (await rdb.getJson(keyUserV2(uid))) || (await rdb.hgetall(keyUser(uid)));
   if (!profile || Object.keys(profile).length === 0) return null;
   return {
     userId: uid,
@@ -77,11 +121,16 @@ export async function upsertUserProfile(redis, uid, { displayName, avatarUrl }) 
   if (displayName) payload.displayName = displayName;
   if (avatarUrl) payload.avatarUrl = avatarUrl;
   if (Object.keys(payload).length === 0) return;
-  await rdb.hset(keyUser(uid), payload);
+  await Promise.all([
+    rdb.hset(keyUser(uid), payload),
+    rdb.setJson(keyUserV2(uid), { uid, email: uid, ...payload, active: true }),
+  ]);
 }
 
 async function readConversationParticipants(redis, convId, rawMeta) {
   const rdb = createRedisAdapter(redis);
+  const direct = normalizeParticipants(rawMeta?.participants);
+  if (direct.length > 0) return direct;
   const setKey = keyConversationMembers(convId);
   const hasSet = await rdb.exists(setKey);
   if (hasSet) {
@@ -99,11 +148,35 @@ async function readConversationParticipants(redis, convId, rawMeta) {
 export async function fetchConversationMeta(redis, convId) {
   if (!isConversationId(convId)) return null;
   const rdb = createRedisAdapter(redis);
+  const v2 = await rdb.getJson(keyConversationMetaV2(convId));
+  if (v2 && Object.keys(v2).length > 0) {
+    const participants = normalizeParticipants(v2.participants);
+    const lastActivity = v2.lastMsgAt ?? v2.updatedAt ?? v2.createdAt ?? null;
+    return {
+      convId,
+      type: v2.type || 'dm',
+      createdAt: v2.createdAt ?? null,
+      updatedAt: v2.updatedAt ?? null,
+      lastMsgAt: lastActivity,
+      lastMessageAt: lastActivity,
+      lastMsgId: v2.lastMsgId ?? null,
+      lastMsgAuthor: v2.lastMsgAuthor ?? null,
+      lastMsgPreview: v2.lastMsgPreview ?? null,
+      title: v2.title ?? null,
+      createdBy: v2.createdBy ?? null,
+      participants,
+      p1: participants[0] || null,
+      p2: participants[1] || null,
+    };
+  }
+
   const { payload: raw, source } = await readConversationMetaHash(rdb, convId);
   if (!raw || Object.keys(raw).length === 0) return null;
   if (source === 'legacy') await persistConversationMeta(rdb, convId, raw);
   const participants = await readConversationParticipants(rdb, convId, raw);
   const lastActivity = raw.lastMessageAt || raw.lastMsgAt || raw.updatedAt || raw.createdAt || null;
+  const normalizedPayload = { ...raw, participants: JSON.stringify(participants) };
+  await persistConversationMeta(rdb, convId, normalizedPayload);
   return {
     convId,
     type: raw.type || raw.kind || 'dm',
@@ -117,8 +190,8 @@ export async function fetchConversationMeta(redis, convId) {
     title: raw.title || null,
     createdBy: raw.createdBy || null,
     participants,
-    p1: raw.p1 || null,
-    p2: raw.p2 || null,
+    p1: raw.p1 || participants[0] || null,
+    p2: raw.p2 || participants[1] || null,
   };
 }
 
@@ -207,10 +280,18 @@ export async function listUserConversations(redis, uid, { limit = 200 } = {}) {
     }));
   }
 
+  const primaryV2 = await readInbox(keyUserInboxV2(uid));
+  if (primaryV2.length > 0) return primaryV2;
+
   const primary = await readInbox(keyUserInbox(uid));
-  if (primary.length > 0) return primary;
+  if (primary.length > 0) {
+    await Promise.all(
+      primary.map((entry) => rdb.zadd(keyUserInboxV2(uid), { score: entry.lastActivityTs, member: entry.convId }))
+    );
+    return primary;
+  }
   await rebuildInboxForUser(redis, uid);
-  const rebuilt = await readInbox(keyUserInbox(uid));
+  const rebuilt = await readInbox(keyUserInboxV2(uid));
   if (rebuilt.length > 0) return rebuilt;
   const legacy = await readInbox(keyUserConversations(uid));
   if (legacy.length > 0) {
@@ -228,6 +309,9 @@ async function resolveLastActivity(rdb, convId, meta) {
     toTimestampMs(meta?.updatedAt) ||
     toTimestampMs(meta?.createdAt);
   if (direct) return direct;
+  const recentV2 = await rdb.zrange(keyConversationMessagesV2(convId), 0, 0, { withScores: true, rev: true });
+  const scoreV2 = Array.isArray(recentV2) && recentV2.length > 0 ? Number(recentV2[0].score) : null;
+  if (Number.isFinite(scoreV2) && scoreV2 > 0) return scoreV2;
   const recent = await rdb.zrange(keyConversationMessages(convId), 0, 0, { withScores: true, rev: true });
   const score = Array.isArray(recent) && recent.length > 0 ? Number(recent[0].score) : null;
   if (Number.isFinite(score) && score > 0) return score;
@@ -264,6 +348,7 @@ export async function rebuildInboxForUser(redis, uid) {
     const score = Number.isFinite(ts) ? Number(ts) : Date.now();
     for (const participant of meta.participants) {
       await Promise.all([
+        rdb.zadd(keyUserInboxV2(participant), { score, member: convId }),
         rdb.zadd(keyUserInbox(participant), { score, member: convId }),
         rdb.zadd(keyUserConversations(participant), { score, member: convId }),
       ]);
@@ -276,6 +361,7 @@ export async function registerConversationForUsers(redis, convId, participants, 
   const score = Number(tsMs || Date.now());
   for (const uid of participants || []) {
     await Promise.all([
+      rdb.zadd(keyUserInboxV2(uid), { score, member: convId }),
       rdb.zadd(keyUserInbox(uid), { score, member: convId }),
       rdb.zadd(keyUserConversations(uid), { score, member: convId }),
     ]);
@@ -300,6 +386,9 @@ export function buildMessagePayload(convId, author, body, timestampMs, providedM
 export async function appendMessage(redis, convMeta, messagePayload) {
   const rdb = createRedisAdapter(redis);
   const timestampIso = toIsoTimestamp(messagePayload.timestampMs);
+  const existingV2 = await rdb.getJson(keyMessageV2(messagePayload.msgId));
+  if (existingV2) return hydrateMessage(messagePayload.msgId, existingV2);
+
   const msgKey = keyMessage(messagePayload.msgId);
   const exists = await rdb.exists(msgKey);
   if (exists) {
@@ -307,21 +396,33 @@ export async function appendMessage(redis, convMeta, messagePayload) {
     return hydrateMessage(messagePayload.msgId, stored);
   }
 
-  await rdb.hset(msgKey, {
-    msgId: messagePayload.msgId,
+  const storedMessage = {
+    id: messagePayload.msgId,
     convId: convMeta.convId,
     senderUid: messagePayload.senderUid,
     senderEmail: messagePayload.senderEmail || messagePayload.senderUid,
     senderName: messagePayload.senderName,
+    body: messagePayload.body,
     text: messagePayload.body,
     ts: messagePayload.timestampMs,
     tsIso: timestampIso,
-  });
+  };
 
-  await rdb.zadd(keyConversationMessages(convMeta.convId), {
-    score: messagePayload.timestampMs,
-    member: messagePayload.msgId,
-  });
+  await Promise.all([
+    rdb.hset(msgKey, storedMessage),
+    rdb.setJson(keyMessageV2(messagePayload.msgId), storedMessage),
+  ]);
+
+  await Promise.all([
+    rdb.zadd(keyConversationMessages(convMeta.convId), {
+      score: messagePayload.timestampMs,
+      member: messagePayload.msgId,
+    }),
+    rdb.zadd(keyConversationMessagesV2(convMeta.convId), {
+      score: messagePayload.timestampMs,
+      member: messagePayload.msgId,
+    }),
+  ]);
 
   const lastMessagePreview = messagePayload.body.slice(0, 240);
   await persistConversationMeta(rdb, convMeta.convId, {
@@ -350,13 +451,13 @@ export async function appendMessage(redis, convMeta, messagePayload) {
 
 function hydrateMessage(msgId, raw) {
   if (!raw || Object.keys(raw).length === 0) return null;
-  const tsValue = raw.ts ?? raw.timestamp ?? raw.tsIso;
+  const tsValue = raw.ts ?? raw.timestamp ?? raw.tsIso ?? raw.timestampMs;
   const tsMs = Number(tsValue);
   const timestampIso = Number.isFinite(tsMs) && tsMs > 0 ? new Date(tsMs).toISOString() : raw.tsIso || raw.timestamp || raw.ts;
   return {
     id: msgId,
-    convId: raw.convId,
-    senderEmail: raw.senderEmail || raw.sender || null,
+    convId: raw.convId || raw.conversationId,
+    senderEmail: raw.senderEmail || raw.sender || raw.authorEmail || null,
     senderName: raw.senderName || raw.author || raw.senderEmail || 'Unbekannter Nutzer',
     text: raw.text || raw.body || '',
     ts: Number.isFinite(tsMs) && tsMs > 0 ? tsMs : null,
@@ -371,8 +472,8 @@ async function fetchMessagesByIds(redis, ids) {
   const rdb = createRedisAdapter(redis);
   const items = [];
   for (const id of ids) {
-    const raw = await rdb.hgetall(keyMessage(id));
-    const parsed = hydrateMessage(id, raw);
+    const rawV2 = await rdb.getJson(keyMessageV2(id));
+    const parsed = hydrateMessage(id, rawV2 || (await rdb.hgetall(keyMessage(id))));
     if (parsed) items.push(parsed);
   }
   items.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -381,14 +482,24 @@ async function fetchMessagesByIds(redis, ids) {
 
 export async function readMessages(redis, convId, { afterTs = null, beforeTs = null, limit = 50 } = {}) {
   const rdb = createRedisAdapter(redis);
-  const key = keyConversationMessages(convId);
+  const keyV2 = keyConversationMessagesV2(convId);
+  const keyV1 = keyConversationMessages(convId);
   const cappedLimit = Math.min(Math.max(Number(limit) || 0, 1), 200);
 
   const afterTsNumber = afterTs === null || afterTs === undefined ? null : Number(afterTs);
   const normalizedAfterTs = Number.isNaN(afterTsNumber) ? null : afterTsNumber;
 
+  async function selectKey() {
+    const v2Card = await rdb.zcard(keyV2);
+    if (v2Card > 0) return { key: keyV2, total: v2Card };
+    const v1Card = await rdb.zcard(keyV1);
+    return { key: keyV1, total: v1Card };
+  }
+
+  const selected = await selectKey();
+
   if (beforeTs !== null) {
-    const members = await rdb.zrangebyscore(key, beforeTs - 1, 0, {
+    const members = await rdb.zrangebyscore(selected.key, beforeTs - 1, 0, {
       limit: cappedLimit,
       offset: 0,
       rev: true,
@@ -399,7 +510,7 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
   }
 
   if (normalizedAfterTs !== null) {
-    const members = await rdb.zrangebyscore(key, normalizedAfterTs + 1, '+inf', {
+    const members = await rdb.zrangebyscore(selected.key, normalizedAfterTs + 1, '+inf', {
       limit: cappedLimit,
       offset: 0,
       rev: false,
@@ -409,8 +520,8 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
     return { messages, hasMoreBefore: false, hasMoreAfter: hasMore };
   }
 
-  const members = await rdb.zrevrange(key, 0, cappedLimit - 1);
-  const total = await rdb.zcard(key);
+  const members = await rdb.zrevrange(selected.key, 0, cappedLimit - 1);
+  const total = selected.total;
   const hasMoreBefore = total > members.length;
   const messages = await fetchMessagesByIds(redis, members);
   return { messages, hasMoreBefore, hasMoreAfter: false };
@@ -470,31 +581,35 @@ export async function searchActiveUsers(redis, query, limit = 50) {
   const matches = [];
   let cursor = 0;
   const maxLimit = Math.min(Math.max(limit, 1), 200);
-  const matchPattern = `${keyUser('*')}`;
+  const matchPatterns = [`${keyUser('*')}`, `${keyUserV2('*')}`];
 
-  do {
-    const result = await rdb.scan(cursor, { match: matchPattern, count: 200 });
-    const nextCursor = Array.isArray(result) ? Number(result[0]) : Number(result.cursor || 0);
-    const keys = Array.isArray(result) ? result[1] : result.keys || [];
+  for (const matchPattern of matchPatterns) {
+    cursor = 0;
+    do {
+      const result = await rdb.scan(cursor, { match: matchPattern, count: 200 });
+      const nextCursor = Array.isArray(result) ? Number(result[0]) : Number(result.cursor || 0);
+      const keys = Array.isArray(result) ? result[1] : result.keys || [];
 
-    for (const key of keys) {
-      const profile = await rdb.hgetall(key);
-      if (!profile || Object.keys(profile).length === 0) continue;
-      const active = profile.active === undefined ? true : String(profile.active) === 'true';
-      if (!active) continue;
-      const uid = profile.uid || key.split(':').pop();
-      if (!uid) continue;
-      const displayName = safeDisplayName(profile.displayName, profile.email || uid);
-      const email = profile.email || '';
-      if (q && !displayName.toLowerCase().includes(q) && !email.toLowerCase().includes(q)) continue;
-      matches.push({ userId: uid, displayName, avatar: profile.avatarUrl || profile.avatar || null });
-      if (matches.length >= maxLimit) return matches;
-    }
+      for (const key of keys) {
+        const profile = key.includes(':v2:') ? await rdb.getJson(key) : await rdb.hgetall(key);
+        if (!profile || Object.keys(profile).length === 0) continue;
+        const active = profile.active === undefined ? true : String(profile.active) === 'true';
+        if (!active) continue;
+        const uid = profile.uid || profile.email || key.split(':').pop();
+        if (!uid) continue;
+        const displayName = safeDisplayName(profile.displayName, profile.email || uid);
+        const email = profile.email || '';
+        if (q && !displayName.toLowerCase().includes(q) && !email.toLowerCase().includes(q)) continue;
+        matches.push({ userId: uid, displayName, avatar: profile.avatarUrl || profile.avatar || null });
+        if (matches.length >= maxLimit) return matches;
+      }
 
-    cursor = nextCursor;
-  } while (cursor !== 0 && matches.length < maxLimit);
+      cursor = nextCursor;
+    } while (cursor !== 0 && matches.length < maxLimit);
+    if (matches.length >= maxLimit) break;
+  }
 
   return matches;
 }
 
-export { normalizeUserId };
+export { normalizeUserId, persistConversationMeta, iterateConversationIds };

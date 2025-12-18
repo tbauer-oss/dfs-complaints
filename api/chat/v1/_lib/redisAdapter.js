@@ -28,6 +28,17 @@ function ensureNumber(result) {
   return Number.isNaN(num) ? 0 : num;
 }
 
+function parseJson(value, fallback = null) {
+  if (value === undefined || value === null || value === '') return fallback;
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (parsed === undefined || parsed === null) return fallback;
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
 function logCommandFallback(op) {
   if (commandFallbackLogged || !isDev) return;
   commandFallbackLogged = true;
@@ -62,6 +73,27 @@ export function createRedisAdapter(redis) {
     hasCommand,
     hasZrange,
     hasZrevrange,
+
+    async getJson(key, fallback = null) {
+      if (typeof redis.get === 'function') {
+        return parseJson(await redis.get(key), fallback);
+      }
+      if (hasCommand) {
+        return parseJson(await runCommand(['GET', key]), fallback);
+      }
+      throw new Error('Redis client missing GET support');
+    },
+
+    async setJson(key, value) {
+      const payload = JSON.stringify(value ?? null);
+      if (typeof redis.set === 'function') {
+        return redis.set(key, payload);
+      }
+      if (hasCommand) {
+        return runCommand(['SET', key, payload]);
+      }
+      throw new Error('Redis client missing SET support');
+    },
 
     async zrevrange(key, start, stop) {
       if (typeof redis.zrevrange === 'function') {
