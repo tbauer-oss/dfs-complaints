@@ -366,8 +366,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                     final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
                                     final timeString = _formatTime(msg.timestamp);
                                     final backgroundColor = isMe
-                                        ? theme.colorScheme.primary.withOpacity(0.18)
-                                        : theme.colorScheme.surface.withOpacity(0.12);
+                                        ? theme.colorScheme.primaryContainer.withOpacity(0.32)
+                                        : theme.colorScheme.surfaceVariant.withOpacity(0.4);
                                     final radius = BorderRadius.only(
                                       topLeft: const Radius.circular(16),
                                       topRight: const Radius.circular(16),
@@ -379,46 +379,69 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                                       child: ConstrainedBox(
                                         constraints: BoxConstraints(maxWidth: bubbleWidth),
-                                        child: Container(
-                                          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                          decoration: BoxDecoration(
-                                            color: backgroundColor,
-                                            borderRadius: radius,
-                                            border: Border.all(
-                                              color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: backgroundColor,
+                                              borderRadius: radius,
+                                              border: Border.all(
+                                                color: theme.colorScheme.outlineVariant.withOpacity(0.25),
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: theme.shadowColor.withOpacity(0.06),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (!isMe)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(bottom: 4),
+                                                    child: Text(
+                                                      _displayNameFor(msg),
+                                                      style: theme.textTheme.labelMedium?.copyWith(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: theme.colorScheme.onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                Text(
+                                                  msg.body,
+                                                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      timeString,
+                                                      style: theme.textTheme.labelSmall?.copyWith(
+                                                        color: theme.colorScheme.onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                    if (msg.pending)
+                                                      Padding(
+                                                        padding: const EdgeInsets.only(left: 6),
+                                                        child: Icon(
+                                                          Icons.watch_later,
+                                                          size: 14,
+                                                          color: theme.colorScheme.onSurfaceVariant,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (!isMe)
-                                                Padding(
-                                                  padding: const EdgeInsets.only(bottom: 4),
-                                                  child: Text(
-                                                    _displayNameFor(msg),
-                                                    style: theme.textTheme.labelMedium,
-                                                  ),
-                                                ),
-                                              Text(msg.body),
-                                              const SizedBox(height: 6),
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    timeString,
-                                                    style: theme.textTheme.labelSmall,
-                                                  ),
-                                                  if (msg.pending)
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(left: 6),
-                                                      child: Icon(Icons.watch_later, size: 14),
-                                                    ),
-                                                ],
-                                              ),
-                                            ],
                                           ),
                                         ),
                                       ),
@@ -460,31 +483,41 @@ class _PanelHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
         boxShadow: [
           BoxShadow(
-            color: theme.shadowColor.withOpacity(0.08),
-            blurRadius: 6,
-            offset: const Offset(0, 1),
+            color: theme.shadowColor.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Zur Übersicht',
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: onBack,
           ),
+          CircleAvatar(
+            backgroundColor: theme.colorScheme.primaryContainer,
+            foregroundColor: theme.colorScheme.onPrimaryContainer,
+            child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.1,
+                  ),
                 ),
                 if (subtitle != null)
                   GestureDetector(
@@ -496,8 +529,7 @@ class _PanelHeader extends StatelessWidget {
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        maxLines: 3,
-                        softWrap: true,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -505,7 +537,11 @@ class _PanelHeader extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Chat durchsuchen (UI)',
+            icon: Icon(Icons.search_rounded, color: theme.colorScheme.onSurfaceVariant),
+            onPressed: () {},
+          ),
           IconButton(
             tooltip: 'Mitglieder anzeigen',
             icon: const Icon(Icons.group_outlined),
@@ -548,6 +584,12 @@ class _InputBar extends StatelessWidget {
         ),
         child: Row(
           children: [
+            IconButton(
+              tooltip: 'Datei anhängen (UI)',
+              icon: Icon(Icons.attach_file_outlined, color: theme.colorScheme.onSurfaceVariant),
+              onPressed: () {},
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -556,17 +598,18 @@ class _InputBar extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: 'Nachricht eingeben...',
                   filled: true,
-                  fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.35),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
                   ),
-                  prefixIcon: const Icon(Icons.message_outlined),
+                  prefixIcon: Icon(Icons.message_outlined, color: theme.colorScheme.onSurfaceVariant),
                 ),
                 onSubmitted: (_) => onSend(),
               ),
@@ -574,11 +617,11 @@ class _InputBar extends StatelessWidget {
             const SizedBox(width: 10),
             FilledButton.icon(
               onPressed: sending ? null : onSend,
-              icon: const Icon(Icons.send),
+              icon: const Icon(Icons.send_rounded),
               label: const Text('Senden'),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ],
