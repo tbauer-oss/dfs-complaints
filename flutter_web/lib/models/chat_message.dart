@@ -1,5 +1,7 @@
 // lib/models/chat_message.dart
 
+import '../utils/display_name.dart';
+
 class ChatParticipant {
   final String userId;
   final String displayName;
@@ -10,7 +12,7 @@ class ChatParticipant {
 
   factory ChatParticipant.fromJson(Map<String, dynamic> json) => ChatParticipant(
         userId: (json['userId'] ?? '').toString(),
-        displayName: (json['displayName'] ?? '').toString(),
+        displayName: deriveDisplayName((json['displayName'] ?? '').toString(), email: json['email']?.toString()),
         email: json['email']?.toString(),
         avatar: json['avatar']?.toString(),
       );
@@ -57,7 +59,9 @@ class ChatConversationSummary {
   }
 
   String titleFor(String currentUserId) {
-    if (title.isNotEmpty) return title;
+    if (title.isNotEmpty) {
+      return title.contains('@') ? deriveDisplayNameFromEmail(title) : title;
+    }
     final match = participants.firstWhere(
       (p) => p.userId != currentUserId,
       orElse: () => participants.isNotEmpty
@@ -130,9 +134,12 @@ String _extractAuthorName(Map<String, dynamic> json) {
   final authorName = json['authorName']?.toString();
   if (authorName != null && authorName.trim().isNotEmpty) return authorName.trim();
   final author = json['author']?.toString();
-  if (author != null && author.trim().isNotEmpty) return author.trim();
+  if (author != null && author.trim().isNotEmpty) {
+    final normalized = author.trim();
+    return normalized.contains('@') ? deriveDisplayNameFromEmail(normalized) : normalized;
+  }
   final email = json['senderEmail']?.toString();
-  if (email != null && email.trim().isNotEmpty) return email.trim();
+  if (email != null && email.trim().isNotEmpty) return deriveDisplayNameFromEmail(email.trim());
   return 'Unbekannt';
 }
 

@@ -173,4 +173,11 @@ class ChatService {
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
   }
+
+  Future<void> deleteConversation(String convId) async {
+    final uri = api.buildUri('/api/chat/v1/conversations/$convId');
+    final response = await http.delete(uri, headers: api.portalHeaders());
+    if (response.statusCode == 204) return;
+    api.assertSuccess(response);
+  }
 }
