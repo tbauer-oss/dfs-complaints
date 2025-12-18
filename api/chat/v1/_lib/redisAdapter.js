@@ -276,6 +276,16 @@ export function createRedisAdapter(redis) {
       });
     },
 
+    async hget(key, field) {
+      if (hasFn(redis, 'hget')) {
+        return redis.hget(key, field);
+      }
+      return callOrFallback('hget', [key, field], {
+        restCall: () => restRedis?.hget(key, field),
+        commandArgs: ['HGET', key, field],
+      });
+    },
+
     async hgetall(key) {
       let raw;
       if (hasFn(redis, 'hgetall')) {
@@ -303,6 +313,17 @@ export function createRedisAdapter(redis) {
       return callOrFallback('del', keys, {
         restCall: () => restRedis?.del(...keys),
         commandArgs: ['DEL', ...keys],
+      });
+    },
+
+    async hdel(key, ...fields) {
+      if (hasFn(redis, 'hdel')) {
+        return redis.hdel(key, ...fields);
+      }
+      const args = ['HDEL', key, ...fields];
+      return callOrFallback('hdel', [key, ...fields], {
+        restCall: () => restRedis?.hdel(key, ...fields),
+        commandArgs: args,
       });
     },
 
