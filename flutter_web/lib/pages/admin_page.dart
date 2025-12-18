@@ -11314,7 +11314,8 @@ class _AdminPageState extends State<AdminPage> {
         ? theme.colorScheme.secondaryContainer
         : theme.colorScheme.errorContainer;
     String initialsFor(PortalUser u) {
-      final source = (u.displayName?.trim().isNotEmpty == true ? u.displayName : u.email).trim();
+      final source =
+          (u.displayName?.trim().isNotEmpty == true ? u.displayName : u.email)?.trim() ?? '';
       if (source.isEmpty) return '?';
       final parts = source.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
       if (parts.length >= 2) {
