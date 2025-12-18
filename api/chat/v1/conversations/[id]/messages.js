@@ -6,6 +6,7 @@ import { getAuthUser } from '../../../../_lib/auth.js';
 import { redis } from '../../../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from '../../_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from '../../_lib/cleanup.js';
+import { createRedisAdapter } from '../../_lib/redisAdapter.js';
 import {
   appendMessage,
   buildMessagePayload,
@@ -28,6 +29,17 @@ export default async function handler(req, res) {
   if (!convId) return bad(res, 'missing conversation id', 400);
 
   const { client, counters } = createTrackedRedis(redis);
+  const rdb = createRedisAdapter(client);
+
+  if (process.env.NODE_ENV !== 'production') {
+    const capabilities = {
+      zrange: typeof client.zrange === 'function',
+      zrevrange: typeof client.zrevrange === 'function',
+      command: typeof client.command === 'function',
+      zrangebyscore: typeof client.zrangebyscore === 'function',
+    };
+    console.debug('[chat/v1/messages] redis capabilities', capabilities);
+  }
 
   try {
     const actor = getAuthUser(req);
@@ -36,12 +48,12 @@ export default async function handler(req, res) {
     const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
-    const meta = await fetchConversationMeta(client, convId);
+    const meta = await fetchConversationMeta(rdb, convId);
     if (!meta) return bad(res, 'conversation not found', 404);
 
     const membersKey = keyConversationMembers(convId);
-    const members = await client.smembers(membersKey);
-    const isMember = Boolean(await client.sismember(membersKey, uid));
+    const members = await rdb.smembers(membersKey);
+    const isMember = Boolean(await rdb.sismember(membersKey, uid));
 
     if (!isMember) {
       console.warn('[chat/v1/messages] membership_denied', {
@@ -58,7 +70,7 @@ export default async function handler(req, res) {
       const afterTs = parseTimestamp(req.query?.afterTs);
       const beforeTs = parseTimestamp(req.query?.beforeTs);
       const limit = Number(req.query?.limit || 50);
-      const timeline = await readMessages(client, convId, { afterTs, beforeTs, limit });
+      const timeline = await readMessages(rdb, convId, { afterTs, beforeTs, limit });
       logRedisUsage('[chat/v1/messages] read-only', counters, { convId });
       return ok(res, { ok: true, ...timeline });
     }
@@ -82,11 +94,11 @@ export default async function handler(req, res) {
       displayName: actor.displayName || actor.name || actor.id || 'Unbekannter Nutzer',
     };
 
-    await upsertUserProfile(client, uid, { displayName: authorProfile.displayName });
+    await upsertUserProfile(rdb, uid, { displayName: authorProfile.displayName });
     const payload = buildMessagePayload(convId, authorProfile, text, tsMs, messageId);
-    const message = await appendMessage(client, meta, payload);
+    const message = await appendMessage(rdb, meta, payload);
 
-    await registerConversationForUsers(client, convId, meta.participants, payload.timestampMs);
+    await registerConversationForUsers(rdb, convId, meta.participants, payload.timestampMs);
 
     logRedisUsage('[chat/v1/messages] write', counters, { convId });
 
