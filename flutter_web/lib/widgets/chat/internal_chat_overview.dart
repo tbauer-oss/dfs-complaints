@@ -10,7 +10,6 @@ class InternalChatOverview extends StatefulWidget {
   final ChatService chatService;
   final String currentUserId;
   final ValueChanged<ChatConversationSummary> onSelect;
-  final VoidCallback onClose;
   final ValueChanged<List<ChatConversationSummary>>? onConversationsLoaded;
 
   const InternalChatOverview({
@@ -18,7 +17,6 @@ class InternalChatOverview extends StatefulWidget {
     required this.chatService,
     required this.currentUserId,
     required this.onSelect,
-    required this.onClose,
     this.onConversationsLoaded,
   });
 
@@ -158,21 +156,37 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(onClose: widget.onClose, onNew: _openNewConversationDialog),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              labelText: 'Chats durchsuchen',
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Chats durchsuchen',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton.icon(
+                onPressed: _openNewConversationDialog,
+                icon: const Icon(Icons.chat),
+                label: const Text('Neue Konversation'),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -314,55 +328,6 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
       return '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
     }
     return '${ts.day.toString().padLeft(2, '0')}.${ts.month.toString().padLeft(2, '0')}';
-  }
-}
-
-class _Header extends StatelessWidget {
-  final VoidCallback onClose;
-  final VoidCallback onNew;
-  const _Header({required this.onClose, required this.onNew});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Interner Chat',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Konversationen durchsuchen oder neue Chats starten.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          FilledButton.icon(
-            onPressed: onNew,
-            icon: const Icon(Icons.chat),
-            label: const Text('Neue Konversation'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: onClose,
-          ),
-        ],
-      ),
-    );
   }
 }
 
