@@ -231,6 +231,20 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     return 'Unbekannter Nutzer';
   }
 
+  bool _isMessageFromCurrentUser(ChatMessage msg) {
+    final normalizedCurrent = widget.currentUserId.trim().toLowerCase();
+    final normalizedAuthor = msg.authorId.trim().toLowerCase();
+    final normalizedSenderEmail = (msg.senderEmail ?? '').trim().toLowerCase();
+
+    if (normalizedCurrent.isEmpty) {
+      return msg.authorId == widget.currentUserId;
+    }
+
+    return normalizedAuthor == normalizedCurrent ||
+        (normalizedSenderEmail.isNotEmpty &&
+            normalizedSenderEmail == normalizedCurrent);
+  }
+
   String _displayNameForCurrentUser() {
     final candidate = widget.conversation.displayNameFor(widget.currentUserId);
     if (candidate.isNotEmpty && candidate != 'Unbekannt') return candidate;
@@ -305,56 +319,83 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
-                          final isMe = msg.authorId == widget.currentUserId;
-                          return Row(
-                            mainAxisAlignment:
-                                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                            children: [
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 520),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: isMe
-                                        ? Theme.of(context).colorScheme.primaryContainer
-                                        : Theme.of(context).colorScheme.surfaceVariant,
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                      children: [
-                                        if (!isMe)
-                                          Padding(
-                                            padding: const EdgeInsets.only(bottom: 4),
-                                            child: Text(
-                                              _displayNameFor(msg),
-                                              style: Theme.of(context).textTheme.labelMedium,
-                                            ),
-                                          ),
-                                        Text(msg.body),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
+                          final isMe = _isMessageFromCurrentUser(msg);
+                          final theme = Theme.of(context);
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              final maxBubbleWidth = constraints.maxWidth * 0.75;
+                              final backgroundColor = isMe
+                                  ? theme.colorScheme.primary.withOpacity(0.18)
+                                  : theme.colorScheme.onSurface.withOpacity(0.06);
+                              final radius = isMe
+                                  ? const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      topRight: Radius.circular(16),
+                                      bottomLeft: Radius.circular(4),
+                                      bottomRight: Radius.circular(16),
+                                    )
+                                  : const BorderRadius.only(
+                                      topLeft: Radius.circular(16),
+                                      topRight: Radius.circular(16),
+                                      bottomLeft: Radius.circular(16),
+                                      bottomRight: Radius.circular(4),
+                                    );
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Align(
+                                  alignment:
+                                      isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: backgroundColor,
+                                        borderRadius: radius,
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 10),
+                                        child: Column(
+                                          crossAxisAlignment: isMe
+                                              ? CrossAxisAlignment.end
+                                              : CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              _formatTime(msg.timestamp),
-                                              style: Theme.of(context).textTheme.labelSmall,
-                                            ),
-                                            if (msg.pending)
-                                              const Padding(
-                                                padding: EdgeInsets.only(left: 6),
-                                                child: Icon(Icons.watch_later, size: 14),
+                                            if (!isMe)
+                                              Padding(
+                                                padding: const EdgeInsets.only(bottom: 4),
+                                                child: Text(
+                                                  _displayNameFor(msg),
+                                                  style:
+                                                      theme.textTheme.labelMedium,
+                                                ),
                                               ),
+                                            Text(msg.body),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  _formatTime(msg.timestamp),
+                                                  style:
+                                                      theme.textTheme.labelSmall,
+                                                ),
+                                                if (msg.pending)
+                                                  const Padding(
+                                                    padding: EdgeInsets.only(left: 6),
+                                                    child:
+                                                        Icon(Icons.watch_later, size: 14),
+                                                  ),
+                                              ],
+                                            ),
                                           ],
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              );
+                            },
                           );
                         },
                       ),
