@@ -33,6 +33,7 @@ import '../widgets/fmea_risk_check_dialog.dart';
 import '../widgets/chat/internal_chat_fab.dart';
 import '../widgets/chat/internal_chat_overview.dart';
 import '../widgets/chat/internal_chat_panel.dart';
+import '../widgets/admin/avatar_cropper_dialog.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
@@ -625,6 +626,7 @@ class _AdminPageState extends State<AdminPage> {
   bool _portalUserIsPrrc = false;
   final List<String> _portalUserDepartments = [];
   final Map<String, String> _portalUserTilePermissions = {};
+  final Map<String, bool> _portalUserAvatarBusy = {};
   PortalUser? _editingPortalUser;
   final _portalUserFormKey = GlobalKey<FormState>();
 
@@ -10600,6 +10602,103 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  void _setAvatarBusy(String email, bool value) {
+    setState(() => _portalUserAvatarBusy[email] = value);
+  }
+
+  void _updatePortalUserAvatarLocal(String email, String? avatarUrl) {
+    final idx = _portalUsers.indexWhere((p) => p.email == email);
+    if (idx >= 0) {
+      _portalUsers[idx] = _portalUsers[idx].copyWith(avatar: avatarUrl);
+    }
+  }
+
+  Future<Uint8List?> _pickAvatarImage() async {
+    final completer = Completer<Uint8List?>();
+    final input = html.FileUploadInputElement()..accept = 'image/*';
+    input.onChange.listen((_) {
+      final file = input.files?.first;
+      if (file == null) {
+        completer.complete(null);
+        return;
+      }
+      final reader = html.FileReader();
+      reader.onError.listen((event) => completer.completeError(event));
+      reader.onLoad.listen((_) {
+        final result = reader.result;
+        if (result is Uint8List) {
+          completer.complete(result);
+        } else if (result is ByteBuffer) {
+          completer.complete(result.asUint8List());
+        } else {
+          completer.complete(null);
+        }
+      });
+      reader.readAsArrayBuffer(file);
+    });
+    input.click();
+    return completer.future;
+  }
+
+  Future<void> _uploadPortalUserAvatar(PortalUser user) async {
+    try {
+      final bytes = await _pickAvatarImage();
+      if (bytes == null) return;
+      final cropped = await showAvatarCropperDialog(context, bytes);
+      if (cropped == null) return;
+      _setAvatarBusy(user.email, true);
+      final url = await _api.uploadPortalUserAvatar(email: user.email, croppedImage: cropped);
+      if (!mounted) return;
+      setState(() {
+        _updatePortalUserAvatarLocal(user.email, url);
+        _portalUserAvatarBusy[user.email] = false;
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Avatar gespeichert.')));
+    } catch (e) {
+      if (!mounted) return;
+      _setAvatarBusy(user.email, false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Avatar-Upload fehlgeschlagen: $e')));
+    }
+  }
+
+  Future<void> _removePortalUserAvatar(PortalUser user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Avatar entfernen?'),
+        content: Text('Soll der Avatar für ${user.email} gelöscht werden?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Entfernen'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    _setAvatarBusy(user.email, true);
+    try {
+      await _api.deletePortalUserAvatar(user.email);
+      if (!mounted) return;
+      setState(() {
+        _updatePortalUserAvatarLocal(user.email, null);
+        _portalUserAvatarBusy[user.email] = false;
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Avatar entfernt.')));
+    } catch (e) {
+      if (!mounted) return;
+      _setAvatarBusy(user.email, false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Avatar konnte nicht entfernt werden: $e')));
+    }
+  }
+
   Future<void> _openPortalUserDialog({PortalUser? user}) async {
     if (user == null) {
       _resetPortalUserForm();
@@ -11619,6 +11718,37 @@ class _AdminPageState extends State<AdminPage> {
                                           icon: Icons.info_outline,
                                           title: 'Abteilungen',
                                           entries: departmentEntries,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 6,
+                                          children: [
+                                            OutlinedButton.icon(
+                                              icon: _portalUserAvatarBusy[u.email] == true
+                                                  ? const SizedBox(
+                                                      width: 16,
+                                                      height: 16,
+                                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                                    )
+                                                  : const Icon(Icons.upload_outlined),
+                                              label: Text((u.avatar ?? '').isNotEmpty
+                                                  ? 'Avatar ersetzen'
+                                                  : 'Avatar hochladen'),
+                                              onPressed: (_portalUserBusy || _portalUserAvatarBusy[u.email] == true)
+                                                  ? null
+                                                  : () => _uploadPortalUserAvatar(u),
+                                            ),
+                                            TextButton.icon(
+                                              icon: const Icon(Icons.delete_outline),
+                                              label: const Text('Entfernen'),
+                                              onPressed: ((u.avatar ?? '').isEmpty ||
+                                                      _portalUserBusy ||
+                                                      _portalUserAvatarBusy[u.email] == true)
+                                                  ? null
+                                                  : () => _removePortalUserAvatar(u),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -14692,7 +14822,7 @@ class PortalUser {
         displayName: (j['displayName'] ?? '').toString(),
         role: j['role'] ?? PORTAL_ROLES['user']!,
         portalStatus: j['portalStatus'] ?? 'inactive',
-        avatar: j['avatar']?.toString(),
+        avatar: (j['avatar'] ?? j['avatarUrl'] ?? j['avatar_url'])?.toString(),
         createdAt: j['createdAt']?.toString(),
         assignedDepartments: (j['assignedDepartments'] is List)
             ? List<String>.from((j['assignedDepartments'] as List).map((e) => e.toString().trim()))
@@ -14706,6 +14836,33 @@ class PortalUser {
         salesAllowed: (j['salesAllowed'] ?? j['canEditSales'] ?? j['isSales']) == true,
         isPrrc: (j['isPRRC'] ?? j['isPrrc'] ?? j['prrc']) == true,
       );
+
+  PortalUser copyWith({
+    String? displayName,
+    String? role,
+    String? portalStatus,
+    String? avatar,
+    String? createdAt,
+    List<String>? assignedDepartments,
+    Map<String, String>? tilePermissions,
+    bool? canEditSales,
+    bool? salesAllowed,
+    bool? isPrrc,
+  }) {
+    return PortalUser(
+      email: email,
+      displayName: displayName ?? this.displayName,
+      role: role ?? this.role,
+      portalStatus: portalStatus ?? this.portalStatus,
+      avatar: avatar ?? this.avatar,
+      createdAt: createdAt ?? this.createdAt,
+      assignedDepartments: assignedDepartments ?? this.assignedDepartments,
+      tilePermissions: tilePermissions ?? this.tilePermissions,
+      canEditSales: canEditSales ?? this.canEditSales,
+      salesAllowed: salesAllowed ?? this.salesAllowed,
+      isPrrc: isPrrc ?? this.isPrrc,
+    );
+  }
 }
 
 class ActiveUser {
@@ -22512,6 +22669,25 @@ class AdminApi {
     if (res.status != 200) throw 'portal/users PATCH: HTTP ${res.status} ${res.responseText}';
     final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
     return PortalUser.fromJson(j);
+  }
+
+  Future<String> uploadPortalUserAvatar({required String email, required String croppedImage}) async {
+    final res = await _request('POST', '/api/chat/v1/admin/avatar', body: {
+      'email': email,
+      'croppedImage': croppedImage,
+    });
+    if (res.status != 200) throw 'avatar upload: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final url = (j['url'] ?? j['avatar'])?.toString();
+    if (j['ok'] == true && url != null && url.isNotEmpty) return url;
+    throw 'Avatar konnte nicht gespeichert werden';
+  }
+
+  Future<void> deletePortalUserAvatar(String email) async {
+    final res = await _request('DELETE', '/api/chat/v1/admin/avatar', q: {'email': email});
+    if (res.status != 200 && res.status != 204) {
+      throw 'avatar delete: HTTP ${res.status} ${res.responseText}';
+    }
   }
 
   // Complaints (by email / open)

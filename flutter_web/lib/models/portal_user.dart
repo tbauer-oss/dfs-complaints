@@ -7,6 +7,7 @@ class PortalUserSummary {
   final String username;
   final String role;
   final String portalStatus;
+  final String? avatar;
   final bool isPrrc;
   final List<String> assignedDepartments;
 
@@ -19,6 +20,7 @@ class PortalUserSummary {
     this.username = '',
     required this.role,
     required this.portalStatus,
+    this.avatar,
     this.isPrrc = false,
     this.assignedDepartments = const [],
   });
@@ -32,6 +34,7 @@ class PortalUserSummary {
         username: (json['username'] ?? json['userName'] ?? '').toString(),
         role: (json['role'] ?? '').toString(),
         portalStatus: (json['portalStatus'] ?? '').toString(),
+        avatar: (json['avatar'] ?? json['avatarUrl'] ?? json['avatar_url'])?.toString(),
         isPrrc: json['isPRRC'] == true || json['isPrrc'] == true,
         assignedDepartments: (json['assignedDepartments'] as List?)
                 ?.whereType<String>()
