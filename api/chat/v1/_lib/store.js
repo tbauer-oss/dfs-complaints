@@ -257,9 +257,13 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
   const key = keyConversationMessages(convId);
   const cappedLimit = Math.min(Math.max(Number(limit) || 0, 1), 200);
 
+  const afterTsNumber = afterTs === null || afterTs === undefined ? null : Number(afterTs);
+  const normalizedAfterTs = Number.isNaN(afterTsNumber) ? null : afterTsNumber;
+
   if (beforeTs !== null) {
     const members = await rdb.zrangebyscore(key, beforeTs - 1, 0, {
-      limit: { offset: 0, count: cappedLimit },
+      limit: cappedLimit,
+      offset: 0,
       rev: true,
     });
     const hasMore = members.length === cappedLimit;
@@ -267,9 +271,11 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
     return { messages, hasMoreBefore: hasMore, hasMoreAfter: false };
   }
 
-  if (afterTs !== null) {
-    const members = await rdb.zrangebyscore(key, `(${afterTs}`, '+inf', {
-      limit: { offset: 0, count: cappedLimit },
+  if (normalizedAfterTs !== null) {
+    const members = await rdb.zrangebyscore(key, normalizedAfterTs + 1, '+inf', {
+      limit: cappedLimit,
+      offset: 0,
+      rev: false,
     });
     const hasMore = members.length === cappedLimit;
     const messages = await fetchMessagesByIds(redis, members);
