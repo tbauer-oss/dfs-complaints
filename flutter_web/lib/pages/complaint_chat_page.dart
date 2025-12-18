@@ -819,54 +819,85 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     // Hinweis: Diese Seite wird aktuell nicht als Einstieg für den internen Chat verwendet
     // (siehe _openInternalChat in admin_page.dart mit InternalChatOverview/InternalChatPanel).
     return Scaffold(
-      backgroundColor:
-          theme.colorScheme.surfaceVariant.withOpacity(0.25),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
-        title: const Text('Interner Chat QM ↔ Vertreter'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Chip(
-              avatar: Icon(
-                _currentRole == ComplaintChatRole.admin
-                    ? Icons.verified_user_outlined
-                    : Icons.badge_outlined,
+      backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: 1260,
+              maxHeight: 960,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.shadowColor.withOpacity(0.12),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Chip(
+                            avatar: Icon(
+                              _currentRole == ComplaintChatRole.admin
+                                  ? Icons.verified_user_outlined
+                                  : Icons.badge_outlined,
+                            ),
+                            label: Text(_currentRole == ComplaintChatRole.admin
+                                ? 'Admin aktiv'
+                                : 'Vertreter aktiv'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = constraints.maxWidth >= 900;
+                          final showList = isWide || _activeConversation == null;
+                          final showChat = isWide || _activeConversation != null;
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showList)
+                                if (isWide)
+                                  _buildSidebar(isWide)
+                                else
+                                  Expanded(child: _buildSidebar(isWide)),
+                              if (showList && showChat && isWide)
+                                VerticalDivider(
+                                  width: 1,
+                                  color: theme.colorScheme.outlineVariant
+                                      .withOpacity(0.6),
+                                ),
+                              if (showChat)
+                                Expanded(
+                                  child: _buildChatPane(isWide),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              label: Text(_currentRole == ComplaintChatRole.admin
-                  ? 'Admin aktiv'
-                  : 'Vertreter aktiv'),
             ),
           ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 900;
-          final showList = isWide || _activeConversation == null;
-          final showChat = isWide || _activeConversation != null;
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (showList)
-                if (isWide)
-                  _buildSidebar(isWide)
-                else
-                  Expanded(child: _buildSidebar(isWide)),
-              if (showList && showChat && isWide)
-                VerticalDivider(
-                  width: 1,
-                  color: theme.colorScheme.outlineVariant.withOpacity(0.6),
-                ),
-              if (showChat)
-                Expanded(
-                  child: _buildChatPane(isWide),
-                ),
-            ],
-          );
-        },
+        ),
       ),
     );
   }
