@@ -46,7 +46,7 @@ class ChatService {
   }
 
   Future<List<ChatConversationSummary>> fetchConversations() async {
-    final uri = api.buildUri('/api/chat/v1/conversations');
+    final uri = api.buildUri('/api/chat/v1/conversations', query: {'limit': '50'});
     final response = await http.get(uri, headers: api.portalHeaders());
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
@@ -58,13 +58,13 @@ class ChatService {
   }
 
   Future<ChatConversationSummary> ensureDirectConversation(
-    String participantId,
+    String participantEmail,
     String participantDisplayName,
     {String? currentUserId, String? currentUserDisplayName}
   ) async {
     final uri = api.buildUri('/api/chat/v1/dm');
     final payload = {
-      'otherUid': participantId,
+      'peerEmail': participantEmail,
     };
     final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
     api.assertSuccess(response);
@@ -81,7 +81,7 @@ class ChatService {
           type: 'dm',
           title: participantDisplayName,
           participants: [
-            ChatParticipant(userId: participantId, displayName: participantDisplayName),
+            ChatParticipant(userId: participantEmail, displayName: participantDisplayName, email: participantEmail),
             if (currentUserId != null)
               ChatParticipant(
                 userId: currentUserId,
@@ -100,7 +100,7 @@ class ChatService {
         type: 'dm',
         title: participantDisplayName,
         participants: [
-          ChatParticipant(userId: participantId, displayName: participantDisplayName),
+          ChatParticipant(userId: participantEmail, displayName: participantDisplayName, email: participantEmail),
           if (currentUserId != null)
             ChatParticipant(userId: currentUserId, displayName: currentUserDisplayName ?? 'Du'),
         ],

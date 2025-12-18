@@ -122,7 +122,8 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                   itemBuilder: (context, index) {
                     final item = displayList[index];
                     final title = item.titleFor(widget.currentUserId);
-                    final subtitle = item.lastMessage ?? 'Keine Nachrichten';
+                    final subtitle =
+                        item.lastMessagePreview ?? item.lastMessage ?? 'Keine Nachrichten';
                     final timestamp = item.lastMessageAt;
                     return ListTile(
                       leading: CircleAvatar(
@@ -245,7 +246,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
     setState(() => _creating = true);
     try {
       final conversation = await widget.chatService.ensureDirectConversation(
-        user.userId,
+        user.email,
         user.displayName,
         currentUserId: widget.currentUserId,
       );
