@@ -484,6 +484,7 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
   const rdb = createRedisAdapter(redis);
   const keyV2 = keyConversationMessagesV2(convId);
   const keyV1 = keyConversationMessages(convId);
+  const fallbackKeys = [`chat:v1:msg:${convId}`, `chat:msg:${convId}`];
   const cappedLimit = Math.min(Math.max(Number(limit) || 0, 1), 200);
 
   const afterTsNumber = afterTs === null || afterTs === undefined ? null : Number(afterTs);
@@ -493,13 +494,18 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
     const v2Card = await rdb.zcard(keyV2);
     if (v2Card > 0) return { key: keyV2, total: v2Card };
     const v1Card = await rdb.zcard(keyV1);
-    return { key: keyV1, total: v1Card };
+    if (v1Card > 0) return { key: keyV1, total: v1Card };
+    for (const altKey of fallbackKeys) {
+      const card = await rdb.zcard(altKey);
+      if (card > 0) return { key: altKey, total: card };
+    }
+    return { key: keyV2, total: v2Card };
   }
 
   const selected = await selectKey();
 
   if (beforeTs !== null) {
-    const members = await rdb.zrangebyscore(selected.key, beforeTs - 1, 0, {
+    const members = await rdb.zrangebyscore(selected.key, '-inf', beforeTs - 1, {
       limit: cappedLimit,
       offset: 0,
       rev: true,

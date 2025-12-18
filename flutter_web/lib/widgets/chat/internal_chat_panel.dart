@@ -70,7 +70,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       final timeline = await widget.chatService.fetchMessages(_convId, limit: 50);
       if (!mounted) return;
       setState(() {
-        _messages = timeline.messages;
+        _messages = _mergeMessages(timeline.messages);
         _hasMoreBefore = timeline.hasMoreBefore;
         _loading = false;
         _errorMessage = null;
@@ -229,6 +229,13 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     return 'Du';
   }
 
+  bool _isOwnMessage(ChatMessage msg) {
+    final senderEmail = msg.senderEmail?.toLowerCase();
+    final current = widget.currentUserId.toLowerCase();
+    if (senderEmail != null && senderEmail.isNotEmpty && senderEmail == current) return true;
+    return msg.authorId.toLowerCase() == current;
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.conversation.titleFor(widget.currentUserId);
@@ -255,7 +262,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
-                          final isMe = msg.authorId == widget.currentUserId;
+                          final isMe = _isOwnMessage(msg);
                           return Row(
                             mainAxisAlignment:
                                 isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
