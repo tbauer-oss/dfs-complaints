@@ -4981,7 +4981,7 @@ class _AdminPageState extends State<AdminPage> {
                             conversation: selected!,
                             currentUserId: _portalChatId,
                             onBack: () => setModalState(() => selected = null),
-                            showBackButton: isCompact && selected != null,
+                            showBackButton: selected != null,
                             onMarkAsRead: _handleConversationSeen,
                             conversationListNotifier: _conversationListNotifier,
                           ),
