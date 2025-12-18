@@ -30,6 +30,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   List<ChatConversationSummary> _conversations = const [];
   bool _loading = true;
   final Set<String> _deletingIds = {};
+  bool _archivePlaceholder = false;
 
   @override
   void initState() {
@@ -160,33 +161,56 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Chats durchsuchen',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          child: Card(
+            elevation: 0,
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Chats, Personen oder Gruppen suchen',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: theme.colorScheme.surface.withOpacity(0.65),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Tooltip(
+                    message: 'Archivierte Konversationen (UI Placeholder)',
+                    child: FilterChip(
+                      visualDensity: VisualDensity.compact,
+                      label: const Text('Archiv'),
+                      selected: _archivePlaceholder,
+                      onSelected: (value) => setState(() => _archivePlaceholder = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    onPressed: _openNewConversationDialog,
+                    icon: const Icon(Icons.forum_rounded),
+                    label: const Text('Neue Konversation'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: _openNewConversationDialog,
-                icon: const Icon(Icons.chat),
-                label: const Text('Neue Konversation'),
-              ),
-            ],
+            ),
           ),
         ),
         Expanded(
@@ -223,26 +247,33 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final membersLabel =
                         memberNames.isNotEmpty ? item.membersLabelFor(widget.currentUserId) : null;
                     final timestamp = item.lastMessageAt;
+                    final hasUnread =
+                        item.lastAuthor != null && item.lastAuthor != widget.currentUserId;
                     final isDeleting = _deletingIds.contains(item.conversationId);
-                    return Material(
-                      color: Colors.transparent,
+                    return Card(
+                      margin: EdgeInsets.zero,
+                      elevation: 0,
+                      color: theme.colorScheme.surface.withOpacity(0.9),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+                      ),
                       child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
                         onTap: () => widget.onSelect(item),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
+                        child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.outlineVariant,
-                            ),
-                          ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               CircleAvatar(
-                                child: Text(title.isNotEmpty ? title.characters.first.toUpperCase() : '?'),
+                                radius: 22,
+                                backgroundColor: theme.colorScheme.primaryContainer,
+                                foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                child: Text(
+                                  title.isNotEmpty ? title.characters.first.toUpperCase() : '?',
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -254,20 +285,22 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                                         Expanded(
                                           child: Text(
                                             title,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium
-                                                ?.copyWith(fontWeight: FontWeight.w700),
+                                            style: theme.textTheme.titleMedium?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.1,
+                                            ),
                                           ),
                                         ),
                                         if (timestamp != null)
                                           Text(
                                             _formatTime(timestamp),
-                                            style: Theme.of(context).textTheme.labelMedium,
+                                            style: theme.textTheme.labelMedium?.copyWith(
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                            ),
                                           ),
                                       ],
                                     ),
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 4),
                                     if (membersLabel != null)
                                       GestureDetector(
                                         onTap: () => _showMembersDialog(memberNames),
@@ -275,13 +308,11 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                                           message: 'Mitglieder anzeigen',
                                           child: Text(
                                             membersLabel,
-                                            maxLines: 2,
-                                            softWrap: true,
+                                            maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -290,21 +321,38 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                                       subtitle,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodyMedium,
                                     ),
                                   ],
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              IconButton(
-                                icon: isDeleting
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.delete_outline),
-                                onPressed: isDeleting ? null : () => _deleteConversation(item),
-                                tooltip: 'Konversation löschen',
+                              Column(
+                                children: [
+                                  IconButton(
+                                    icon: isDeleting
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.delete_outline),
+                                    onPressed: isDeleting ? null : () => _deleteConversation(item),
+                                    tooltip: 'Konversation löschen',
+                                  ),
+                                  if (hasUnread)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.primary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ],
                           ),
