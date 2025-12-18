@@ -232,9 +232,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   @override
   Widget build(BuildContext context) {
     final title = widget.conversation.titleFor(widget.currentUserId);
+    final membersLabel = widget.conversation.membersLabelFor(widget.currentUserId);
     return Column(
       children: [
-        _PanelHeader(title: title, onBack: widget.onBack),
+        _PanelHeader(title: title, subtitle: membersLabel, onBack: widget.onBack),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -330,9 +331,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
 class _PanelHeader extends StatelessWidget {
   final String title;
+  final String? subtitle;
   final VoidCallback onBack;
 
-  const _PanelHeader({required this.title, required this.onBack});
+  const _PanelHeader({required this.title, required this.onBack, this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -345,9 +347,20 @@ class _PanelHeader extends StatelessWidget {
             onPressed: onBack,
           ),
           Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
             ),
           ),
         ],

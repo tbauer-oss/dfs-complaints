@@ -37,6 +37,30 @@ function safeDisplayName(name, fallback = 'Unbekannter Nutzer') {
   return value;
 }
 
+function uniqueList(values) {
+  const result = [];
+  for (const value of values) {
+    if (!value) continue;
+    if (result.includes(value)) continue;
+    result.push(value);
+  }
+  return result;
+}
+
+function buildGroupTitle(meta, participantProfiles) {
+  const explicitTitle = meta.title || meta.name;
+  if (explicitTitle && String(explicitTitle).trim()) return String(explicitTitle).trim();
+
+  const participantNames = participantProfiles.map((p) => safeDisplayName(p.displayName, p.email || p.userId));
+  const uniqueNames = uniqueList(participantNames.filter(Boolean));
+  if (uniqueNames.length === 0) return 'Gruppe';
+
+  const preview = uniqueNames.slice(0, 3);
+  const remaining = uniqueNames.length - preview.length;
+  const suffix = remaining > 0 ? ` +${remaining}` : '';
+  return `${preview.join(', ')}${suffix}`;
+}
+
 function toTimestampMs(value) {
   if (value === null || value === undefined || value === '') return null;
   const num = Number(value);
@@ -613,9 +637,15 @@ export function buildConversationSummary(meta, profiles, currentUserId) {
     avatar: profiles.get(uid)?.avatar || null,
   }));
   const lastActivity = meta.lastMsgAt || meta.lastMessageAt || meta.updatedAt || meta.createdAt;
-  const title = meta.type === 'group'
-    ? meta.title || 'Gruppe'
+  const isGroup = (meta.type || 'dm') === 'group';
+  const groupTitle = isGroup ? buildGroupTitle(meta, participants) : null;
+  const title = isGroup
+    ? groupTitle
     : participants.find((p) => p.userId !== currentUserId)?.displayName || 'Direktnachricht';
+
+  const memberCount = isGroup ? meta.participants.length : undefined;
+  const membersPreview = isGroup ? meta.participants.slice(0, 3) : undefined;
+
   return {
     id: meta.convId,
     convId: meta.convId,
@@ -626,6 +656,8 @@ export function buildConversationSummary(meta, profiles, currentUserId) {
     lastMessagePreview: meta.lastMsgPreview || meta.lastMessagePreview || null,
     lastAuthor: meta.lastMsgAuthor || null,
     lastMessageAt: toIsoOrNull(lastActivity),
+    memberCount,
+    membersPreview,
   };
 }
 
