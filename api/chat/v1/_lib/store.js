@@ -136,14 +136,17 @@ async function readConversationMetaHash(rdb, convId) {
 
 export async function readUserProfile(redis, uid) {
   const rdb = createRedisAdapter(redis);
-  const avatar = await rdb.hget(keyAvatarMap(), uid);
+  const normalizedUid = normalizeUserId(uid);
+  const avatar = normalizedUid ? await rdb.hget(keyAvatarMap(), normalizedUid) : null;
   const profile = (await rdb.getJson(keyUserV2(uid))) || (await rdb.hgetall(keyUser(uid)));
   if (!profile || Object.keys(profile).length === 0) return null;
+  const avatarUrl = avatar || profile.avatarUrl || profile.avatar || null;
   return {
     userId: uid,
     displayName: safeDisplayName(profile.displayName, profile.email || uid),
     email: profile.email || uid,
-    avatar: avatar || profile.avatarUrl || profile.avatar || null,
+    avatarUrl,
+    avatar: avatarUrl,
     active: profile.active !== undefined ? String(profile.active) === 'true' : true,
   };
 }

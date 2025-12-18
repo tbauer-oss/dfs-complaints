@@ -13,6 +13,9 @@ import {
   portalUserFromRequest,
   PORTAL_ROLES,
 } from '../_lib/portalAuth.js';
+import { createTrackedRedis } from '../chat/v1/_lib/redisTracker.js';
+import { createRedisAdapter } from '../chat/v1/_lib/redisAdapter.js';
+import { keyAvatarMap, normalizeUserId } from '../chat/v1/_lib/schema.js';
 
 const isTruthy = flag => flag === true || flag === 'true' || flag === 1 || flag === '1';
 
@@ -43,6 +46,23 @@ function sanitizeUser(u) {
   };
 }
 
+async function loadAvatarMap() {
+  try {
+    const { client } = createTrackedRedis();
+    const rdb = createRedisAdapter(client);
+    const raw = (await rdb.hgetall(keyAvatarMap())) || {};
+    const normalized = {};
+    for (const [key, value] of Object.entries(raw)) {
+      const normalizedKey = normalizeUserId(key);
+      if (normalizedKey) normalized[normalizedKey] = value;
+    }
+    return normalized;
+  } catch (err) {
+    console.error('[portal/users] avatarMap error', err);
+    return {};
+  }
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
@@ -55,7 +75,16 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const list = await portalUsersList();
       const portalUsers = list.filter(u => normalizeRole(u.role) !== PORTAL_ROLES.user || u.portalStatus);
-      return ok(res, portalUsers.map(sanitizeUser));
+      const avatarMap = await loadAvatarMap();
+      return ok(
+        res,
+        portalUsers.map((u) => {
+          const normalizedEmail = normalizeUserId(u.email);
+          const avatarUrl = normalizedEmail ? avatarMap[normalizedEmail] || null : null;
+          const sanitized = sanitizeUser(u);
+          return { ...sanitized, avatarUrl, avatar: avatarUrl };
+        })
+      );
     }
 
     if (req.method === 'POST') {
