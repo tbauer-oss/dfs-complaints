@@ -640,7 +640,10 @@ class _PanelHeader extends StatelessWidget {
           if (showBackButton)
             IconButton(
               tooltip: 'Zur Übersicht',
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                color: theme.colorScheme.onSurface,
+              ),
               onPressed: onBack,
             )
           else
