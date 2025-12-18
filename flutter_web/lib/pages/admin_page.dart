@@ -4893,181 +4893,219 @@ class _AdminPageState extends State<AdminPage> {
               builder: (context, constraints) {
                 final theme = Theme.of(context);
                 final isWide = constraints.maxWidth > 980;
-                return FractionallySizedBox(
-                  heightFactor: isWide ? 0.9 : 0.95,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.shadowColor.withOpacity(0.18),
-                          blurRadius: 16,
-                          offset: const Offset(0, -2),
-                        ),
-                      ],
+                final widthLabel =
+                    'DEBUG ACTIVE: admin_page.dart _openInternalChat | width: ${constraints.maxWidth.toStringAsFixed(0)}';
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 1280,
+                      maxHeight: 1000,
                     ),
-                    child: SafeArea(
-                      top: false,
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surface,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                              border: Border(
-                                bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-                              ),
+                    child: FractionallySizedBox(
+                      heightFactor: isWide ? 0.9 : 0.95,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.shadowColor.withOpacity(0.18),
+                              blurRadius: 16,
+                              offset: const Offset(0, -2),
                             ),
-                            child: Row(
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Interner Chat',
-                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                          ],
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Column(
+                            children: [
+                              Container(
+                                height: 32,
+                                width: double.infinity,
+                                color: Colors.red,
+                                alignment: Alignment.center,
+                                child: Text(
+                                  widthLabel,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surface,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(16),
+                                  ),
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: theme.colorScheme.outlineVariant,
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Konversationen & Nachrichten in einer Ansicht',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Interner Chat',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Konversationen & Nachrichten in einer Ansicht',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const Spacer(),
+                                    IconButton(
+                                      tooltip: 'Schließen',
+                                      onPressed: () => Navigator.of(context).maybePop(),
+                                      icon: const Icon(Icons.close),
                                     ),
                                   ],
                                 ),
-                                const Spacer(),
-                                IconButton(
-                                  tooltip: 'Schließen',
-                                  onPressed: () => Navigator.of(context).maybePop(),
-                                  icon: const Icon(Icons.close),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                              child: isWide
-                                  ? DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.surface,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: theme.colorScheme.outlineVariant),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: theme.shadowColor.withOpacity(0.06),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 2),
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                                  child: isWide
+                                      ? DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surface,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: theme.colorScheme.outlineVariant,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: theme.shadowColor.withOpacity(0.06),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 360,
-                                              child: DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  color: theme.colorScheme.surface,
-                                                  border: Border(
-                                                    right: BorderSide(color: theme.colorScheme.outlineVariant),
-                                                  ),
-                                                ),
-                                                child: InternalChatOverview(
-                                                  chatService: _chatService,
-                                                  currentUserId: _portalChatId,
-                                                  onConversationsLoaded: _handleConversationsSnapshot,
-                                                  onSelect: (conv) {
-                                                    _markConversationRead(conv);
-                                                    setModalState(() => selected = conv);
-                                                  },
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    colors: [
-                                                      theme.colorScheme.surface,
-                                                      theme.colorScheme.surfaceVariant.withOpacity(0.14),
-                                                    ],
-                                                    begin: Alignment.topCenter,
-                                                    end: Alignment.bottomCenter,
-                                                  ),
-                                                ),
-                                                child: selected == null
-                                                    ? Center(
-                                                        child: Padding(
-                                                          padding: const EdgeInsets.all(32),
-                                                          child: Column(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              Icon(Icons.chat_bubble_outline,
-                                                                  size: 48, color: theme.colorScheme.outline),
-                                                              const SizedBox(height: 12),
-                                                              Text(
-                                                                'Konversation auswählen, um Nachrichten zu lesen.',
-                                                                style: theme.textTheme.titleMedium,
-                                                                textAlign: TextAlign.center,
-                                                              ),
-                                                              const SizedBox(height: 6),
-                                                              Text(
-                                                                'Neue Chats können links gestartet werden.',
-                                                                style: theme.textTheme.bodyMedium?.copyWith(
-                                                                  color: theme.colorScheme.onSurfaceVariant,
-                                                                ),
-                                                                textAlign: TextAlign.center,
-                                                              ),
-                                                            ],
-                                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(16),
+                                            child: Row(
+                                              children: [
+                                                SizedBox(
+                                                  width: 360,
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      color: theme.colorScheme.surface,
+                                                      border: Border(
+                                                        right: BorderSide(
+                                                          color: theme.colorScheme.outlineVariant,
                                                         ),
-                                                      )
-                                                    : InternalChatPanel(
-                                                        chatService: _chatService,
-                                                        conversation: selected!,
-                                                        currentUserId: _portalChatId,
-                                                        onBack: () => setModalState(() => selected = null),
-                                                        onMarkAsRead: _handleConversationSeen,
                                                       ),
-                                              ),
+                                                    ),
+                                                    child: InternalChatOverview(
+                                                      chatService: _chatService,
+                                                      currentUserId: _portalChatId,
+                                                      onConversationsLoaded: _handleConversationsSnapshot,
+                                                      onSelect: (conv) {
+                                                        _markConversationRead(conv);
+                                                        setModalState(() => selected = conv);
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      gradient: LinearGradient(
+                                                        colors: [
+                                                          theme.colorScheme.surface,
+                                                          theme.colorScheme.surfaceVariant.withOpacity(0.14),
+                                                        ],
+                                                        begin: Alignment.topCenter,
+                                                        end: Alignment.bottomCenter,
+                                                      ),
+                                                    ),
+                                                    child: selected == null
+                                                        ? Center(
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.all(32),
+                                                              child: Column(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons.chat_bubble_outline,
+                                                                    size: 48,
+                                                                    color: theme.colorScheme.outline,
+                                                                  ),
+                                                                  const SizedBox(height: 12),
+                                                                  Text(
+                                                                    'Konversation auswählen, um Nachrichten zu lesen.',
+                                                                    style: theme.textTheme.titleMedium,
+                                                                    textAlign: TextAlign.center,
+                                                                  ),
+                                                                  const SizedBox(height: 6),
+                                                                  Text(
+                                                                    'Neue Chats können links gestartet werden.',
+                                                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                                                      color: theme.colorScheme.onSurfaceVariant,
+                                                                    ),
+                                                                    textAlign: TextAlign.center,
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : InternalChatPanel(
+                                                            chatService: _chatService,
+                                                            conversation: selected!,
+                                                            currentUserId: _portalChatId,
+                                                            onBack: () => setModalState(() => selected = null),
+                                                            onMarkAsRead: _handleConversationSeen,
+                                                          ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
+                                          ),
+                                        )
+                                      : Card(
+                                          clipBehavior: Clip.antiAlias,
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(milliseconds: 220),
+                                            child: selected == null
+                                                ? InternalChatOverview(
+                                                    key: const ValueKey('chatOverview'),
+                                                    chatService: _chatService,
+                                                    currentUserId: _portalChatId,
+                                                    onConversationsLoaded: _handleConversationsSnapshot,
+                                                    onSelect: (conv) {
+                                                      _markConversationRead(conv);
+                                                      setModalState(() => selected = conv);
+                                                    },
+                                                  )
+                                                : InternalChatPanel(
+                                                    key: const ValueKey('chatPanel'),
+                                                    chatService: _chatService,
+                                                    conversation: selected!,
+                                                    currentUserId: _portalChatId,
+                                                    onBack: () => setModalState(() => selected = null),
+                                                    onMarkAsRead: _handleConversationSeen,
+                                                  ),
+                                          ),
                                         ),
-                                      ),
-                                    )
-                                  : Card(
-                                      clipBehavior: Clip.antiAlias,
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(milliseconds: 220),
-                                        child: selected == null
-                                            ? InternalChatOverview(
-                                                key: const ValueKey('chatOverview'),
-                                                chatService: _chatService,
-                                                currentUserId: _portalChatId,
-                                                onConversationsLoaded: _handleConversationsSnapshot,
-                                                onSelect: (conv) {
-                                                  _markConversationRead(conv);
-                                                  setModalState(() => selected = conv);
-                                                },
-                                              )
-                                            : InternalChatPanel(
-                                                key: const ValueKey('chatPanel'),
-                                                chatService: _chatService,
-                                                conversation: selected!,
-                                                currentUserId: _portalChatId,
-                                                onBack: () => setModalState(() => selected = null),
-                                                onMarkAsRead: _handleConversationSeen,
-                                              ),
-                                      ),
-                                    ),
-                            ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
