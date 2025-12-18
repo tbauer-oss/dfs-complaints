@@ -18,16 +18,23 @@ import {
   upsertUserProfile,
   validateMessageBody,
 } from '../../_lib/store.js';
-import { buildMessageId, keyConversationMembers, parseTimestamp } from '../../_lib/schema.js';
+import {
+  buildMessageId,
+  canonicalizeConversationId,
+  keyConversationMembers,
+  keyConversationMessages,
+  parseTimestamp,
+} from '../../_lib/schema.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
   const { id } = req.query || {};
-  const convId = String(id || '').trim();
+  const requestedConvId = String(id || '').trim();
+  const canonicalConvId = canonicalizeConversationId(requestedConvId) || requestedConvId;
 
-  if (!convId) return bad(res, 'missing conversation id', 400);
+  if (!requestedConvId) return bad(res, 'missing conversation id', 400);
 
   const { client, counters } = createTrackedRedis(redis);
   const rdb = createRedisAdapter(client);
@@ -49,8 +56,12 @@ export default async function handler(req, res) {
     const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
-    const meta = await fetchConversationMeta(rdb, convId);
+    const meta =
+      (canonicalConvId && (await fetchConversationMeta(rdb, canonicalConvId))) ||
+      (canonicalConvId !== requestedConvId ? await fetchConversationMeta(rdb, requestedConvId) : null);
     if (!meta) return bad(res, 'conversation not found', 404);
+
+    const convId = canonicalizeConversationId(meta.convId) || canonicalConvId || requestedConvId;
 
     const membersKey = keyConversationMembers(convId);
     const members = await rdb.smembers(membersKey);
@@ -72,8 +83,21 @@ export default async function handler(req, res) {
       const beforeTs = parseTimestamp(req.query?.beforeTs);
       const limit = Number(req.query?.limit || 50);
       const timeline = await readMessages(rdb, convId, { afterTs, beforeTs, limit });
+      const messagesKey = timeline.sourceKey || keyConversationMessages(convId);
+      const zsetLength =
+        typeof timeline.total === 'number' && !Number.isNaN(timeline.total)
+          ? timeline.total
+          : await rdb.zcard(messagesKey);
+      console.info('[chat/v1/messages] read', {
+        requestedConvId,
+        canonicalConvId,
+        convId,
+        messagesKey,
+        zsetLength,
+        resultCount: timeline.messages?.length || 0,
+      });
       logRedisUsage('[chat/v1/messages] read-only', counters, { convId });
-      return ok(res, { ok: true, ...timeline });
+      return ok(res, { ok: true, convId, ...timeline });
     }
 
     if (req.method !== 'POST') return methodNotAllowed(res);
@@ -107,6 +131,17 @@ export default async function handler(req, res) {
     const message = await appendMessage(rdb, meta, payload);
 
     await registerConversationForUsers(rdb, convId, meta.participants, payload.timestampMs);
+
+    const messagesKey = keyConversationMessages(convId);
+    const zsetLength = await rdb.zcard(messagesKey);
+    console.info('[chat/v1/messages] write', {
+      requestedConvId,
+      canonicalConvId,
+      convId,
+      messagesKey,
+      zsetLength,
+      resultCount: 1,
+    });
 
     logRedisUsage('[chat/v1/messages] write', counters, { convId });
 

@@ -14,11 +14,7 @@ import { redis } from '../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from './_lib/cleanup.js';
 import { createRedisAdapter } from './_lib/redisAdapter.js';
-import {
-  buildConversationId,
-  keyConversationMembers,
-  normalizeUserId,
-} from './_lib/schema.js';
+import { buildDmId, keyConversationMembers, normalizeUserId } from './_lib/schema.js';
 import {
   ensureDmConversation,
   fetchConversationMeta,
@@ -79,7 +75,7 @@ export default async function handler(req, res) {
     if (!isString || !otherEmail || !isEmailLike) return bad(res, 'invalid payload', 400);
     if (selfEmail === otherEmail) return bad(res, 'invalid payload', 400);
 
-    const convId = buildConversationId(selfEmail, otherEmail);
+    const convId = buildDmId(selfEmail, otherEmail);
     if (!convId) return bad(res, 'invalid payload', 400);
     const [, a, b] = convId.split(':');
 
