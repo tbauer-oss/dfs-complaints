@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:js_util' as js_util;
@@ -327,6 +328,10 @@ class _AdminPageState extends State<AdminPage> {
   bool _portalIsPrrcAuthorized = false;
   bool _portalIsQm = false;
   final Map<String, String> _portalTilePermissions = {};
+  final Map<String, int> _chatLastReadMs = {};
+  List<ChatConversationSummary> _chatCachedConversations = const [];
+  Timer? _chatUnreadTimer;
+  bool _chatHasUnread = false;
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
   bool get _isPortalSuperuser => _portalRole == PORTAL_ROLES['superuser'];
@@ -351,6 +356,86 @@ class _AdminPageState extends State<AdminPage> {
     final email = _portalEmail;
     if (email.isEmpty) return '';
     return ChatService.normalizeUserId(email);
+  }
+
+  String _chatLastReadKey(String convId) {
+    final email = _portalEmail.trim().toLowerCase();
+    return 'chat:lastReadAt:$email:$convId';
+  }
+
+  int _loadChatLastReadMs(String convId) {
+    if (_chatLastReadMs.containsKey(convId)) return _chatLastReadMs[convId]!;
+    final raw = html.window.localStorage[_chatLastReadKey(convId)];
+    final parsed = int.tryParse(raw ?? '');
+    if (parsed != null) {
+      _chatLastReadMs[convId] = parsed;
+      return parsed;
+    }
+    return 0;
+  }
+
+  void _saveChatLastReadMs(String convId, int value) {
+    _chatLastReadMs[convId] = value;
+    html.window.localStorage[_chatLastReadKey(convId)] = value.toString();
+  }
+
+  void _recalculateChatUnread([List<ChatConversationSummary>? conversations]) {
+    final list = conversations ?? _chatCachedConversations;
+    bool anyUnread = false;
+    for (final conv in list) {
+      final ts = conv.lastMessageAt;
+      if (ts == null) continue;
+      final lastAuthor = (conv.lastAuthor ?? '').trim();
+      if (lastAuthor.isNotEmpty) {
+        final normalized = ChatService.normalizeUserId(lastAuthor);
+        if (lastAuthor == _portalEmail || normalized == _portalUserId) continue;
+      }
+      if (ts.millisecondsSinceEpoch > _loadChatLastReadMs(conv.conversationId)) {
+        anyUnread = true;
+        break;
+      }
+    }
+    if (mounted) {
+      if (_chatHasUnread != anyUnread) setState(() => _chatHasUnread = anyUnread);
+    } else {
+      _chatHasUnread = anyUnread;
+    }
+  }
+
+  Future<void> _refreshChatUnread() async {
+    if (_portalUserId.isEmpty) return;
+    try {
+      final convs = await _chatService.fetchConversations();
+      _chatCachedConversations = convs;
+      _recalculateChatUnread(convs);
+    } catch (_) {}
+  }
+
+  void _handleConversationsSnapshot(List<ChatConversationSummary> conversations) {
+    _chatCachedConversations = conversations;
+    _recalculateChatUnread(conversations);
+  }
+
+  void _markConversationRead(ChatConversationSummary conversation, {int? lastSeenTs}) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final candidates = <int>[nowMs];
+    final lastMsgMs = conversation.lastMessageAt?.millisecondsSinceEpoch;
+    if (lastMsgMs != null) candidates.add(lastMsgMs);
+    if (lastSeenTs != null) candidates.add(lastSeenTs);
+    final effective = candidates.reduce(math.max);
+    _saveChatLastReadMs(conversation.conversationId, effective);
+    _recalculateChatUnread();
+  }
+
+  void _handleConversationSeen(String convId, int? lastSeenTs) {
+    final conv = _chatCachedConversations.firstWhereOrNull((c) => c.conversationId == convId);
+    if (conv != null) {
+      _markConversationRead(conv, lastSeenTs: lastSeenTs);
+      return;
+    }
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    _saveChatLastReadMs(convId, math.max(lastSeenTs ?? nowMs, nowMs));
+    _recalculateChatUnread();
   }
 
   Map<String, dynamic>? get _portalProfile =>
@@ -1016,6 +1101,9 @@ class _AdminPageState extends State<AdminPage> {
     _loadProducts();
     _refreshFaq();
     _loadPortalFeed();
+    _refreshChatUnread();
+    _chatUnreadTimer =
+        Timer.periodic(const Duration(seconds: 20), (_) => _refreshChatUnread());
     _portalFeedPulseTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
       if (mounted) setState(() => _portalFeedPulse++);
     });
@@ -1050,6 +1138,7 @@ class _AdminPageState extends State<AdminPage> {
     _portalUserPasswordCtrl.dispose();
     _portalUserPasswordRepeatCtrl.dispose();
     _portalUserDepartmentCtrl.dispose();
+    _chatUnreadTimer?.cancel();
     _portalFeedPulseTimer?.cancel();
     super.dispose();
   }
@@ -4776,7 +4865,8 @@ class _AdminPageState extends State<AdminPage> {
                 ],
               ),
             ),
-            floatingActionButton: InternalChatFab(onTap: _openInternalChat),
+            floatingActionButton:
+                InternalChatFab(onTap: _openInternalChat, hasUnread: _chatHasUnread),
             floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
             bottomNavigationBar: LegalFooter(api: widget.api),
           );
@@ -4790,11 +4880,11 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) {
-        ChatConversationSummary? selected;
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return FractionallySizedBox(
+          builder: (ctx) {
+            ChatConversationSummary? selected;
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                return FractionallySizedBox(
               heightFactor: 0.85,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -4809,7 +4899,11 @@ class _AdminPageState extends State<AdminPage> {
                         ? InternalChatOverview(
                             chatService: _chatService,
                             currentUserId: _portalUserId,
-                            onSelect: (conv) => setModalState(() => selected = conv),
+                            onConversationsLoaded: _handleConversationsSnapshot,
+                            onSelect: (conv) {
+                              _markConversationRead(conv);
+                              setModalState(() => selected = conv);
+                            },
                             onClose: () => Navigator.of(context).maybePop(),
                           )
                         : InternalChatPanel(
@@ -4817,6 +4911,7 @@ class _AdminPageState extends State<AdminPage> {
                             conversation: selected!,
                             currentUserId: _portalUserId,
                             onBack: () => setModalState(() => selected = null),
+                            onMarkAsRead: _handleConversationSeen,
                           ),
                   ),
                 ),

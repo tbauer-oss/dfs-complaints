@@ -93,21 +93,18 @@ class ChatConversationSummary {
 
   String? membersLabelFor(String userId) {
     if (type != 'group') return null;
-    final names = _memberDisplayNames(excludeUserId: userId);
+    final names = memberDisplayNames(excludeUserId: userId);
     if (names.isEmpty) return null;
-    final preview = names.take(3).toList();
-    final remaining = (memberCount ?? names.length) - preview.length;
-    final suffix = remaining > 0 ? ' +$remaining' : '';
-    return 'Mitglieder: ${preview.join(', ')}$suffix';
+    return 'Mitglieder: ${names.join(', ')}';
   }
 
+  List<String> memberDisplayNames({String? excludeUserId}) =>
+      _memberDisplayNames(excludeUserId: excludeUserId);
+
   String _groupTitle(String currentUserId) {
-    final names = _memberDisplayNames(excludeUserId: currentUserId);
+    final names = memberDisplayNames(excludeUserId: currentUserId);
     if (names.isEmpty) return 'Gruppe';
-    final preview = names.take(3).toList();
-    final remaining = (memberCount ?? names.length) - preview.length;
-    final suffix = remaining > 0 ? ' +$remaining' : '';
-    return '${preview.join(', ')}$suffix';
+    return names.join(', ');
   }
 
   List<String> _memberDisplayNames({String? excludeUserId}) {

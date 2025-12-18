@@ -12,6 +12,7 @@ class InternalChatPanel extends StatefulWidget {
   final ChatConversationSummary conversation;
   final String currentUserId;
   final VoidCallback onBack;
+  final void Function(String convId, int? lastMessageTs)? onMarkAsRead;
 
   const InternalChatPanel({
     super.key,
@@ -19,6 +20,7 @@ class InternalChatPanel extends StatefulWidget {
     required this.conversation,
     required this.currentUserId,
     required this.onBack,
+    this.onMarkAsRead,
   });
 
   @override
@@ -77,6 +79,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         _errorMessage = null;
       });
       _scrollToBottom();
+      _notifySeen();
     } catch (err) {
       _handleLoadError(err);
     }
@@ -127,6 +130,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         _messages = _mergeMessages([..._messages, ...timeline.messages]);
       });
       _scrollToBottom();
+      _notifySeen();
     } catch (err) {
       _handleLoadError(err, showSnackBar: false);
     }
@@ -189,6 +193,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         ]);
       });
       _scrollToBottom();
+      _notifySeen();
     } catch (err) {
       setState(() {
         _messages = _messages.where((m) => m.id != tempId).toList();
@@ -232,13 +237,54 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     return 'Du';
   }
 
+  void _notifySeen() {
+    if (widget.onMarkAsRead == null) return;
+    final lastTs = _messages.isNotEmpty ? _messages.last.timestamp.millisecondsSinceEpoch : null;
+    widget.onMarkAsRead!(widget.conversation.conversationId, lastTs);
+  }
+
+  void _showMembersDialog(List<String> members) {
+    if (members.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Mitglieder anzeigen'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 320, minWidth: 360),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: members.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, index) => ListTile(
+              dense: true,
+              leading: const Icon(Icons.person_outline),
+              title: Text(members[index]),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.conversation.titleFor(widget.currentUserId);
-    final membersLabel = widget.conversation.membersLabelFor(widget.currentUserId);
+    final memberNames = widget.conversation.memberDisplayNames(excludeUserId: widget.currentUserId);
+    final membersLabel = memberNames.isEmpty ? null : widget.conversation.membersLabelFor(widget.currentUserId);
     return Column(
       children: [
-        _PanelHeader(title: title, subtitle: membersLabel, onBack: widget.onBack),
+        _PanelHeader(
+          title: title,
+          subtitle: membersLabel,
+          onBack: widget.onBack,
+          onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
+        ),
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -336,8 +382,9 @@ class _PanelHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback onBack;
+  final VoidCallback? onShowMembers;
 
-  const _PanelHeader({required this.title, required this.onBack, this.subtitle});
+  const _PanelHeader({required this.title, required this.onBack, this.subtitle, this.onShowMembers});
 
   @override
   Widget build(BuildContext context) {
@@ -358,10 +405,18 @@ class _PanelHeader extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis,
+                  GestureDetector(
+                    onTap: onShowMembers,
+                    child: Tooltip(
+                      message: onShowMembers != null ? 'Mitglieder anzeigen' : null,
+                      child: Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 3,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
               ],
             ),
