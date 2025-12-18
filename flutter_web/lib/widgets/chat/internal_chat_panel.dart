@@ -16,6 +16,7 @@ class InternalChatPanel extends StatefulWidget {
   final VoidCallback onBack;
   final void Function(String convId, int? lastMessageTs)? onMarkAsRead;
   final ValueNotifier<List<ChatConversationSummary>>? conversationListNotifier;
+  final bool showBackButton;
 
   const InternalChatPanel({
     super.key,
@@ -25,6 +26,7 @@ class InternalChatPanel extends StatefulWidget {
     required this.onBack,
     this.onMarkAsRead,
     this.conversationListNotifier,
+    this.showBackButton = false,
   });
 
   @override
@@ -391,6 +393,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             title: title,
             subtitle: membersLabel,
             onBack: widget.onBack,
+            showBackButton: widget.showBackButton,
             onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
           ),
           const Expanded(child: Center(child: CircularProgressIndicator())),
@@ -409,6 +412,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             title: title,
             subtitle: membersLabel,
             onBack: widget.onBack,
+            showBackButton: widget.showBackButton,
             onShowMembers: memberNames.isEmpty ? null : () => _showMembersDialog(memberNames),
           ),
           Expanded(
@@ -604,14 +608,20 @@ class _PanelHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback onBack;
+  final bool showBackButton;
   final VoidCallback? onShowMembers;
 
-  const _PanelHeader({required this.title, required this.onBack, this.subtitle, this.onShowMembers});
+  const _PanelHeader({
+    required this.title,
+    required this.onBack,
+    required this.showBackButton,
+    this.subtitle,
+    this.onShowMembers,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isCompact = MediaQuery.of(context).size.width < 900;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
@@ -627,7 +637,7 @@ class _PanelHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (isCompact)
+          if (showBackButton)
             IconButton(
               tooltip: 'Zur Übersicht',
               icon: const Icon(Icons.arrow_back_rounded),
