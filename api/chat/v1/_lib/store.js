@@ -2,14 +2,18 @@
 import { randomUUID } from 'crypto';
 import {
   buildConversationId,
+  buildDmId,
   buildGroupId,
   buildMessageId,
+  canonicalizeConversationId,
   isConversationId,
   keyConversationMembers,
   keyConversationMeta,
+  keyConversationMetaCompat,
   keyConversationMetaLegacy,
   keyConversationMetaV2,
   keyConversationMessages,
+  keyConversationMessagesLegacy,
   keyConversationMessagesV2,
   keyMessage,
   keyMessageV2,
@@ -88,6 +92,7 @@ async function persistConversationMeta(rdb, convId, payload) {
   };
 
   await Promise.all([
+    rdb.hset(keyConversationMetaCompat(convId), payload),
     rdb.hset(keyConversationMeta(convId), payload),
     rdb.hset(keyConversationMetaLegacy(convId), payload),
     rdb.setJson(keyConversationMetaV2(convId), merged),
@@ -97,6 +102,8 @@ async function persistConversationMeta(rdb, convId, payload) {
 async function readConversationMetaHash(rdb, convId) {
   const primary = await rdb.hgetall(keyConversationMeta(convId));
   if (primary && Object.keys(primary).length > 0) return { payload: primary, source: 'primary' };
+  const compat = await rdb.hgetall(keyConversationMetaCompat(convId));
+  if (compat && Object.keys(compat).length > 0) return { payload: compat, source: 'compat' };
   const legacy = await rdb.hgetall(keyConversationMetaLegacy(convId));
   if (legacy && Object.keys(legacy).length > 0) return { payload: legacy, source: 'legacy' };
   return { payload: null, source: null };
@@ -146,53 +153,74 @@ async function readConversationParticipants(redis, convId, rawMeta) {
 }
 
 export async function fetchConversationMeta(redis, convId) {
-  if (!isConversationId(convId)) return null;
   const rdb = createRedisAdapter(redis);
-  const v2 = await rdb.getJson(keyConversationMetaV2(convId));
-  if (v2 && Object.keys(v2).length > 0) {
-    const participants = normalizeParticipants(v2.participants);
-    const lastActivity = v2.lastMsgAt ?? v2.updatedAt ?? v2.createdAt ?? null;
+  const canonical = canonicalizeConversationId(convId);
+  const normalizedInput = isConversationId(convId) ? String(convId).trim() : null;
+  const candidates = [canonical, normalizedInput].filter(Boolean);
+  const tried = new Set();
+
+  async function readMetaFor(targetConvId) {
+    const normalizedConvId = canonicalizeConversationId(targetConvId) || targetConvId;
+    const v2 = await rdb.getJson(keyConversationMetaV2(targetConvId));
+    if (v2 && Object.keys(v2).length > 0) {
+      const participants = normalizeParticipants(v2.participants);
+      const lastActivity = v2.lastMsgAt ?? v2.updatedAt ?? v2.createdAt ?? null;
+      if (normalizedConvId !== targetConvId) {
+        await persistConversationMeta(rdb, normalizedConvId, { ...v2, participants });
+      }
+      return {
+        convId: normalizedConvId,
+        type: v2.type || 'dm',
+        createdAt: v2.createdAt ?? null,
+        updatedAt: v2.updatedAt ?? null,
+        lastMsgAt: lastActivity,
+        lastMessageAt: lastActivity,
+        lastMsgId: v2.lastMsgId ?? null,
+        lastMsgAuthor: v2.lastMsgAuthor ?? null,
+        lastMsgPreview: v2.lastMsgPreview ?? null,
+        title: v2.title ?? null,
+        createdBy: v2.createdBy ?? null,
+        participants,
+        p1: participants[0] || null,
+        p2: participants[1] || null,
+      };
+    }
+
+    const { payload: raw, source } = await readConversationMetaHash(rdb, normalizedConvId);
+    if (!raw || Object.keys(raw).length === 0) return null;
+    if (source === 'legacy') await persistConversationMeta(rdb, normalizedConvId, raw);
+    const participants = await readConversationParticipants(rdb, normalizedConvId, raw);
+    const lastActivity = raw.lastMessageAt || raw.lastMsgAt || raw.updatedAt || raw.createdAt || null;
+    const normalizedPayload = { ...raw, participants: JSON.stringify(participants) };
+    await persistConversationMeta(rdb, normalizedConvId, normalizedPayload);
+    if (normalizedConvId !== targetConvId) {
+      await persistConversationMeta(rdb, targetConvId, normalizedPayload);
+    }
     return {
-      convId,
-      type: v2.type || 'dm',
-      createdAt: v2.createdAt ?? null,
-      updatedAt: v2.updatedAt ?? null,
+      convId: normalizedConvId,
+      type: raw.type || raw.kind || 'dm',
+      createdAt: raw.createdAt || null,
+      updatedAt: raw.updatedAt || null,
       lastMsgAt: lastActivity,
       lastMessageAt: lastActivity,
-      lastMsgId: v2.lastMsgId ?? null,
-      lastMsgAuthor: v2.lastMsgAuthor ?? null,
-      lastMsgPreview: v2.lastMsgPreview ?? null,
-      title: v2.title ?? null,
-      createdBy: v2.createdBy ?? null,
+      lastMsgId: raw.lastMsgId || null,
+      lastMsgAuthor: raw.lastMsgAuthor || null,
+      lastMsgPreview: raw.lastMsgPreview || raw.lastMessagePreview || null,
+      title: raw.title || null,
+      createdBy: raw.createdBy || null,
       participants,
-      p1: participants[0] || null,
-      p2: participants[1] || null,
+      p1: raw.p1 || participants[0] || null,
+      p2: raw.p2 || participants[1] || null,
     };
   }
 
-  const { payload: raw, source } = await readConversationMetaHash(rdb, convId);
-  if (!raw || Object.keys(raw).length === 0) return null;
-  if (source === 'legacy') await persistConversationMeta(rdb, convId, raw);
-  const participants = await readConversationParticipants(rdb, convId, raw);
-  const lastActivity = raw.lastMessageAt || raw.lastMsgAt || raw.updatedAt || raw.createdAt || null;
-  const normalizedPayload = { ...raw, participants: JSON.stringify(participants) };
-  await persistConversationMeta(rdb, convId, normalizedPayload);
-  return {
-    convId,
-    type: raw.type || raw.kind || 'dm',
-    createdAt: raw.createdAt || null,
-    updatedAt: raw.updatedAt || null,
-    lastMsgAt: lastActivity,
-    lastMessageAt: lastActivity,
-    lastMsgId: raw.lastMsgId || null,
-    lastMsgAuthor: raw.lastMsgAuthor || null,
-    lastMsgPreview: raw.lastMsgPreview || raw.lastMessagePreview || null,
-    title: raw.title || null,
-    createdBy: raw.createdBy || null,
-    participants,
-    p1: raw.p1 || participants[0] || null,
-    p2: raw.p2 || participants[1] || null,
-  };
+  for (const candidate of candidates) {
+    if (!candidate || tried.has(candidate)) continue;
+    tried.add(candidate);
+    const meta = await readMetaFor(candidate);
+    if (meta) return meta;
+  }
+  return null;
 }
 
 async function ensureMembersSet(redis, convId, participants) {
@@ -312,8 +340,14 @@ async function resolveLastActivity(rdb, convId, meta) {
   const recentV2 = await rdb.zrange(keyConversationMessagesV2(convId), 0, 0, { withScores: true, rev: true });
   const scoreV2 = Array.isArray(recentV2) && recentV2.length > 0 ? Number(recentV2[0].score) : null;
   if (Number.isFinite(scoreV2) && scoreV2 > 0) return scoreV2;
-  const recent = await rdb.zrange(keyConversationMessages(convId), 0, 0, { withScores: true, rev: true });
-  const score = Array.isArray(recent) && recent.length > 0 ? Number(recent[0].score) : null;
+  const recentPrimary = await rdb.zrange(keyConversationMessages(convId), 0, 0, { withScores: true, rev: true });
+  const scorePrimary = Array.isArray(recentPrimary) && recentPrimary.length > 0 ? Number(recentPrimary[0].score) : null;
+  if (Number.isFinite(scorePrimary) && scorePrimary > 0) return scorePrimary;
+  const recentLegacy = await rdb.zrange(keyConversationMessagesLegacy(convId), 0, 0, {
+    withScores: true,
+    rev: true,
+  });
+  const score = Array.isArray(recentLegacy) && recentLegacy.length > 0 ? Number(recentLegacy[0].score) : null;
   if (Number.isFinite(score) && score > 0) return score;
   return null;
 }
@@ -341,16 +375,17 @@ export async function rebuildInboxForUser(redis, uid) {
   const rdb = createRedisAdapter(redis);
   const convIds = await iterateConversationIds(redis);
   for (const convId of convIds) {
-    const meta = await fetchConversationMeta(rdb, convId);
+    const resolvedConvId = canonicalizeConversationId(convId) || convId;
+    const meta = await fetchConversationMeta(rdb, resolvedConvId);
     if (!meta) continue;
     if (!meta.participants.includes(uid)) continue;
-    const ts = await resolveLastActivity(rdb, convId, meta);
+    const ts = await resolveLastActivity(rdb, resolvedConvId, meta);
     const score = Number.isFinite(ts) ? Number(ts) : Date.now();
     for (const participant of meta.participants) {
       await Promise.all([
-        rdb.zadd(keyUserInboxV2(participant), { score, member: convId }),
-        rdb.zadd(keyUserInbox(participant), { score, member: convId }),
-        rdb.zadd(keyUserConversations(participant), { score, member: convId }),
+        rdb.zadd(keyUserInboxV2(participant), { score, member: resolvedConvId }),
+        rdb.zadd(keyUserInbox(participant), { score, member: resolvedConvId }),
+        rdb.zadd(keyUserConversations(participant), { score, member: resolvedConvId }),
       ]);
     }
   }
@@ -358,23 +393,28 @@ export async function rebuildInboxForUser(redis, uid) {
 
 export async function registerConversationForUsers(redis, convId, participants, tsMs) {
   const rdb = createRedisAdapter(redis);
+  const resolvedConvId = canonicalizeConversationId(convId) || convId;
   const score = Number(tsMs || Date.now());
   for (const uid of participants || []) {
     await Promise.all([
-      rdb.zadd(keyUserInboxV2(uid), { score, member: convId }),
-      rdb.zadd(keyUserInbox(uid), { score, member: convId }),
-      rdb.zadd(keyUserConversations(uid), { score, member: convId }),
+      rdb.zadd(keyUserInboxV2(uid), { score, member: resolvedConvId }),
+      rdb.zadd(keyUserInbox(uid), { score, member: resolvedConvId }),
+      rdb.zadd(keyUserConversations(uid), { score, member: resolvedConvId }),
     ]);
   }
 }
 
 export function buildMessagePayload(convId, author, body, timestampMs, providedMessageId) {
-  const msgId = providedMessageId?.startsWith(`${convId}:`) ? providedMessageId : buildMessageId(convId, timestampMs);
+  const resolvedConvId = canonicalizeConversationId(convId) || convId;
+  const msgId =
+    providedMessageId?.startsWith(`${resolvedConvId}:`) && providedMessageId?.split(':').length >= 3
+      ? providedMessageId
+      : buildMessageId(resolvedConvId, timestampMs);
   const ts = Number(msgId.split(':').pop());
   const senderEmail = author.email || author.userId || null;
   return {
     msgId,
-    convId,
+    convId: resolvedConvId,
     senderUid: author.userId,
     senderEmail,
     senderName: safeDisplayName(author.displayName, senderEmail || 'Unbekannter Nutzer'),
@@ -480,20 +520,58 @@ async function fetchMessagesByIds(redis, ids) {
   return items;
 }
 
+function parseInlineMessage(member) {
+  if (member === null || member === undefined) return null;
+  const text = String(member).trim();
+  if (!text || (!text.startsWith('{') && !text.startsWith('['))) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch (_) {}
+  return null;
+}
+
+async function materializeMessages(redis, members) {
+  const inline = [];
+  const ids = [];
+
+  for (const member of members) {
+    const parsed = parseInlineMessage(member);
+    if (parsed) {
+      const inlineId =
+        parsed.id || parsed.msgId || parsed.messageId || parsed.messageID || parsed._id || parsed.uid || null;
+      const hydrated = hydrateMessage(inlineId || parsed.id || null, parsed);
+      if (hydrated) inline.push(hydrated);
+      continue;
+    }
+
+    const id = typeof member === 'string' ? member : member?.member;
+    if (id) ids.push(id);
+  }
+
+  const fetched = await fetchMessagesByIds(redis, ids);
+  const combined = [...inline, ...fetched];
+  combined.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  return combined;
+}
+
 export async function readMessages(redis, convId, { afterTs = null, beforeTs = null, limit = 50 } = {}) {
   const rdb = createRedisAdapter(redis);
   const keyV2 = keyConversationMessagesV2(convId);
   const keyV1 = keyConversationMessages(convId);
+  const legacyKey = keyConversationMessagesLegacy(convId);
   const cappedLimit = Math.min(Math.max(Number(limit) || 0, 1), 200);
 
   const afterTsNumber = afterTs === null || afterTs === undefined ? null : Number(afterTs);
   const normalizedAfterTs = Number.isNaN(afterTsNumber) ? null : afterTsNumber;
 
   async function selectKey() {
+    const primaryCard = await rdb.zcard(keyV1);
+    if (primaryCard > 0) return { key: keyV1, total: primaryCard };
     const v2Card = await rdb.zcard(keyV2);
     if (v2Card > 0) return { key: keyV2, total: v2Card };
-    const v1Card = await rdb.zcard(keyV1);
-    return { key: keyV1, total: v1Card };
+    const legacyCard = await rdb.zcard(legacyKey);
+    return { key: legacyKey, total: legacyCard };
   }
 
   const selected = await selectKey();
@@ -505,8 +583,8 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
       rev: true,
     });
     const hasMore = members.length === cappedLimit;
-    const messages = await fetchMessagesByIds(redis, members);
-    return { messages, hasMoreBefore: hasMore, hasMoreAfter: false };
+    const messages = await materializeMessages(redis, members);
+    return { messages, hasMoreBefore: hasMore, hasMoreAfter: false, sourceKey: selected.key, total: selected.total };
   }
 
   if (normalizedAfterTs !== null) {
@@ -516,15 +594,15 @@ export async function readMessages(redis, convId, { afterTs = null, beforeTs = n
       rev: false,
     });
     const hasMore = members.length === cappedLimit;
-    const messages = await fetchMessagesByIds(redis, members);
-    return { messages, hasMoreBefore: false, hasMoreAfter: hasMore };
+    const messages = await materializeMessages(redis, members);
+    return { messages, hasMoreBefore: false, hasMoreAfter: hasMore, sourceKey: selected.key, total: selected.total };
   }
 
   const members = await rdb.zrevrange(selected.key, 0, cappedLimit - 1);
   const total = selected.total;
   const hasMoreBefore = total > members.length;
-  const messages = await fetchMessagesByIds(redis, members);
-  return { messages, hasMoreBefore, hasMoreAfter: false };
+  const messages = await materializeMessages(redis, members);
+  return { messages, hasMoreBefore, hasMoreAfter: false, sourceKey: selected.key, total };
 }
 
 export function buildConversationSummary(meta, profiles, currentUserId) {

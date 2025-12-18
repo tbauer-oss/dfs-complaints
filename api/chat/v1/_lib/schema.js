@@ -4,7 +4,10 @@ const PREFIX = 'chat:v1';
 const V2_PREFIX = 'chat:v2';
 const MAX_BODY_LENGTH = 2000;
 
-export const META_PREFIX = 'chat:conv:';
+const META_PREFIX = 'chat:v1:conv:';
+const META_PREFIX_COMPAT = 'chat:conv:';
+const MSG_PREFIX = 'chat:v1:msg:';
+const MSG_PREFIX_LEGACY = 'chat:v1:conv:';
 
 export function normalizeUserId(raw) {
   const value = String(raw || '').trim();
@@ -12,12 +15,28 @@ export function normalizeUserId(raw) {
   return value.toLowerCase();
 }
 
-export function buildConversationId(userA, userB) {
+export function buildDmId(userA, userB) {
   const a = normalizeUserId(userA);
   const b = normalizeUserId(userB);
   if (!a || !b) return null;
   const [min, max] = [a, b].sort();
   return `dm:${min}:${max}`;
+}
+
+export function buildConversationId(userA, userB) {
+  return buildDmId(userA, userB);
+}
+
+export function canonicalizeConversationId(rawConvId) {
+  const value = String(rawConvId || '').trim();
+  if (!value) return null;
+  if (value.startsWith('dm:')) {
+    const [, a, b] = value.split(':');
+    const canonical = buildDmId(a, b);
+    return canonical || null;
+  }
+  if (value.startsWith('grp:')) return value;
+  return null;
 }
 
 const DM_ID_PATTERN = '[a-z0-9@._+%-]+';
@@ -63,6 +82,10 @@ export function keyConversationMeta(convId) {
   return `${META_PREFIX}${convId}`;
 }
 
+export function keyConversationMetaCompat(convId) {
+  return `${META_PREFIX_COMPAT}${convId}`;
+}
+
 export function keyConversationMetaV2(convId) {
   return `${V2_PREFIX}:conv:${convId}`;
 }
@@ -76,7 +99,11 @@ export function keyConversationMembers(convId) {
 }
 
 export function keyConversationMessages(convId) {
-  return `${PREFIX}:conv:${convId}:msgs`;
+  return `${MSG_PREFIX}${convId}`;
+}
+
+export function keyConversationMessagesLegacy(convId) {
+  return `${MSG_PREFIX_LEGACY}${convId}:msgs`;
 }
 
 export function keyConversationMessagesV2(convId) {
@@ -110,12 +137,18 @@ export function parseTimestamp(value) {
 }
 
 export function metaScanPatterns() {
-  return [`${META_PREFIX}*`, keyConversationMetaLegacy('*'), keyConversationMetaV2('*')];
+  return [
+    `${META_PREFIX}*`,
+    `${META_PREFIX_COMPAT}*`,
+    keyConversationMetaLegacy('*'),
+    keyConversationMetaV2('*'),
+  ];
 }
 
 export function parseConversationIdFromMetaKey(key) {
   if (!key) return null;
   if (key.startsWith(META_PREFIX)) return key.slice(META_PREFIX.length);
+  if (key.startsWith(META_PREFIX_COMPAT)) return key.slice(META_PREFIX_COMPAT.length);
   const legacyPrefix = `${PREFIX}:conv:`;
   if (key.startsWith(legacyPrefix) && key.endsWith(':meta')) {
     return key.slice(legacyPrefix.length, -':meta'.length);
