@@ -1,4 +1,7 @@
 // lib/pages/complaint_chat_page.dart
+// Layout Update: Builds a messenger-like two-pane layout with a permanent
+// sidebar on wide screens and a responsive single-pane flow on narrow widths
+// without touching any chat logic or data handling.
 import 'package:flutter/material.dart';
 import '../models/complaint_chat.dart';
 
@@ -135,6 +138,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   Widget _buildConversationList(bool isWide) {
     final theme = Theme.of(context);
+    final sidePadding = isWide ? 16.0 : 12.0;
     final query = _searchCtrl.text.trim().toLowerCase();
     final filtered = _conversations.where((c) {
       if (query.isEmpty) return true;
@@ -149,7 +153,8 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding:
+              EdgeInsets.symmetric(horizontal: sidePadding, vertical: 14),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -188,7 +193,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: EdgeInsets.fromLTRB(sidePadding, 12, sidePadding, 4),
           child: Row(
             children: [
               Expanded(
@@ -223,7 +228,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: sidePadding),
           child: Divider(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
         ),
         Expanded(
@@ -245,8 +250,8 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                   ),
                 )
               : ListView.separated(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: EdgeInsets.symmetric(
+                      horizontal: isWide ? 12 : 10, vertical: 8),
                   itemBuilder: (_, i) {
                     final conv = filtered[i];
                     final unread = conv.unreadCount(_currentRole);
@@ -373,6 +378,78 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSidebar(bool isWide) {
+    return SizedBox(
+      width: isWide ? 340 : null,
+      child: Card(
+        margin: EdgeInsets.all(isWide ? 16 : 0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        elevation: 4,
+        child: _buildConversationList(isWide),
+      ),
+    );
+  }
+
+  Widget _buildChatPane(bool isWide) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isWide ? 8 : 0, 16, isWide ? 16 : 0, 16),
+      child: Column(
+        children: [
+          Expanded(
+            child: Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18)),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.surface,
+                      theme.colorScheme.surfaceVariant.withOpacity(0.15),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: _activeConversation == null
+                    ? _emptyConversationPlaceholder(theme, isWide)
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!isWide)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () =>
+                                      setState(() => _activeConversationId = null),
+                                  icon: const Icon(Icons.chevron_left),
+                                  label: const Text('Zurück zur Liste'),
+                                ),
+                              ),
+                            ),
+                          _buildConversationHeader(_activeConversation!),
+                          Expanded(
+                            child: _buildMessages(_activeConversation!),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: _buildComposer(),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -766,78 +843,27 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 720;
+          final isWide = constraints.maxWidth >= 900;
+          final showList = isWide || _activeConversation == null;
+          final showChat = isWide || _activeConversation != null;
+
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (isWide)
-                SizedBox(
-                  width: 330,
-                  child: Card(
-                    margin: const EdgeInsets.all(16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18)),
-                    elevation: 4,
-                    child: _buildConversationList(isWide),
-                  ),
+              if (showList)
+                if (isWide)
+                  _buildSidebar(isWide)
+                else
+                  Expanded(child: _buildSidebar(isWide)),
+              if (showList && showChat && isWide)
+                VerticalDivider(
+                  width: 1,
+                  color: theme.colorScheme.outlineVariant.withOpacity(0.6),
                 ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!isWide)
-                        Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18)),
-                          child: SizedBox(
-                            height: 280,
-                            child: _buildConversationList(isWide),
-                          ),
-                        ),
-                      Expanded(
-                        child: Card(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18)),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  theme.colorScheme.surface,
-                                  theme.colorScheme.surfaceVariant
-                                      .withOpacity(0.15),
-                                ],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: _activeConversation == null
-                                ? _emptyConversationPlaceholder(theme)
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildConversationHeader(
-                                          _activeConversation!),
-                                      Expanded(
-                                        child: _buildMessages(
-                                            _activeConversation!),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: _buildComposer(),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              if (showChat)
+                Expanded(
+                  child: _buildChatPane(isWide),
                 ),
-              ),
             ],
           );
         },
@@ -845,7 +871,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
     );
   }
 
-  Widget _emptyConversationPlaceholder(ThemeData theme) {
+  Widget _emptyConversationPlaceholder(ThemeData theme, bool isWide) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -854,7 +880,9 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
               size: 52, color: theme.colorScheme.outline),
           const SizedBox(height: 12),
           Text(
-            'Kontakt und Betreff setzen, dann Chat öffnen.',
+            isWide
+                ? 'Wähle eine Konversation, um Nachrichten anzuzeigen.'
+                : 'Kontakt und Betreff setzen, dann Chat öffnen.',
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
