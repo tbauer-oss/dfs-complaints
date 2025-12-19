@@ -52,6 +52,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   late ChatConversationSummary _activeSummary;
   List<PlatformFile> _pendingAttachments = const [];
   bool _showEmojiPicker = false;
+  final List<String> _recentEmojiTokens = [];
   ChatMessage? _editingMessage;
   String _editingOriginalBody = '';
 
@@ -446,6 +447,15 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     setState(() => _showEmojiPicker = next ?? !_showEmojiPicker);
   }
 
+  void _addRecentToken(String token) {
+    if (token.isEmpty) return;
+    _recentEmojiTokens.remove(token);
+    _recentEmojiTokens.insert(0, token);
+    if (_recentEmojiTokens.length > 32) {
+      _recentEmojiTokens.removeRange(32, _recentEmojiTokens.length);
+    }
+  }
+
   void _insertToken(String token) {
     final value = _controller.value;
     final selection = value.selection;
@@ -457,6 +467,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       selection: TextSelection.collapsed(offset: safeStart + token.length),
       composing: TextRange.empty,
     );
+    _addRecentToken(token);
+    setState(() => _showEmojiPicker = false);
   }
 
   String _displayNameFor(ChatMessage msg) {
@@ -708,6 +720,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       );
     }
     final theme = Theme.of(context);
+    final screenW = MediaQuery.of(context).size.width;
+    final pickerW = (screenW * 0.42).clamp(420.0, 620.0);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -1001,15 +1015,18 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
               if (_showEmojiPicker)
                 Positioned(
                   bottom: 86,
-                  left: 24,
+                  right: 24,
                   child: Material(
                     elevation: 12,
                     borderRadius: BorderRadius.circular(16),
                     clipBehavior: Clip.antiAlias,
                     child: SizedBox(
-                      width: 380,
+                      width: pickerW,
                       height: 360,
-                      child: EmojiPicker(onInsertToken: _insertToken),
+                      child: EmojiPicker(
+                        onInsertToken: _insertToken,
+                        recentTokens: _recentEmojiTokens,
+                      ),
                     ),
                   ),
                 ),

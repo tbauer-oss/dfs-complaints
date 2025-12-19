@@ -5,8 +5,13 @@ import 'twemoji.dart';
 
 class EmojiPicker extends StatefulWidget {
   final ValueChanged<String> onInsertToken;
+  final List<String> recentTokens;
 
-  const EmojiPicker({super.key, required this.onInsertToken});
+  const EmojiPicker({
+    super.key,
+    required this.onInsertToken,
+    required this.recentTokens,
+  });
 
   @override
   State<EmojiPicker> createState() => _EmojiPickerState();
@@ -15,7 +20,6 @@ class EmojiPicker extends StatefulWidget {
 class _EmojiPickerState extends State<EmojiPicker> {
   EmojiCategory _selectedCategory = EmojiCategory.smileys;
   String _query = '';
-  final List<String> _recentTokens = [];
 
   List<EmojiCategory> get _categories => EmojiCategory.values;
 
@@ -25,17 +29,6 @@ class _EmojiPickerState extends State<EmojiPicker> {
 
   void _setQuery(String value) {
     setState(() => _query = value.trim());
-  }
-
-  void _addRecent(String token) {
-    if (token.isEmpty) return;
-    setState(() {
-      _recentTokens.remove(token);
-      _recentTokens.insert(0, token);
-      if (_recentTokens.length > 32) {
-        _recentTokens.removeRange(32, _recentTokens.length);
-      }
-    });
   }
 
   List<_EmojiItem> _buildItems() {
@@ -50,7 +43,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
 
     switch (_selectedCategory) {
       case EmojiCategory.recent:
-        return _recentTokens.map((token) => _EmojiItem(token: token)).toList();
+        return widget.recentTokens.map((token) => _EmojiItem(token: token)).toList();
       default:
         return (EmojiData.emojiCategories[_selectedCategory] ?? [])
             .map((e) => _EmojiItem(token: e))
@@ -152,7 +145,6 @@ class _EmojiPickerState extends State<EmojiPicker> {
                         return InkResponse(
                           onTap: () {
                             widget.onInsertToken(item.token);
-                            _addRecent(item.token);
                           },
                           radius: 20,
                           child: DecoratedBox(
