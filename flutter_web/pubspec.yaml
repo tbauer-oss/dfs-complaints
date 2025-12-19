@@ -26,7 +26,6 @@ dependencies:
   image: ^4.2.0
   flutter_markdown: ^0.6.18
   archive: ^3.4.10
-  emoji_picker_flutter: ^3.1.0
 
 flutter:
   uses-material-design: true
@@ -41,6 +40,7 @@ flutter:
     - assets/DFS_Connect+.svg
     - lib/data/dfs_products.csv
     - assets/help/
+    - assets/emojis/
   generate: true
 
 flutter_intl:
