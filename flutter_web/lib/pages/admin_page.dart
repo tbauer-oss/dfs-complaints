@@ -318,6 +318,67 @@ String _ensureInternalNumberPrefix(String value) {
   return '${_internalNumberPrefix()}$trimmed';
 }
 
+class _AvatarChatService extends ChatService {
+  final Map<String, String> Function() avatarByEmail;
+  final String Function(String?) normalizeEmail;
+
+  _AvatarChatService(
+    ApiClient api, {
+    required this.avatarByEmail,
+    required this.normalizeEmail,
+  }) : super(api);
+
+  @override
+  Future<List<ChatConversationSummary>> fetchConversations() async {
+    final conversations = await super.fetchConversations();
+    return _applyAvatars(conversations);
+  }
+
+  @override
+  Future<ChatConversationSummary> ensureDirectConversation(
+    String participantEmail,
+    String participantDisplayName, {
+    String? currentUserId,
+    String? currentUserDisplayName,
+  }) async {
+    final conversation = await super.ensureDirectConversation(
+      participantEmail,
+      participantDisplayName,
+      currentUserId: currentUserId,
+      currentUserDisplayName: currentUserDisplayName,
+    );
+    return _applyAvatars([conversation]).first;
+  }
+
+  List<ChatConversationSummary> _applyAvatars(List<ChatConversationSummary> conversations) {
+    final map = avatarByEmail();
+    if (map.isEmpty) return conversations;
+    bool anyChanged = false;
+    final updated = conversations.map((conv) {
+      bool convChanged = false;
+      final participants = conv.participants
+          .map((participant) {
+            if (participant.avatar != null && participant.avatar!.isNotEmpty) return participant;
+            final email = normalizeEmail(participant.email ?? participant.userId);
+            final avatar = map[email];
+            if (avatar == null || avatar.isEmpty) return participant;
+            convChanged = true;
+            return ChatParticipant(
+              userId: participant.userId,
+              displayName: participant.displayName,
+              email: participant.email,
+              avatar: avatar,
+            );
+          })
+          .toList(growable: false);
+      if (!convChanged) return conv;
+      anyChanged = true;
+      return conv.copyWith(participants: participants);
+    }).toList(growable: false);
+    return anyChanged ? updated : conversations;
+  }
+}
+
 class _AdminPageState extends State<AdminPage> {
   static const int _repReminderDefaultDelayDays = 4;
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
@@ -333,6 +394,10 @@ class _AdminPageState extends State<AdminPage> {
   List<ChatConversationSummary> _chatCachedConversations = const [];
   final ValueNotifier<List<ChatConversationSummary>> _conversationListNotifier =
       ValueNotifier<List<ChatConversationSummary>>([]);
+  final Map<String, String> _chatAvatarByEmail = {};
+  final Set<String> _chatAvatarLoggedEmails = {};
+  Future<void>? _chatAvatarLoadFuture;
+  bool _chatAvatarSyncInProgress = false;
   Timer? _chatUnreadTimer;
   bool _chatHasUnread = false;
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
@@ -366,6 +431,87 @@ class _AdminPageState extends State<AdminPage> {
   String _chatLastReadKey(String convId) {
     final email = _portalEmail.trim().toLowerCase();
     return 'chat:lastReadAt:$email:$convId';
+  }
+
+  String _normalizeChatEmail(String? value) => (value ?? '').trim().toLowerCase();
+
+  void _logChatAvatarResolution(String email, String? avatarUrl) {
+    if (!kDebugMode) return;
+    if (_chatAvatarLoggedEmails.contains(email)) return;
+    _chatAvatarLoggedEmails.add(email);
+    debugPrint('chat avatar resolved: $email -> ${avatarUrl ?? 'null'}');
+  }
+
+  String? _resolveChatAvatar(String? email, {String? fallback}) {
+    final normalized = _normalizeChatEmail(email);
+    final resolved = normalized.isNotEmpty ? _chatAvatarByEmail[normalized] : null;
+    final finalAvatar = (resolved != null && resolved.isNotEmpty) ? resolved : fallback;
+    if (normalized.isNotEmpty) _logChatAvatarResolution(normalized, finalAvatar);
+    if (finalAvatar == null || finalAvatar.isEmpty) return null;
+    return finalAvatar;
+  }
+
+  List<ChatConversationSummary> _applyChatAvatarMap(List<ChatConversationSummary> conversations) {
+    if (_chatAvatarByEmail.isEmpty) return conversations;
+    bool anyChanged = false;
+    final updated = conversations.map((conv) {
+      bool convChanged = false;
+      final participants = conv.participants
+          .map((participant) {
+            final resolved = _resolveChatAvatar(
+              participant.email ?? participant.userId,
+              fallback: participant.avatar,
+            );
+            if (participant.avatar != null && participant.avatar!.isNotEmpty) return participant;
+            if (resolved == null || resolved.isEmpty) return participant;
+            convChanged = true;
+            return ChatParticipant(
+              userId: participant.userId,
+              displayName: participant.displayName,
+              email: participant.email,
+              avatar: resolved,
+            );
+          })
+          .toList(growable: false);
+      if (!convChanged) return conv;
+      anyChanged = true;
+      return conv.copyWith(participants: participants);
+    }).toList(growable: false);
+    return anyChanged ? updated : conversations;
+  }
+
+  Future<void> _ensureChatAvatarMap() async {
+    _chatAvatarLoadFuture ??= _loadChatAvatarMap();
+    await _chatAvatarLoadFuture;
+  }
+
+  Future<void> _loadChatAvatarMap() async {
+    try {
+      final users = await _chatService.searchUsers('');
+      final next = <String, String>{};
+      for (final user in users) {
+        final email = _normalizeChatEmail(user.email);
+        final avatar = user.avatar;
+        if (email.isEmpty || avatar == null || avatar.isEmpty) continue;
+        next[email] = avatar;
+      }
+      _chatAvatarByEmail
+        ..clear()
+        ..addAll(next);
+      _updateConversationsWithAvatars();
+    } catch (_) {
+      _chatAvatarLoadFuture = null;
+    }
+  }
+
+  void _updateConversationsWithAvatars() {
+    if (_chatAvatarByEmail.isEmpty) return;
+    final updated = _applyChatAvatarMap(_chatCachedConversations);
+    if (identical(updated, _chatCachedConversations)) return;
+    _chatCachedConversations = updated;
+    _chatAvatarSyncInProgress = true;
+    _conversationListNotifier.value = [...updated];
+    _chatAvatarSyncInProgress = false;
   }
 
   int _loadChatLastReadMs(String convId) {
@@ -411,22 +557,31 @@ class _AdminPageState extends State<AdminPage> {
     if (_portalUserId.isEmpty) return;
     try {
       final convs = await _chatService.fetchConversations();
-      _chatCachedConversations = convs;
-      _conversationListNotifier.value = [...convs];
-      _recalculateChatUnread(convs);
+      final resolved = _applyChatAvatarMap(convs);
+      _chatCachedConversations = resolved;
+      _conversationListNotifier.value = [...resolved];
+      _recalculateChatUnread(resolved);
     } catch (_) {}
   }
 
   void _syncConversationListFromNotifier() {
+    if (_chatAvatarSyncInProgress) return;
     final list = _conversationListNotifier.value;
-    _chatCachedConversations = list;
-    _recalculateChatUnread(list);
+    final resolved = _applyChatAvatarMap(list);
+    _chatCachedConversations = resolved;
+    _recalculateChatUnread(resolved);
+    if (!identical(resolved, list)) {
+      _chatAvatarSyncInProgress = true;
+      _conversationListNotifier.value = [...resolved];
+      _chatAvatarSyncInProgress = false;
+    }
   }
 
   void _handleConversationsSnapshot(List<ChatConversationSummary> conversations) {
-    _chatCachedConversations = conversations;
-    _conversationListNotifier.value = [...conversations];
-    _recalculateChatUnread(conversations);
+    final resolved = _applyChatAvatarMap(conversations);
+    _chatCachedConversations = resolved;
+    _conversationListNotifier.value = [...resolved];
+    _recalculateChatUnread(resolved);
   }
 
   void _markConversationRead(ChatConversationSummary conversation, {int? lastSeenTs}) {
@@ -1030,7 +1185,11 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _api = AdminApi(onNewsChanged: widget.api.clearAllNewsCaches);
-    _chatService = ChatService(widget.api);
+    _chatService = _AvatarChatService(
+      widget.api,
+      avatarByEmail: () => _chatAvatarByEmail,
+      normalizeEmail: _normalizeChatEmail,
+    );
     _conversationListNotifier.addListener(_syncConversationListFromNotifier);
     bool _truthy(dynamic flag) {
       if (flag == null) return false;
@@ -4892,7 +5051,8 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  void _openInternalChat() {
+  Future<void> _openInternalChat() async {
+    await _ensureChatAvatarMap();
     // Hinweis: Für Flutter Web mit aktivem Service Worker kann ein Hard Refresh nötig sein,
     // damit neue UI-Anpassungen direkt sichtbar werden.
     // Dies ist der tatsächlich genutzte interne Chat-Einstieg (ComplaintChatPage wird aktuell nicht gerendert).
@@ -4986,6 +5146,7 @@ class _AdminPageState extends State<AdminPage> {
                             showBackButton: selected != null,
                             onMarkAsRead: _handleConversationSeen,
                             conversationListNotifier: _conversationListNotifier,
+                            avatarByEmail: _chatAvatarByEmail,
                           ),
                   );
                 }

@@ -18,6 +18,7 @@ class InternalChatPanel extends StatefulWidget {
   final void Function(String convId, int? lastMessageTs)? onMarkAsRead;
   final ValueNotifier<List<ChatConversationSummary>>? conversationListNotifier;
   final bool showBackButton;
+  final Map<String, String> avatarByEmail;
 
   const InternalChatPanel({
     super.key,
@@ -28,6 +29,7 @@ class InternalChatPanel extends StatefulWidget {
     this.onMarkAsRead,
     this.conversationListNotifier,
     this.showBackButton = false,
+    this.avatarByEmail = const {},
   });
 
   @override
@@ -49,15 +51,21 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   String get _convId => _activeSummary.conversationId;
 
+  String? _resolveAvatarByEmail(String? email, String? fallbackAvatar) {
+    final normalized = _normalizeId(email);
+    final resolved = normalized.isNotEmpty ? widget.avatarByEmail[normalized] : null;
+    if (resolved != null && resolved.isNotEmpty) return resolved;
+    if (fallbackAvatar == null || fallbackAvatar.isEmpty) return null;
+    return fallbackAvatar;
+  }
+
   String? _conversationAvatarUrl() {
     if (_activeSummary.participants.isEmpty) return null;
     final participant = _activeSummary.participants.firstWhere(
       (p) => _myId.isEmpty || p.userId != _myId,
       orElse: () => _activeSummary.participants.first,
     );
-    final avatar = participant.avatar;
-    if (avatar == null || avatar.isEmpty) return null;
-    return avatar;
+    return _resolveAvatarByEmail(participant.email ?? participant.userId, participant.avatar);
   }
 
   IconData? _groupIconData() => iconForGroupIconId(_activeSummary.groupIconId);
@@ -469,7 +477,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
               dense: true,
               leading: _buildAvatar(
                 theme,
-                avatarUrl: effectiveMembers[index].avatar,
+                avatarUrl: _resolveAvatarByEmail(
+                  effectiveMembers[index].email ?? effectiveMembers[index].userId,
+                  effectiveMembers[index].avatar,
+                ),
                 label: effectiveMembers[index].displayName.isNotEmpty
                     ? effectiveMembers[index].displayName
                     : (effectiveMembers[index].email ?? effectiveMembers[index].userId),
