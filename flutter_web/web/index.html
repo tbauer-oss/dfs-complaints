@@ -19,6 +19,12 @@
     <meta name="theme-color" content="#1976d2" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+      }
+    </style>
 
     <!-- Flutter Runtime -->
     <script src="flutter.js" defer></script>
@@ -124,10 +130,11 @@
       window.addEventListener('load', function () {
         if ('serviceWorker' in navigator) {
           window.flutterConfiguration = {
+            renderer: "html",
             serviceWorker: { serviceWorkerVersion: serviceWorkerVersion }
           };
         } else {
-          window.flutterConfiguration = {};
+          window.flutterConfiguration = { renderer: "html" };
         }
 
         window.flutterConfiguration.onEntrypointLoaded = function (engineInitializer) {

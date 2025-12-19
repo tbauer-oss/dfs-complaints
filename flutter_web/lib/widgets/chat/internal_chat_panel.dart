@@ -580,6 +580,16 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       );
     }
     final theme = Theme.of(context);
+    const emojiStyle = TextStyle(
+      fontSize: 22,
+      fontFamilyFallback: [
+        'Apple Color Emoji',
+        'Segoe UI Emoji',
+        'Noto Color Emoji',
+        'EmojiOne Color',
+        'Twemoji Mozilla',
+      ],
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -823,9 +833,11 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                       child: EmojiPicker(
                         onEmojiSelected: (_, emoji) => _insertEmoji(emoji.emoji),
                         config: Config(
-                          emojiViewConfig: const EmojiViewConfig(
+                          emojiViewConfig: EmojiViewConfig(
                             emojiSizeMax: 28,
                             columns: 7,
+                            backgroundColor: theme.colorScheme.surface,
+                            emojiTextStyle: emojiStyle,
                           ),
                           categoryViewConfig: const CategoryViewConfig(
                             iconColorSelected: Colors.blueGrey,
