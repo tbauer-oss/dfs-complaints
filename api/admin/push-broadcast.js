@@ -9,9 +9,10 @@ import {
   methodNotAllowed,
   readJson,
 } from '../_lib/http.js';
-import { usersList, pushTokenRemove } from '../_lib/store.js';
+import { usersList, pushTokenRemove, repPushTokens, repPushTokenRemove } from '../_lib/store.js';
 import { sendPushToTokens } from '../_lib/fcm.js';
 import { requirePortalAccess } from './_guard.js';
+import { loadRepById } from '../_lib/repsStore.js';
 
 const SUPPORTED_LANGS = new Set(['de', 'en', 'fr', 'it', 'es']);
 const LANG_ALIASES = {
@@ -64,42 +65,118 @@ export default async function handler(req, res) {
     const body = readJson(req);
     const title = (body?.title || '').toString().trim();
     const message = (body?.body || '').toString().trim();
-    const actionUrl = (body?.actionUrl || '').toString().trim();
+    // Optional: linkUrl (neues Feld), actionUrl (legacy)
+    const linkUrl = (body?.linkUrl || body?.actionUrl || '').toString().trim();
     const dryRun = body?.dryRun === true || body?.dryRun === '1';
+    const modeRaw = (body?.mode || '').toString().trim().toLowerCase();
+    const mode = modeRaw || 'broadcast';
+    const targetType = (body?.targetType || '').toString().trim().toLowerCase();
+    const targetIdsRaw = Array.isArray(body?.targetIds) ? body.targetIds : [];
+    const targetIds = Array.from(
+      new Set(
+        targetIdsRaw
+          .map((id) => (id ?? '').toString().trim())
+          .filter(Boolean),
+      ),
+    );
 
     if (!title || !message) {
       return bad(res, 'title/body required', 400);
     }
 
-    // --- 1. Alle Geräte / Tokens einsammeln ---
-    const users = await usersList();
     const tokenByLang = new Map(); // lang -> Set(tokens)
     const tokenOwners = new Map(); // token -> email
+    const tokenRepOwners = new Map(); // token -> repId
 
-    for (const user of users) {
-      const owner = (user?.email || '').toString();
-      const defaultLang = normLang(
-        user?.lang ||
-        user?.language ||
-        user?.preferredLanguage ||
-        user?.preferred_language ||
-        user?.preferred_lang ||
-        user?.langCode ||
-        user?.lang_code ||
-        user?.languageCode ||
-        user?.language_code ||
-        user?.locale ||
-        user?.customerLang ||
-        'en',
-      );
-      const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
-      for (const entry of pushTokens) {
-        const tok = (entry?.token || '').toString().trim();
-        if (!tok) continue;
-        const lang = normLang(entry?.lang || entry?.locale || defaultLang);
-        if (!tokenByLang.has(lang)) tokenByLang.set(lang, new Set());
-        tokenByLang.get(lang).add(tok);
-        if (!tokenOwners.has(tok)) tokenOwners.set(tok, owner);
+    if (mode !== 'broadcast' && mode !== 'targeted') {
+      return bad(res, 'mode invalid', 400);
+    }
+
+    if (mode === 'targeted') {
+      if (targetType !== 'customer' && targetType !== 'rep') {
+        return bad(res, 'targetType required', 400);
+      }
+      if (targetIds.length === 0) {
+        return bad(res, 'targetIds required', 400);
+      }
+      if (targetIds.length > 200) {
+        return bad(res, 'targetIds exceeds limit', 400);
+      }
+
+      if (targetType === 'customer') {
+        const users = await usersList();
+        const targets = new Set(targetIds.map((id) => id.toLowerCase()));
+        for (const user of users) {
+          const owner = (user?.email || '').toString().toLowerCase();
+          if (!owner || !targets.has(owner)) continue;
+          const defaultLang = normLang(
+            user?.lang ||
+            user?.language ||
+            user?.preferredLanguage ||
+            user?.preferred_language ||
+            user?.preferred_lang ||
+            user?.langCode ||
+            user?.lang_code ||
+            user?.languageCode ||
+            user?.language_code ||
+            user?.locale ||
+            user?.customerLang ||
+            'en',
+          );
+          const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
+          for (const entry of pushTokens) {
+            const tok = (entry?.token || '').toString().trim();
+            if (!tok) continue;
+            const lang = normLang(entry?.lang || entry?.locale || defaultLang);
+            if (!tokenByLang.has(lang)) tokenByLang.set(lang, new Set());
+            tokenByLang.get(lang).add(tok);
+            if (!tokenOwners.has(tok)) tokenOwners.set(tok, owner);
+          }
+        }
+      } else {
+        for (const repId of targetIds) {
+          const rep = await loadRepById(repId).catch(() => null);
+          const defaultLang = normLang(rep?.lang || 'en');
+          const pushTokens = await repPushTokens(repId);
+          for (const entry of pushTokens) {
+            const tok = (entry?.token || '').toString().trim();
+            if (!tok) continue;
+            const lang = normLang(entry?.lang || entry?.locale || defaultLang);
+            if (!tokenByLang.has(lang)) tokenByLang.set(lang, new Set());
+            tokenByLang.get(lang).add(tok);
+            if (!tokenRepOwners.has(tok)) tokenRepOwners.set(tok, repId);
+          }
+        }
+      }
+    } else {
+      // --- 1. Alle Geräte / Tokens einsammeln ---
+      const users = await usersList();
+
+      for (const user of users) {
+        const owner = (user?.email || '').toString();
+        const defaultLang = normLang(
+          user?.lang ||
+          user?.language ||
+          user?.preferredLanguage ||
+          user?.preferred_language ||
+          user?.preferred_lang ||
+          user?.langCode ||
+          user?.lang_code ||
+          user?.languageCode ||
+          user?.language_code ||
+          user?.locale ||
+          user?.customerLang ||
+          'en',
+        );
+        const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
+        for (const entry of pushTokens) {
+          const tok = (entry?.token || '').toString().trim();
+          if (!tok) continue;
+          const lang = normLang(entry?.lang || entry?.locale || defaultLang);
+          if (!tokenByLang.has(lang)) tokenByLang.set(lang, new Set());
+          tokenByLang.get(lang).add(tok);
+          if (!tokenOwners.has(tok)) tokenOwners.set(tok, owner);
+        }
       }
     }
 
@@ -158,7 +235,7 @@ export default async function handler(req, res) {
             {
               type: 'admin-broadcast',
               lang,
-              ...(actionUrl ? { actionUrl } : {}),
+              ...(linkUrl ? { actionUrl: linkUrl } : {}),
             },
           );
 
@@ -206,13 +283,25 @@ export default async function handler(req, res) {
 
     // --- 4. Ungültige Tokens aus der DB aufräumen ---
     if (!dryRun && invalidTokens.size > 0) {
-      for (const badToken of invalidTokens) {
-        const owner = tokenOwners.get(badToken);
-        if (!owner) continue;
-        try {
-          await pushTokenRemove(owner, badToken);
-        } catch (err) {
-          console.error('[admin/push-broadcast] cleanup failed', err);
+      if (mode === 'targeted' && targetType === 'rep') {
+        for (const badToken of invalidTokens) {
+          const owner = tokenRepOwners.get(badToken);
+          if (!owner) continue;
+          try {
+            await repPushTokenRemove(owner, badToken);
+          } catch (err) {
+            console.error('[admin/push-broadcast] cleanup failed', err);
+          }
+        }
+      } else {
+        for (const badToken of invalidTokens) {
+          const owner = tokenOwners.get(badToken);
+          if (!owner) continue;
+          try {
+            await pushTokenRemove(owner, badToken);
+          } catch (err) {
+            console.error('[admin/push-broadcast] cleanup failed', err);
+          }
         }
       }
     }
