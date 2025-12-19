@@ -115,6 +115,8 @@ enum AdminView {
 }
 
 enum _CustPasswordMode { adminSecret, generated }
+enum PushRecipientMode { broadcast, targeted }
+enum PushRecipientType { customer, rep }
 
 class _ProcessingHint {
   final IconData icon;
@@ -1157,6 +1159,14 @@ class _AdminPageState extends State<AdminPage> {
   final _pushTitleCtrl = TextEditingController();
   final _pushBodyCtrl = TextEditingController();
   final _pushLinkCtrl = TextEditingController();
+  final _pushRecipientSearchCtrl = TextEditingController();
+  final Set<String> _pushTargetIds = <String>{};
+  PushRecipientMode _pushRecipientMode = PushRecipientMode.broadcast;
+  PushRecipientType _pushRecipientType = PushRecipientType.customer;
+  List<AdminPushRecipient> _pushRecipients = [];
+  bool _pushRecipientsLoading = false;
+  String? _pushRecipientsErr;
+  Timer? _pushRecipientsSearchTimer;
   bool _pushBusy = false;
   String? _pushErr;
   AdminPushBroadcastResult? _pushResult;
@@ -1338,6 +1348,8 @@ class _AdminPageState extends State<AdminPage> {
     _pushTitleCtrl.dispose();
     _pushBodyCtrl.dispose();
     _pushLinkCtrl.dispose();
+    _pushRecipientSearchCtrl.dispose();
+    _pushRecipientsSearchTimer?.cancel();
     _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
     _bulkInternalOpenCtrl.dispose();
@@ -2304,11 +2316,56 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  bool get _pushIsTargeted => _pushRecipientMode == PushRecipientMode.targeted;
+
+  Future<void> _loadPushRecipients({bool force = false}) async {
+    if (!_hasTileAccess('push')) return;
+    if (!_pushIsTargeted) return;
+    if (_pushRecipientsLoading && !force) return;
+    final query = _pushRecipientSearchCtrl.text.trim();
+    setState(() {
+      _pushRecipientsLoading = true;
+      _pushRecipientsErr = null;
+    });
+    try {
+      final items = await _api.fetchPushRecipients(
+        type: _pushRecipientType == PushRecipientType.customer ? 'customer' : 'rep',
+        query: query.isEmpty ? null : query,
+        limit: 200,
+      );
+      if (!mounted) return;
+      setState(() {
+        _pushRecipients = items;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pushRecipientsErr = e.toString());
+    } finally {
+      if (!mounted) return;
+      setState(() => _pushRecipientsLoading = false);
+    }
+  }
+
+  void _schedulePushRecipientSearch() {
+    _pushRecipientsSearchTimer?.cancel();
+    _pushRecipientsSearchTimer = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      _loadPushRecipients();
+    });
+  }
+
   Future<void> _sendPushBroadcast({bool dryRun = false}) async {
     if (_pushBusy) return;
     final title = _pushTitleCtrl.text.trim();
     final message = _pushBodyCtrl.text.trim();
-    final actionUrl = _pushLinkCtrl.text.trim();
+    final linkUrl = _pushLinkCtrl.text.trim();
+
+    if (_pushIsTargeted && _pushTargetIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte mindestens einen Empfänger auswählen.')),
+      );
+      return;
+    }
 
     if (title.isEmpty || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2326,14 +2383,20 @@ class _AdminPageState extends State<AdminPage> {
       final result = await _api.sendPushBroadcast(
         title: title,
         body: message,
-        actionUrl: actionUrl.isEmpty ? null : actionUrl,
+        linkUrl: linkUrl.isEmpty ? null : linkUrl,
         dryRun: dryRun,
+        mode: _pushIsTargeted ? 'targeted' : 'broadcast',
+        targetType: _pushIsTargeted
+            ? (_pushRecipientType == PushRecipientType.customer ? 'customer' : 'rep')
+            : null,
+        targetIds: _pushIsTargeted ? _pushTargetIds.toList() : null,
       );
       if (!mounted) return;
       setState(() => _pushResult = result);
+      final modeLabel = _pushIsTargeted ? 'Auswahl' : 'Alle';
       final text = dryRun
-          ? 'Testlauf erfolgreich: ${result.totalTokens} Geräte gefunden.'
-          : 'Push gesendet an ${result.totalTokens} Geräte.';
+          ? 'Testlauf: ${result.totalTokens} Empfänger ($modeLabel).'
+          : 'Gesendet an ${result.totalTokens} Empfänger ($modeLabel).';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(text)),
       );
@@ -3665,6 +3728,8 @@ class _AdminPageState extends State<AdminPage> {
     final cs = theme.colorScheme;
     final result = _pushResult;
     final dateFmt = DateFormat('dd.MM.yyyy HH:mm');
+    final isTargeted = _pushIsTargeted;
+    final selectedCount = _pushTargetIds.length;
 
     InputDecoration _dec(String label, {String? hint, Widget? prefix}) => InputDecoration(
           labelText: label,
@@ -3801,6 +3866,139 @@ class _AdminPageState extends State<AdminPage> {
                       'Nutze den Testlauf, um zunächst nur die Empfängerzahl zu prüfen.',
                     ),
                     const SizedBox(height: 16),
+                    SegmentedButton<PushRecipientMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: PushRecipientMode.broadcast,
+                          label: Text('An alle'),
+                          icon: Icon(Icons.public_outlined),
+                        ),
+                        ButtonSegment(
+                          value: PushRecipientMode.targeted,
+                          label: Text('An Auswahl'),
+                          icon: Icon(Icons.checklist_outlined),
+                        ),
+                      ],
+                      selected: {_pushRecipientMode},
+                      onSelectionChanged: (selection) {
+                        final mode = selection.first;
+                        setState(() => _pushRecipientMode = mode);
+                        if (mode == PushRecipientMode.targeted) {
+                          _loadPushRecipients();
+                        }
+                      },
+                    ),
+                    if (isTargeted) ...[
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<PushRecipientType>(
+                        value: _pushRecipientType,
+                        decoration: _dec('Empfängergruppe'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: PushRecipientType.customer,
+                            child: Text('Kunden'),
+                          ),
+                          DropdownMenuItem(
+                            value: PushRecipientType.rep,
+                            child: Text('Vertreter'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _pushRecipientType = value;
+                            _pushTargetIds.clear();
+                          });
+                          _loadPushRecipients(force: true);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _pushRecipientSearchCtrl,
+                        decoration: _dec(
+                          'Suchen (Name / Firma / E-Mail)',
+                          prefix: const Icon(Icons.search_outlined),
+                        ),
+                        onChanged: (_) => _schedulePushRecipientSearch(),
+                      ),
+                      const SizedBox(height: 10),
+                      if (_pushRecipientsLoading) const LinearProgressIndicator(),
+                      if (_pushRecipientsErr != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Fehler beim Laden: $_pushRecipientsErr',
+                          style: TextStyle(color: cs.error),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 240,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: cs.outlineVariant),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: _pushRecipients.isEmpty
+                            ? const Center(child: Text('Keine passenden Empfänger gefunden.'))
+                            : Scrollbar(
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  itemCount: _pushRecipients.length,
+                                  separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant),
+                                  itemBuilder: (context, index) {
+                                    final item = _pushRecipients[index];
+                                    final selected = _pushTargetIds.contains(item.id);
+                                    final subtitleLines = [
+                                      item.email,
+                                      if (item.company.isNotEmpty) item.company,
+                                    ];
+                                    return CheckboxListTile(
+                                      value: selected,
+                                      dense: true,
+                                      controlAffinity: ListTileControlAffinity.leading,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                                      title: Text(
+                                        item.displayName,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: subtitleLines
+                                            .map((text) => Text(text, style: theme.textTheme.bodySmall))
+                                            .toList(),
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          if (value == true) {
+                                            _pushTargetIds.add(item.id);
+                                          } else {
+                                            _pushTargetIds.remove(item.id);
+                                          }
+                                        });
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: selectedCount == 0
+                                ? null
+                                : () => setState(() => _pushTargetIds.clear()),
+                            icon: const Icon(Icons.clear_all_outlined),
+                            label: const Text('Auswahl leeren'),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'Ausgewählt: $selectedCount',
+                            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   TextField(
                     controller: _pushTitleCtrl,
                     textCapitalization: TextCapitalization.sentences,
@@ -15956,6 +16154,31 @@ class AdminPushBroadcastResult {
   }
 }
 
+class AdminPushRecipient {
+  final String id;
+  final String displayName;
+  final String email;
+  final String company;
+
+  AdminPushRecipient({
+    required this.id,
+    required this.displayName,
+    required this.email,
+    required this.company,
+  });
+
+  factory AdminPushRecipient.fromJson(Map<String, dynamic> json) {
+    final email = (json['email'] ?? '').toString();
+    final name = (json['displayName'] ?? json['name'] ?? '').toString();
+    return AdminPushRecipient(
+      id: (json['id'] ?? '').toString(),
+      displayName: name.isNotEmpty ? name : email,
+      email: email,
+      company: (json['company'] ?? '').toString(),
+    );
+  }
+}
+
 class AdminPushBroadcastLanguage {
   final String lang;
   final int tokens;
@@ -23452,17 +23675,48 @@ class AdminApi {
     }
   }
 
+  Future<List<AdminPushRecipient>> fetchPushRecipients({
+    required String type,
+    String? query,
+    int limit = 200,
+  }) async {
+    final q = <String, String>{
+      'type': type,
+      'limit': limit.toString(),
+      if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+    };
+    final res = await _request('GET', '/api/admin/push-recipients', q: q);
+    if (res.status != 200) {
+      throw 'push-recipients GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText?.trim() ?? '';
+    if (txt.isEmpty) return const [];
+    final decoded = jsonDecode(txt);
+    final items = decoded is Map && decoded['items'] is List ? decoded['items'] as List : const [];
+    return items
+        .whereType<Map>()
+        .map((e) => AdminPushRecipient.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
   Future<AdminPushBroadcastResult> sendPushBroadcast({
     required String title,
     required String body,
-    String? actionUrl,
+    String? linkUrl,
     bool dryRun = false,
+    String? mode,
+    String? targetType,
+    List<String>? targetIds,
   }) async {
     final payload = <String, dynamic>{
       'title': title,
       'body': body,
-      if (actionUrl != null && actionUrl.trim().isNotEmpty) 'actionUrl': actionUrl.trim(),
+      if (linkUrl != null && linkUrl.trim().isNotEmpty) 'linkUrl': linkUrl.trim(),
       if (dryRun) 'dryRun': true,
+      // Optional: Auswahlmodus für gezielte Pushes
+      if (mode != null) 'mode': mode,
+      if (targetType != null) 'targetType': targetType,
+      if (targetIds != null) 'targetIds': targetIds,
     };
     final res = await _request('POST', '/api/admin/push-broadcast', body: payload);
     if (res.status != 200) {
