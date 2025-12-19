@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 import '../../api/client.dart';
 import '../../models/chat_message.dart';
@@ -51,6 +50,125 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   late ChatConversationSummary _activeSummary;
   List<PlatformFile> _pendingAttachments = const [];
   bool _showEmojiPicker = false;
+  final List<String> _recentEmojis = [];
+  static const List<String> _smileyEmojis = [
+    '😀',
+    '😃',
+    '😄',
+    '😁',
+    '😆',
+    '😅',
+    '🤣',
+    '😂',
+    '🙂',
+    '🙃',
+    '😉',
+    '😊',
+    '😇',
+    '🥰',
+    '😍',
+    '🤩',
+    '😘',
+    '😗',
+    '😚',
+    '😙',
+    '🥲',
+    '😋',
+    '😛',
+    '😜',
+    '🤪',
+    '😝',
+    '🤑',
+    '🤗',
+    '🤭',
+    '🤫',
+    '🤔',
+    '🤐',
+    '🤨',
+    '😐',
+    '😑',
+    '😶',
+    '🫥',
+    '😏',
+    '😒',
+    '🙄',
+    '😬',
+    '😮‍💨',
+    '🤥',
+    '😌',
+    '😔',
+    '😪',
+    '🤤',
+    '😴',
+    '😷',
+    '🤒',
+    '🤕',
+    '🤢',
+    '🤮',
+    '🤧',
+    '🥵',
+    '🥶',
+    '🥴',
+    '😵',
+    '😵‍💫',
+    '🤯',
+    '🤠',
+    '🥳',
+    '🥸',
+    '😎',
+    '🤓',
+    '🧐',
+    '😕',
+    '😟',
+    '🙁',
+    '☹️',
+    '😮',
+    '😯',
+    '😲',
+    '😳',
+    '🥺',
+    '😦',
+    '😧',
+    '😨',
+    '😰',
+    '😥',
+    '😢',
+    '😭',
+    '😱',
+    '😖',
+    '😣',
+    '😞',
+    '😓',
+    '😩',
+    '😫',
+    '🥱',
+    '😤',
+    '😡',
+    '😠',
+    '🤬',
+    '😈',
+    '👿',
+    '💀',
+    '☠️',
+    '💩',
+    '🤡',
+    '👹',
+    '👺',
+    '👻',
+    '👽',
+    '👾',
+    '🤖',
+    '🎃',
+    '😺',
+    '😸',
+    '😹',
+    '😻',
+    '😼',
+    '😽',
+    '🙀',
+    '😿',
+    '😾',
+  ];
 
   String get _convId => _activeSummary.conversationId;
 
@@ -329,6 +447,56 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       composing: TextRange.empty,
     );
     setState(() => _showEmojiPicker = false);
+  }
+
+  void _trackRecentEmoji(String emoji) {
+    setState(() {
+      _recentEmojis.remove(emoji);
+      _recentEmojis.insert(0, emoji);
+      if (_recentEmojis.length > 30) {
+        _recentEmojis.removeRange(30, _recentEmojis.length);
+      }
+    });
+  }
+
+  String emojiToTwemojiHex(String emoji) =>
+      emoji.runes.map((r) => r.toRadixString(16)).join('-');
+
+  String twemojiUrl(String emoji) =>
+      'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${emojiToTwemojiHex(emoji)}.png';
+
+  Widget _buildEmojiGrid(List<String> emojis) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
+      ),
+      itemCount: emojis.length,
+      itemBuilder: (context, index) {
+        final emoji = emojis[index];
+        return InkResponse(
+          onTap: () {
+            _trackRecentEmoji(emoji);
+            _insertEmoji(emoji);
+          },
+          radius: 24,
+          child: Center(
+            child: Image.network(
+              twemojiUrl(emoji),
+              width: 28,
+              height: 28,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (_, __, ___) => Text(
+                emoji,
+                style: const TextStyle(fontSize: 22),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _displayNameFor(ChatMessage msg) {
@@ -820,23 +988,38 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                     child: SizedBox(
                       width: 360,
                       height: 360,
-                      child: EmojiPicker(
-                        onEmojiSelected: (_, emoji) => _insertEmoji(emoji.emoji),
-                        config: Config(
-                          emojiViewConfig: EmojiViewConfig(
-                            emojiSizeMax: 28,
-                            columns: 7,
-                            backgroundColor: theme.colorScheme.surface,
-                          ),
-                          categoryViewConfig: const CategoryViewConfig(
-                            iconColorSelected: Colors.blueGrey,
-                            iconColor: Colors.blueGrey,
-                            indicatorColor: Colors.blueGrey,
-                            dividerColor: Colors.transparent,
-                          ),
-                          bottomActionBarConfig: const BottomActionBarConfig(enabled: false),
-                          searchViewConfig: const SearchViewConfig(hintText: 'Emoji suchen'),
-                          skinToneConfig: const SkinToneConfig(enabled: true),
+                      child: DefaultTabController(
+                        length: 2,
+                        child: Column(
+                          children: [
+                            Container(
+                              color: theme.colorScheme.surface,
+                              child: TabBar(
+                                labelColor: theme.colorScheme.primary,
+                                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                indicatorColor: theme.colorScheme.primary,
+                                tabs: const [
+                                  Tab(text: 'Zuletzt'),
+                                  Tab(text: 'Smileys'),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: TabBarView(
+                                children: [
+                                  _recentEmojis.isEmpty
+                                      ? Center(
+                                          child: Text(
+                                            'Keine zuletzt verwendeten Emojis',
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                        )
+                                      : _buildEmojiGrid(_recentEmojis),
+                                  _buildEmojiGrid(_smileyEmojis),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
