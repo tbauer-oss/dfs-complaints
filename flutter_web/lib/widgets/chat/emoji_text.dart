@@ -13,18 +13,21 @@ class EmojiText {
   static List<InlineSpan> buildMessageSpans(String text, TextStyle style) {
     final spans = <InlineSpan>[];
 
-    final parts = text.split(RegExp(r'(\s+)'));
-    for (final part in parts) {
-      if (part.isEmpty) continue;
+    // Matches whitespace runs OR any non-whitespace runs, so whitespace is preserved as tokens.
+    final tokenRe = RegExp(r'\s+|[^\s]+');
 
-      // Whitespace behalten
-      if (RegExp(r'^\s+$').hasMatch(part)) {
-        spans.add(TextSpan(text: part, style: style));
+    for (final m in tokenRe.allMatches(text)) {
+      final token = m.group(0);
+      if (token == null || token.isEmpty) continue;
+
+      // whitespace must be preserved
+      if (RegExp(r'^\s+$').hasMatch(token)) {
+        spans.add(TextSpan(text: token, style: style));
         continue;
       }
 
-      // Emoji → Twemoji
-      if (_knownEmojis.contains(part)) {
+      // known unicode emoji token -> Twemoji
+      if (_knownEmojis.contains(token)) {
         final size = (style.fontSize ?? 16) * 1.15;
         spans.add(
           WidgetSpan(
@@ -32,11 +35,11 @@ class EmojiText {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 1.0),
               child: Image.network(
-                Twemoji.pngUrl(part),
+                Twemoji.pngUrl(token),
                 width: size,
                 height: size,
                 filterQuality: FilterQuality.high,
-                errorBuilder: (_, __, ___) => Text(part, style: style),
+                errorBuilder: (_, __, ___) => Text(token, style: style),
               ),
             ),
           ),
@@ -44,8 +47,8 @@ class EmojiText {
         continue;
       }
 
-      // Normaler Text
-      spans.add(TextSpan(text: part, style: style));
+      // normal text (keep as-is)
+      spans.add(TextSpan(text: token, style: style));
     }
 
     return spans;
