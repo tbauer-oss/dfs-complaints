@@ -112,7 +112,7 @@ class ChatConversationSummary {
     );
   }
 
-  bool get isGroup => type == 'group' || conversationId.startsWith('grp:');
+  bool get isGroup => type == 'group' || type == 'grp' || conversationId.startsWith('grp:');
 
   String? get groupIconId {
     final icon = meta?['groupIcon'];
@@ -125,7 +125,7 @@ class ChatConversationSummary {
     if (title.isNotEmpty) {
       return title.contains('@') ? deriveDisplayNameFromEmail(title) : title;
     }
-    if (type == 'group') return _groupTitle(currentUserId);
+    if (isGroup) return _groupTitle(currentUserId);
     final match = participants.firstWhere(
       (p) => p.userId != currentUserId,
       orElse: () => participants.isNotEmpty
@@ -146,7 +146,7 @@ class ChatConversationSummary {
   }
 
   String? membersLabelFor(String userId) {
-    if (type != 'group') return null;
+    if (!isGroup) return null;
     final names = memberDisplayNames(excludeUserId: userId);
     if (names.isEmpty) return null;
     return 'Mitglieder: ${names.join(', ')}';
