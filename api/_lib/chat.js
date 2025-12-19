@@ -87,7 +87,11 @@ export async function migrateLegacyContext(context) {
 }
 
 export function sanitizeBody(body) {
-  const text = String(body || '').trim();
+  const text = String(body || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
   if (!text) return null;
   if (text.length > MAX_BODY_LENGTH) return text.slice(0, MAX_BODY_LENGTH);
   return text;
