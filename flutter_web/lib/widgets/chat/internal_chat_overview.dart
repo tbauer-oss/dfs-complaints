@@ -14,6 +14,7 @@ class InternalChatOverview extends StatefulWidget {
   final ValueChanged<List<ChatConversationSummary>>? onConversationsLoaded;
   final ValueNotifier<List<ChatConversationSummary>>? conversationListNotifier;
   final bool showHeaderActions;
+  final ValueChanged<String>? onConversationDeleted;
 
   const InternalChatOverview({
     super.key,
@@ -22,6 +23,7 @@ class InternalChatOverview extends StatefulWidget {
     required this.onSelect,
     this.onConversationsLoaded,
     this.conversationListNotifier,
+    this.onConversationDeleted,
     this.showHeaderActions = true,
   });
 
@@ -225,6 +227,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
           .where((c) => c.conversationId != conversation.conversationId)
           .toList(growable: false);
       _setConversations(next);
+      widget.onConversationDeleted?.call(conversation.conversationId);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Konversation gelöscht')),
       );

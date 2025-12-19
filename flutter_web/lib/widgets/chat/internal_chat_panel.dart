@@ -111,9 +111,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   Future<void> _loadInitial() async {
+    final convId = _convId;
     try {
-      final timeline = await widget.chatService.fetchMessages(_convId, limit: 50);
-      if (!mounted) return;
+      final timeline = await widget.chatService.fetchMessages(convId, limit: 50);
+      if (!mounted || convId != _convId) return;
       setState(() {
         _messages = timeline.messages;
         _hasMoreBefore = timeline.hasMoreBefore;
@@ -126,6 +127,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       _scrollToBottom();
       _notifySeen();
     } catch (err) {
+      if (!mounted || convId != _convId) return;
       _handleLoadError(err);
     }
   }
@@ -162,15 +164,16 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   Future<void> _pollNewMessages() async {
+    final convId = _convId;
     try {
       if (_messages.isEmpty) {
         await _loadInitial();
         return;
       }
       final lastTs = _messages.last.timestamp.millisecondsSinceEpoch;
-      final timeline = await widget.chatService.fetchMessages(_convId, afterTs: lastTs, limit: 50);
+      final timeline = await widget.chatService.fetchMessages(convId, afterTs: lastTs, limit: 50);
       if (timeline.messages.isEmpty) return;
-      if (!mounted) return;
+      if (!mounted || convId != _convId) return;
       setState(() {
         _messages = _mergeMessages([..._messages, ...timeline.messages]);
       });
@@ -178,6 +181,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       _scrollToBottom();
       _notifySeen();
     } catch (err) {
+      if (!mounted || convId != _convId) return;
       _handleLoadError(err, showSnackBar: false);
     }
   }
@@ -194,16 +198,18 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   Future<void> _loadOlder() async {
     if (_messages.isEmpty || !_hasMoreBefore) return;
+    final convId = _convId;
     try {
       final before = _messages.first.timestamp.millisecondsSinceEpoch;
-      final timeline = await widget.chatService.fetchMessages(_convId, beforeTs: before, limit: 30);
+      final timeline = await widget.chatService.fetchMessages(convId, beforeTs: before, limit: 30);
       if (timeline.messages.isEmpty) return;
-      if (!mounted) return;
+      if (!mounted || convId != _convId) return;
       setState(() {
         _messages = _mergeMessages([...timeline.messages, ..._messages]);
         _hasMoreBefore = timeline.hasMoreBefore;
       });
     } catch (err) {
+      if (!mounted || convId != _convId) return;
       _handleLoadError(err);
     }
   }
