@@ -55,7 +55,7 @@ jobs:
                         || vars.API_BASE || 'https://dfs-complaints-backend.vercel.app' }}
         run: |
           echo "Using API_BASE=${API_BASE}"
-          flutter build web --release --web-renderer html --dart-define=API_BASE=${API_BASE}
+          flutter build web --release --web-renderer canvaskit --dart-define=API_BASE=${API_BASE}
           
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v4
