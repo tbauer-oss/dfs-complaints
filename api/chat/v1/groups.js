@@ -6,6 +6,7 @@ import { requirePortalAccess } from '../../admin/_guard.js';
 import { redis } from '../../_lib/redis.js';
 import { createTrackedRedis, logRedisUsage } from './_lib/redisTracker.js';
 import { purgeLegacyChatKeys } from './_lib/cleanup.js';
+import { isValidGroupIconId, normalizeGroupIconId } from './_lib/groupIcons.js';
 import {
   appendMessage,
   buildConversationSummary,
@@ -35,14 +36,23 @@ export default async function handler(req, res) {
     const rawMembers = Array.isArray(body?.memberUids) ? body.memberUids : [];
     const title = (body?.title || '').toString();
     const initialBody = body?.initialMessage;
+    const rawGroupIcon = body?.meta?.groupIcon;
+    const groupIcon = rawGroupIcon === '' ? null : rawGroupIcon;
 
     const selfId = normalizeUserId(actor.email);
     const memberIds = Array.from(new Set([...rawMembers, selfId].map((m) => normalizeUserId(m)).filter(Boolean)));
     if (!selfId || memberIds.length < 2) return bad(res, 'invalid members', 400);
+    if (groupIcon !== undefined && !isValidGroupIconId(groupIcon)) return bad(res, 'invalid groupIcon', 400);
 
     await purgeLegacyChatKeys(client);
 
-    const convMeta = await createGroupConversation(client, title, memberIds, selfId);
+    const convMeta = await createGroupConversation(
+      client,
+      title,
+      memberIds,
+      selfId,
+      normalizeGroupIconId(groupIcon)
+    );
     if (!convMeta) return bad(res, 'failed to create group', 500);
 
     const actorEmail = actor.email?.toString().trim().toLowerCase();
