@@ -201,6 +201,11 @@ class ChatMessage {
   final String? senderEmail;
   final DateTime timestamp;
   final String body;
+  final DateTime? editedAt;
+  final DateTime? deletedAt;
+  final String? deletedBy;
+  final bool isEdited;
+  final bool isDeleted;
   final bool pending;
 
   const ChatMessage({
@@ -214,24 +219,49 @@ class ChatMessage {
     this.authorUid,
     this.sender,
     this.senderEmail,
+    this.editedAt,
+    this.deletedAt,
+    this.deletedBy,
+    this.isEdited = false,
+    this.isDeleted = false,
     this.pending = false,
   });
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: (json['id'] ?? json['msgId'] ?? '').toString(),
-        conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
-        authorId: (json['authorId'] ?? json['senderUid'] ?? '').toString(),
-        authorName: _extractAuthorName(json),
-        authorEmail: (json['authorEmail'] ?? json['senderEmail'])?.toString(),
-        authorUid: json['authorUid']?.toString(),
-        sender: json['sender']?.toString(),
-        senderEmail: json['senderEmail']?.toString(),
-        timestamp: _parseTimestamp(json['timestamp'] ?? json['ts'] ?? json['tsMs']),
-        body: (json['body'] ?? json['text'] ?? '').toString(),
-        pending: false,
-      );
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final editedAt = _parseOptionalTimestamp(json['editedAt']);
+    final deletedAt = _parseOptionalTimestamp(json['deletedAt']);
+    final isEdited = json['isEdited'] == true || editedAt != null;
+    final isDeleted = json['isDeleted'] == true || deletedAt != null;
+    return ChatMessage(
+      id: (json['id'] ?? json['msgId'] ?? '').toString(),
+      conversationId: (json['convId'] ?? json['conversationId'] ?? '').toString(),
+      authorId: (json['authorId'] ?? json['senderUid'] ?? '').toString(),
+      authorName: _extractAuthorName(json),
+      authorEmail: (json['authorEmail'] ?? json['senderEmail'])?.toString(),
+      authorUid: json['authorUid']?.toString(),
+      sender: json['sender']?.toString(),
+      senderEmail: json['senderEmail']?.toString(),
+      timestamp: _parseTimestamp(json['timestamp'] ?? json['ts'] ?? json['tsMs']),
+      body: (json['body'] ?? json['text'] ?? '').toString(),
+      editedAt: editedAt,
+      deletedAt: deletedAt,
+      deletedBy: json['deletedBy']?.toString(),
+      isEdited: isEdited,
+      isDeleted: isDeleted,
+      pending: false,
+    );
+  }
 
-  ChatMessage copyWith({bool? pending}) => ChatMessage(
+  ChatMessage copyWith({
+    bool? pending,
+    String? body,
+    DateTime? editedAt,
+    DateTime? deletedAt,
+    String? deletedBy,
+    bool? isEdited,
+    bool? isDeleted,
+  }) =>
+      ChatMessage(
         id: id,
         conversationId: conversationId,
         authorId: authorId,
@@ -241,7 +271,12 @@ class ChatMessage {
         sender: sender,
         senderEmail: senderEmail,
         timestamp: timestamp,
-        body: body,
+        body: body ?? this.body,
+        editedAt: editedAt ?? this.editedAt,
+        deletedAt: deletedAt ?? this.deletedAt,
+        deletedBy: deletedBy ?? this.deletedBy,
+        isEdited: isEdited ?? this.isEdited,
+        isDeleted: isDeleted ?? this.isDeleted,
         pending: pending ?? this.pending,
       );
 }
@@ -277,6 +312,26 @@ DateTime _parseTimestamp(dynamic raw) {
     } catch (_) {}
   }
   return DateTime.tryParse(raw.toString()) ?? DateTime.now();
+}
+
+DateTime? _parseOptionalTimestamp(dynamic raw) {
+  if (raw == null) return null;
+  if (raw is num) {
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(raw.toInt());
+    } catch (_) {
+      return null;
+    }
+  }
+  final parsedNumber = num.tryParse(raw.toString());
+  if (parsedNumber != null) {
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(parsedNumber.toInt());
+    } catch (_) {
+      return null;
+    }
+  }
+  return DateTime.tryParse(raw.toString());
 }
 
 class ChatTimelineResponse {

@@ -176,6 +176,23 @@ class ChatService {
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
   }
 
+  Future<ChatMessage> updateMessage(String messageId, String body) async {
+    final uri = api.buildUri('/api/chat/v1/messages/$messageId');
+    final payload = {'body': body};
+    final response = await http.patch(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
+  }
+
+  Future<ChatMessage> deleteMessage(String messageId) async {
+    final uri = api.buildUri('/api/chat/v1/messages/$messageId');
+    final response = await http.delete(uri, headers: api.portalHeaders());
+    api.assertSuccess(response);
+    final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
+    return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
+  }
+
   Future<void> deleteConversation(String convId) async {
     final uri = api.buildUri('/api/chat/v1/conversations/$convId');
     final response = await http.delete(uri, headers: api.portalHeaders());

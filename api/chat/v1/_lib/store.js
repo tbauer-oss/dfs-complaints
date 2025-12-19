@@ -533,6 +533,11 @@ function hydrateMessage(msgId, raw) {
   const tsValue = raw.ts ?? raw.timestamp ?? raw.tsIso ?? raw.timestampMs;
   const tsMs = Number(tsValue);
   const timestampIso = Number.isFinite(tsMs) && tsMs > 0 ? new Date(tsMs).toISOString() : raw.tsIso || raw.timestamp || raw.ts;
+  const editedAt = toTimestampMs(raw.editedAt ?? raw.edited_at);
+  const deletedAt = toTimestampMs(raw.deletedAt ?? raw.deleted_at);
+  const deletedBy = raw.deletedBy ?? raw.deleted_by ?? null;
+  const isEdited = Boolean(editedAt);
+  const isDeleted = Boolean(deletedAt);
   return {
     id: msgId,
     convId: raw.convId || raw.conversationId,
@@ -544,6 +549,11 @@ function hydrateMessage(msgId, raw) {
     authorDisplayName: raw.senderName || raw.author || raw.senderEmail || 'Unbekannter Nutzer',
     body: raw.text || raw.body || '',
     timestamp: timestampIso,
+    editedAt,
+    deletedAt,
+    deletedBy,
+    isEdited,
+    isDeleted,
   };
 }
 
@@ -592,6 +602,27 @@ async function materializeMessages(redis, members) {
   const combined = [...inline, ...fetched];
   combined.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   return combined;
+}
+
+export async function readMessageById(redis, msgId) {
+  const rdb = createRedisAdapter(redis);
+  const rawV2 = await rdb.getJson(keyMessageV2(msgId));
+  const raw = rawV2 || (await rdb.hgetall(keyMessage(msgId)));
+  if (!raw || Object.keys(raw).length === 0) return null;
+  return { raw, message: hydrateMessage(msgId, raw) };
+}
+
+export async function updateMessageById(redis, msgId, updates) {
+  const rdb = createRedisAdapter(redis);
+  const rawV2 = await rdb.getJson(keyMessageV2(msgId));
+  const raw = rawV2 || (await rdb.hgetall(keyMessage(msgId)));
+  if (!raw || Object.keys(raw).length === 0) return null;
+  const merged = { ...raw, ...updates };
+  await Promise.all([
+    rdb.hset(keyMessage(msgId), merged),
+    rdb.setJson(keyMessageV2(msgId), merged),
+  ]);
+  return hydrateMessage(msgId, merged);
 }
 
 export async function readMessages(redis, convId, { afterTs = null, beforeTs = null, limit = 50 } = {}) {
