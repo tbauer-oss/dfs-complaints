@@ -5198,7 +5198,7 @@ class _AdminPageState extends State<AdminPage> {
                                       const Icon(Icons.chat_rounded),
                                       const SizedBox(width: 10),
                                       Text(
-                                        'Interner Chat',
+                                        'DFS Connect+ Messenger',
                                         style: theme.textTheme.titleMedium?.copyWith(
                                           fontWeight: FontWeight.w800,
                                         ),
