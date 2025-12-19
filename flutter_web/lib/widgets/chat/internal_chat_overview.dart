@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_user.dart';
 import '../../services/chat_service.dart';
+import 'conversation_avatar.dart';
 import 'group_icon_picker.dart';
 
 class InternalChatOverview extends StatefulWidget {
@@ -335,7 +336,6 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                         item.lastAuthor != null && item.lastAuthor != widget.currentUserId;
                     final isDeleting = _deletingIds.contains(item.conversationId);
                     final isGroup = item.isGroup;
-                    final groupIcon = iconForGroupIconId(item.groupIconId);
                     final dmPeer = !isGroup
                         ? item.participants.firstWhere(
                             (p) => p.userId != widget.currentUserId,
@@ -363,19 +363,10 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CircleAvatar(
+                              ConversationAvatar(
+                                conversation: item,
+                                label: title,
                                 radius: 22,
-                                backgroundColor: theme.colorScheme.primaryContainer,
-                                foregroundColor: theme.colorScheme.onPrimaryContainer,
-                                child: groupIcon != null
-                                    ? Icon(groupIcon)
-                                    : Text(
-                                        title.isNotEmpty
-                                            ? title.characters.first.toUpperCase()
-                                            : '?',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(fontWeight: FontWeight.w700),
-                                      ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
