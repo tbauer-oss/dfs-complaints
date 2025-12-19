@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:html' as html;
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -692,12 +693,15 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
 
   @override
   Widget build(BuildContext context) {
+    final mediaSize = MediaQuery.sizeOf(context);
+    final dialogWidth = min(720.0, mediaSize.width * 0.92);
+    final dialogHeight = min(720.0, mediaSize.height * 0.86);
     return AlertDialog(
       title: const Text('Neue Konversation'),
       content: SizedBox(
-        width: 420,
+        width: dialogWidth,
+        height: dialogHeight,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             TabBar(
               controller: _tabController,
@@ -707,8 +711,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
               ],
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 360,
+            Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
