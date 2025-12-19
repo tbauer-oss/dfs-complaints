@@ -447,22 +447,31 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       initialIconId: _activeSummary.groupIconId,
     );
     if (selection == null) return;
-    final nextMeta = {...?_activeSummary.meta};
-    if (selection.isEmpty) {
-      nextMeta.remove('groupIcon');
+    final previousMeta = {...?_activeSummary.meta};
+    final selectedIcon = selection.isEmpty ? null : selection;
+    final optimisticMeta = {...previousMeta};
+    if (selectedIcon == null) {
+      optimisticMeta.remove('groupIcon');
     } else {
-      nextMeta['groupIcon'] = selection;
+      optimisticMeta['groupIcon'] = selectedIcon;
     }
 
+    _applyMetaUpdate(optimisticMeta);
+
     try {
-      final savedMeta = await widget.chatService.updateConversationMeta(_convId, nextMeta);
-      _applyMetaUpdate(savedMeta);
+      final savedMeta = await widget.chatService.updateConversationGroupIcon(_convId, selectedIcon);
+      final mergedMeta = {...previousMeta, ...savedMeta};
+      if (savedMeta['groupIcon'] == null) {
+        mergedMeta.remove('groupIcon');
+      }
+      _applyMetaUpdate(mergedMeta);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Gruppen-Icon aktualisiert')),
         );
       }
     } catch (err) {
+      _applyMetaUpdate(previousMeta);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gruppen-Icon konnte nicht gespeichert werden: $err')),

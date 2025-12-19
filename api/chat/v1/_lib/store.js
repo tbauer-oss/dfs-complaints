@@ -31,6 +31,7 @@ import {
   toIsoTimestamp,
 } from './schema.js';
 import { createRedisAdapter } from './redisAdapter.js';
+import { normalizeGroupIconId } from './groupIcons.js';
 
 function safeDisplayName(name, fallback = 'Unbekannter Nutzer') {
   const value = String(name || '').trim();
@@ -99,6 +100,8 @@ async function persistConversationMeta(rdb, convId, payload) {
   const lastMsgAt = normalizeTimestamp(
     payload?.lastMsgAt ?? payload?.lastMessageAt ?? payload?.updatedAt ?? payload?.createdAt
   );
+  const groupIcon = payload?.groupIcon !== undefined ? payload.groupIcon : undefined;
+  const normalizedGroupIcon = normalizeGroupIconId(groupIcon);
 
   const existingV2 = await rdb.getJson(keyConversationMetaV2(convId), {});
   const merged = {
@@ -114,6 +117,8 @@ async function persistConversationMeta(rdb, convId, payload) {
     lastMsgId: payload?.lastMsgId ?? existingV2.lastMsgId ?? null,
     title: payload?.title ?? existingV2.title ?? null,
     createdBy: payload?.createdBy ?? existingV2.createdBy ?? null,
+    groupIcon:
+      groupIcon === undefined ? existingV2.groupIcon ?? null : normalizedGroupIcon,
   };
 
   await Promise.all([
@@ -209,6 +214,7 @@ export async function fetchConversationMeta(redis, convId) {
         lastMsgPreview: v2.lastMsgPreview ?? null,
         title: v2.title ?? null,
         createdBy: v2.createdBy ?? null,
+        groupIcon: normalizeGroupIconId(v2.groupIcon),
         participants,
         p1: participants[0] || null,
         p2: participants[1] || null,
@@ -237,6 +243,7 @@ export async function fetchConversationMeta(redis, convId) {
       lastMsgPreview: raw.lastMsgPreview || raw.lastMessagePreview || null,
       title: raw.title || null,
       createdBy: raw.createdBy || null,
+      groupIcon: normalizeGroupIconId(raw.groupIcon),
       participants,
       p1: raw.p1 || participants[0] || null,
       p2: raw.p2 || participants[1] || null,
@@ -292,12 +299,13 @@ export async function ensureDmConversation(redis, uidA, uidB) {
   };
 }
 
-export async function createGroupConversation(redis, title, members, createdBy) {
+export async function createGroupConversation(redis, title, members, createdBy, groupIcon) {
   const rdb = createRedisAdapter(redis);
   const filtered = Array.from(new Set((members || []).map((m) => normalizeUserId(m)).filter(Boolean)));
   if (filtered.length === 0) return null;
   const convId = buildGroupId(randomUUID());
   const createdAt = toIsoTimestamp();
+  const normalizedGroupIcon = normalizeGroupIconId(groupIcon);
   await persistConversationMeta(rdb, convId, {
     convId,
     type: 'group',
@@ -308,6 +316,7 @@ export async function createGroupConversation(redis, title, members, createdBy) 
     lastMsgAt: createdAt,
     lastMessageAt: createdAt,
     participants: JSON.stringify(filtered),
+    groupIcon: normalizedGroupIcon,
   });
   await ensureMembersSet(rdb, convId, filtered);
   return {
@@ -321,6 +330,7 @@ export async function createGroupConversation(redis, title, members, createdBy) 
     lastMsgPreview: null,
     title: safeDisplayName(title, 'Gruppe'),
     createdBy: createdBy || null,
+    groupIcon: normalizedGroupIcon,
     participants: filtered,
   };
 }
@@ -663,6 +673,12 @@ export function buildConversationSummary(meta, profiles, currentUserId) {
     lastMessageAt: toIsoOrNull(lastActivity),
     memberCount,
     membersPreview,
+    meta: {
+      createdAt: meta.createdAt ?? null,
+      updatedAt: meta.updatedAt ?? null,
+      lastMsgAt: meta.lastMsgAt ?? null,
+      groupIcon: normalizeGroupIconId(meta.groupIcon),
+    },
   };
 }
 

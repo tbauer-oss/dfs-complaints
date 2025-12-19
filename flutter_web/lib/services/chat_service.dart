@@ -183,17 +183,18 @@ class ChatService {
     api.assertSuccess(response);
   }
 
-  Future<Map<String, dynamic>> updateConversationMeta(
+  Future<Map<String, dynamic>> updateConversationGroupIcon(
     String convId,
-    Map<String, dynamic> meta,
+    String? groupIcon,
   ) async {
     final uri = api.buildUri('/api/chat/v1/conversations/$convId/meta');
-    final response = await http.put(uri, headers: api.portalHeaders(), body: jsonEncode(meta));
+    final payload = {'groupIcon': groupIcon};
+    final response = await http.patch(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     if (jsonBody['meta'] is Map<String, dynamic>) {
       return Map<String, dynamic>.from(jsonBody['meta'] as Map<String, dynamic>);
     }
-    return meta;
+    return payload;
   }
 }
