@@ -12,7 +12,9 @@ import {
   appendMessage,
   buildMessagePayload,
   fetchConversationMeta,
+  buildProfilesMap,
   normalizeUserId,
+  readUserProfile,
   readMessages,
   registerConversationForUsers,
   upsertUserProfile,
@@ -89,6 +91,32 @@ export default async function handler(req, res) {
       const beforeTs = parseTimestamp(req.query?.beforeTs);
       const limit = Number(req.query?.limit || 50);
       const timeline = await readMessages(rdb, convId, { afterTs, beforeTs, limit });
+      const deletedByIds = new Set(
+        (timeline.messages || [])
+          .map((msg) => msg.deletedBy)
+          .filter((value) => value && String(value).trim().length > 0)
+      );
+      const deletedProfiles = buildProfilesMap(
+        (
+          await Promise.all(
+            Array.from(deletedByIds.values()).map(async (uid) => readUserProfile(client, uid))
+          )
+        ).filter(Boolean)
+      );
+      const timelineMessages = (timeline.messages || []).map((msg) => {
+        if (!msg.isDeleted) return msg;
+        const deletedBy = msg.deletedBy;
+        const deletedProfile = deletedBy ? deletedProfiles.get(deletedBy) : null;
+        const fallbackName = msg.senderName || msg.authorDisplayName || msg.senderEmail || 'Unbekannter Nutzer';
+        const displayName = deletedProfile?.displayName || fallbackName;
+        const tombstone = `Nachricht wurde von ${displayName} gelöscht!`;
+        return {
+          ...msg,
+          body: tombstone,
+          text: tombstone,
+          isDeleted: true,
+        };
+      });
       const messagesKey = timeline.sourceKey || keyConversationMessages(convId);
       const zsetLength =
         typeof timeline.total === 'number' && !Number.isNaN(timeline.total)
@@ -100,10 +128,10 @@ export default async function handler(req, res) {
         convId,
         messagesKey,
         zsetLength,
-        resultCount: timeline.messages?.length || 0,
+        resultCount: timelineMessages.length || 0,
       });
       logRedisUsage('[chat/v1/messages] read-only', counters, { convId });
-      return ok(res, { ok: true, convId, ...timeline });
+      return ok(res, { ok: true, convId, ...timeline, messages: timelineMessages });
     }
 
     if (req.method !== 'POST') return methodNotAllowed(res);

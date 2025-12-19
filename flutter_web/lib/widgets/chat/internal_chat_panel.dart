@@ -52,8 +52,11 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   late ChatConversationSummary _activeSummary;
   List<PlatformFile> _pendingAttachments = const [];
   bool _showEmojiPicker = false;
+  ChatMessage? _editingMessage;
+  String _editingOriginalBody = '';
 
   String get _convId => _activeSummary.conversationId;
+  bool get _isEditing => _editingMessage != null;
 
   String? _resolveAvatarByEmail(String? email, String? fallbackAvatar) {
     final normalized = _normalizeId(email);
@@ -188,6 +191,21 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     }
   }
 
+  Future<void> _refreshMessages({bool scrollToBottom = false}) async {
+    final convId = _convId;
+    try {
+      final timeline = await widget.chatService.fetchMessages(convId, limit: 50);
+      if (!mounted || convId != _convId) return;
+      setState(() {
+        _messages = _mergeMessages([..._messages, ...timeline.messages]);
+        _hasMoreBefore = timeline.hasMoreBefore;
+      });
+      if (scrollToBottom) {
+        _scrollToBottom();
+      }
+    } catch (_) {}
+  }
+
   List<ChatMessage> _mergeMessages(List<ChatMessage> items) {
     final map = <String, ChatMessage>{};
     for (final m in items) {
@@ -238,6 +256,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   Future<void> _send() async {
+    if (_isEditing) return;
     if (_sending || _myId.isEmpty) return;
     final text = _controller.text.trim();
     final attachmentLabel = _pendingAttachments.isEmpty
@@ -298,6 +317,115 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
           SnackBar(content: Text('Senden fehlgeschlagen: $err')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _startEditing(ChatMessage msg) {
+    if (msg.isDeleted || msg.pending) return;
+    setState(() {
+      _editingMessage = msg;
+      _editingOriginalBody = msg.body;
+      _controller.text = msg.body;
+      _pendingAttachments = const [];
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _editingMessage = null;
+      _editingOriginalBody = '';
+      _controller.clear();
+    });
+  }
+
+  Future<void> _saveEdit() async {
+    if (_sending || _editingMessage == null) return;
+    final updatedBody = _controller.text.trim();
+    if (updatedBody.isEmpty) return;
+    if (updatedBody == _editingOriginalBody.trim()) {
+      _cancelEditing();
+      return;
+    }
+
+    setState(() => _sending = true);
+    final messageId = _editingMessage!.id;
+    try {
+      final updated = await widget.chatService.updateMessage(messageId, updatedBody);
+      setState(() {
+        _messages = _mergeMessages([
+          ..._messages.where((m) => m.id != messageId),
+          updated,
+        ]);
+        _editingMessage = null;
+        _editingOriginalBody = '';
+        _controller.clear();
+      });
+      if (_messages.isNotEmpty && _messages.last.id == updated.id) {
+        _updateConversationSummary(updated);
+      }
+      await _refreshMessages();
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bearbeiten fehlgeschlagen: $err')),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _confirmDelete(ChatMessage msg) async {
+    if (_sending || msg.pending || msg.isDeleted) return;
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Nachricht wirklich löschen?'),
+        content: const Text('Die Nachricht wird für alle entfernt.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true) return;
+
+    setState(() => _sending = true);
+    try {
+      final deleted = await widget.chatService.deleteMessage(msg.id);
+      final tombstone = _buildTombstoneText(msg);
+      final tombstoned = deleted.copyWith(
+        body: tombstone,
+        isDeleted: true,
+        deletedAt: DateTime.now(),
+      );
+      setState(() {
+        _messages = _mergeMessages([
+          ..._messages.where((m) => m.id != msg.id),
+          tombstoned,
+        ]);
+        if (_editingMessage?.id == msg.id) {
+          _editingMessage = null;
+          _editingOriginalBody = '';
+          _controller.clear();
+        }
+      });
+      if (_messages.isNotEmpty && _messages.last.id == tombstoned.id) {
+        _updateConversationSummary(tombstoned);
+      }
+      await _refreshMessages();
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Löschen fehlgeschlagen: $err')),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -657,17 +785,21 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                             itemCount: _messages.length,
                                             itemBuilder: (context, index) {
-                                              final msg = _messages[index];
-                                              final isMe = _isMessageFromCurrentUser(msg);
-                                              final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
-                                              final timeString = _formatTime(msg.timestamp);
-                                              final backgroundColor = isMe
-                                                  ? theme.colorScheme.primaryContainer.withOpacity(0.8)
-                                                  : theme.colorScheme.surface;
-                                              final textColor = isMe
-                                                  ? theme.colorScheme.onPrimaryContainer
-                                                  : theme.colorScheme.onSurface;
-                                              final radius = BorderRadius.only(
+                                          final msg = _messages[index];
+                                          final isMe = _isMessageFromCurrentUser(msg);
+                                          final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
+                                          final timeString = _formatTime(msg.timestamp);
+                                          final isDeleted = msg.isDeleted;
+                                          final backgroundColor = isMe
+                                              ? theme.colorScheme.primaryContainer.withOpacity(0.8)
+                                              : theme.colorScheme.surface;
+                                          final bubbleColor = isDeleted
+                                              ? theme.colorScheme.surfaceVariant.withOpacity(0.6)
+                                              : backgroundColor;
+                                          final textColor = isMe
+                                              ? theme.colorScheme.onPrimaryContainer
+                                              : theme.colorScheme.onSurface;
+                                          final radius = BorderRadius.only(
                                                 topLeft: const Radius.circular(18),
                                                 topRight: const Radius.circular(18),
                                                 bottomLeft: Radius.circular(isMe ? 18 : 6),
@@ -676,14 +808,14 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
                                               return Align(
                                                 alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                                                child: ConstrainedBox(
-                                                  constraints: BoxConstraints(maxWidth: bubbleWidth),
-                                                  child: Padding(
+                                              child: ConstrainedBox(
+                                                constraints: BoxConstraints(maxWidth: bubbleWidth),
+                                                child: Padding(
                                                     padding:
                                                         const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
                                                     child: DecoratedBox(
                                                       decoration: BoxDecoration(
-                                                        color: backgroundColor,
+                                                        color: bubbleColor,
                                                         borderRadius: radius,
                                                         border: Border.all(
                                                           color: theme.colorScheme.outlineVariant.withOpacity(0.2),
@@ -696,56 +828,102 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                                           ),
                                                         ],
                                                       ),
-                                                      child: Padding(
-                                                        padding:
-                                                            const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                                        child: Column(
-                                                          crossAxisAlignment: isMe
-                                                              ? CrossAxisAlignment.end
-                                                              : CrossAxisAlignment.start,
-                                                          mainAxisSize: MainAxisSize.min,
-                                                          children: [
-                                                            if (!isMe)
-                                                              Padding(
-                                                                padding: const EdgeInsets.only(bottom: 4),
-                                                                child: Text(
-                                                                  _displayNameFor(msg),
+                                                        child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                                            child: Column(
+                                                              crossAxisAlignment: isMe
+                                                                  ? CrossAxisAlignment.end
+                                                                  : CrossAxisAlignment.start,
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                if (isMe && !msg.pending && !msg.isDeleted)
+                                                                  Align(
+                                                                    alignment: Alignment.topRight,
+                                                                    child: PopupMenuButton<_MessageAction>(
+                                                                      icon: Icon(
+                                                                        Icons.more_horiz,
+                                                                        size: 18,
+                                                                        color: theme.colorScheme.onSurfaceVariant,
+                                                                      ),
+                                                                      onSelected: (action) {
+                                                                        switch (action) {
+                                                                          case _MessageAction.edit:
+                                                                            _startEditing(msg);
+                                                                            break;
+                                                                          case _MessageAction.delete:
+                                                                            _confirmDelete(msg);
+                                                                            break;
+                                                                        }
+                                                                      },
+                                                                      itemBuilder: (_) => const [
+                                                                        PopupMenuItem(
+                                                                          value: _MessageAction.edit,
+                                                                          child: Text('Bearbeiten'),
+                                                                        ),
+                                                                        PopupMenuItem(
+                                                                          value: _MessageAction.delete,
+                                                                          child: Text('Löschen'),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                if (!isMe)
+                                                                  Padding(
+                                                                    padding: const EdgeInsets.only(bottom: 4),
+                                                                    child: Text(
+                                                                      _displayNameFor(msg),
                                                                   style: theme.textTheme.labelMedium?.copyWith(
                                                                     fontWeight: FontWeight.w700,
                                                                     color: theme.colorScheme.onSurfaceVariant,
                                                                   ),
                                                                 ),
                                                               ),
-                                                            RichText(
-                                                              text: TextSpan(
-                                                                children: EmojiText.buildMessageSpans(
-                                                                  msg.body,
-                                                                  theme.textTheme.bodyMedium?.copyWith(
-                                                                        height: 1.35,
-                                                                        color: textColor,
-                                                                      ) ??
-                                                                      const TextStyle(),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            const SizedBox(height: 6),
-                                                            Row(
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                Text(
-                                                                  timeString,
-                                                                  style: theme.textTheme.labelSmall?.copyWith(
-                                                                    color: isMe
-                                                                        ? theme.colorScheme.onPrimaryContainer
-                                                                            .withOpacity(0.9)
-                                                                        : theme.colorScheme.onSurfaceVariant,
+                                                                RichText(
+                                                                  text: TextSpan(
+                                                                    children: EmojiText.buildMessageSpans(
+                                                                      msg.body,
+                                                                      theme.textTheme.bodyMedium?.copyWith(
+                                                                            height: 1.35,
+                                                                            color: isDeleted
+                                                                                ? theme.colorScheme.onSurfaceVariant
+                                                                                : textColor,
+                                                                            fontStyle: isDeleted
+                                                                                ? FontStyle.italic
+                                                                                : FontStyle.normal,
+                                                                          ) ??
+                                                                          const TextStyle(),
+                                                                    ),
                                                                   ),
                                                                 ),
-                                                                if (msg.pending)
-                                                                  Padding(
-                                                                    padding: const EdgeInsets.only(left: 6),
-                                                                    child: Icon(
-                                                                      Icons.watch_later,
+                                                                const SizedBox(height: 6),
+                                                                Row(
+                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  children: [
+                                                                    Text(
+                                                                      timeString,
+                                                                      style: theme.textTheme.labelSmall?.copyWith(
+                                                                        color: isMe
+                                                                            ? theme.colorScheme.onPrimaryContainer
+                                                                                .withOpacity(0.9)
+                                                                            : theme.colorScheme.onSurfaceVariant,
+                                                                      ),
+                                                                    ),
+                                                                    if (msg.isEdited && !msg.isDeleted)
+                                                                      Padding(
+                                                                        padding: const EdgeInsets.only(left: 6),
+                                                                        child: Text(
+                                                                          'Bearbeitet',
+                                                                          style: theme.textTheme.labelSmall?.copyWith(
+                                                                            color: theme.colorScheme.onSurfaceVariant,
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    if (msg.pending)
+                                                                      Padding(
+                                                                        padding: const EdgeInsets.only(left: 6),
+                                                                        child: Icon(
+                                                                          Icons.watch_later,
                                                                       size: 14,
                                                                       color: isMe
                                                                           ? theme.colorScheme.onPrimaryContainer
@@ -803,6 +981,12 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                     showEmojiPicker: _showEmojiPicker,
                     canSend: _controller.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty,
                     hasPendingAttachments: _pendingAttachments.isNotEmpty,
+                    isEditing: _isEditing,
+                    canSaveEdit: _isEditing &&
+                        _controller.text.trim().isNotEmpty &&
+                        _controller.text.trim() != _editingOriginalBody.trim(),
+                    onSaveEdit: _saveEdit,
+                    onCancelEdit: _cancelEditing,
                   ),
                 ],
               ),
@@ -841,6 +1025,11 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     final m = ts.minute.toString().padLeft(2, '0');
     return '$h:$m';
   }
+
+  String _buildTombstoneText(ChatMessage msg) {
+    final displayName = _displayNameFor(msg);
+    return 'Nachricht wurde von $displayName gelöscht!';
+  }
 }
 
 Widget _buildAvatar(
@@ -867,6 +1056,8 @@ Widget _buildAvatar(
 }
 
 enum _PanelHeaderAction { showMembers, changeIcon }
+
+enum _MessageAction { edit, delete }
 
 class _PanelHeader extends StatelessWidget {
   final ChatConversationSummary conversation;
@@ -999,6 +1190,10 @@ class _InputBar extends StatelessWidget {
   final bool showEmojiPicker;
   final bool hasPendingAttachments;
   final bool canSend;
+  final bool isEditing;
+  final bool canSaveEdit;
+  final VoidCallback onSaveEdit;
+  final VoidCallback onCancelEdit;
 
   const _InputBar({
     required this.controller,
@@ -1008,6 +1203,10 @@ class _InputBar extends StatelessWidget {
     required this.onToggleEmojiPicker,
     required this.showEmojiPicker,
     required this.canSend,
+    required this.isEditing,
+    required this.canSaveEdit,
+    required this.onSaveEdit,
+    required this.onCancelEdit,
     this.hasPendingAttachments = false,
   });
 
@@ -1029,107 +1228,143 @@ class _InputBar extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Tooltip(
-              message: 'Anhänge noch nicht verfügbar',
-              child: IconButton(
-                tooltip: 'Anhänge (noch nicht verfügbar)',
-                icon: Icon(
-                  Icons.attach_file_outlined,
-                  color: hasPendingAttachments
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
+            if (isEditing)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Text(
+                      'Bearbeiten…',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: sending ? null : onCancelEdit,
+                      child: const Text('Abbrechen'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: (!canSaveEdit || sending) ? null : onSaveEdit,
+                      child: const Text('Speichern'),
+                    ),
+                  ],
                 ),
-                onPressed: null,
               ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              tooltip: showEmojiPicker ? 'Emoji-Auswahl schließen' : 'Emoji hinzufügen',
-              icon: Icon(
-                Icons.emoji_emotions_outlined,
-                color: showEmojiPicker ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-              ),
-              onPressed: onToggleEmojiPicker,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Shortcuts(
-                shortcuts: {
-                  LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
-                  LogicalKeySet(
-                    LogicalKeyboardKey.shift,
-                    LogicalKeyboardKey.enter,
-                  ): const DoNothingIntent(),
-                },
-                child: Actions(
-                  actions: {
-                    ActivateIntent: CallbackAction<ActivateIntent>(
-                      onInvoke: (_) {
-                        if (canSend && !sending) {
-                          onSend();
-                        }
-                        return null;
-                      },
+            Row(
+              children: [
+                Tooltip(
+                  message: 'Anhänge noch nicht verfügbar',
+                  child: IconButton(
+                    tooltip: 'Anhänge (noch nicht verfügbar)',
+                    icon: Icon(
+                      Icons.attach_file_outlined,
+                      color: hasPendingAttachments
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
-                    DoNothingIntent: CallbackAction<DoNothingIntent>(
-                      onInvoke: (_) {
-                        final value = controller.value;
-                        final selection = value.selection;
-                        final newText = value.text.replaceRange(
-                          selection.start,
-                          selection.end,
-                          '\n',
-                        );
-                        controller.value = TextEditingValue(
-                          text: newText,
-                          selection: TextSelection.collapsed(
-                            offset: selection.start + 1,
+                    onPressed: null,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: showEmojiPicker ? 'Emoji-Auswahl schließen' : 'Emoji hinzufügen',
+                  icon: Icon(
+                    Icons.emoji_emotions_outlined,
+                    color: showEmojiPicker ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: onToggleEmojiPicker,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Shortcuts(
+                    shortcuts: {
+                      LogicalKeySet(LogicalKeyboardKey.enter): const ActivateIntent(),
+                      LogicalKeySet(
+                        LogicalKeyboardKey.shift,
+                        LogicalKeyboardKey.enter,
+                      ): const DoNothingIntent(),
+                    },
+                    child: Actions(
+                      actions: {
+                        ActivateIntent: CallbackAction<ActivateIntent>(
+                          onInvoke: (_) {
+                            if (sending) return null;
+                            if (isEditing && canSaveEdit) {
+                              onSaveEdit();
+                              return null;
+                            }
+                            if (canSend) {
+                              onSend();
+                            }
+                            return null;
+                          },
+                        ),
+                        DoNothingIntent: CallbackAction<DoNothingIntent>(
+                          onInvoke: (_) {
+                            final value = controller.value;
+                            final selection = value.selection;
+                            final newText = value.text.replaceRange(
+                              selection.start,
+                              selection.end,
+                              '\n',
+                            );
+                            controller.value = TextEditingValue(
+                              text: newText,
+                              selection: TextSelection.collapsed(
+                                offset: selection.start + 1,
+                              ),
+                            );
+                            return null;
+                          },
+                        ),
+                      },
+                      child: Focus(
+                        autofocus: true,
+                        child: TextField(
+                          controller: controller,
+                          maxLines: 5,
+                          minLines: 1,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            hintText: 'Nachricht eingeben...',
+                            filled: true,
+                            fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
+                            ),
+                            prefixIcon:
+                                Icon(Icons.message_outlined, color: theme.colorScheme.onSurfaceVariant),
                           ),
-                        );
-                        return null;
-                      },
-                    ),
-                  },
-                  child: Focus(
-                    autofocus: true,
-                    child: TextField(
-                      controller: controller,
-                      maxLines: 5,
-                      minLines: 1,
-                      textInputAction: TextInputAction.newline,
-                      decoration: InputDecoration(
-                        hintText: 'Nachricht eingeben...',
-                        filled: true,
-                        fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.45),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
-                        ),
-                        prefixIcon:
-                            Icon(Icons.message_outlined, color: theme.colorScheme.onSurfaceVariant),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            FilledButton.icon(
-              onPressed: (!canSend || sending) ? null : onSend,
-              icon: const Icon(Icons.send_rounded),
-              label: const Text('Senden'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
+                const SizedBox(width: 10),
+                if (!isEditing)
+                  FilledButton.icon(
+                    onPressed: (!canSend || sending) ? null : onSend,
+                    icon: const Icon(Icons.send_rounded),
+                    label: const Text('Senden'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
