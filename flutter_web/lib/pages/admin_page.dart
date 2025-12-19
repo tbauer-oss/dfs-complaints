@@ -5088,6 +5088,11 @@ class _AdminPageState extends State<AdminPage> {
                       onConversationsLoaded: _handleConversationsSnapshot,
                       conversationListNotifier: _conversationListNotifier,
                       showHeaderActions: selected == null,
+                      onConversationDeleted: (deletedId) {
+                        if (selected?.conversationId == deletedId) {
+                          setModalState(() => selected = null);
+                        }
+                      },
                       onSelect: (conv) {
                         _markConversationRead(conv);
                         setModalState(() => selected = conv);
