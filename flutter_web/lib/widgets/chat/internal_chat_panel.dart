@@ -268,6 +268,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
       _pendingAttachments = const [];
     });
     _updateConversationSummary(optimistic);
+    _notifySeen();
     _scrollToBottom();
 
     try {
@@ -339,7 +340,9 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   void _notifySeen() {
     if (widget.onMarkAsRead == null) return;
-    final lastTs = _messages.isNotEmpty ? _messages.last.timestamp.millisecondsSinceEpoch : null;
+    final lastTs = _messages.isNotEmpty
+        ? _messages.last.timestamp.millisecondsSinceEpoch
+        : _activeSummary.lastMessageAt?.millisecondsSinceEpoch;
     widget.onMarkAsRead!(_activeSummary.conversationId, lastTs);
   }
 
@@ -353,10 +356,17 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
   }
 
   void _updateConversationSummary(ChatMessage latest) {
+    final lastAuthor = _firstNonEmpty([
+      latest.authorEmail ?? '',
+      latest.authorUid ?? '',
+      latest.senderEmail ?? '',
+      latest.sender ?? '',
+      latest.authorId,
+    ]);
     final next = _activeSummary.copyWith(
       lastMessage: latest.body,
       lastMessagePreview: latest.body,
-      lastAuthor: latest.authorId,
+      lastAuthor: lastAuthor.isNotEmpty ? lastAuthor : latest.authorId,
       lastMessageAt: latest.timestamp,
     );
     if (mounted) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
 
@@ -39,6 +40,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
   final Set<String> _deletingIds = {};
   bool _showArchived = false;
   bool _notifierPushInProgress = false;
+  final Map<String, int> _lastSeenMs = {};
 
   @override
   void initState() {
@@ -73,11 +75,13 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
     if (incoming == null) return;
     final normalized = _sorted(incoming);
     if (_listMatches(normalized)) return;
+    _ensureInboxInitialized(normalized);
     setState(() => _conversations = normalized);
   }
 
   void _setConversations(List<ChatConversationSummary> next) {
     final sorted = _sorted(next);
+    _ensureInboxInitialized(sorted);
     setState(() => _conversations = sorted);
     _pushToNotifier(sorted);
     widget.onConversationsLoaded?.call(sorted);
@@ -93,6 +97,82 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
         .toList(growable: false);
     final merged = [...filtered, normalized];
     _setConversations(_sorted(merged));
+  }
+
+  String _normalizedCurrentUserId() => widget.currentUserId.trim().toLowerCase();
+
+  String _lastSeenKey(String convId) {
+    final userId = _normalizedCurrentUserId();
+    return 'chat:v1:lastSeen:$userId:$convId';
+  }
+
+  String _inboxInitializedKey() {
+    final userId = _normalizedCurrentUserId();
+    return 'chat:v1:inboxInitialized:$userId';
+  }
+
+  int? _readLastSeenFromStorage(String convId) {
+    final raw = html.window.localStorage[_lastSeenKey(convId)];
+    return int.tryParse(raw ?? '');
+  }
+
+  int _loadLastSeen(String convId) {
+    if (_lastSeenMs.containsKey(convId)) return _lastSeenMs[convId]!;
+    final parsed = _readLastSeenFromStorage(convId);
+    if (parsed != null) {
+      _lastSeenMs[convId] = parsed;
+      return parsed;
+    }
+    return 0;
+  }
+
+  void _saveLastSeen(String convId, int value) {
+    _lastSeenMs[convId] = value;
+    html.window.localStorage[_lastSeenKey(convId)] = value.toString();
+  }
+
+  void _ensureInboxInitialized(List<ChatConversationSummary> conversations) {
+    final userId = _normalizedCurrentUserId();
+    if (userId.isEmpty) return;
+    final inboxInitialized = html.window.localStorage[_inboxInitializedKey()] == 'true';
+    if (inboxInitialized) return;
+    for (final conv in conversations) {
+      final lastMsgAt = conv.lastMessageAt;
+      if (lastMsgAt == null) continue;
+      if (_readLastSeenFromStorage(conv.conversationId) != null) continue;
+      _saveLastSeen(conv.conversationId, lastMsgAt.millisecondsSinceEpoch);
+    }
+    html.window.localStorage[_inboxInitializedKey()] = 'true';
+  }
+
+  bool _isFromCurrentUser(String? authorId) {
+    final normalizedAuthor = (authorId ?? '').trim().toLowerCase();
+    if (normalizedAuthor.isEmpty) return false;
+    final currentUser = _normalizedCurrentUserId();
+    if (currentUser.isEmpty) return false;
+    if (normalizedAuthor == currentUser) return true;
+    final currentNormalized = ChatService.normalizeUserId(currentUser);
+    if (normalizedAuthor == currentNormalized) return true;
+    final authorNormalized = ChatService.normalizeUserId(normalizedAuthor);
+    return authorNormalized == currentUser || authorNormalized == currentNormalized;
+  }
+
+  bool _isUnread(ChatConversationSummary conversation) {
+    final lastMsgAt = conversation.lastMessageAt;
+    if (lastMsgAt == null) return false;
+    final lastAuthor = conversation.lastAuthor;
+    if (lastAuthor == null || lastAuthor.trim().isEmpty) return false;
+    if (_isFromCurrentUser(lastAuthor)) return false;
+    final lastSeen = _loadLastSeen(conversation.conversationId);
+    return lastMsgAt.millisecondsSinceEpoch > lastSeen;
+  }
+
+  void _markConversationRead(ChatConversationSummary conversation) {
+    final lastMsgAt = conversation.lastMessageAt?.millisecondsSinceEpoch;
+    if (lastMsgAt == null) return;
+    final current = _loadLastSeen(conversation.conversationId);
+    if (lastMsgAt <= current) return;
+    _saveLastSeen(conversation.conversationId, lastMsgAt);
   }
 
   void _pushToNotifier(List<ChatConversationSummary> next) {
@@ -332,8 +412,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                     final membersLabel =
                         memberNames.isNotEmpty ? item.membersLabelFor(widget.currentUserId) : null;
                     final timestamp = item.lastMessageAt;
-                    final hasUnread =
-                        item.lastAuthor != null && item.lastAuthor != widget.currentUserId;
+                    final hasUnread = _isUnread(item);
                     final isDeleting = _deletingIds.contains(item.conversationId);
                     final isGroup = item.isGroup;
                     final dmPeer = !isGroup
@@ -357,7 +436,11 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                       ),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(16),
-                        onTap: () => widget.onSelect(item),
+                        onTap: () {
+                          _markConversationRead(item);
+                          setState(() {});
+                          widget.onSelect(item);
+                        },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           child: Row(

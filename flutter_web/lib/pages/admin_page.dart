@@ -430,10 +430,15 @@ class _AdminPageState extends State<AdminPage> {
 
   String _chatLastReadKey(String convId) {
     final email = _portalEmail.trim().toLowerCase();
-    return 'chat:lastReadAt:$email:$convId';
+    return 'chat:v1:lastSeen:$email:$convId';
   }
 
   String _normalizeChatEmail(String? value) => (value ?? '').trim().toLowerCase();
+
+  String _chatInboxInitializedKey() {
+    final email = _portalEmail.trim().toLowerCase();
+    return 'chat:v1:inboxInitialized:$email';
+  }
 
   void _logChatAvatarResolution(String email, String? avatarUrl) {
     if (!kDebugMode) return;
@@ -514,10 +519,14 @@ class _AdminPageState extends State<AdminPage> {
     _chatAvatarSyncInProgress = false;
   }
 
+  int? _readChatLastReadMs(String convId) {
+    final raw = html.window.localStorage[_chatLastReadKey(convId)];
+    return int.tryParse(raw ?? '');
+  }
+
   int _loadChatLastReadMs(String convId) {
     if (_chatLastReadMs.containsKey(convId)) return _chatLastReadMs[convId]!;
-    final raw = html.window.localStorage[_chatLastReadKey(convId)];
-    final parsed = int.tryParse(raw ?? '');
+    final parsed = _readChatLastReadMs(convId);
     if (parsed != null) {
       _chatLastReadMs[convId] = parsed;
       return parsed;
@@ -530,6 +539,31 @@ class _AdminPageState extends State<AdminPage> {
     html.window.localStorage[_chatLastReadKey(convId)] = value.toString();
   }
 
+  void _ensureChatInboxInitialized(List<ChatConversationSummary> conversations) {
+    final email = _portalEmail.trim().toLowerCase();
+    if (email.isEmpty) return;
+    if (html.window.localStorage[_chatInboxInitializedKey()] == 'true') return;
+    for (final conv in conversations) {
+      final lastMsgAt = conv.lastMessageAt;
+      if (lastMsgAt == null) continue;
+      if (_readChatLastReadMs(conv.conversationId) != null) continue;
+      _saveChatLastReadMs(conv.conversationId, lastMsgAt.millisecondsSinceEpoch);
+    }
+    html.window.localStorage[_chatInboxInitializedKey()] = 'true';
+  }
+
+  bool _isChatAuthorCurrentUser(String? authorId) {
+    final normalizedAuthor = (authorId ?? '').trim().toLowerCase();
+    if (normalizedAuthor.isEmpty) return false;
+    final currentEmail = _portalEmail.trim().toLowerCase();
+    if (currentEmail.isEmpty) return false;
+    if (normalizedAuthor == currentEmail) return true;
+    final currentNormalized = ChatService.normalizeUserId(currentEmail);
+    if (normalizedAuthor == currentNormalized) return true;
+    final authorNormalized = ChatService.normalizeUserId(normalizedAuthor);
+    return authorNormalized == currentEmail || authorNormalized == currentNormalized;
+  }
+
   void _recalculateChatUnread([List<ChatConversationSummary>? conversations]) {
     final list = conversations ?? _chatCachedConversations;
     bool anyUnread = false;
@@ -537,10 +571,8 @@ class _AdminPageState extends State<AdminPage> {
       final ts = conv.lastMessageAt;
       if (ts == null) continue;
       final lastAuthor = (conv.lastAuthor ?? '').trim();
-      if (lastAuthor.isNotEmpty) {
-        final normalized = ChatService.normalizeUserId(lastAuthor);
-        if (lastAuthor == _portalEmail || normalized == _portalUserId) continue;
-      }
+      if (lastAuthor.isEmpty) continue;
+      if (_isChatAuthorCurrentUser(lastAuthor)) continue;
       if (ts.millisecondsSinceEpoch > _loadChatLastReadMs(conv.conversationId)) {
         anyUnread = true;
         break;
@@ -560,6 +592,7 @@ class _AdminPageState extends State<AdminPage> {
       final resolved = _applyChatAvatarMap(convs);
       _chatCachedConversations = resolved;
       _conversationListNotifier.value = [...resolved];
+      _ensureChatInboxInitialized(resolved);
       _recalculateChatUnread(resolved);
     } catch (_) {}
   }
@@ -581,6 +614,7 @@ class _AdminPageState extends State<AdminPage> {
     final resolved = _applyChatAvatarMap(conversations);
     _chatCachedConversations = resolved;
     _conversationListNotifier.value = [...resolved];
+    _ensureChatInboxInitialized(resolved);
     _recalculateChatUnread(resolved);
   }
 
