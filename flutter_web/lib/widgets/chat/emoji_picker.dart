@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'emoji_data.dart';
+import 'twemoji.dart';
 
 class EmojiPicker extends StatefulWidget {
   final ValueChanged<String> onInsertToken;
@@ -39,28 +40,17 @@ class _EmojiPickerState extends State<EmojiPicker> {
 
   List<_EmojiItem> _buildItems() {
     if (_query.isNotEmpty) {
-      final queryLower = _query.toLowerCase();
-      final customMatches = EmojiData.customEmojisDental
-          .where((e) => e.label.toLowerCase().contains(queryLower) || e.shortcode.contains(queryLower))
-          .map((e) => _EmojiItem(token: e.shortcode, custom: e))
-          .toList();
       final unicodeMatches = EmojiData.emojiCategories.values
           .expand((list) => list)
           .where((e) => e.contains(_query))
           .map((e) => _EmojiItem(token: e))
           .toList();
-      return [...customMatches, ...unicodeMatches];
+      return [...unicodeMatches];
     }
 
     switch (_selectedCategory) {
       case EmojiCategory.recent:
-        return _recentTokens
-            .map((token) => _EmojiItem(token: token, custom: EmojiData.customEmojiByCode[token]))
-            .toList();
-      case EmojiCategory.dental:
-        return EmojiData.customEmojisDental
-            .map((e) => _EmojiItem(token: e.shortcode, custom: e))
-            .toList();
+        return _recentTokens.map((token) => _EmojiItem(token: token)).toList();
       default:
         return (EmojiData.emojiCategories[_selectedCategory] ?? [])
             .map((e) => _EmojiItem(token: e))
@@ -171,22 +161,14 @@ class _EmojiPickerState extends State<EmojiPicker> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Center(
-                              child: item.custom != null
-                                  ? Image.asset(
-                                      item.custom!.assetPath,
-                                      width: 22,
-                                      height: 22,
-                                      filterQuality: FilterQuality.high,
-                                      errorBuilder: (context, error, stackTrace) => Text(
-                                        item.custom!.shortcode,
-                                        style: const TextStyle(fontSize: 10),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    )
-                                  : Text(
-                                      item.token,
-                                      style: const TextStyle(fontSize: 18),
-                                    ),
+                              child: Image.network(
+                                Twemoji.pngUrl(item.token),
+                                width: 22,
+                                height: 22,
+                                filterQuality: FilterQuality.high,
+                                errorBuilder: (_, __, ___) =>
+                                    Text(item.token, style: const TextStyle(fontSize: 18)),
+                              ),
                             ),
                           ),
                         );
@@ -202,7 +184,6 @@ class _EmojiPickerState extends State<EmojiPicker> {
 
 class _EmojiItem {
   final String token;
-  final CustomEmoji? custom;
 
-  const _EmojiItem({required this.token, this.custom});
+  const _EmojiItem({required this.token});
 }
