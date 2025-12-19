@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 
 import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 import '../../utils/display_name_from_email.dart';
 import 'conversation_avatar.dart';
+import 'emoji_picker.dart';
+import 'emoji_text.dart';
 import 'group_icon_picker.dart';
 
 class InternalChatPanel extends StatefulWidget {
@@ -317,18 +318,17 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     setState(() => _showEmojiPicker = next ?? !_showEmojiPicker);
   }
 
-  void _insertEmoji(String emoji) {
+  void _insertToken(String token) {
     final value = _controller.value;
     final selection = value.selection;
     final safeStart = selection.start >= 0 ? selection.start : value.text.length;
     final safeEnd = selection.end >= 0 ? selection.end : value.text.length;
-    final newText = value.text.replaceRange(safeStart, safeEnd, emoji);
+    final newText = value.text.replaceRange(safeStart, safeEnd, token);
     _controller.value = value.copyWith(
       text: newText,
-      selection: TextSelection.collapsed(offset: safeStart + emoji.length),
+      selection: TextSelection.collapsed(offset: safeStart + token.length),
       composing: TextRange.empty,
     );
-    setState(() => _showEmojiPicker = false);
   }
 
   String _displayNameFor(ChatMessage msg) {
@@ -716,11 +716,16 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                                                   ),
                                                                 ),
                                                               ),
-                                                            Text(
-                                                              msg.body,
-                                                              style: theme.textTheme.bodyMedium?.copyWith(
-                                                                height: 1.35,
-                                                                color: textColor,
+                                                            RichText(
+                                                              text: TextSpan(
+                                                                children: EmojiText.buildMessageSpans(
+                                                                  msg.body,
+                                                                  theme.textTheme.bodyMedium?.copyWith(
+                                                                        height: 1.35,
+                                                                        color: textColor,
+                                                                      ) ??
+                                                                      const TextStyle(),
+                                                                ),
                                                               ),
                                                             ),
                                                             const SizedBox(height: 6),
@@ -818,27 +823,9 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                     borderRadius: BorderRadius.circular(16),
                     clipBehavior: Clip.antiAlias,
                     child: SizedBox(
-                      width: 360,
+                      width: 380,
                       height: 360,
-                      child: EmojiPicker(
-                        onEmojiSelected: (_, emoji) => _insertEmoji(emoji.emoji),
-                        config: Config(
-                          emojiViewConfig: EmojiViewConfig(
-                            emojiSizeMax: 28,
-                            columns: 7,
-                            backgroundColor: theme.colorScheme.surface,
-                          ),
-                          categoryViewConfig: const CategoryViewConfig(
-                            iconColorSelected: Colors.blueGrey,
-                            iconColor: Colors.blueGrey,
-                            indicatorColor: Colors.blueGrey,
-                            dividerColor: Colors.transparent,
-                          ),
-                          bottomActionBarConfig: const BottomActionBarConfig(enabled: false),
-                          searchViewConfig: const SearchViewConfig(hintText: 'Emoji suchen'),
-                          skinToneConfig: const SkinToneConfig(enabled: true),
-                        ),
-                      ),
+                      child: EmojiPicker(onInsertToken: _insertToken),
                     ),
                   ),
                 ),
