@@ -334,50 +334,67 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
               elevation: 0,
               color: theme.colorScheme.surfaceVariant.withOpacity(0.25),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Chats, Personen oder Gruppen suchen',
-                          prefixIcon: const Icon(Icons.search),
-                          filled: true,
-                          fillColor: theme.colorScheme.surface.withOpacity(0.65),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Chats, Personen oder Gruppen suchen',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: 'Suche löschen',
+                                    icon: const Icon(Icons.close),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {});
+                                    },
+                                  ),
+                            filled: true,
+                            fillColor: theme.colorScheme.surface.withOpacity(0.65),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                            ),
                           ),
+                          onChanged: (_) => setState(() {}),
                         ),
-                        onChanged: (_) => setState(() {}),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Tooltip(
-                      message: _showArchived ? 'Archivierte Konversationen' : 'Inbox',
-                      child: FilterChip(
-                        visualDensity: VisualDensity.compact,
-                        label: Text(_showArchived ? 'Archiv' : 'Inbox'),
-                        selected: _showArchived,
-                        onSelected: (value) => setState(() => _showArchived = value),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: [
+                          Tooltip(
+                            message: _showArchived ? 'Archivierte Konversationen' : 'Inbox',
+                            child: FilterChip(
+                              visualDensity: VisualDensity.compact,
+                              label: Text(_showArchived ? 'Archiv' : 'Inbox'),
+                              selected: _showArchived,
+                              onSelected: (value) => setState(() => _showArchived = value),
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _openNewConversationDialog,
+                            icon: const Icon(Icons.forum_rounded),
+                            label: const Text('Neue Konversation'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: _openNewConversationDialog,
-                      icon: const Icon(Icons.forum_rounded),
-                      label: const Text('Neue Konversation'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ),
           ),
         Expanded(
