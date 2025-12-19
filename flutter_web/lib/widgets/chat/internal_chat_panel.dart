@@ -801,7 +801,6 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                             itemBuilder: (context, index) {
                                           final msg = _messages[index];
                                           final isMe = _isMessageFromCurrentUser(msg);
-                                          final bubbleWidth = MediaQuery.of(context).size.width * 0.72;
                                           final timeString = _formatTime(msg.timestamp);
                                           final isDeleted = msg.isDeleted;
                                           final backgroundColor = isMe
@@ -820,138 +819,148 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                                                 bottomRight: Radius.circular(isMe ? 6 : 18),
                                               );
 
-                                              return Align(
-                                                alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(maxWidth: bubbleWidth),
-                                                child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                                                    child: DecoratedBox(
-                                                      decoration: BoxDecoration(
-                                                        color: bubbleColor,
-                                                        borderRadius: radius,
-                                                        border: Border.all(
-                                                          color: theme.colorScheme.outlineVariant.withOpacity(0.2),
-                                                        ),
-                                                        boxShadow: [
-                                                          BoxShadow(
-                                                            color: theme.shadowColor.withOpacity(0.06),
-                                                            blurRadius: 12,
-                                                            offset: const Offset(0, 4),
-                                                          ),
-                                                        ],
-                                                      ),
+                                              return LayoutBuilder(
+                                                builder: (context, constraints) {
+                                                  final maxW = constraints.maxWidth * 0.72;
+
+                                                  return Align(
+                                                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                                    child: ConstrainedBox(
+                                                      constraints: BoxConstraints(maxWidth: maxW),
+                                                      child: IntrinsicWidth(
                                                         child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                                            child: Column(
-                                                              crossAxisAlignment: isMe
-                                                                  ? CrossAxisAlignment.end
-                                                                  : CrossAxisAlignment.start,
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                if (isMe && !msg.pending && !msg.isDeleted)
-                                                                  Align(
-                                                                    alignment: Alignment.topRight,
-                                                                    child: PopupMenuButton<_MessageAction>(
-                                                                      icon: Icon(
-                                                                        Icons.more_horiz,
-                                                                        size: 18,
-                                                                        color: theme.colorScheme.onSurfaceVariant,
-                                                                      ),
-                                                                      onSelected: (action) {
-                                                                        switch (action) {
-                                                                          case _MessageAction.edit:
-                                                                            _startEditing(msg);
-                                                                            break;
-                                                                          case _MessageAction.delete:
-                                                                            _confirmDelete(msg);
-                                                                            break;
-                                                                        }
-                                                                      },
-                                                                      itemBuilder: (_) => const [
-                                                                        PopupMenuItem(
-                                                                          value: _MessageAction.edit,
-                                                                          child: Text('Bearbeiten'),
-                                                                        ),
-                                                                        PopupMenuItem(
-                                                                          value: _MessageAction.delete,
-                                                                          child: Text('Löschen'),
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                  ),
-                                                                if (!isMe)
-                                                                  Padding(
-                                                                    padding: const EdgeInsets.only(bottom: 4),
-                                                                    child: Text(
-                                                                      _displayNameFor(msg),
-                                                                  style: theme.textTheme.labelMedium?.copyWith(
-                                                                    fontWeight: FontWeight.w700,
-                                                                    color: theme.colorScheme.onSurfaceVariant,
-                                                                  ),
-                                                                ),
+                                                          padding:
+                                                              const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                                                          child: DecoratedBox(
+                                                            decoration: BoxDecoration(
+                                                              color: bubbleColor,
+                                                              borderRadius: radius,
+                                                              border: Border.all(
+                                                                color: theme.colorScheme.outlineVariant.withOpacity(0.2),
                                                               ),
-                                                                RichText(
-                                                                  text: TextSpan(
-                                                                    children: EmojiText.buildMessageSpans(
-                                                                      msg.body,
-                                                                      theme.textTheme.bodyMedium?.copyWith(
-                                                                            height: 1.35,
-                                                                            color: isDeleted
-                                                                                ? theme.colorScheme.onSurfaceVariant
-                                                                                : textColor,
-                                                                            fontStyle: isDeleted
-                                                                                ? FontStyle.italic
-                                                                                : FontStyle.normal,
-                                                                          ) ??
-                                                                          const TextStyle(),
-                                                                    ),
-                                                                  ),
+                                                              boxShadow: [
+                                                                BoxShadow(
+                                                                  color: theme.shadowColor.withOpacity(0.06),
+                                                                  blurRadius: 12,
+                                                                  offset: const Offset(0, 4),
                                                                 ),
-                                                                const SizedBox(height: 6),
-                                                                Row(
-                                                                  mainAxisSize: MainAxisSize.min,
-                                                                  children: [
-                                                                    Text(
-                                                                      timeString,
-                                                                      style: theme.textTheme.labelSmall?.copyWith(
-                                                                        color: isMe
-                                                                            ? theme.colorScheme.onPrimaryContainer
-                                                                                .withOpacity(0.9)
-                                                                            : theme.colorScheme.onSurfaceVariant,
-                                                                      ),
-                                                                    ),
-                                                                    if (msg.isEdited && !msg.isDeleted)
-                                                                      Padding(
-                                                                        padding: const EdgeInsets.only(left: 6),
-                                                                        child: Text(
-                                                                          'Bearbeitet',
-                                                                          style: theme.textTheme.labelSmall?.copyWith(
-                                                                            color: theme.colorScheme.onSurfaceVariant,
-                                                                          ),
-                                                                        ),
-                                                                      ),
-                                                                    if (msg.pending)
-                                                                      Padding(
-                                                                        padding: const EdgeInsets.only(left: 6),
-                                                                        child: Icon(
-                                                                          Icons.watch_later,
-                                                                      size: 14,
-                                                                      color: isMe
-                                                                          ? theme.colorScheme.onPrimaryContainer
-                                                                          : theme.colorScheme.onSurfaceVariant,
-                                                                    ),
-                                                                  ),
                                                               ],
                                                             ),
-                                                          ],
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.symmetric(
+                                                                  vertical: 10, horizontal: 12),
+                                                              child: Column(
+                                                                crossAxisAlignment: isMe
+                                                                    ? CrossAxisAlignment.end
+                                                                    : CrossAxisAlignment.start,
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  if (isMe && !msg.pending && !msg.isDeleted)
+                                                                    Align(
+                                                                      alignment: Alignment.topRight,
+                                                                      child: PopupMenuButton<_MessageAction>(
+                                                                        icon: Icon(
+                                                                          Icons.more_horiz,
+                                                                          size: 18,
+                                                                          color: theme.colorScheme.onSurfaceVariant,
+                                                                        ),
+                                                                        onSelected: (action) {
+                                                                          switch (action) {
+                                                                            case _MessageAction.edit:
+                                                                              _startEditing(msg);
+                                                                              break;
+                                                                            case _MessageAction.delete:
+                                                                              _confirmDelete(msg);
+                                                                              break;
+                                                                          }
+                                                                        },
+                                                                        itemBuilder: (_) => const [
+                                                                          PopupMenuItem(
+                                                                            value: _MessageAction.edit,
+                                                                            child: Text('Bearbeiten'),
+                                                                          ),
+                                                                          PopupMenuItem(
+                                                                            value: _MessageAction.delete,
+                                                                            child: Text('Löschen'),
+                                                                          ),
+                                                                        ],
+                                                                      ),
+                                                                    ),
+                                                                  if (!isMe)
+                                                                    Padding(
+                                                                      padding: const EdgeInsets.only(bottom: 4),
+                                                                      child: Text(
+                                                                        _displayNameFor(msg),
+                                                                        style: theme.textTheme.labelMedium?.copyWith(
+                                                                          fontWeight: FontWeight.w700,
+                                                                          color: theme.colorScheme.onSurfaceVariant,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  RichText(
+                                                                    text: TextSpan(
+                                                                      children: EmojiText.buildMessageSpans(
+                                                                        msg.body,
+                                                                        theme.textTheme.bodyMedium?.copyWith(
+                                                                              height: 1.35,
+                                                                              color: isDeleted
+                                                                                  ? theme.colorScheme.onSurfaceVariant
+                                                                                  : textColor,
+                                                                              fontStyle: isDeleted
+                                                                                  ? FontStyle.italic
+                                                                                  : FontStyle.normal,
+                                                                            ) ??
+                                                                            const TextStyle(),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 6),
+                                                                  Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      Text(
+                                                                        timeString,
+                                                                        style: theme.textTheme.labelSmall?.copyWith(
+                                                                          color: isMe
+                                                                              ? theme.colorScheme.onPrimaryContainer
+                                                                                  .withOpacity(0.9)
+                                                                              : theme.colorScheme.onSurfaceVariant,
+                                                                        ),
+                                                                      ),
+                                                                      if (msg.isEdited && !msg.isDeleted)
+                                                                        Padding(
+                                                                          padding: const EdgeInsets.only(left: 6),
+                                                                          child: Text(
+                                                                            'Bearbeitet',
+                                                                            style:
+                                                                                theme.textTheme.labelSmall?.copyWith(
+                                                                              color:
+                                                                                  theme.colorScheme.onSurfaceVariant,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                      if (msg.pending)
+                                                                        Padding(
+                                                                          padding: const EdgeInsets.only(left: 6),
+                                                                          child: Icon(
+                                                                            Icons.watch_later,
+                                                                            size: 14,
+                                                                            color: isMe
+                                                                                ? theme.colorScheme.onPrimaryContainer
+                                                                                : theme.colorScheme.onSurfaceVariant,
+                                                                          ),
+                                                                        ),
+                                                                    ],
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                                ),
+                                                  );
+                                                },
                                               );
                                             },
                                           ),
