@@ -8,6 +8,7 @@ import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 import '../../utils/display_name_from_email.dart';
+import 'conversation_avatar.dart';
 import 'group_icon_picker.dart';
 
 class InternalChatPanel extends StatefulWidget {
@@ -67,8 +68,6 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     );
     return _resolveAvatarByEmail(participant.email ?? participant.userId, participant.avatar);
   }
-
-  IconData? _groupIconData() => iconForGroupIconId(_activeSummary.groupIconId);
 
   @override
   void initState() {
@@ -518,7 +517,6 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         .where((p) => p.userId != widget.currentUserId)
         .toList(growable: false);
     final headerAvatarUrl = _conversationAvatarUrl();
-    final headerIcon = _activeSummary.isGroup ? _groupIconData() : null;
     final changeGroupIcon = _activeSummary.isGroup ? _changeGroupIcon : null;
     if (_myId.isEmpty) {
       return Column(
@@ -528,8 +526,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             subtitle: membersLabel,
             onBack: widget.onBack,
             showBackButton: widget.showBackButton,
+            conversation: _activeSummary,
             avatarUrl: headerAvatarUrl,
-            avatarIcon: headerIcon,
             onShowMembers: memberParticipants.isEmpty && memberNames.isEmpty
                 ? null
                 : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
@@ -552,8 +550,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
             subtitle: membersLabel,
             onBack: widget.onBack,
             showBackButton: widget.showBackButton,
+            conversation: _activeSummary,
             avatarUrl: headerAvatarUrl,
-            avatarIcon: headerIcon,
             onShowMembers: memberParticipants.isEmpty && memberNames.isEmpty
                 ? null
                 : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
@@ -774,23 +772,23 @@ Widget _buildAvatar(
 enum _PanelHeaderAction { showMembers, changeIcon }
 
 class _PanelHeader extends StatelessWidget {
+  final ChatConversationSummary conversation;
   final String title;
   final String? subtitle;
   final VoidCallback onBack;
   final bool showBackButton;
   final VoidCallback? onShowMembers;
   final String? avatarUrl;
-  final IconData? avatarIcon;
   final VoidCallback? onChangeGroupIcon;
 
   const _PanelHeader({
+    required this.conversation,
     required this.title,
     required this.onBack,
     required this.showBackButton,
     this.subtitle,
     this.onShowMembers,
     this.avatarUrl,
-    this.avatarIcon,
     this.onChangeGroupIcon,
   });
 
@@ -823,11 +821,10 @@ class _PanelHeader extends StatelessWidget {
             )
           else
             const SizedBox(width: 8),
-          _buildAvatar(
-            theme,
+          ConversationAvatar(
+            conversation: conversation,
             avatarUrl: avatarUrl,
             label: title,
-            icon: avatarIcon,
           ),
           const SizedBox(width: 12),
           Expanded(
