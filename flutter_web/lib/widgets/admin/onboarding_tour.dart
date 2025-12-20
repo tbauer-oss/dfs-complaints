@@ -73,8 +73,8 @@ class OnboardingTourOverlay extends StatelessWidget {
     );
 
     return Shortcuts(
-      shortcuts: const {
-        LogicalKeySet(LogicalKeyboardKey.escape): _DismissOnboardingIntent(),
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.escape): const _DismissOnboardingIntent(),
       },
       child: Actions(
         actions: {
