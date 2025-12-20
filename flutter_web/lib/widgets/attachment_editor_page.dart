@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import 'skeletons.dart';
 
 enum _EditorTool { pen, arrow, text }
 
@@ -352,7 +353,10 @@ class _AttachmentEditorPageState extends State<AttachmentEditorPage> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Padding(
+              padding: EdgeInsets.all(16),
+              child: SkeletonTable(rows: 6, columns: 2, rowHeight: 16),
+            )
           : Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

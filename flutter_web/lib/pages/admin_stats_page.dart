@@ -20,6 +20,7 @@ import '../models/rep_download_item.dart';
 import '../services/dfs_product_service.dart';
 import '../widgets/admin/global_search_bar.dart';
 import '../widgets/legal_footer.dart';
+import '../widgets/skeletons.dart';
 import 'admin_page.dart';
 
 class AdminStatsPage extends StatefulWidget {
@@ -658,7 +659,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (_loading) {
-            return const Center(child: CircularProgressIndicator());
+            return _buildSkeleton();
           }
           if (_error != null) {
             return _ErrorState(
@@ -863,6 +864,59 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
     );
   }
 
+  Widget _buildSkeleton() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SkeletonTextBlock(lines: 2, lineHeight: 14),
+          const SizedBox(height: 16),
+          const SkeletonBox(height: 48),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: const [
+              SkeletonCard(width: 240),
+              SkeletonCard(width: 240),
+              SkeletonCard(width: 240),
+              SkeletonCard(width: 240),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  SkeletonBox(width: 160, height: 14),
+                  SizedBox(height: 12),
+                  SkeletonTable(rows: 5, columns: 2, rowHeight: 14),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  SkeletonBox(width: 180, height: 14),
+                  SizedBox(height: 12),
+                  SkeletonTable(rows: 6, columns: 3, rowHeight: 14),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _rangeLabelText() {
     final df = DateFormat('dd.MM.yyyy');
     if (_range == null) {
@@ -1026,11 +1080,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
         FilledButton.icon(
           onPressed: (_loading || _exporting || audit.isEmpty) ? null : () => _exportAuditReport(audit),
           icon: _exporting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+              ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
               : const Icon(Icons.picture_as_pdf_outlined),
           label: Text(_exporting ? 'Export läuft…' : 'Audit-PDF'),
         ),

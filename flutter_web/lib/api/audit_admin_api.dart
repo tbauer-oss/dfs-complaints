@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:html' as html;
 
 import 'package:http/http.dart' as http;
 
@@ -31,6 +33,17 @@ class AuditAdminApi {
     }
     if (r.body.isEmpty) return {};
     return (jsonDecode(r.body) as Map).cast<String, dynamic>();
+  }
+
+  Map<String, dynamic> _decodeHtmlResponse(html.HttpRequest r) {
+    final status = r.status;
+    final body = r.responseText ?? '';
+    if (status < 200 || status >= 300) {
+      final parsed = _parseErrorBody(body);
+      throw ApiError(status, parsed['message'] as String, (parsed['details'] as List).cast<String>());
+    }
+    if (body.isEmpty) return {};
+    return (jsonDecode(body) as Map).cast<String, dynamic>();
   }
 
   Map<String, dynamic> _parseErrorBody(String body) {
@@ -172,13 +185,42 @@ class AuditAdminApi {
     return const [];
   }
 
-  Future<List<AuditorEvidence>> uploadAuditEvidence(String auditId, List<Map<String, dynamic>> files) async {
-    final r = await http.post(
-      _u('/api/internal-audits/$auditId/evidence'),
-      headers: _headersJson(),
-      body: jsonEncode({'files': files}),
-    );
-    final decoded = await _decode(r);
+  Future<List<AuditorEvidence>> uploadAuditEvidence(
+    String auditId,
+    List<Map<String, dynamic>> files, {
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    if (onProgress == null) {
+      final r = await http.post(
+        _u('/api/internal-audits/$auditId/evidence'),
+        headers: _headersJson(),
+        body: jsonEncode({'files': files}),
+      );
+      final decoded = await _decode(r);
+      final list = decoded['evidence'];
+      if (list is List) {
+        return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();
+      }
+      return const [];
+    }
+
+    final payload = jsonEncode({'files': files});
+    final req = html.HttpRequest();
+    final completer = Completer<html.HttpRequest>();
+    req
+      ..open('POST', _u('/api/internal-audits/$auditId/evidence').toString())
+      ..withCredentials = true;
+    _headersJson().forEach(req.setRequestHeader);
+    final totalBytes = utf8.encode(payload).length;
+    req.upload.onProgress.listen((event) {
+      final total = event.total.toInt();
+      onProgress(event.loaded.toInt(), total > 0 ? total : totalBytes);
+    });
+    req.onLoad.listen((_) => completer.complete(req));
+    req.onError.listen((event) => completer.completeError(event));
+    req.send(payload);
+    final res = await completer.future;
+    final decoded = _decodeHtmlResponse(res);
     final list = decoded['evidence'];
     if (list is List) {
       return list.whereType<Map>().map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>())).toList();

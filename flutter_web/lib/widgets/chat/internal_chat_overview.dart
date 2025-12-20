@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_user.dart';
 import '../../services/chat_service.dart';
+import '../skeletons.dart';
 import 'conversation_avatar.dart';
 import 'group_icon_picker.dart';
 
@@ -404,7 +405,10 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
             child: Builder(
               builder: (context) {
                 if (_loading && _conversations.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonTable(rows: 6, columns: 2, rowHeight: 16),
+                  );
                 }
                 final displayList = _filteredConversations;
                 if (displayList.isEmpty) {
@@ -545,11 +549,7 @@ class _InternalChatOverviewState extends State<InternalChatOverview> {
                                 children: [
                                   IconButton(
                                     icon: isDeleting
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
+                                        ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))
                                         : const Icon(Icons.delete_outline),
                                     onPressed: isDeleting ? null : () => _deleteConversation(item),
                                     tooltip: 'Konversation löschen',
@@ -745,7 +745,10 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
             future: _userSearchFuture,
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SkeletonTable(rows: 6, columns: 2, rowHeight: 16),
+                );
               }
               final users = snapshot.data ?? const [];
               if (users.isEmpty) {
@@ -868,7 +871,7 @@ class _NewConversationDialogState extends State<_NewConversationDialog> with Sin
           child: ElevatedButton.icon(
             onPressed: _creating || _selectedIds.isEmpty ? null : _createGroup,
             icon: _creating
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                 : const Icon(Icons.group_add),
             label: const Text('Gruppe erstellen'),
           ),

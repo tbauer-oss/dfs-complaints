@@ -8,6 +8,7 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/wiki_article.dart';
 import '../models/wiki_category.dart';
+import '../widgets/skeletons.dart';
 
 class AdminWikiArticlesPage extends StatefulWidget {
   final ApiClient api;
@@ -1187,7 +1188,11 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (_loading) const LinearProgressIndicator(minHeight: 3),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: SkeletonBox(height: 4),
+                  ),
                 if (_err != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),

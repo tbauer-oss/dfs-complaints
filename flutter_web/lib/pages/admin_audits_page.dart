@@ -18,6 +18,7 @@ import '../api/audit_admin_api.dart';
 import '../api/client.dart';
 import '../models/audit.dart';
 import '../models/portal_user.dart';
+import '../widgets/skeletons.dart';
 import '../widgets/dialog_content_scroll.dart';
 
 class AdminAuditsPage extends StatefulWidget {
@@ -225,7 +226,10 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
           ),
           SliverFillRemaining(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
+                    child: SkeletonTable(rows: 7, columns: 4, rowHeight: 16),
+                  )
                 : _error != null
                     ? _ErrorState(message: _error!, onRetry: _load)
                     : _audits.isEmpty
@@ -467,7 +471,12 @@ class _AuditProgramTabState extends State<_AuditProgramTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: SkeletonTable(rows: 5, columns: 3, rowHeight: 16),
+      );
+    }
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
     return Scrollbar(
       thumbVisibility: true,
@@ -646,7 +655,12 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: SkeletonTable(rows: 6, columns: 3, rowHeight: 16),
+      );
+    }
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
     return Column(
       children: [
@@ -935,12 +949,12 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
                     FilledButton.icon(
                       onPressed: uploading ? null : pickFile,
                       icon: uploading
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                           : const Icon(Icons.upload_file_outlined),
                       label: const Text('Qualifikationsnachweis hochladen'),
                     ),
                     const SizedBox(width: 8),
-                    if (uploading) const Text('Upload...'),
+                    if (uploading) const Text('Upload läuft…'),
                   ],
                 ),
                 SwitchListTile(
@@ -1139,7 +1153,12 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: SkeletonTable(rows: 5, columns: 2, rowHeight: 16),
+      );
+    }
     if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
     return Column(
       children: [
@@ -1431,7 +1450,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
         FilledButton(
           onPressed: _busy ? null : _save,
-          child: _busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+          child: _busy ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))) : const Text('Speichern'),
         ),
       ],
     );
@@ -1519,6 +1538,9 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   _AuditReportDraft _reportDraft = _AuditReportDraft.empty();
   List<AuditorEvidence> _evidence = const [];
   bool _evidenceLoading = false;
+  double? _evidenceUploadProgress;
+  String? _evidenceUploadStatus;
+  List<String> _evidenceUploadFiles = const [];
   bool _loading = true;
   bool _planSaving = false;
   bool _planLoaded = false;
@@ -1555,7 +1577,12 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
 
   Future<void> _addEvidence() async {
     if (_isClosed) return;
-    setState(() => _evidenceLoading = true);
+    setState(() {
+      _evidenceLoading = true;
+      _evidenceUploadProgress = 0;
+      _evidenceUploadStatus = 'Upload läuft… 0 %';
+      _evidenceUploadFiles = const [];
+    });
     try {
       final res = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true);
       if (res == null || res.files.isEmpty) {
@@ -1563,6 +1590,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         return;
       }
       final files = <Map<String, dynamic>>[];
+      final selectedNames = <String>[];
       for (final file in res.files) {
         if (file.bytes == null) continue;
         final mime = lookupMimeType(file.name) ?? 'application/octet-stream';
@@ -1571,20 +1599,38 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
           'mime': mime,
           'bytes': base64Encode(file.bytes!),
         });
+        selectedNames.add(file.name);
       }
       if (files.isEmpty) {
         setState(() => _evidenceLoading = false);
         return;
       }
-      final updated = await widget.api.uploadAuditEvidence(widget.audit.id, files);
+      setState(() => _evidenceUploadFiles = selectedNames);
+      final updated = await widget.api.uploadAuditEvidence(
+        widget.audit.id,
+        files,
+        onProgress: (sent, total) {
+          if (!mounted) return;
+          final progress = total > 0 ? (sent / total).clamp(0, 1) : 0.0;
+          setState(() {
+            _evidenceUploadProgress = progress;
+            _evidenceUploadStatus = 'Upload läuft… ${(progress * 100).toStringAsFixed(0)} %';
+          });
+        },
+      );
       if (!mounted) return;
       setState(() {
         _evidence = updated;
         _evidenceLoading = false;
+        _evidenceUploadProgress = 1;
+        _evidenceUploadStatus = 'Upload abgeschlossen';
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _evidenceLoading = false);
+      setState(() {
+        _evidenceLoading = false;
+        _evidenceUploadStatus = 'Upload fehlgeschlagen: $e';
+      });
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Nachweis-Upload fehlgeschlagen: $e')));
     }
@@ -2106,7 +2152,10 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Padding(
+              padding: EdgeInsets.all(16),
+              child: SkeletonTable(rows: 6, columns: 3, rowHeight: 16),
+            )
           : _error != null
               ? _ErrorState(message: _error!, onRetry: _load)
               : TabBarView(
@@ -2247,7 +2296,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
             FilledButton(
               onPressed: _planSaving ? null : _savePlan,
               child: _planSaving
-                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                   : const Text('Auditplan anlegen'),
             ),
           ],
@@ -2271,7 +2320,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
             FilledButton.icon(
               onPressed: _isClosed || _planEntries.isEmpty || _planSaving ? null : _savePlan,
               icon: _planSaving
-                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                   : const Icon(Icons.save_outlined),
               label: const Text('Plan speichern'),
             ),
@@ -2485,7 +2534,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
                 Text('Nachweise', style: Theme.of(context).textTheme.titleSmall),
                 if (_evidenceLoading) ...[
                   const SizedBox(width: 8),
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4))),
                 ],
                 const Spacer(),
                 IconButton(onPressed: _evidenceLoading ? null : _loadEvidence, icon: const Icon(Icons.refresh)),
@@ -2498,6 +2547,23 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
               ],
             ),
             const SizedBox(height: 8),
+            if (_evidenceUploadStatus != null) ...[
+              if (_evidenceUploadFiles.isNotEmpty)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: _evidenceUploadFiles
+                      .map((name) => Chip(
+                            label: Text(name, overflow: TextOverflow.ellipsis),
+                          ))
+                      .toList(),
+                ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: _evidenceUploadProgress ?? 0),
+              const SizedBox(height: 6),
+              Text(_evidenceUploadStatus!, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 8),
+            ],
             if (_evidence.isEmpty)
               const Text('Keine Nachweise hochgeladen.')
             else
@@ -2747,7 +2813,7 @@ class _FindingDialogState extends State<_FindingDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
         FilledButton(
           onPressed: _busy ? null : _save,
-          child: _busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+          child: _busy ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))) : const Text('Speichern'),
         ),
       ],
     );
@@ -2871,7 +2937,7 @@ class _ActionDialogState extends State<_ActionDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
         FilledButton(
           onPressed: _busy ? null : _save,
-          child: _busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'),
+          child: _busy ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))) : const Text('Speichern'),
         ),
       ],
     );
@@ -3070,4 +3136,3 @@ class _StatusChip extends StatelessWidget {
     );
   }
 }
-

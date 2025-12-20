@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models/capa_report.dart';
+import '../widgets/skeletons.dart';
 import 'capa_detail_page.dart';
 
 class AdminCapaDashboardPage extends StatefulWidget {
@@ -183,7 +184,7 @@ class _AdminCapaDashboardPageState extends State<AdminCapaDashboardPage> {
     final recurrenceCount = _data['recurrenceCount'] ?? 0;
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildSkeleton();
     }
 
     if (_error != null) {
@@ -313,6 +314,45 @@ class _AdminCapaDashboardPageState extends State<AdminCapaDashboardPage> {
                             }).toList(),
                           ),
                         ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonBox(width: 220, height: 20),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: const [
+              SkeletonCard(width: 260),
+              SkeletonCard(width: 260),
+              SkeletonCard(width: 260),
+              SkeletonCard(width: 260),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const SkeletonBox(width: 180, height: 14),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  SkeletonBox(width: 180, height: 14),
+                  SizedBox(height: 12),
+                  SkeletonTable(rows: 4, columns: 3, rowHeight: 14),
                 ],
               ),
             ),
