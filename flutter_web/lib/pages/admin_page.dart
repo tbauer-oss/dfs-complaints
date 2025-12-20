@@ -953,12 +953,23 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (_onboardingScrollInProgress || !_onboardingVisible || _onboardingSteps.isEmpty) return;
     if (index < 0 || index >= _onboardingSteps.length) return;
     final step = _onboardingSteps[index];
-    final context = step.targetKeys.firstOrNull?.currentContext;
-    if (context == null) return;
+    BuildContext? targetContext;
+    for (final key in step.targetKeys) {
+      if (key.currentContext != null) {
+        targetContext = key.currentContext;
+        break;
+      }
+    }
+    if (targetContext == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _onboardingOverlayEntry?.markNeedsBuild();
+      });
+      return;
+    }
     _onboardingScrollInProgress = true;
     try {
       await Scrollable.ensureVisible(
-        context,
+        targetContext,
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
         alignment: 0.12,
@@ -966,7 +977,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } finally {
       _onboardingScrollInProgress = false;
     }
-    _onboardingOverlayEntry?.markNeedsBuild();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onboardingOverlayEntry?.markNeedsBuild();
+    });
   }
 
   void _showOnboardingOverlay() {
@@ -982,10 +995,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return const SizedBox.shrink();
         }
         final step = _onboardingSteps[_onboardingIndex];
-        final rect = _resolveOnboardingRect(step);
+        var rect = _resolveOnboardingRect(step);
         if (rect == null) {
           _scrollToOnboardingStep(_onboardingIndex);
-          return const SizedBox.shrink();
+          final size = MediaQuery.of(overlayContext).size;
+          rect = Rect.fromCenter(
+            center: Offset(size.width / 2, size.height / 2),
+            width: 0,
+            height: 0,
+          );
         }
         return OnboardingTourOverlay(
           step: step,
