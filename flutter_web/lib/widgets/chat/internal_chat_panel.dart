@@ -8,11 +8,13 @@ import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 import '../../utils/display_name_from_email.dart';
+import '../../utils/teams_link_builder.dart';
 import '../skeletons.dart';
 import 'conversation_avatar.dart';
 import 'emoji_picker.dart';
 import 'emoji_text.dart';
 import 'group_icon_picker.dart';
+import 'teams_actions_row.dart';
 
 class InternalChatPanel extends StatefulWidget {
   final ChatService chatService;
@@ -519,6 +521,42 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
     return '';
   }
 
+  List<String> _participantEmails() {
+    final emails = <String>[];
+    for (final participant in _activeSummary.participants) {
+      final fromProfile = _normalizeId(participant.email);
+      if (TeamsLinkBuilder.isValidEmail(fromProfile)) {
+        emails.add(fromProfile);
+        continue;
+      }
+      final fromUserId = _normalizeId(participant.userId);
+      if (TeamsLinkBuilder.isValidEmail(fromUserId)) {
+        emails.add(fromUserId);
+      }
+    }
+    return emails;
+  }
+
+  String? _referenceId() {
+    final meta = _activeSummary.meta;
+    if (meta == null) return null;
+    final keys = [
+      'complaintId',
+      'capaId',
+      'prrcId',
+      'referenceId',
+      'refId',
+      'ticketId',
+    ];
+    for (final key in keys) {
+      final value = meta[key];
+      if (value == null) continue;
+      final trimmed = value.toString().trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
   void _updateConversationSummary(ChatMessage latest) {
     final lastAuthor = _firstNonEmpty([
       latest.authorEmail ?? '',
@@ -701,6 +739,8 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
         .toList(growable: false);
     final headerAvatarUrl = _conversationAvatarUrl();
     final changeGroupIcon = _activeSummary.isGroup ? _changeGroupIcon : null;
+    final participantEmails = _participantEmails();
+    final referenceId = _referenceId();
     if (_myId.isEmpty) {
       return Column(
         children: [
@@ -715,6 +755,14 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                 ? null
                 : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
             onChangeGroupIcon: changeGroupIcon,
+            teamsActions: ChatTeamsActionsRow(
+              participantEmails: participantEmails,
+              conversationTitle: title,
+              conversationId: _activeSummary.conversationId,
+              currentUserEmail: _myId,
+              isGroup: _activeSummary.isGroup,
+              referenceId: referenceId,
+            ),
           ),
           const Expanded(
             child: Padding(
@@ -763,6 +811,14 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                         ? null
                         : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
                     onChangeGroupIcon: changeGroupIcon,
+                    teamsActions: ChatTeamsActionsRow(
+                      participantEmails: participantEmails,
+                      conversationTitle: title,
+                      conversationId: _activeSummary.conversationId,
+                      currentUserEmail: _myId,
+                      isGroup: _activeSummary.isGroup,
+                      referenceId: referenceId,
+                    ),
                   ),
                   Expanded(
                     child: Container(
@@ -1103,6 +1159,7 @@ class _PanelHeader extends StatelessWidget {
   final VoidCallback? onShowMembers;
   final String? avatarUrl;
   final VoidCallback? onChangeGroupIcon;
+  final Widget? teamsActions;
 
   const _PanelHeader({
     required this.conversation,
@@ -1113,6 +1170,7 @@ class _PanelHeader extends StatelessWidget {
     this.onShowMembers,
     this.avatarUrl,
     this.onChangeGroupIcon,
+    this.teamsActions,
   });
 
   @override
@@ -1179,6 +1237,10 @@ class _PanelHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (teamsActions != null) ...[
+            teamsActions!,
+            const SizedBox(width: 6),
+          ],
           IconButton(
             tooltip: 'Chat durchsuchen (UI)',
             icon: Icon(Icons.search_rounded, color: theme.colorScheme.onSurfaceVariant),
