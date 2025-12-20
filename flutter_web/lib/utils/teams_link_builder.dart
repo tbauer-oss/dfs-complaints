@@ -7,6 +7,7 @@ class TeamsDeepLink {
 
 class TeamsLinkBuilder {
   static const List<String> defaultInternalDomains = ['dfs-diamon.de'];
+  static const String dfsInternalDomain = 'dfs-diamon.de';
 
   static bool isValidEmail(String? email) {
     if (email == null) return false;
@@ -19,8 +20,13 @@ class TeamsLinkBuilder {
 
   static bool isInternalEmail(String? email, {List<String> domains = defaultInternalDomains}) {
     if (!isValidEmail(email)) return false;
-    final domain = email!.trim().toLowerCase().split('@').last;
-    return domains.any((d) => domain == d.toLowerCase());
+    final normalized = email!.trim().toLowerCase();
+    return domains.any((domain) => normalized.endsWith('@${domain.toLowerCase()}'));
+  }
+
+  static bool isDfsInternal(String? email) {
+    if (!isValidEmail(email)) return false;
+    return email!.trim().toLowerCase().endsWith('@$dfsInternalDomain');
   }
 
   static TeamsDeepLink buildChatLink(List<String> users, {String? message}) {
@@ -34,6 +40,10 @@ class TeamsLinkBuilder {
   }
 
   static TeamsDeepLink buildVideoCallLink(List<String> users) {
+    return buildCallLink(users);
+  }
+
+  static TeamsDeepLink buildCallLink(List<String> users) {
     final usersValue = _buildUsersValue(users);
     final params = <String, String>{'users': usersValue};
     final web = _buildTeamsUri(path: '/l/call/0/0', params: params);
