@@ -9,6 +9,7 @@ import '../models/dfs_product.dart';
 import '../services/product_lookup.dart';
 import '../widgets/date_field.dart';
 import '../widgets/fmea_risk_check_dialog.dart';
+import 'change_management_page.dart';
 
 const List<String> _departmentOptions = [
   'Sinterei',
@@ -52,6 +53,7 @@ class CapaDetailPage extends StatefulWidget {
   final Map<String, String>? complaintPrefill;
   final String? complaintId;
   final String? complaintLabel;
+  final String? changeId;
 
   const CapaDetailPage({
     super.key,
@@ -61,6 +63,7 @@ class CapaDetailPage extends StatefulWidget {
     this.complaintPrefill,
     this.complaintId,
     this.complaintLabel,
+    this.changeId,
   });
 
   @override
@@ -92,6 +95,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
     _report = widget.initialReport ??
         CapaReport(
           complaintId: widget.complaintId ?? '',
+          changeId: widget.changeId ?? '',
           sections: CapaSections(
             product: widget.complaintPrefill?['product'] ?? '',
             batch: widget.complaintPrefill?['batch'] ?? '',
@@ -106,6 +110,29 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
     _loadPortalUsers();
     _ensureProductsLoaded();
     _ensureCapaNumber();
+  }
+
+  Future<void> _openChangeFromCapa() async {
+    final changeId = _report.changeId.trim();
+    if (changeId.isEmpty) return;
+    try {
+      final record = await widget.api.adminChange(changeId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeManagementDetailPage(
+            api: widget.api,
+            canWrite: widget.canWrite,
+            initialRecord: record,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Change $changeId konnte nicht geöffnet werden.')),
+      );
+    }
   }
 
   Future<void> _save() async {
@@ -339,8 +366,27 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                     icon: Icons.link,
                     color: cs.secondary,
                   ),
+                if (_report.changeId.isNotEmpty)
+                  _infoChip(
+                    label: 'Change',
+                    value: _report.changeId,
+                    icon: Icons.link,
+                    color: cs.secondary,
+                  ),
               ],
             ),
+            if (_report.changeId.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: _openChangeFromCapa,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Zum Change'),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

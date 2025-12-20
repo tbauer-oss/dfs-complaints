@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../api/client.dart';
+import '../models/capa_report.dart';
 import '../models/change_management.dart';
+import '../models/portal_user.dart';
 import '../widgets/date_field.dart';
 import '../widgets/empty_state.dart';
+import 'admin_fmea_page.dart';
+import 'capa_detail_page.dart';
 
 class ChangeManagementOverviewPage extends StatefulWidget {
   final ApiClient api;
@@ -147,6 +151,7 @@ class _ChangeManagementOverviewPageState extends State<ChangeManagementOverviewP
       color: MaterialStateProperty.resolveWith((states) {
         if (record.status == 'closed') return theme.colorScheme.surfaceVariant.withOpacity(.3);
         if (record.status == 'inProgress') return theme.colorScheme.primaryContainer.withOpacity(.25);
+        if (record.status == 'waitingPrrc') return theme.colorScheme.secondaryContainer.withOpacity(.3);
         return null;
       }),
     );
@@ -255,6 +260,8 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
   bool _saving = false;
   String? _error;
   late ChangeManagementRecord _record;
+  bool _loadingStaff = false;
+  List<PortalUserSummary> _staffUsers = const [];
 
   static const Map<String, String> _typeLabels = {
     'process': 'Prozess',
@@ -288,11 +295,23 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
   static const Map<String, String> _statusLabels = {
     'open': 'Offen',
     'inProgress': 'In Umsetzung',
+    'waitingPrrc': 'Wartet auf PRRC-Bewertung',
     'closed': 'Abgeschlossen',
   };
 
-  static const List<String> _documentOptions = ['SOP', 'AA', 'WI', 'TD'];
-  static const List<String> _processOptions = ['QM', 'Produktion', 'Logistik', 'Vertrieb', 'IT', 'Sonstiges'];
+  static const Map<String, String> _prrcDecisionLabels = {
+    'approved': 'Freigabe',
+    'rejected': 'Ablehnung / weitere Bewertung erforderlich',
+  };
+
+  static const Map<String, String> _escalationStatusLabels = {
+    'open': 'Offen',
+    'inProgress': 'In Bearbeitung',
+    'closed': 'Erledigt',
+  };
+
+  static const List<String> _documentOptions = ['SOP', 'PA', 'AA', 'FB', 'WP', 'TD'];
+  static const List<String> _processOptions = ['QM', 'QS', 'Produktion', 'Logistik', 'Versand', 'Vertrieb', 'IT', 'Sonstiges'];
   static const Map<String, String> _triggerLabels = {
     'audit': 'Audit-Feststellung',
     'complaint': 'Reklamation',
@@ -305,6 +324,20 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
   void initState() {
     super.initState();
     _record = widget.initialRecord;
+    _loadStaffUsers();
+  }
+
+  Future<void> _loadStaffUsers() async {
+    setState(() => _loadingStaff = true);
+    try {
+      final list = await widget.api.adminStaffUsers();
+      list.sort((a, b) => a.sortKey.compareTo(b.sortKey));
+      if (mounted) setState(() => _staffUsers = list);
+    } catch (_) {
+      if (mounted) setState(() => _staffUsers = const []);
+    } finally {
+      if (mounted) setState(() => _loadingStaff = false);
+    }
   }
 
   Future<void> _save() async {
@@ -313,6 +346,7 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
       setState(() => _error = errors.join('\n'));
       return;
     }
+    final beforeSave = _record;
     setState(() {
       _saving = true;
       _error = null;
@@ -323,6 +357,7 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
           : await widget.api.adminUpdateChange(_record);
       if (!mounted) return;
       setState(() => _record = saved);
+      await _handleEscalations(saved, beforeSave);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Change gespeichert.')),
       );
@@ -330,6 +365,77 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _handleEscalations(ChangeManagementRecord saved, ChangeManagementRecord before) async {
+    final newFollowUps = saved.followUps;
+    final prevFollowUps = before.followUps;
+    if (!widget.canWrite) return;
+
+    if (!prevFollowUps.contains('fmea') && newFollowUps.contains('fmea')) {
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AdminFmeaPage(
+            api: widget.api,
+            canEdit: widget.canWrite,
+            changeContext: ChangeContext(
+              changeId: saved.changeId.isNotEmpty ? saved.changeId : saved.id,
+              title: saved.title,
+              justification: saved.justification,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!prevFollowUps.contains('capa') && newFollowUps.contains('capa')) {
+      await _createAndOpenCapa(saved);
+    }
+  }
+
+  Future<void> _createAndOpenCapa(ChangeManagementRecord saved) async {
+    final changeRef = saved.changeId.isNotEmpty ? saved.changeId : saved.id;
+    CapaReport? capa;
+    if (saved.capaId.isEmpty) {
+      final problemLines = [
+        'Auslöser: Change Management',
+        'Referenz: $changeRef',
+        if (saved.justification.trim().isNotEmpty) 'Begründung: ${saved.justification.trim()}',
+      ];
+      final prefill = CapaReport(
+        title: saved.title,
+        changeId: changeRef,
+        sections: CapaSections(problem: problemLines.join('\n')),
+      );
+      try {
+        capa = await widget.api.adminSaveCapa(prefill);
+        final updated = await widget.api.adminUpdateChange(
+          saved.copyWith(
+            capaId: capa.effectiveNumber,
+            capaStatus: capa.status,
+          ),
+        );
+        if (mounted) setState(() => _record = updated);
+      } catch (e) {
+        if (mounted) setState(() => _error = e.toString());
+      }
+    }
+    if (!mounted) return;
+    if (capa != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CapaDetailPage(
+            api: widget.api,
+            canWrite: widget.canWrite,
+            initialReport: capa,
+            changeId: changeRef,
+          ),
+        ),
+      );
+    } else if (saved.capaId.isNotEmpty) {
+      await _openCapaById(saved.capaId);
     }
   }
 
@@ -349,6 +455,23 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
     }
     if (_record.decision == 'furtherEvaluation' && _record.followUps.isEmpty) {
       errors.add('Bei „Weiterführende Bewertung erforderlich“ sind Folgeprozesse auszuwählen.');
+    }
+    if (_record.affectedProcesses.contains('Sonstiges') && _record.affectedProcessOther.trim().isEmpty) {
+      errors.add('Bitte betroffenen Prozess benennen, wenn „Sonstiges“ ausgewählt ist.');
+    }
+    final prrcRequired = _record.followUps.contains('prrc');
+    if (prrcRequired && _record.prrcDecision.trim().isEmpty && _record.status != 'waitingPrrc') {
+      errors.add('PRRC-Entscheidung fehlt. Status muss auf „Wartet auf PRRC-Bewertung“ stehen.');
+    }
+    if (_record.prrcDecision == 'rejected' &&
+        !_record.followUps.any((f) => f == 'fmea' || f == 'capa')) {
+      errors.add('Bei PRRC-Ablehnung muss eine Eskalation (FMEA/CAPA) ausgewählt werden.');
+    }
+    if (_record.followUps.contains('fmea') && _record.fmeaStatus != 'closed' && _record.status != 'open') {
+      errors.add('FMEA-Anpassung ist noch offen.');
+    }
+    if (_record.followUps.contains('capa') && _record.capaStatus != 'closed' && _record.status != 'open') {
+      errors.add('CAPA ist noch offen.');
     }
     if (_record.status != 'open') {
       if (_record.implementationOwner.trim().isEmpty) errors.add('Verantwortlicher für Umsetzung ist erforderlich.');
@@ -479,12 +602,65 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
     );
   }
 
+  String _staffLabel(String email) {
+    if (email.trim().isEmpty) return '';
+    final match = _staffUsers.firstWhere(
+      (u) => u.email.toLowerCase() == email.toLowerCase(),
+      orElse: () => PortalUserSummary(
+        email: email,
+        displayName: email,
+        role: '',
+        portalStatus: '',
+      ),
+    );
+    final fullName = [match.firstName, match.lastName].where((v) => v.trim().isNotEmpty).join(' ').trim();
+    if (fullName.isNotEmpty) return fullName;
+    return match.label.isNotEmpty ? match.label : email;
+  }
+
+  Future<void> _openCapaById(String capaId) async {
+    try {
+      final list = await widget.api.adminCapas();
+      final report = list.firstWhere(
+        (c) => c.id == capaId || c.capaNumber == capaId,
+        orElse: () => CapaReport(id: ''),
+      );
+      if (!mounted) return;
+      if (report.id.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('CAPA $capaId nicht gefunden.')),
+        );
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CapaDetailPage(
+            api: widget.api,
+            canWrite: widget.canWrite,
+            initialReport: report,
+            changeId: _record.changeId.isNotEmpty ? _record.changeId : _record.id,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('CAPA $capaId konnte nicht geöffnet werden.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final shouldWarnSafety = _record.changeType == 'product' && _record.safetyRelevance == 'potential';
     final hasTd = _record.affectedDocuments.contains('TD');
     final requiresEscalation = _record.furtherAnalysis == 'yes' || _record.decision == 'furtherEvaluation';
+    final prrcRequired = _record.followUps.contains('prrc');
+    final prrcPending = prrcRequired && _record.prrcDecision.isEmpty;
+    final fmeaPending = _record.followUps.contains('fmea') && _record.fmeaStatus != 'closed';
+    final capaPending = _record.followUps.contains('capa') && _record.capaStatus != 'closed';
+    final escalationBlocked = prrcPending || fmeaPending || capaPending;
 
     return Scaffold(
       appBar: AppBar(
@@ -616,8 +792,24 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
               label: 'Betroffene Prozesse',
               options: _processOptions,
               selected: _record.affectedProcesses,
-              onChanged: (list) => setState(() => _record = _record.copyWith(affectedProcesses: list)),
+              onChanged: (list) => setState(() {
+                final nextOther = list.contains('Sonstiges') ? _record.affectedProcessOther : '';
+                _record = _record.copyWith(affectedProcesses: list, affectedProcessOther: nextOther);
+              }),
             ),
+            if (_record.affectedProcesses.contains('Sonstiges')) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: _record.affectedProcessOther,
+                decoration: const InputDecoration(
+                  labelText: 'Bitte betroffenen Prozess benennen *',
+                  hintText: 'Bitte betroffenen Prozess benennen',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: widget.canWrite,
+                onChanged: (v) => setState(() => _record = _record.copyWith(affectedProcessOther: v)),
+              ),
+            ],
             const SizedBox(height: 12),
             _dropdown(
               label: 'Auslöser',
@@ -763,6 +955,142 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
                 _followUpCheckbox('capa', 'CAPA anlegen'),
               ],
             ),
+            if (prrcRequired) ...[
+              const SizedBox(height: 12),
+              _sectionHeader('PRRC-Bewertung (Gate)'),
+              if (prrcPending)
+                _cardNotice(
+                  icon: Icons.lock_clock_outlined,
+                  title: 'Wartet auf PRRC-Bewertung',
+                  text: 'Ohne PRRC-Entscheidung darf der Change nicht fortgesetzt werden.',
+                  color: cs.secondary,
+                ),
+              _dropdown(
+                label: 'PRRC-Entscheidung',
+                value: _record.prrcDecision,
+                items: _prrcDecisionLabels,
+                enabled: widget.canWrite,
+                onChanged: (v) {
+                  final decision = v ?? '';
+                  final nextStatus = decision == 'approved' && _record.status == 'waitingPrrc' ? 'open' : _record.status;
+                  setState(() => _record = _record.copyWith(prrcDecision: decision, status: nextStatus));
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: _record.prrcNote,
+                decoration: const InputDecoration(
+                  labelText: 'PRRC-Bewertungstext',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: widget.canWrite,
+                minLines: 2,
+                maxLines: 4,
+                onChanged: (v) => setState(() => _record = _record.copyWith(prrcNote: v)),
+              ),
+            ],
+            if (_record.followUps.contains('fmea')) ...[
+              const SizedBox(height: 12),
+              _sectionHeader('FMEA-Anpassung'),
+              Wrap(
+                runSpacing: 12,
+                spacing: 12,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextFormField(
+                      initialValue: _record.fmeaId,
+                      decoration: const InputDecoration(
+                        labelText: 'FMEA-Referenz (ID)',
+                        border: OutlineInputBorder(),
+                      ),
+                      enabled: widget.canWrite,
+                      onChanged: (v) => setState(() => _record = _record.copyWith(fmeaId: v)),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 260,
+                    child: _dropdown(
+                      label: 'FMEA-Status',
+                      value: _record.fmeaStatus,
+                      items: _escalationStatusLabels,
+                      enabled: widget.canWrite,
+                      onChanged: (v) => setState(() => _record = _record.copyWith(fmeaStatus: v ?? 'open')),
+                    ),
+                  ),
+                  if (widget.canWrite)
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AdminFmeaPage(
+                            api: widget.api,
+                            canEdit: widget.canWrite,
+                            changeContext: ChangeContext(
+                              changeId: _record.changeId.isNotEmpty ? _record.changeId : _record.id,
+                              title: _record.title,
+                              justification: _record.justification,
+                            ),
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('FMEA öffnen'),
+                    ),
+                ],
+              ),
+            ],
+            if (_record.followUps.contains('capa')) ...[
+              const SizedBox(height: 12),
+              _sectionHeader('CAPA'),
+              Wrap(
+                runSpacing: 12,
+                spacing: 12,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextFormField(
+                      initialValue: _record.capaId,
+                      decoration: const InputDecoration(
+                        labelText: 'CAPA-ID',
+                        border: OutlineInputBorder(),
+                      ),
+                      enabled: widget.canWrite,
+                      onChanged: (v) => setState(() => _record = _record.copyWith(capaId: v)),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 260,
+                    child: _dropdown(
+                      label: 'CAPA-Status',
+                      value: _record.capaStatus,
+                      items: _escalationStatusLabels,
+                      enabled: widget.canWrite,
+                      onChanged: (v) => setState(() => _record = _record.copyWith(capaStatus: v ?? 'open')),
+                    ),
+                  ),
+                  if (widget.canWrite && _record.capaId.isNotEmpty)
+                    ElevatedButton.icon(
+                      onPressed: () => _openCapaById(_record.capaId),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('CAPA öffnen'),
+                    ),
+                  if (widget.canWrite && _record.capaId.isEmpty)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        if (_record.id.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Bitte Change zuerst speichern.')),
+                          );
+                          return;
+                        }
+                        await _createAndOpenCapa(_record);
+                      },
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: const Text('CAPA anlegen'),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               initialValue: _record.followUpLink,
@@ -799,14 +1127,29 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
               children: [
                 SizedBox(
                   width: 320,
-                  child: TextFormField(
-                    initialValue: _record.implementationOwner,
-                    decoration: const InputDecoration(
+                  child: DropdownButtonFormField<String>(
+                    value: _staffUsers.any((u) => u.email == _record.implementationOwner)
+                        ? _record.implementationOwner
+                        : null,
+                    decoration: InputDecoration(
                       labelText: 'Verantwortlicher für Umsetzung *',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _loadingStaff
+                          ? const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : null,
                     ),
-                    enabled: widget.canWrite,
-                    onChanged: (v) => setState(() => _record = _record.copyWith(implementationOwner: v)),
+                    items: _staffUsers
+                        .map((user) => DropdownMenuItem<String>(
+                              value: user.email,
+                              child: Text(_staffLabel(user.email)),
+                            ))
+                        .toList(),
+                    onChanged: widget.canWrite
+                        ? (v) => setState(() => _record = _record.copyWith(implementationOwner: v ?? ''))
+                        : null,
                   ),
                 ),
                 SizedBox(
@@ -858,9 +1201,16 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
               label: 'Status',
               value: _record.status,
               items: _statusLabels,
-              enabled: widget.canWrite,
+              enabled: widget.canWrite && !escalationBlocked,
               onChanged: (v) => setState(() => _record = _record.copyWith(status: v ?? 'open')),
             ),
+            if (escalationBlocked)
+              _cardNotice(
+                icon: Icons.lock_outline,
+                title: 'Change ist blockiert',
+                text: 'Der Change kann erst fortgesetzt werden, wenn PRRC/FMEA/CAPA abgeschlossen sind.',
+                color: cs.error,
+              ),
             _sectionHeader('5) Historie & Audit-Trail'),
             Card(
               child: Padding(
@@ -945,7 +1295,41 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
                 final next = [..._record.followUps];
                 if (v == true && !next.contains(key)) next.add(key);
                 if (v != true && next.contains(key)) next.remove(key);
-                setState(() => _record = _record.copyWith(followUps: next));
+                var nextStatus = _record.status;
+                var nextFmeaStatus = _record.fmeaStatus;
+                var nextCapaStatus = _record.capaStatus;
+                var nextFmeaId = _record.fmeaId;
+                var nextCapaId = _record.capaId;
+                var nextPrrcDecision = _record.prrcDecision;
+                var nextPrrcNote = _record.prrcNote;
+                if (key == 'prrc' && v == true && _record.prrcDecision.isEmpty) {
+                  nextStatus = 'waitingPrrc';
+                }
+                if (key == 'prrc' && v != true) {
+                  nextPrrcDecision = '';
+                  nextPrrcNote = '';
+                  if (nextStatus == 'waitingPrrc') nextStatus = 'open';
+                }
+                if (key == 'fmea' && v == true && nextFmeaStatus.isEmpty) nextFmeaStatus = 'open';
+                if (key == 'fmea' && v != true) {
+                  nextFmeaStatus = '';
+                  nextFmeaId = '';
+                }
+                if (key == 'capa' && v == true && nextCapaStatus.isEmpty) nextCapaStatus = 'open';
+                if (key == 'capa' && v != true) {
+                  nextCapaStatus = '';
+                  nextCapaId = '';
+                }
+                setState(() => _record = _record.copyWith(
+                      followUps: next,
+                      status: nextStatus,
+                      prrcDecision: nextPrrcDecision,
+                      prrcNote: nextPrrcNote,
+                      fmeaStatus: nextFmeaStatus,
+                      fmeaId: nextFmeaId,
+                      capaStatus: nextCapaStatus,
+                      capaId: nextCapaId,
+                    ));
               }
             : null,
         title: Text(label),
@@ -966,6 +1350,10 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
         return 'Umsetzung';
       case 'status':
         return 'Statuswechsel';
+      case 'prrc':
+        return 'PRRC-Bewertung';
+      case 'escalation':
+        return 'Eskalation';
       default:
         return action;
     }
@@ -978,6 +1366,8 @@ String _statusLabel(String value) {
       return 'Offen';
     case 'inProgress':
       return 'In Umsetzung';
+    case 'waitingPrrc':
+      return 'Wartet auf PRRC-Bewertung';
     case 'closed':
       return 'Abgeschlossen';
     default:

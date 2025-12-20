@@ -3264,6 +3264,7 @@ function normalizeCapaRecord(data = {}) {
   normalized.status = normalizeCapaStatus(normalized.status);
   normalized.responsibleUserId = normalizeString(normalized.responsibleUserId || '');
   normalized.complaintId = normalizeString(normalized.complaintId || '');
+  normalized.changeId = normalizeString(normalized.changeId || '');
   const linkedRisks = Array.isArray(normalized.fmeaRiskNumbers)
     ? normalized.fmeaRiskNumbers.map(v => normalizeString(v)).filter(Boolean)
     : [];
@@ -3357,11 +3358,14 @@ const CHANGE_RISK_DELTA = new Set(['none', 'increased']);
 const CHANGE_FURTHER_ANALYSIS = new Set(['no', 'yes']);
 const CHANGE_DECISIONS = new Set(['approved', 'approvedWithConditions', 'furtherEvaluation']);
 const CHANGE_FOLLOW_UPS = new Set(['prrc', 'fmea', 'capa']);
-const CHANGE_STATUS = new Set(['open', 'inProgress', 'closed']);
+const CHANGE_STATUS = new Set(['open', 'inProgress', 'closed', 'waitingPrrc']);
+const CHANGE_PRRC_DECISIONS = new Set(['approved', 'rejected']);
+const CHANGE_ESCALATION_STATUS = new Set(['open', 'inProgress', 'closed']);
 
 function normalizeChangeEnum(value, allowed, fallback) {
   const raw = (value ?? '').toString().trim();
   if (!raw) return fallback;
+  if (allowed.has(raw)) return raw;
   const lc = raw.toLowerCase();
   if (allowed.has(lc)) return lc;
   return fallback;
@@ -3399,6 +3403,7 @@ function normalizeChangeRecord(data = {}) {
   normalized.affectedProcesses = normalizeArray(normalized.affectedProcesses || [])
     .map(v => normalizeString(v))
     .filter(Boolean);
+  normalized.affectedProcessOther = normalizeString(normalized.affectedProcessOther || '');
   normalized.trigger = normalizeString(normalized.trigger || '');
 
   normalized.productImpact = normalizeChangeEnum(normalized.productImpact, CHANGE_PRODUCT_IMPACT, 'none');
@@ -3417,6 +3422,14 @@ function normalizeChangeRecord(data = {}) {
   normalized.decisionNote = normalizeString(normalized.decisionNote || '');
   normalized.decisionBy = normalizeString(normalized.decisionBy || '');
   normalized.decisionAt = normalizeDateValue(normalized.decisionAt);
+  normalized.prrcDecision = normalizeChangeEnum(normalized.prrcDecision, CHANGE_PRRC_DECISIONS, '');
+  normalized.prrcNote = normalizeString(normalized.prrcNote || '');
+  normalized.prrcBy = normalizeString(normalized.prrcBy || '');
+  normalized.prrcAt = normalizeDateValue(normalized.prrcAt);
+  normalized.fmeaId = normalizeString(normalized.fmeaId || '');
+  normalized.fmeaStatus = normalizeChangeEnum(normalized.fmeaStatus, CHANGE_ESCALATION_STATUS, '');
+  normalized.capaId = normalizeString(normalized.capaId || '');
+  normalized.capaStatus = normalizeChangeEnum(normalized.capaStatus, CHANGE_ESCALATION_STATUS, '');
 
   normalized.evaluator = normalizeString(normalized.evaluator || '');
   normalized.evaluatedAt = normalizeDateValue(normalized.evaluatedAt);

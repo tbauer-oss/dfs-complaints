@@ -14,12 +14,32 @@ import '../models/fmea.dart';
 import '../models/portal_user.dart';
 import '../services/dfs_product_service.dart';
 import '../widgets/skeletons.dart';
+import 'change_management_page.dart';
+
+class ChangeContext {
+  final String changeId;
+  final String title;
+  final String justification;
+
+  const ChangeContext({
+    required this.changeId,
+    required this.title,
+    required this.justification,
+  });
+}
 
 class AdminFmeaPage extends StatefulWidget {
   final ApiClient api;
   final bool canEdit;
   final String? initialMdrTd;
-  const AdminFmeaPage({super.key, required this.api, required this.canEdit, this.initialMdrTd});
+  final ChangeContext? changeContext;
+  const AdminFmeaPage({
+    super.key,
+    required this.api,
+    required this.canEdit,
+    this.initialMdrTd,
+    this.changeContext,
+  });
 
   @override
   State<AdminFmeaPage> createState() => _AdminFmeaPageState();
@@ -76,6 +96,67 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
   List<PortalUserSummary> get _prrcUsers =>
       _portalUsers.where((u) => u.isPrrc).toList(growable: false);
+
+  Future<void> _openChangeFromContext() async {
+    final ctx = widget.changeContext;
+    if (ctx == null || ctx.changeId.trim().isEmpty) return;
+    try {
+      final record = await widget.api.adminChange(ctx.changeId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeManagementDetailPage(
+            api: widget.api,
+            canWrite: widget.canEdit,
+            initialRecord: record,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Change ${ctx.changeId} konnte nicht geöffnet werden.')),
+      );
+    }
+  }
+
+  Widget _buildChangeBanner(ThemeData theme) {
+    final ctx = widget.changeContext;
+    if (ctx == null) return const SizedBox.shrink();
+    final cs = theme.colorScheme;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.primary.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'FMEA-Anpassung ausgelöst aus Change ${ctx.changeId}',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text('Titel: ${ctx.title.isEmpty ? '—' : ctx.title}'),
+          const SizedBox(height: 4),
+          Text('Begründung: ${ctx.justification.isEmpty ? '—' : ctx.justification}'),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _openChangeFromContext,
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Zum Change'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -2988,6 +3069,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
               body: SafeArea(
                 child: Column(
                   children: [
+                    if (widget.changeContext != null) _buildChangeBanner(theme),
                     Material(
                       elevation: 2,
                       color: theme.colorScheme.surface,

@@ -385,6 +385,7 @@ class CapaReport {
   final DateTime updatedAt;
   final String responsibleUserId;
   final String complaintId;
+  final String changeId;
   final List<String> fmeaRiskNumbers;
   final CapaSections sections;
 
@@ -397,6 +398,7 @@ class CapaReport {
     DateTime? updatedAt,
     this.responsibleUserId = '',
     this.complaintId = '',
+    this.changeId = '',
     List<String>? fmeaRiskNumbers,
     this.sections = const CapaSections(),
   })  : createdAt = createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
@@ -412,6 +414,7 @@ class CapaReport {
         updatedAt: _parseDate(json['updatedAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
         responsibleUserId: (json['responsibleUserId'] ?? '').toString(),
         complaintId: (json['complaintId'] ?? '').toString(),
+        changeId: (json['changeId'] ?? '').toString(),
         fmeaRiskNumbers: _parseStringList(json['fmeaRiskNumbers']),
         sections: CapaSections.fromJson((json['sections'] as Map?)?.cast<String, dynamic>() ?? const {}),
       );
@@ -432,6 +435,7 @@ class CapaReport {
         'updatedAt': updatedAt.millisecondsSinceEpoch,
         'responsibleUserId': responsibleUserId,
         'complaintId': complaintId,
+        'changeId': changeId,
         'fmeaRiskNumbers': fmeaRiskNumbers,
         'sections': sections.toJson(),
       }..removeWhere((key, value) => value == null);
@@ -445,6 +449,7 @@ class CapaReport {
     DateTime? updatedAt,
     String? responsibleUserId,
     String? complaintId,
+    String? changeId,
     List<String>? fmeaRiskNumbers,
     CapaSections? sections,
   }) =>
@@ -457,6 +462,7 @@ class CapaReport {
         updatedAt: updatedAt ?? this.updatedAt,
         responsibleUserId: responsibleUserId ?? this.responsibleUserId,
         complaintId: complaintId ?? this.complaintId,
+        changeId: changeId ?? this.changeId,
         fmeaRiskNumbers: fmeaRiskNumbers ?? this.fmeaRiskNumbers,
         sections: sections ?? this.sections,
       );

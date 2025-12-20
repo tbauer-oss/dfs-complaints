@@ -27,20 +27,36 @@ class DateField extends StatelessWidget {
       readOnly: true,
       decoration: InputDecoration(
         labelText: requiredField ? '$label *' : label,
-        suffixIcon: const Icon(Icons.calendar_today_outlined),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (value != null)
+              IconButton(
+                icon: const Icon(Icons.clear),
+                tooltip: 'Datum löschen',
+                onPressed: () => onChanged(null),
+              ),
+            IconButton(
+              icon: const Icon(Icons.calendar_today_outlined),
+              tooltip: 'Datum auswählen',
+              onPressed: () async {
+                final now = DateTime.now();
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: value ?? now,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(now.year + 10),
+                );
+                if (picked != null) {
+                  onChanged(picked);
+                }
+              },
+            ),
+          ],
+        ),
         border: const OutlineInputBorder(),
         isDense: true,
       ),
-      onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: value ?? now,
-          firstDate: DateTime(2000),
-          lastDate: DateTime(now.year + 10),
-        );
-        onChanged(picked);
-      },
     );
   }
 
