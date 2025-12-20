@@ -26,6 +26,7 @@ import '../models/global_search.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
+import '../services/onboarding_prefs.dart';
 import '../services/chat_service.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/skeletons.dart';
@@ -39,6 +40,7 @@ import '../widgets/chat/internal_chat_overview.dart';
 import '../widgets/chat/internal_chat_panel.dart';
 import '../widgets/admin/avatar_cropper_dialog.dart';
 import '../widgets/admin/global_search_bar.dart';
+import '../widgets/admin/onboarding_tour.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
@@ -394,6 +396,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   late final ChatService _chatService;
   late final AnimationController _globalSearchController;
   bool _globalSearchVisible = true;
+  final GlobalKey _onboardingDashboardKey = GlobalKey();
+  final GlobalKey _onboardingSearchToggleKey = GlobalKey();
+  final GlobalKey _onboardingSearchBarKey = GlobalKey();
+  final GlobalKey _onboardingNavKey = GlobalKey();
+  final GlobalKey _onboardingDrawerKey = GlobalKey();
+  final Map<String, GlobalKey> _onboardingTileKeys = {
+    'complaintList': GlobalKey(),
+    'prrc': GlobalKey(),
+    'news': GlobalKey(),
+  };
+  bool _onboardingVisible = false;
+  int _onboardingIndex = 0;
+  List<OnboardingTourStep> _onboardingSteps = const [];
+  OverlayEntry? _onboardingOverlayEntry;
+  bool _onboardingSkipScheduled = false;
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
@@ -748,6 +765,189 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
     }
     return '';
+  }
+
+  String get _onboardingUserId {
+    String s(Object? v) => (v ?? '').toString().trim();
+    final profile = widget.portalProfile ?? widget.api.portalProfile ?? const {};
+    for (final candidate in [
+      s(profile['id']),
+      s(profile['userId']),
+      s(profile['email']),
+      s(profile['username']),
+      _portalDisplayName,
+    ]) {
+      if (candidate.isNotEmpty) return candidate;
+    }
+    return 'local';
+  }
+
+  List<OnboardingTourStep> _buildOnboardingSteps() {
+    return [
+      OnboardingTourStep(
+        title: 'Dashboard-Übersicht',
+        description: 'Hier findest du KPIs, Statuskarten und die wichtigsten Bereiche auf einen Blick.',
+        targetKeys: [_onboardingDashboardKey],
+      ),
+      OnboardingTourStep(
+        title: 'Navigation',
+        description: 'Die Sidebar zeigt alle Module. Du kannst sie einklappen oder die Reihenfolge anpassen.',
+        targetKeys: [_onboardingNavKey, _onboardingDrawerKey],
+      ),
+      OnboardingTourStep(
+        title: 'Globale Suche',
+        description: 'Schneller Zugriff auf Inhalte, Downloads und Nutzer – bei Bedarf ein- oder ausblenden.',
+        targetKeys: [_onboardingSearchBarKey, _onboardingSearchToggleKey],
+      ),
+      OnboardingTourStep(
+        title: 'Reklamationen',
+        description: 'Alle offenen Fälle, Filter und Exporte erreichst du in den Reklamationsmodulen.',
+        targetKeys: [
+          _onboardingTileKeys['complaintList']!,
+        ],
+      ),
+      OnboardingTourStep(
+        title: 'PRRC & Qualität',
+        description: 'Regulatorische Bewertungen, CAPA und FMEA sind in den Qualitätsmodulen gebündelt.',
+        targetKeys: [
+          _onboardingTileKeys['prrc']!,
+        ],
+      ),
+      OnboardingTourStep(
+        title: 'Inhalte & Kommunikation',
+        description: 'News, FAQ und Wissen gepflegt halten – hier steuerst du Inhalte und Updates.',
+        targetKeys: [
+          _onboardingTileKeys['news']!,
+        ],
+      ),
+    ];
+  }
+
+  Rect? _rectForKey(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) return null;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return null;
+    final offset = renderObject.localToGlobal(Offset.zero);
+    final rect = offset & renderObject.size;
+    final screen = Offset.zero & MediaQuery.of(this.context).size;
+    if (!rect.overlaps(screen)) return null;
+    return rect;
+  }
+
+  Rect? _resolveOnboardingRect(OnboardingTourStep step) {
+    for (final key in step.targetKeys) {
+      final rect = _rectForKey(key);
+      if (rect != null) return rect;
+    }
+    return null;
+  }
+
+  int? _findNextVisibleStepIndex(int startIndex, {required bool forward}) {
+    if (_onboardingSteps.isEmpty) return null;
+    if (forward) {
+      for (var i = startIndex; i < _onboardingSteps.length; i++) {
+        if (_resolveOnboardingRect(_onboardingSteps[i]) != null) return i;
+      }
+    } else {
+      for (var i = startIndex; i >= 0; i--) {
+        if (_resolveOnboardingRect(_onboardingSteps[i]) != null) return i;
+      }
+    }
+    return null;
+  }
+
+  void _scheduleOnboardingSkip() {
+    if (_onboardingSkipScheduled) return;
+    _onboardingSkipScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onboardingSkipScheduled = false;
+      if (!_onboardingVisible) return;
+      final next = _findNextVisibleStepIndex(_onboardingIndex + 1, forward: true);
+      if (next == null) {
+        _finishOnboarding(markSeen: true);
+        return;
+      }
+      setState(() => _onboardingIndex = next);
+      _onboardingOverlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _showOnboardingOverlay() {
+    if (_onboardingOverlayEntry != null) {
+      _onboardingOverlayEntry?.markNeedsBuild();
+      return;
+    }
+    final overlay = Overlay.of(context, rootOverlay: true);
+    if (overlay == null) return;
+    _onboardingOverlayEntry = OverlayEntry(
+      builder: (overlayContext) {
+        if (!_onboardingVisible || _onboardingSteps.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final step = _onboardingSteps[_onboardingIndex];
+        final rect = _resolveOnboardingRect(step);
+        if (rect == null) {
+          _scheduleOnboardingSkip();
+          return const SizedBox.shrink();
+        }
+        return OnboardingTourOverlay(
+          step: step,
+          targetRect: rect,
+          index: _onboardingIndex,
+          total: _onboardingSteps.length,
+          onNext: _onboardingNext,
+          onBack: _onboardingBack,
+          onSkip: () => _finishOnboarding(markSeen: true),
+        );
+      },
+    );
+    overlay.insert(_onboardingOverlayEntry!);
+  }
+
+  void _removeOnboardingOverlay() {
+    _onboardingOverlayEntry?.remove();
+    _onboardingOverlayEntry = null;
+  }
+
+  void _startOnboarding({bool force = false}) {
+    if (!force && OnboardingPrefs.isSeen(_onboardingUserId)) return;
+    if (force) {
+      OnboardingPrefs.reset(_onboardingUserId);
+    }
+    _onboardingSteps = _buildOnboardingSteps();
+    final startIndex = _findNextVisibleStepIndex(0, forward: true);
+    if (startIndex == null) return;
+    setState(() {
+      _onboardingIndex = startIndex;
+      _onboardingVisible = true;
+    });
+    _showOnboardingOverlay();
+  }
+
+  void _finishOnboarding({required bool markSeen}) {
+    setState(() => _onboardingVisible = false);
+    _removeOnboardingOverlay();
+    if (markSeen) {
+      OnboardingPrefs.markSeen(_onboardingUserId);
+    }
+  }
+
+  void _onboardingNext() {
+    final next = _findNextVisibleStepIndex(_onboardingIndex + 1, forward: true);
+    if (next == null) {
+      _finishOnboarding(markSeen: true);
+      return;
+    }
+    setState(() => _onboardingIndex = next);
+    _onboardingOverlayEntry?.markNeedsBuild();
+  }
+
+  void _onboardingBack() {
+    final prev = _findNextVisibleStepIndex(_onboardingIndex - 1, forward: false);
+    if (prev == null) return;
+    setState(() => _onboardingIndex = prev);
+    _onboardingOverlayEntry?.markNeedsBuild();
   }
 
   // Ladeflags / Fehler
@@ -1353,6 +1553,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       return;
     }
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _fatalErr != null) return;
+      _startOnboarding();
+    });
+
     _refreshAll();
     _refreshAllComplaints();
     _refreshOpen();
@@ -1374,6 +1579,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _removeOnboardingOverlay();
     _globalSearchController.dispose();
     _repFirstCtrl.dispose();
     _repLastCtrl.dispose();
@@ -5365,6 +5571,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.wikiArticles   => 'Vertreter-Wiki Artikel',
     };
 
+    if (_onboardingVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _onboardingOverlayEntry?.markNeedsBuild();
+      });
+    }
+
     return WillPopScope(
       onWillPop: () async {
         if (_view != AdminView.menu) {
@@ -5387,6 +5599,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 children: [
                   if (!isNarrow)
                     AnimatedContainer(
+                      key: _onboardingNavKey,
                       duration: const Duration(milliseconds: 220),
                       width: _navCollapsed ? 112 : 280,
                       margin: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -5825,6 +6038,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       leading: isNarrow
           ? Builder(
               builder: (context) => IconButton(
+                key: _onboardingDrawerKey,
                 icon: const Icon(Icons.menu),
                 tooltip: 'Navigation öffnen',
                 onPressed: () => Scaffold.of(context).openDrawer(),
@@ -5963,6 +6177,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         w.ThemeAction(),
         const SizedBox(width: 2),
         TextButton.icon(
+          key: _onboardingSearchToggleKey,
           onPressed: () => _setGlobalSearchVisibility(!_globalSearchVisible),
           icon: Icon(searchToggleIcon),
           label: Text(searchToggleLabel),
@@ -5977,6 +6192,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             await _refreshFaq();
           },
           icon: const Icon(Icons.refresh),
+        ),
+        TextButton.icon(
+          onPressed: () => _startOnboarding(force: true),
+          icon: const Icon(Icons.help_outline),
+          label: const Text('Onboarding erneut starten'),
         ),
         TextButton.icon(
           onPressed: _logoutAdmin,
@@ -5996,11 +6216,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               duration: const Duration(milliseconds: 180),
               opacity: _globalSearchVisible ? 1 : 0,
               child: shouldShowSearchBar
-                  ? GlobalSearchBar(
-                      api: widget.api,
-                      chatService: _chatService,
-                      currentUserId: _portalChatId,
-                      onNavigate: _handleGlobalSearchNavigate,
+                  ? KeyedSubtree(
+                      key: _onboardingSearchBarKey,
+                      child: GlobalSearchBar(
+                        api: widget.api,
+                        chatService: _chatService,
+                        currentUserId: _portalChatId,
+                        onNavigate: _handleGlobalSearchNavigate,
+                      ),
                     )
                   : const SizedBox.shrink(),
             ),
@@ -8463,7 +8686,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           onActionTap: onActionTap,
         );
       case 'complaintList':
-        return AdminTilePro(
+        final tile = AdminTilePro(
           label: 'Reklamationsliste',
           subtitle: 'Übersicht & Export',
           icon: Icons.table_view_outlined,
@@ -8475,6 +8698,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+        final key = _onboardingTileKeys['complaintList'];
+        return key == null ? tile : KeyedSubtree(key: key, child: tile);
       case 'capaReports':
         return AdminTilePro(
           label: 'CAPA / 8D-Reports',
@@ -8526,7 +8751,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           onActionTap: onActionTap,
         );
       case 'prrc':
-        return AdminTilePro(
+        final tile = AdminTilePro(
           label: 'PRRC-Einstufungen',
           subtitle: 'Regulatorische Bewertung',
           icon: Icons.medical_information_outlined,
@@ -8541,6 +8766,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+        final key = _onboardingTileKeys['prrc'];
+        return key == null ? tile : KeyedSubtree(key: key, child: tile);
       case 'stats':
         return AdminTilePro(
           label: 'Statistik & KPIs',
@@ -8620,7 +8847,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           onActionTap: onActionTap,
         );
       case 'news':
-        return AdminTilePro(
+        final tile = AdminTilePro(
           label: 'Neuigkeiten & Infoscreen',
           subtitle: 'DFS Connect+ & Kundenticker',
           icon: Icons.campaign_outlined,
@@ -8640,6 +8867,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+        final key = _onboardingTileKeys['news'];
+        return key == null ? tile : KeyedSubtree(key: key, child: tile);
       case 'downloads':
         return AdminTilePro(
           label: 'Downloads',
@@ -8963,7 +9192,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final theme = Theme.of(context);
     final titleStyle = theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
     final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
-    final header = _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index);
+    final baseHeader = _buildMenuSectionHeaderContent(section, titleStyle, subtitleStyle, index: index);
+    final header = isFirst ? KeyedSubtree(key: _onboardingDashboardKey, child: baseHeader) : baseHeader;
 
     if (!_menuEditMode) {
       return Padding(
