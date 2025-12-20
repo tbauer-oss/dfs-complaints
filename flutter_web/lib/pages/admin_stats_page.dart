@@ -1,5 +1,6 @@
 // lib/pages/admin_stats_page.dart
 import 'dart:convert';
+import 'dart:html' as html;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -14,8 +15,12 @@ import 'package:pdf/widgets.dart' as pw;
 import '../api/client.dart';
 import '../data/country_geography.dart';
 import '../models/dfs_product.dart';
+import '../models/global_search.dart';
+import '../models/rep_download_item.dart';
 import '../services/dfs_product_service.dart';
+import '../widgets/admin/global_search_bar.dart';
 import '../widgets/legal_footer.dart';
+import 'admin_page.dart';
 
 class AdminStatsPage extends StatefulWidget {
   final ApiClient api;
@@ -38,6 +43,29 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   Map<String, DfsProduct> _productByArticle = const {};
   Map<String, List<DfsProduct>> _productsByArticleNumber = const {};
   Map<String, DfsProduct> _uniqueProductByArticleNumber = const {};
+
+  AdminView _resolveAdminView(GlobalSearchResult result) {
+    if (result.type == GlobalSearchType.file) return AdminView.downloads;
+    if (result.type == GlobalSearchType.user) return AdminView.portalUsers;
+    if (result.type == GlobalSearchType.message) return AdminView.menu;
+    if (result.routeTarget.startsWith('news:')) return AdminView.news;
+    return AdminView.wikiArticles;
+  }
+
+  void _handleGlobalSearchNavigate(GlobalSearchResult result) {
+    if (result.type == GlobalSearchType.file && result.payload is RepDownloadItem) {
+      final item = result.payload as RepDownloadItem;
+      if (item.downloadUrl.isNotEmpty) {
+        html.window.open(item.downloadUrl, '_blank');
+      }
+    }
+    final view = _resolveAdminView(result);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminPage(api: widget.api, initialView: view),
+      ),
+    );
+  }
   List<_EnrichedComplaint> _enrichedComplaints = const [];
   List<_EnrichedComplaint> _visibleComplaints = const [];
   String? _selectedMdrGroup;
@@ -556,6 +584,13 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           ),
           const SizedBox(width: 8),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(GlobalSearchBar.preferredHeight),
+          child: GlobalSearchBar(
+            api: widget.api,
+            onNavigate: _handleGlobalSearchNavigate,
+          ),
+        ),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
