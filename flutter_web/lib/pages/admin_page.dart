@@ -21616,14 +21616,15 @@ class PrrcDashboardPage extends StatefulWidget {
     final _reportCheckCommentCtrl = TextEditingController();
     static const List<String> _prrcCommentPresets = [
       'Laborprodukt - keine Bewertung erforderlich',
-    'Subcontractor-Produkt - keine Bewertung erforderlich',
-    'Kein regulatorisches Risiko erkennbar',
-    'Weitere Unterlagen angefordert',
-    'Interne Abstimmung erforderlich',
-    'Produkt- / Chargensperre - weitere interne Prüfungen erforderlich',
-    'Bewertung abgeschlossen – keine Meldung notwendig',
-    'Behördliche Prüfung wird vorbereitet (FSN/FSCN, Rückruf, etc.)',
-  ];
+      'Subcontractor-Produkt - keine Bewertung erforderlich',
+      'Kein regulatorisches Risiko erkennbar',
+      'Keine Sicherheitsrelevanz festgestellt',
+      'Weitere Unterlagen angefordert',
+      'Interne Abstimmung erforderlich',
+      'Produkt- / Chargensperre - weitere interne Prüfungen erforderlich',
+      'Bewertung abgeschlossen – keine Meldung notwendig',
+      'Behördliche Prüfung wird vorbereitet (FSN/FSCN, Rückruf, etc.)',
+    ];
 
   late final AdminApi _api;
   bool _loading = true;
@@ -22869,34 +22870,40 @@ class PrrcDashboardPage extends StatefulWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (_prrcCommentPresets.isNotEmpty) ...[
+                        DropdownButtonFormField<String>(
+                          value: _prrcCommentPresets.contains(_commentCtrl.text.trim())
+                              ? _commentCtrl.text.trim()
+                              : null,
+                          decoration: const InputDecoration(
+                            labelText: 'Vorauswahl Bewertungstext',
+                            isDense: true,
+                          ),
+                          hint: const Text('Bitte auswählen'),
+                          onChanged: _saving
+                              ? null
+                              : (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    _commentCtrl.text = value;
+                                    _commentCtrl.selection = TextSelection.fromPosition(
+                                        TextPosition(offset: _commentCtrl.text.length));
+                                  });
+                                },
+                          items: _prrcCommentPresets
+                              .map((preset) => DropdownMenuItem<String>(
+                                    value: preset,
+                                    child: Text(preset),
+                                  ))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       TextFormField(
                         controller: _commentCtrl,
                         maxLines: 4,
                         decoration: const InputDecoration(labelText: 'Begründung / Kommentar (PRRC)'),
                       ),
-                      if (_prrcCommentPresets.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: _prrcCommentPresets.map((preset) {
-                            final selected = _commentCtrl.text.trim() == preset;
-                            return ChoiceChip(
-                              label: Text(preset),
-                              selected: selected,
-                              onSelected: _saving
-                                  ? null
-                                  : (_) {
-                                      setState(() {
-                                        _commentCtrl.text = preset;
-                                        _commentCtrl.selection = TextSelection.fromPosition(
-                                            TextPosition(offset: _commentCtrl.text.length));
-                                      });
-                                    },
-                            );
-                          }).toList(),
-                        ),
-                      ],
                     ],
                   ),
                   _prrcStatusSection(c),
