@@ -248,7 +248,6 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiCategories',
     'wikiArticles',
     'audits',
-    'supplierEvaluation',
   ],
   'readonly': [
     'open',
@@ -263,7 +262,6 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'testMode',
     'activity',
     'systemHealth',
-    'supplierEvaluation',
   ],
   'qm': [
     'open',
@@ -274,6 +272,46 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'fmea',
     'changeManagement',
     'prrc',
+    'internalChat',
+    'stats',
+    'audits',
+    'supplierEvaluation',
+  ],
+  'admin': [
+    'open',
+    'all',
+    'complaintList',
+    'capaReports',
+    'capaDashboard',
+    'fmea',
+    'changeManagement',
+    'prrc',
+    'internalChat',
+    'stats',
+    'pending',
+    'users',
+    'reps',
+    'news',
+    'downloads',
+    'faq',
+    'wiki',
+    'products',
+    'push',
+    'catalogs',
+    'appMeta',
+    'testMode',
+    'systemHealth',
+    'activity',
+    'createCustomer',
+    'wikiCategories',
+    'wikiArticles',
+    'audits',
+    'supplierEvaluation',
+  ],
+  'ek': [
+    'open',
+    'all',
+    'complaintList',
     'internalChat',
     'stats',
     'audits',
@@ -1325,6 +1363,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'capaDashboard' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'changeManagement' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
+    if (tileId == 'supplierEvaluation' &&
+        !_isSuperuser &&
+        !_portalIsQm &&
+        _portalRole != 'admin' &&
+        _portalRole != 'ek') {
+      return false;
+    }
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
     return true;
