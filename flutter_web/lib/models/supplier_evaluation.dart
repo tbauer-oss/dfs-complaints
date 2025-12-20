@@ -192,10 +192,10 @@ class SupplierPerformanceEntry {
   final String id;
   final String supplierId;
   final int date;
-  final String type;
-  final String rating;
   final String description;
-  final String reference;
+  final String referenceType;
+  final String referenceNumber;
+  final Map<String, int?> ratings;
   final List<dynamic> attachments;
   final bool includeInAnnual;
   final String status;
@@ -210,10 +210,10 @@ class SupplierPerformanceEntry {
     required this.id,
     required this.supplierId,
     required this.date,
-    required this.type,
-    required this.rating,
     required this.description,
-    required this.reference,
+    required this.referenceType,
+    required this.referenceNumber,
+    required this.ratings,
     required this.attachments,
     required this.includeInAnnual,
     required this.status,
@@ -225,14 +225,51 @@ class SupplierPerformanceEntry {
     required this.history,
   });
 
+  static String _mapLegacyType(String type) {
+    final value = type.toLowerCase();
+    if (value.contains('qualität') || value.contains('qualitaet')) return 'quality';
+    if (value.contains('termin') || value.contains('liefer')) return 'delivery';
+    if (value.contains('dokument')) return 'documentation';
+    if (value.contains('service')) return 'service';
+    return '';
+  }
+
+  static Map<String, int?> _normalizeRatings(Map<String, dynamic> json) {
+    final ratings = <String, int?>{
+      'quality': null,
+      'delivery': null,
+      'documentation': null,
+      'service': null,
+    };
+    final rawRatings = json['ratings'];
+    if (rawRatings is Map) {
+      rawRatings.forEach((key, value) {
+        final parsed = value is int ? value : int.tryParse(value.toString());
+        ratings[key.toString()] = parsed;
+      });
+    }
+    if (ratings.values.every((value) => value == null)) {
+      final legacyType = _mapLegacyType(json['type']?.toString() ?? '');
+      final legacyRating = int.tryParse(json['rating']?.toString() ?? '');
+      if (legacyType.isNotEmpty) {
+        ratings[legacyType] = legacyRating;
+      }
+    }
+    return ratings;
+  }
+
   factory SupplierPerformanceEntry.fromJson(Map<String, dynamic> json) => SupplierPerformanceEntry(
         id: (json['id'] ?? json['entryId'] ?? '').toString(),
         supplierId: (json['supplierId'] ?? '').toString(),
         date: (json['date'] ?? 0) as int,
-        type: (json['type'] ?? '').toString(),
-        rating: (json['rating'] ?? '').toString(),
         description: (json['description'] ?? '').toString(),
-        reference: (json['reference'] ?? '').toString(),
+        referenceType: (json['referenceType'] ?? (json['reference'] is Map ? json['reference']['referenceType'] : '') ?? '').toString(),
+        referenceNumber: (json['referenceNumber'] ??
+                (json['reference'] is Map ? json['reference']['referenceNumber'] : '') ??
+                (json['reference'] is String ? json['reference'] : '') ??
+                '')
+            .toString(),
+        ratings: _normalizeRatings(json),
         attachments: (json['attachments'] as List?) ?? const [],
         includeInAnnual: json['includeInAnnual'] != false,
         status: (json['status'] ?? '').toString(),
@@ -248,10 +285,10 @@ class SupplierPerformanceEntry {
         'id': id,
         'supplierId': supplierId,
         'date': date,
-        'type': type,
-        'rating': rating,
         'description': description,
-        'reference': reference,
+        'referenceType': referenceType,
+        'referenceNumber': referenceNumber,
+        'ratings': ratings.map((key, value) => MapEntry(key, value)),
         'attachments': attachments,
         'includeInAnnual': includeInAnnual,
         'status': status,

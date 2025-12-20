@@ -25,18 +25,72 @@ function isFilled(value) {
 function validateEntry(record) {
   if (!isFilled(record?.supplierId)) return 'Bitte einen Lieferanten auswählen.';
   if (!isFilled(record?.date)) return 'Bitte ein Datum angeben.';
-  if (!isFilled(record?.type)) return 'Bitte einen Typ auswählen.';
-  if (!isFilled(record?.rating)) return 'Bitte eine Bewertung auswählen.';
   if (!isFilled(record?.description)) return 'Bitte eine Kurzbeschreibung hinterlegen.';
+  if (!isFilled(record?.referenceType)) return 'Bitte eine Bezugsart auswählen.';
+  if (!isFilled(record?.referenceNumber)) return 'Bitte eine Bezugsnummer hinterlegen.';
   return null;
+}
+
+function normalizeRatings(input) {
+  const ratings = {
+    quality: null,
+    delivery: null,
+    documentation: null,
+    service: null,
+  };
+  if (input && typeof input === 'object') {
+    Object.entries(input).forEach(([key, value]) => {
+      if (!key) return;
+      if (value == null || value === '') {
+        ratings[key] = null;
+        return;
+      }
+      const parsed = Number(value);
+      ratings[key] = Number.isFinite(parsed) ? parsed : null;
+    });
+  }
+  return ratings;
+}
+
+function mapCategoryKey(name = '') {
+  const value = String(name).toLowerCase();
+  if (value.includes('qualität') || value.includes('qualitaet')) return 'quality';
+  if (value.includes('termin') || value.includes('liefer')) return 'delivery';
+  if (value.includes('dokument')) return 'documentation';
+  if (value.includes('service')) return 'service';
+  return '';
 }
 
 function entryPoints(entry, config) {
   const categories = Array.isArray(config?.categories) ? config.categories : [];
-  const category = categories.find((c) => c.name === entry.type) || categories[0];
-  const scoreMap = category?.scoreMap || {};
-  const numeric = Number(scoreMap[entry.rating]);
-  return Number.isFinite(numeric) ? numeric : null;
+  const ratings = normalizeRatings(entry?.ratings);
+  const points = categories
+    .map((category) => {
+      const key = mapCategoryKey(category?.name);
+      if (!key || ratings[key] == null) return null;
+      const scoreMap = category?.scoreMap || {};
+      const mapped = Number(scoreMap[String(ratings[key])]);
+      return Number.isFinite(mapped) ? mapped : ratings[key];
+    })
+    .filter((value) => Number.isFinite(value));
+  if (!points.length) return null;
+  return points.reduce((sum, value) => sum + value, 0) / points.length;
+}
+
+function computeStatus(ratings = {}) {
+  const values = Object.values(normalizeRatings(ratings)).filter((value) => Number.isFinite(value));
+  if (values.length === 0) return 'OFFEN';
+  if (values.length === 4) return 'ABGESCHLOSSEN';
+  return 'IN_BEARBEITUNG';
+}
+
+function applyReferenceFields(record = {}) {
+  const reference = record.reference && typeof record.reference === 'object' ? record.reference : {};
+  return {
+    ...record,
+    referenceType: record.referenceType || reference.referenceType || '',
+    referenceNumber: record.referenceNumber || reference.referenceNumber || record.reference || '',
+  };
 }
 
 async function maybeCreateTrendEscalation(entry, actor) {
@@ -103,7 +157,9 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = readJson(req) || {};
       const payload = {
-        ...body,
+        ...applyReferenceFields(body),
+        ratings: normalizeRatings(body.ratings),
+        status: computeStatus(body.ratings),
         createdAt: body?.createdAt || Date.now(),
         createdBy: actor.email,
         updatedBy: actor.email,
@@ -137,9 +193,15 @@ export default async function handler(req, res) {
         at: Date.now(),
         note: isFilled(body.changeReason) ? String(body.changeReason).trim() : 'Performance-Eintrag aktualisiert',
       };
-      const merged = {
+      const draft = {
         ...current,
         ...body,
+      };
+      const withReference = applyReferenceFields(draft);
+      const merged = {
+        ...withReference,
+        ratings: normalizeRatings(draft.ratings ?? current.ratings),
+        status: computeStatus(draft.ratings ?? current.ratings),
         updatedBy: actor.email,
         updatedAt: Date.now(),
         history: [...(current.history || []), historyEntry],
@@ -156,7 +218,7 @@ export default async function handler(req, res) {
       if (!id) return bad(res, 'Entry-ID fehlt.', 400);
       const current = await supplierPerformanceGet(id);
       if (!current) return bad(res, 'Eintrag nicht gefunden.', 404);
-      if (current.status === 'final') {
+      if (current.status === 'ABGESCHLOSSEN' || current.status === 'final') {
         const body = readJson(req) || {};
         if (!isFilled(body.cancelReason)) {
           return bad(res, 'Bitte eine Stornierungsbegründung angeben.', 400);

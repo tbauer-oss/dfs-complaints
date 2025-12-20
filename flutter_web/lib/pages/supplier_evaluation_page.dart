@@ -34,6 +34,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   SupplierEvaluationConfig? _config;
   SupplierLookups _supplierLookups = SupplierLookups.empty();
   String? _supplierFilter;
+  String? _performanceStatusFilter;
   String? _selectedSupplierId;
   bool _savingSupplier = false;
   bool _formDirty = false;
@@ -60,6 +61,12 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   final _dateFmt = DateFormat('dd.MM.yyyy');
   static const String _addLookupValue = '__add__';
+  static const List<Map<String, String>> _performanceCategories = [
+    {'key': 'quality', 'label': 'Qualität'},
+    {'key': 'delivery', 'label': 'Termintreue'},
+    {'key': 'documentation', 'label': 'Dokumentation'},
+    {'key': 'service', 'label': 'Service'},
+  ];
 
   List<String> get _statusOptions =>
       _supplierLookups.statuses.isNotEmpty ? _supplierLookups.statuses : const ['zugelassen', 'in bewertung', 'gesperrt'];
@@ -545,47 +552,93 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }
   }
 
-  Future<void> _createPerformanceEntry() async {
+  Map<String, int?> _defaultRatings() {
+    return {
+      for (final category in _performanceCategories) category['key']!: null,
+    };
+  }
+
+  int _ratedCount(Map<String, int?> ratings) => ratings.values.where((value) => value != null).length;
+
+  String _computePerformanceStatus(Map<String, int?> ratings) {
+    final count = _ratedCount(ratings);
+    if (count == 0) return 'OFFEN';
+    if (count == _performanceCategories.length) return 'ABGESCHLOSSEN';
+    return 'IN_BEARBEITUNG';
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'ABGESCHLOSSEN':
+        return Colors.green;
+      case 'IN_BEARBEITUNG':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _referenceLabel(String type) => type == 'BESTELLUNG' ? 'Bestellnummer' : 'Lieferscheinnummer';
+
+  String _referencePlaceholder(String type) => type == 'BESTELLUNG' ? 'z. B. PO-4711' : 'z. B. LS-2025-12345';
+
+  String _formatReference(SupplierPerformanceEntry entry) {
+    final label = entry.referenceType == 'BESTELLUNG' ? 'Bestellung' : 'Lieferschein';
+    return entry.referenceNumber.isNotEmpty ? '$label ${entry.referenceNumber}' : label;
+  }
+
+  Future<void> _openPerformanceEntryDialog({SupplierPerformanceEntry? entry}) async {
     if (_suppliers.isEmpty) {
       _showSnack('Bitte zuerst einen Lieferanten anlegen.');
       return;
     }
-    final descCtrl = TextEditingController();
-    final refCtrl = TextEditingController();
-    DateTime selectedDate = DateTime.now();
-    String supplierId = _suppliers.first.id;
-    String type = _config?.categories.isNotEmpty == true
-        ? (_config!.categories.first['name'] ?? '').toString()
-        : 'Liefertermin/Termintreue';
-    String rating = _config?.categories.isNotEmpty == true
-        ? (_config!.categories.first['scale'] as List?)?.first?.toString() ?? '3'
-        : '3';
-    bool includeInAnnual = true;
+    final isEditing = entry != null;
+    final descCtrl = TextEditingController(text: entry?.description ?? '');
+    final refCtrl = TextEditingController(text: entry?.referenceNumber ?? '');
+    DateTime selectedDate =
+        entry != null ? DateTime.fromMillisecondsSinceEpoch(entry.date) : DateTime.now();
+    String supplierId = entry?.supplierId ?? _suppliers.first.id;
+    String referenceType = entry?.referenceType.isNotEmpty == true ? entry!.referenceType : 'LIEFERSCHEIN';
+    bool includeInAnnual = entry?.includeInAnnual ?? true;
+    final ratings = Map<String, int?>.from(entry?.ratings ?? _defaultRatings());
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            List<dynamic> scaleForType(String type) {
-              final categories = _config?.categories ?? const [];
-              final match = categories.firstWhere(
-                (cat) => cat['name']?.toString() == type,
-                orElse: () => categories.isNotEmpty ? categories.first : {},
-              );
-              return (match['scale'] as List?) ?? const [];
-            }
-
-            final ratingOptions = scaleForType(type);
-            if (!ratingOptions.any((value) => value.toString() == rating)) {
-              rating = ratingOptions.isNotEmpty ? ratingOptions.first.toString() : rating;
-            }
-
+            final status = _computePerformanceStatus(ratings);
+            final progressText = '${_ratedCount(ratings)}/${_performanceCategories.length} bewertet';
             return AlertDialog(
-              title: const Text('Performance-Eintrag erfassen'),
+              title: Text(isEditing ? 'Performance-Fall bearbeiten' : 'Performance-Fall erfassen'),
               content: SingleChildScrollView(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Chip(
+                          avatar: Icon(
+                            status == 'ABGESCHLOSSEN' ? Icons.check_circle : Icons.timelapse_outlined,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          label: Text(status),
+                          backgroundColor: _statusColor(status),
+                          labelStyle: const TextStyle(color: Colors.white),
+                        ),
+                        Text(progressText, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sie können Einträge jederzeit nachträglich ergänzen oder korrigieren. Sobald alle Kategorien bewertet sind, wird der Fall automatisch abgeschlossen.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: supplierId,
                       decoration: const InputDecoration(labelText: 'Lieferant'),
@@ -611,23 +664,73 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       },
                     ),
                     TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Kurzbeschreibung *')),
-                    TextField(controller: refCtrl, decoration: const InputDecoration(labelText: 'Bezug (Bestellung/Lieferschein)')),
-                    DropdownButtonFormField<String>(
-                      value: type,
-                      decoration: const InputDecoration(labelText: 'Typ'),
-                      items: (_config?.categories ?? const [])
-                          .map((cat) => DropdownMenuItem(value: cat['name'].toString(), child: Text(cat['name'].toString())))
-                          .toList(),
-                      onChanged: (value) => setModalState(() => type = value ?? type),
+                    const SizedBox(height: 12),
+                    Text('Bezug *', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 8),
+                    ToggleButtons(
+                      isSelected: [referenceType == 'LIEFERSCHEIN', referenceType == 'BESTELLUNG'],
+                      onPressed: (index) {
+                        setModalState(() => referenceType = index == 0 ? 'LIEFERSCHEIN' : 'BESTELLUNG');
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      children: const [
+                        Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Lieferschein')),
+                        Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Bestellung')),
+                      ],
                     ),
-                    DropdownButtonFormField<String>(
-                      value: rating,
-                      decoration: const InputDecoration(labelText: 'Bewertung'),
-                      items: ratingOptions
-                          .map((value) => DropdownMenuItem(value: value.toString(), child: Text(value.toString())))
-                          .toList(),
-                      onChanged: (value) => setModalState(() => rating = value ?? rating),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: refCtrl,
+                      decoration: InputDecoration(
+                        labelText: _referenceLabel(referenceType),
+                        hintText: _referencePlaceholder(referenceType),
+                      ),
                     ),
+                    const SizedBox(height: 16),
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Bewertung (alle Kategorien)', style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 12),
+                            ..._performanceCategories.map((category) {
+                              final key = category['key']!;
+                              final selected = ratings[key];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(child: Text(category['label']!)),
+                                    Wrap(
+                                      spacing: 6,
+                                      children: [
+                                        for (final value in [1, 2, 3, 4, 5])
+                                          ChoiceChip(
+                                            label: Text(value.toString()),
+                                            selected: selected == value,
+                                            onSelected: (_) => setModalState(() => ratings[key] = value),
+                                          ),
+                                        ChoiceChip(
+                                          label: const Text('∅'),
+                                          selected: selected == null,
+                                          onSelected: (_) => setModalState(() => ratings[key] = null),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     SwitchListTile.adaptive(
                       value: includeInAnnual,
                       onChanged: (value) => setModalState(() => includeInAnnual = value),
@@ -637,6 +740,13 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ),
               ),
               actions: [
+                if (isEditing)
+                  TextButton(
+                    onPressed: () => setModalState(() {
+                      ratings.updateAll((key, value) => null);
+                    }),
+                    child: const Text('Bewertungen zurücksetzen'),
+                  ),
                 TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
                 ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern')),
               ],
@@ -647,34 +757,48 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     );
 
     if (result != true) return;
-    if (descCtrl.text.trim().isEmpty) {
+    final description = descCtrl.text.replaceAll('\u00A0', ' ').trim();
+    final referenceNumber = refCtrl.text.replaceAll('\u00A0', ' ').trim();
+    if (description.isEmpty) {
       _showSnack('Bitte eine Kurzbeschreibung angeben.');
       return;
     }
+    if (referenceNumber.isEmpty) {
+      _showSnack('Bitte eine Bezugsnummer angeben.');
+      return;
+    }
+
+    final payload = SupplierPerformanceEntry(
+      id: entry?.id ?? '',
+      supplierId: supplierId,
+      date: selectedDate.millisecondsSinceEpoch,
+      description: description,
+      referenceType: referenceType,
+      referenceNumber: referenceNumber,
+      ratings: ratings,
+      attachments: entry?.attachments ?? const [],
+      includeInAnnual: includeInAnnual,
+      status: _computePerformanceStatus(ratings),
+      cancelReason: entry?.cancelReason ?? '',
+      createdAt: entry?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+      createdBy: entry?.createdBy ?? '',
+      updatedBy: '',
+      history: entry?.history ?? const [],
+    );
 
     try {
-      final created = await widget.api.adminCreateSupplierPerformance(
-        SupplierPerformanceEntry(
-          id: '',
-          supplierId: supplierId,
-          date: selectedDate.millisecondsSinceEpoch,
-          type: type,
-          rating: rating,
-          description: descCtrl.text.trim(),
-          reference: refCtrl.text.trim(),
-          attachments: const [],
-          includeInAnnual: includeInAnnual,
-          status: 'open',
-          cancelReason: '',
-          createdAt: DateTime.now().millisecondsSinceEpoch,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-          createdBy: '',
-          updatedBy: '',
-          history: const [],
-        ),
-      );
-      setState(() => _entries = [created, ..._entries]);
-      _showSnack('Eintrag gespeichert.');
+      if (isEditing) {
+        final updated = await widget.api.adminUpdateSupplierPerformance(payload);
+        setState(() {
+          _entries = _entries.map((e) => e.id == updated.id ? updated : e).toList();
+        });
+        _showSnack('Eintrag aktualisiert.');
+      } else {
+        final created = await widget.api.adminCreateSupplierPerformance(payload);
+        setState(() => _entries = [created, ..._entries]);
+        _showSnack('Eintrag gespeichert.');
+      }
     } catch (err) {
       final mapped = AppErrorMapper.map(err);
       _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
@@ -1420,9 +1544,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   }
 
   Widget _buildPerformanceTab() {
-    final entries = _supplierFilter == null
-        ? _entries
-        : _entries.where((e) => e.supplierId == _supplierFilter).toList();
+    final filteredBySupplier =
+        _supplierFilter == null ? _entries : _entries.where((e) => e.supplierId == _supplierFilter).toList();
+    final entries = _performanceStatusFilter == null
+        ? filteredBySupplier
+        : filteredBySupplier.where((e) => _computePerformanceStatus(e.ratings) == _performanceStatusFilter).toList();
     return ListView(
       children: [
         Padding(
@@ -1441,11 +1567,25 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ),
               ),
               const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String?>(
+                  value: _performanceStatusFilter,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem<String?>(value: null, child: Text('Alle Status')),
+                    DropdownMenuItem<String?>(value: 'OFFEN', child: Text('Offen')),
+                    DropdownMenuItem<String?>(value: 'IN_BEARBEITUNG', child: Text('In Bearbeitung')),
+                    DropdownMenuItem<String?>(value: 'ABGESCHLOSSEN', child: Text('Abgeschlossen')),
+                  ],
+                  onChanged: (value) => setState(() => _performanceStatusFilter = value),
+                ),
+              ),
+              const SizedBox(width: 12),
               if (widget.canWrite)
                 ElevatedButton.icon(
-                  onPressed: _createPerformanceEntry,
+                  onPressed: () => _openPerformanceEntryDialog(),
                   icon: const Icon(Icons.add_task_outlined),
-                  label: const Text('Eintrag erfassen'),
+                  label: const Text('Performance-Fall erfassen'),
                 ),
             ],
           ),
@@ -1455,13 +1595,80 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
             padding: EdgeInsets.all(24),
             child: Text('Keine Performance-Einträge vorhanden.'),
           ),
-        ...entries.map((e) {
+        ...entries.map((entry) {
+          final status = _computePerformanceStatus(entry.ratings);
+          final progress = '${_ratedCount(entry.ratings)}/${_performanceCategories.length} bewertet';
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: ListTile(
-              title: Text('${_supplierName(e.supplierId)} • ${e.type}'),
-              subtitle: Text('${_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(e.date))} • ${e.description}'),
-              trailing: Chip(label: Text(e.rating)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: status == 'ABGESCHLOSSEN'
+                  ? BorderSide(color: Colors.green.withOpacity(0.4), width: 1)
+                  : BorderSide(color: Colors.grey.shade200, width: 1),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: widget.canWrite ? () => _openPerformanceEntryDialog(entry: entry) : null,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(entry.date)),
+                              style: Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 4),
+                          Text(entry.description, style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_supplierName(entry.supplierId), style: Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 4),
+                          Text(_formatReference(entry), style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Chip(
+                            label: Text(status),
+                            backgroundColor: _statusColor(status),
+                            labelStyle: const TextStyle(color: Colors.white),
+                          ),
+                          Text(progress, style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(entry.includeInAnnual ? 'Jahresbewertung: Ja' : 'Jahresbewertung: Nein',
+                              style: Theme.of(context).textTheme.bodySmall),
+                          if (widget.canWrite)
+                            TextButton.icon(
+                              onPressed: () => _openPerformanceEntryDialog(entry: entry),
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Bearbeiten'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         }),
