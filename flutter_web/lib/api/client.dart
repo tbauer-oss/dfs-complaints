@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/complaint.dart';
 import '../models/catalog_link.dart';
@@ -332,6 +333,12 @@ class ApiClient {
       }
     }
     return h;
+  }
+
+  void _logSupplierRequest(String method, String endpoint, String supplierId, int statusCode) {
+    if (kDebugMode) {
+      debugPrint('Supplier API: $method $endpoint (supplierId: $supplierId) -> $statusCode');
+    }
   }
 
   String _formatDateOnly(DateTime date) {
@@ -2084,12 +2091,39 @@ class ApiClient {
     return const [];
   }
 
+  Future<SupplierLookups> adminSupplierLookups() async {
+    final r = await http.get(_u('/api/admin/supplier-lookups'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['lookups'] is Map ? decoded['lookups'] as Map : decoded;
+    if (map is Map) return SupplierLookups.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Lookup-Antwort');
+  }
+
+  Future<SupplierLookups> adminUpdateSupplierLookups(SupplierLookups lookups) async {
+    final r = await http.patch(
+      _u('/api/admin/supplier-lookups'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(lookups.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['lookups'] is Map ? decoded['lookups'] as Map : decoded;
+    if (map is Map) return SupplierLookups.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Lookup-Antwort');
+  }
+
   Future<Supplier> adminCreateSupplier(Supplier supplier) async {
     final r = await http.post(
       _u('/api/admin/suppliers'),
       headers: _adminHeaders(auth: true),
       body: jsonEncode(supplier.toJson()),
     );
+    _logSupplierRequest('POST', '/api/admin/suppliers', supplier.id, r.statusCode);
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -2108,6 +2142,7 @@ class ApiClient {
       headers: _adminHeaders(auth: true),
       body: jsonEncode(payload),
     );
+    _logSupplierRequest('PATCH', '/api/admin/suppliers', supplier.id, r.statusCode);
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -2120,6 +2155,7 @@ class ApiClient {
   Future<void> adminDeleteSupplier(String id) async {
     final path = Uri(path: '/api/admin/suppliers', queryParameters: {'id': id}).toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    _logSupplierRequest('DELETE', '/api/admin/suppliers', id, r.statusCode);
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }

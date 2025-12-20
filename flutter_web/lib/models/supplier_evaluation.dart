@@ -6,6 +6,8 @@ class Supplier {
   final String contactName;
   final String contactEmail;
   final String contactPhone;
+  final String website;
+  final String country;
   final String category;
   final bool critical;
   final String status;
@@ -27,6 +29,8 @@ class Supplier {
     required this.contactName,
     required this.contactEmail,
     required this.contactPhone,
+    required this.website,
+    required this.country,
     required this.category,
     required this.critical,
     required this.status,
@@ -49,6 +53,8 @@ class Supplier {
         contactName: (json['contactName'] ?? '').toString(),
         contactEmail: (json['contactEmail'] ?? '').toString(),
         contactPhone: (json['contactPhone'] ?? '').toString(),
+        website: (json['website'] ?? '').toString(),
+        country: (json['country'] ?? '').toString(),
         category: (json['category'] ?? '').toString(),
         critical: json['critical'] == true,
         status: (json['status'] ?? '').toString(),
@@ -71,6 +77,8 @@ class Supplier {
         'contactName': contactName,
         'contactEmail': contactEmail,
         'contactPhone': contactPhone,
+        'website': website,
+        'country': country,
         'category': category,
         'critical': critical,
         'status': status,
@@ -81,6 +89,100 @@ class Supplier {
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'createdBy': createdBy,
+        'updatedBy': updatedBy,
+        'history': history,
+      };
+
+  Supplier copyWith({
+    String? id,
+    String? supplierNumber,
+    String? name,
+    String? address,
+    String? contactName,
+    String? contactEmail,
+    String? contactPhone,
+    String? website,
+    String? country,
+    String? category,
+    bool? critical,
+    String? status,
+    String? notes,
+    String? blockedReason,
+    int? blockedAt,
+    String? blockedBy,
+    int? createdAt,
+    int? updatedAt,
+    String? createdBy,
+    String? updatedBy,
+    List<dynamic>? history,
+  }) {
+    return Supplier(
+      id: id ?? this.id,
+      supplierNumber: supplierNumber ?? this.supplierNumber,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      contactName: contactName ?? this.contactName,
+      contactEmail: contactEmail ?? this.contactEmail,
+      contactPhone: contactPhone ?? this.contactPhone,
+      website: website ?? this.website,
+      country: country ?? this.country,
+      category: category ?? this.category,
+      critical: critical ?? this.critical,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      blockedReason: blockedReason ?? this.blockedReason,
+      blockedAt: blockedAt ?? this.blockedAt,
+      blockedBy: blockedBy ?? this.blockedBy,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      history: history ?? this.history,
+    );
+  }
+}
+
+class SupplierLookups {
+  final List<String> categories;
+  final List<String> countries;
+  final List<String> statuses;
+  final int updatedAt;
+  final String updatedBy;
+  final List<dynamic> history;
+
+  const SupplierLookups({
+    required this.categories,
+    required this.countries,
+    required this.statuses,
+    required this.updatedAt,
+    required this.updatedBy,
+    required this.history,
+  });
+
+  factory SupplierLookups.empty() => const SupplierLookups(
+        categories: [],
+        countries: [],
+        statuses: ['zugelassen', 'in bewertung', 'gesperrt'],
+        updatedAt: 0,
+        updatedBy: '',
+        history: [],
+      );
+
+  factory SupplierLookups.fromJson(Map<String, dynamic> json) => SupplierLookups(
+        categories: (json['categories'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        countries: (json['countries'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        statuses: (json['statuses'] as List?)?.map((e) => e.toString()).toList() ??
+            const ['zugelassen', 'in bewertung', 'gesperrt'],
+        updatedAt: (json['updatedAt'] ?? 0) as int,
+        updatedBy: (json['updatedBy'] ?? '').toString(),
+        history: (json['history'] as List?) ?? const [],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'categories': categories,
+        'countries': countries,
+        'statuses': statuses,
+        'updatedAt': updatedAt,
         'updatedBy': updatedBy,
         'history': history,
       };

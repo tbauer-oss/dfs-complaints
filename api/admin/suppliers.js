@@ -3,7 +3,16 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
-import { supplierAll, supplierGet, supplierSave, supplierUpdate, supplierDelete } from '../_lib/store.js';
+import {
+  supplierAll,
+  supplierGet,
+  supplierSave,
+  supplierUpdate,
+  supplierDelete,
+  supplierPerformanceAll,
+  supplierEvaluationAll,
+  supplierEscalationAll,
+} from '../_lib/store.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
 
@@ -88,6 +97,14 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const { id } = req.query || {};
       if (!id) return bad(res, 'Lieferanten-ID fehlt.', 400);
+      const [perf, evals, escs] = await Promise.all([
+        supplierPerformanceAll({ supplierId: id }),
+        supplierEvaluationAll({ supplierId: id }),
+        supplierEscalationAll({ supplierId: id }),
+      ]);
+      if (perf.length || evals.length || escs.length) {
+        return bad(res, 'Lieferant kann nicht gelöscht werden, da bereits Bewertungen/Eskalationen existieren.', 409);
+      }
       await supplierDelete(id);
       return ok(res, { ok: true });
     }

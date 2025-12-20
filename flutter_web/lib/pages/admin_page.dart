@@ -10170,6 +10170,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           api: widget.api,
           canWrite: _canWriteTile('supplierEvaluation'),
           isQm: _portalIsQm || _isSuperuser || _portalRole == 'admin',
+          canManageLookups: _portalIsQm || _isSuperuser || _portalRole == 'admin' || _portalRole == 'ek',
         );
       case AdminView.wikiCategories:
         return AdminWikiCategoriesPage(
