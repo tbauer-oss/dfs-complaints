@@ -47,18 +47,22 @@ class OnboardingTourOverlay extends StatelessWidget {
         : Colors.black.withOpacity(0.48);
     final highlightColor = theme.colorScheme.primary;
     final padding = 16.0;
-    final tooltipWidth = math.min(420.0, math.min(size.width * 0.35, size.width - padding * 2));
-    final tooltipMaxHeight = math.min(420.0, size.height * 0.4);
-    final tooltipLeft = (targetRect.center.dx - tooltipWidth / 2)
-        .clamp(padding, size.width - tooltipWidth - padding)
-        .toDouble();
-    final placeAbove = targetRect.center.dy > size.height * 0.55;
-    final tooltipTop = placeAbove
-        ? null
-        : (targetRect.bottom + 16).clamp(padding, size.height - 180).toDouble();
-    final tooltipBottom = placeAbove
-        ? (size.height - targetRect.top + 16).clamp(padding, size.height - padding).toDouble()
-        : null;
+    final safePadding = MediaQuery.of(context).padding;
+    final tooltipMaxWidth = math.min(520.0, size.width - 24);
+    final tooltipMaxHeight = math.min(320.0, size.height * 0.35);
+    final safeLeft = safePadding.left + padding;
+    final safeRight = size.width - safePadding.right - padding;
+    final safeTop = safePadding.top + padding;
+    final safeBottom = size.height - safePadding.bottom - padding;
+    final horizontalSpace = safeRight - safeLeft;
+    final useCenter = horizontalSpace < tooltipMaxWidth + padding;
+    final minLeft = safeLeft;
+    final maxLeft = math.max(safeLeft, safeRight - tooltipMaxWidth);
+    final tooltipLeft =
+        (useCenter ? (size.width - tooltipMaxWidth) / 2 : safeLeft).clamp(minLeft, maxLeft).toDouble();
+    final needsTopPlacement = (safeBottom - safeTop) < tooltipMaxHeight + padding;
+    final tooltipTop = needsTopPlacement ? safeTop : null;
+    final tooltipBottom = needsTopPlacement ? null : size.height - safeBottom;
 
     final highlightRect = Rect.fromLTWH(
       targetRect.left - 8,
@@ -67,118 +71,158 @@ class OnboardingTourOverlay extends StatelessWidget {
       targetRect.height + 16,
     );
 
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {},
-              child: Container(color: overlayColor),
-            ),
+    return Shortcuts(
+      shortcuts: const {
+        LogicalKeySet(LogicalKeyboardKey.escape): _DismissOnboardingIntent(),
+      },
+      child: Actions(
+        actions: {
+          _DismissOnboardingIntent: CallbackAction<_DismissOnboardingIntent>(
+            onInvoke: (_) {
+              onSkip();
+              return null;
+            },
           ),
-          Positioned(
-            left: highlightRect.left,
-            top: highlightRect.top,
-            width: highlightRect.width,
-            height: highlightRect.height,
-            child: IgnorePointer(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: highlightColor.withOpacity(0.9),
-                    width: 2,
+        },
+        child: Focus(
+          autofocus: true,
+          child: Material(
+            color: Colors.transparent,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(color: overlayColor),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: highlightColor.withOpacity(0.55),
-                      blurRadius: 24,
-                      spreadRadius: 2,
-                    ),
-                  ],
                 ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: tooltipLeft,
-            top: tooltipTop,
-            bottom: tooltipBottom,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: tooltipWidth,
-                maxHeight: tooltipMaxHeight,
-              ),
-              child: Material(
-                elevation: 8,
-                borderRadius: BorderRadius.circular(16),
-                color: theme.colorScheme.surface,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Schritt ${index + 1} von $total',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                Positioned(
+                  left: highlightRect.left,
+                  top: highlightRect.top,
+                  width: highlightRect.width,
+                  height: highlightRect.height,
+                  child: IgnorePointer(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: highlightColor.withOpacity(0.9),
+                          width: 2,
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        step.title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: Scrollbar(
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            child: SelectableText(
-                              step.description,
-                              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          TextButton(
-                            onPressed: canGoBack ? onBack : null,
-                            child: const Text('Zurück'),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: onSkipStep,
-                            child: const Text('Überspringen'),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: onSkip,
-                            child: const Text('Tour beenden'),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: onNext,
-                            child: Text(isLast ? 'Fertig' : 'Weiter'),
+                        boxShadow: [
+                          BoxShadow(
+                            color: highlightColor.withOpacity(0.55),
+                            blurRadius: 24,
+                            spreadRadius: 2,
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                Positioned(
+                  left: tooltipLeft,
+                  top: tooltipTop,
+                  bottom: tooltipBottom,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: tooltipMaxWidth,
+                      maxHeight: tooltipMaxHeight,
+                    ),
+                    child: Material(
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(16),
+                      color: theme.colorScheme.surface,
+                      child: SizedBox(
+                        width: tooltipMaxWidth,
+                        height: tooltipMaxHeight,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Schritt ${index + 1} von $total',
+                                          style: theme.textTheme.labelMedium?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          step.title,
+                                          style: theme.textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Tour beenden',
+                                    icon: const Icon(Icons.close),
+                                    onPressed: onSkip,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Expanded(
+                                child: Scrollbar(
+                                  thumbVisibility: true,
+                                  child: SingleChildScrollView(
+                                    child: SelectableText(
+                                      step.description,
+                                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Divider(height: 20),
+                              Row(
+                                children: [
+                                  TextButton(
+                                    onPressed: canGoBack ? onBack : null,
+                                    child: const Text('Zurück'),
+                                  ),
+                                  const Spacer(),
+                                  TextButton(
+                                    onPressed: onSkipStep,
+                                    child: const Text('Überspringen'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton(
+                                    onPressed: onSkip,
+                                    child: const Text('Tour beenden'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilledButton(
+                                    onPressed: onNext,
+                                    child: Text(isLast ? 'Fertig' : 'Weiter'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _DismissOnboardingIntent extends Intent {
+  const _DismissOnboardingIntent();
 }
