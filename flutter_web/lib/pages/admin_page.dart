@@ -56,6 +56,11 @@ import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
 
+String _formatError(Object error) {
+  final message = AppErrorMapper.map(error);
+  return message.message.isEmpty ? message.title : '${message.title} ${message.message}'.trim();
+}
+
 // ===================================================================
 // Admin Page – mit Kachel-Menü (wie Kunden-Dashboard)
 // ===================================================================
@@ -1471,11 +1476,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   };
 
   String _langLabel(String code) => deeplLangLabel(code);
-
-  String _formatError(Object error) {
-    final message = AppErrorMapper.map(error);
-    return message.message.isEmpty ? message.title : '${message.title} ${message.message}'.trim();
-  }
 
   String _newsCategoryLabel(String code) {
     final key = code.trim().toLowerCase();
