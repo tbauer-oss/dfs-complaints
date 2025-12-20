@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../api/client.dart';
 import '../models/supplier_evaluation.dart';
 import '../utils/app_error_mapper.dart';
+import '../utils/email_validation.dart';
 
 class SupplierEvaluationPage extends StatefulWidget {
   final ApiClient api;
@@ -36,13 +37,17 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   String? _selectedSupplierId;
   bool _savingSupplier = false;
   bool _formDirty = false;
+  bool _emailTouched = false;
+  bool _emailValidationRequested = false;
 
   final _supplierFormKey = GlobalKey<FormState>();
+  final _emailFieldKey = GlobalKey();
   final _nameCtrl = TextEditingController();
   final _numberCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _contactCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  final _emailFocusNode = FocusNode();
   final _phoneCtrl = TextEditingController();
   final _websiteCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
@@ -62,6 +67,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   @override
   void initState() {
     super.initState();
+    _emailFocusNode.addListener(() {
+      if (!_emailFocusNode.hasFocus && !_emailTouched) {
+        setState(() => _emailTouched = true);
+      }
+    });
     _loadAll();
   }
 
@@ -72,6 +82,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     _addressCtrl.dispose();
     _contactCtrl.dispose();
     _emailCtrl.dispose();
+    _emailFocusNode.dispose();
     _phoneCtrl.dispose();
     _websiteCtrl.dispose();
     _notesCtrl.dispose();
@@ -181,6 +192,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       _category = '';
       _country = '';
       _critical = false;
+      _emailTouched = false;
+      _emailValidationRequested = false;
     });
   }
 
@@ -203,6 +216,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       _category = supplier.category;
       _country = supplier.country;
       _critical = supplier.critical;
+      _emailTouched = false;
+      _emailValidationRequested = false;
     });
   }
 
@@ -217,6 +232,39 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     return true;
   }
 
+  String _normalizedEmail(String value) => normalizeEmail(value);
+
+  bool _isValidEmail(String value) => isValidEmail(value);
+
+  void _onEmailChanged(String value) {
+    final normalized = _normalizedEmail(value);
+    if (normalized != value) {
+      _emailCtrl.value = _emailCtrl.value.copyWith(
+        text: normalized,
+        selection: TextSelection.collapsed(offset: normalized.length),
+      );
+    }
+    setState(() {
+      _emailTouched = true;
+      _formDirty = true;
+    });
+  }
+
+  Future<void> _focusEmailIfInvalid() async {
+    final normalized = _normalizedEmail(_emailCtrl.text);
+    if (normalized.isEmpty || _isValidEmail(normalized)) return;
+    _emailFocusNode.requestFocus();
+    final context = _emailFieldKey.currentContext;
+    if (context != null) {
+      await Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 300),
+        alignment: 0.1,
+      );
+    }
+    _showSnack('Bitte gültige E-Mail eingeben.');
+  }
+
   Supplier? _currentSupplier() {
     if (_selectedSupplierId == null) return null;
     return _suppliers.firstWhere(
@@ -228,7 +276,22 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   Future<void> _saveSupplier() async {
     if (!widget.canWrite) return;
     final form = _supplierFormKey.currentState;
-    if (form == null || !form.validate()) return;
+    setState(() => _emailValidationRequested = true);
+    final normalizedEmail = _normalizedEmail(_emailCtrl.text);
+    if (normalizedEmail != _emailCtrl.text) {
+      _emailCtrl.value = _emailCtrl.value.copyWith(
+        text: normalizedEmail,
+        selection: TextSelection.collapsed(offset: normalizedEmail.length),
+      );
+    }
+    if (form == null || !form.validate()) {
+      await _focusEmailIfInvalid();
+      return;
+    }
+    if (normalizedEmail.isNotEmpty && !_isValidEmail(normalizedEmail)) {
+      await _focusEmailIfInvalid();
+      return;
+    }
     if (!_supplierFormValid()) return;
 
     setState(() => _savingSupplier = true);
@@ -245,7 +308,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       name: _nameCtrl.text.trim(),
       address: _addressCtrl.text.trim(),
       contactName: _contactCtrl.text.trim(),
-      contactEmail: _emailCtrl.text.trim(),
+      contactEmail: normalizedEmail,
       contactPhone: _phoneCtrl.text.trim(),
       website: _websiteCtrl.text.trim(),
       country: _country.trim(),
@@ -1107,15 +1170,18 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
+                  key: _emailFieldKey,
                   controller: _emailCtrl,
                   decoration: const InputDecoration(labelText: 'E-Mail'),
                   keyboardType: TextInputType.emailAddress,
-                  onChanged: (_) => _markSupplierDirty(),
+                  focusNode: _emailFocusNode,
+                  onChanged: _onEmailChanged,
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) return null;
-                    final trimmed = value.trim();
-                    final emailOk = RegExp(r'^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$').hasMatch(trimmed);
-                    return emailOk ? null : 'Ungültige E-Mail';
+                    if (value == null || value.isEmpty) return null;
+                    if (!_emailTouched && !_emailValidationRequested) return null;
+                    final normalized = _normalizedEmail(value);
+                    if (normalized.isEmpty) return null;
+                    return _isValidEmail(normalized) ? null : 'Ungültige E-Mail';
                   },
                 ),
                 const SizedBox(height: 12),
