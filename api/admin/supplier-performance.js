@@ -29,13 +29,13 @@ function validateEntry(record) {
   if (!isFilled(record?.referenceNumber)) return 'Bitte eine Bezugsnummer hinterlegen.';
   const ratings = record?.ratings || {};
   const ratingValues = Object.values(ratings);
-  if (ratingValues.some((value) => value != null && (!Number.isFinite(value) || value < 1 || value > 4))) {
-    return 'Bewertungen müssen zwischen 1 und 4 liegen oder leer bleiben.';
+  if (ratingValues.some((value) => value != null && (!Number.isFinite(value) || value < 1 || value > 6))) {
+    return 'Bewertungen müssen zwischen 1 und 6 liegen oder leer bleiben.';
   }
   return null;
 }
 
-function normalizeRatings(input, ratingSchemaVersion = 2) {
+function normalizeRatings(input, ratingSchemaVersion = 3) {
   const ratings = {
     communication: null,
     quality: null,
@@ -44,29 +44,53 @@ function normalizeRatings(input, ratingSchemaVersion = 2) {
     quantity: null,
     backorders: null,
   };
-  const mapScore = (value) => {
+  const mapLegacyScore = (value, maxValue) => {
     if (!Number.isFinite(value)) return null;
-    if (ratingSchemaVersion < 2) {
+    if (maxValue <= 4) {
+      if (value <= 1) return 1;
+      if (value === 2) return 2;
+      if (value === 3) return 4;
+      return 6;
+    }
+    if (maxValue === 5) {
       if (value <= 1) return 1;
       if (value === 2) return 2;
       if (value === 3) return 3;
-      return 4;
+      if (value === 4) return 5;
+      return 6;
     }
     if (value < 1) return 1;
-    if (value > 4) return 4;
+    if (value > 6) return 6;
     return value;
   };
+  const mapScore = (value, maxValue) => {
+    if (!Number.isFinite(value)) return null;
+    if (ratingSchemaVersion < 3) {
+      return mapLegacyScore(value, maxValue);
+    }
+    if (value < 1) return 1;
+    if (value > 6) return 6;
+    return value;
+  };
+  const rawValues = [];
   if (input && typeof input === 'object') {
     Object.entries(input).forEach(([key, value]) => {
       if (!key) return;
+      if (!(key in ratings)) return;
       if (value == null || value === '') {
         ratings[key] = null;
         return;
       }
       const parsed = Number(value);
-      ratings[key] = mapScore(parsed);
+      if (Number.isFinite(parsed)) rawValues.push(parsed);
+      ratings[key] = parsed;
     });
   }
+  const maxValue = rawValues.length ? Math.max(...rawValues) : 0;
+  Object.keys(ratings).forEach((key) => {
+    if (!Number.isFinite(ratings[key])) return;
+    ratings[key] = mapScore(ratings[key], maxValue);
+  });
   return ratings;
 }
 
@@ -90,7 +114,7 @@ function entryPoints(entry, config) {
     quantity: 0.2,
     backorders: 0.1,
   };
-  const ratings = normalizeRatings(entry?.ratings, entry?.ratingSchemaVersion || 2);
+  const ratings = normalizeRatings(entry?.ratings, entry?.ratingSchemaVersion || 3);
   const communicationNa = entry?.communicationNa === true;
   let total = 0;
   let weightTotal = 0;
@@ -107,7 +131,7 @@ function entryPoints(entry, config) {
   return Number((total / weightTotal).toFixed(2));
 }
 
-function computeStatus(ratings = {}, communicationNa = false, ratingSchemaVersion = 2) {
+function computeStatus(ratings = {}, communicationNa = false, ratingSchemaVersion = 3) {
   const normalized = normalizeRatings(ratings, ratingSchemaVersion);
   const values = Object.entries(normalized).filter(([key, value]) => {
     if (key === 'communication' && communicationNa && value == null) return true;
@@ -192,7 +216,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
-      const ratingSchemaVersion = Number(body?.ratingSchemaVersion || 2);
+      const ratingSchemaVersion = Number(body?.ratingSchemaVersion || 3);
       const communicationNa = body?.communicationNa === true;
       const ratings = normalizeRatings(body.ratings, ratingSchemaVersion);
       const computedScore = entryPoints({ ratings, communicationNa, ratingSchemaVersion }, {});
@@ -200,7 +224,7 @@ export default async function handler(req, res) {
         ...applyReferenceFields(body),
         ratings,
         communicationNa,
-        ratingSchemaVersion: ratingSchemaVersion >= 2 ? 2 : 1,
+        ratingSchemaVersion: ratingSchemaVersion >= 3 ? 3 : ratingSchemaVersion >= 2 ? 2 : 1,
         computedGrade: computedScore,
         computedScore,
         computedAt: computedScore != null ? Date.now() : null,
@@ -244,7 +268,7 @@ export default async function handler(req, res) {
         ...body,
       };
       const withReference = applyReferenceFields(draft);
-      const ratingSchemaVersion = Number(draft?.ratingSchemaVersion || current.ratingSchemaVersion || 2);
+      const ratingSchemaVersion = Number(draft?.ratingSchemaVersion || current.ratingSchemaVersion || 3);
       const communicationNa = draft?.communicationNa === true;
       const nextRatings = normalizeRatings(draft.ratings ?? current.ratings, ratingSchemaVersion);
       const computedScore = entryPoints({ ratings: nextRatings, communicationNa, ratingSchemaVersion }, {});
@@ -252,7 +276,7 @@ export default async function handler(req, res) {
         ...withReference,
         ratings: nextRatings,
         communicationNa,
-        ratingSchemaVersion: ratingSchemaVersion >= 2 ? 2 : 1,
+        ratingSchemaVersion: ratingSchemaVersion >= 3 ? 3 : ratingSchemaVersion >= 2 ? 2 : 1,
         computedGrade: computedScore,
         computedScore,
         computedAt: computedScore != null ? Date.now() : null,

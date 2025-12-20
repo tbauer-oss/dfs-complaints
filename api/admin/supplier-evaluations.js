@@ -26,8 +26,8 @@ const PERFORMANCE_CRITERIA = [
   { key: 'communication', label: 'Zusammenarbeit / Kommunikation', weight: 0.1 },
   { key: 'quality', label: 'Produktqualität', weight: 0.3 },
   { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.15 },
-  { key: 'price', label: 'Preis / Rechnungsstellung', weight: 0.15 },
-  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)', weight: 0.2 },
+  { key: 'price', label: 'Preis (Rechnung korrekt vs. AB/Angebot)', weight: 0.15 },
+  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen', weight: 0.2 },
   { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
 ];
 
@@ -51,16 +51,18 @@ function entryGrade(entry) {
 
 function classify(avg) {
   if (!Number.isFinite(avg)) return '';
-  if (avg <= 1.5) return 'A';
-  if (avg <= 2.0) return 'B';
-  if (avg <= 2.5) return 'C';
-  return 'D';
+  if (avg <= 1.8) return 'A';
+  if (avg <= 2.6) return 'B';
+  if (avg <= 3.4) return 'C';
+  if (avg <= 4.2) return 'D';
+  if (avg <= 5.0) return 'E';
+  return 'F';
 }
 
 function decisionFor(classification) {
-  if (classification === 'A' || classification === 'B') return 'weiterhin zugelassen';
-  if (classification === 'C') return 'in Beobachtung';
-  if (classification === 'D') return 'gesperrt / nicht zugelassen';
+  if (classification === 'A' || classification === 'B' || classification === 'C') return 'weiterhin zugelassen';
+  if (classification === 'D') return 'in Beobachtung';
+  if (classification === 'E' || classification === 'F') return 'gesperrt / nicht zugelassen';
   return '';
 }
 
