@@ -100,8 +100,8 @@ const PERFORMANCE_CRITERIA = [
   { key: 'communication', label: 'Zusammenarbeit / Kommunikation', weight: 0.1 },
   { key: 'quality', label: 'Produktqualität', weight: 0.3 },
   { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.15 },
-  { key: 'price', label: 'Preis / Rechnungsstellung', weight: 0.15 },
-  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)', weight: 0.2 },
+  { key: 'price', label: 'Preis (Rechnung korrekt vs. AB/Angebot)', weight: 0.15 },
+  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen', weight: 0.2 },
   { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
 ];
 
@@ -125,84 +125,119 @@ function entryGrade(entry) {
 
 function classify(avg) {
   if (!Number.isFinite(avg)) return '';
-  if (avg <= 1.5) return 'A';
-  if (avg <= 2.0) return 'B';
-  if (avg <= 2.5) return 'C';
-  return 'D';
+  if (avg <= 1.8) return 'A';
+  if (avg <= 2.6) return 'B';
+  if (avg <= 3.4) return 'C';
+  if (avg <= 4.2) return 'D';
+  if (avg <= 5.0) return 'E';
+  return 'F';
 }
 
 function decisionFor(classification) {
-  if (classification === 'A' || classification === 'B') return 'weiterhin zugelassen';
-  if (classification === 'C') return 'in Beobachtung';
-  if (classification === 'D') return 'gesperrt / nicht zugelassen';
+  if (classification === 'A' || classification === 'B' || classification === 'C') return 'weiterhin zugelassen';
+  if (classification === 'D') return 'in Beobachtung';
+  if (classification === 'E' || classification === 'F') return 'gesperrt / nicht zugelassen';
   return '';
 }
+
+const RATING_SCALE = {
+  DE: [
+    'Note 1 = sehr gut / keine Abweichungen',
+    'Note 2 = gut / geringe Abweichungen',
+    'Note 3 = befriedigend / gelegentliche Abweichungen',
+    'Note 4 = ausreichend / wiederkehrende Abweichungen, spürbarer Aufwand',
+    'Note 5 = mangelhaft / häufige Abweichungen, deutlicher Aufwand/Eskalation',
+    'Note 6 = ungenügend / schwerwiegend, sofortige Maßnahmen erforderlich',
+  ],
+  EN: [
+    'Grade 1 = very good / no deviations',
+    'Grade 2 = good / minor deviations',
+    'Grade 3 = satisfactory / occasional deviations',
+    'Grade 4 = sufficient / recurring deviations, noticeable effort',
+    'Grade 5 = deficient / frequent deviations, clear effort/escalation',
+    'Grade 6 = unsatisfactory / severe, immediate measures required',
+  ],
+};
 
 const RATING_EXPLANATION = {
   DE: [
     {
-      title: 'Kommunikation (Gewichtung 10%)',
+      title: 'Zusammenarbeit / Kommunikation (Gewichtung 10 %)',
       lines: [
         '1: Reagiert zeitnah und zuverlässig ohne Erinnerung (oder N/A bei keiner Anfrage)',
         '2: Reaktion erst nach einmaliger Nachfrage',
         '3: Mehrmalige Nachfragen erforderlich, Verzögerungen beeinträchtigen Abläufe',
-        '4: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
+        '4: Häufig verspätete/unklare Rückmeldungen, merkliche Prozessstörungen',
+        '5: Kommunikation regelmäßig unzureichend, Eskalation intern erforderlich',
+        '6: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
       ],
     },
     {
-      title: 'Produktqualität (Gewichtung 30%)',
+      title: 'Produktqualität (Gewichtung 30 %)',
       lines: [
         '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum',
         '2: Vereinzelte, geringfügige Beanstandungen ohne systematische Ursache',
-        '3: Wiederkehrende Beanstandungen oder relevante Abweichungen mit Aufwand zur Nacharbeit',
-        '4: Häufige oder schwerwiegende Qualitätsmängel, CAPA erforderlich',
+        '3: Wiederkehrende geringere Beanstandungen / moderate Abweichungen mit Nacharbeit',
+        '4: Wiederkehrende relevante Abweichungen, erheblicher Prüf-/Nacharbeitsaufwand',
+        '5: Häufige Qualitätsmängel, formale Eskalation erforderlich',
+        '6: Schwerwiegende/häufige Qualitätsmängel, CAPA zwingend erforderlich',
       ],
     },
     {
-      title: 'Einhaltung der Lieferfrist (Gewichtung 15%)',
+      title: 'Einhaltung der Lieferfrist (Gewichtung 15 %)',
       lines: [
         '1: Liefertermine werden zuverlässig eingehalten',
         '2: Gelegentliche Verzögerungen mit frühzeitiger Information',
-        '3: Wiederholte Lieferverzögerungen mit Auswirkungen auf interne Planung',
-        '4: Regelmäßige oder erhebliche Lieferverzüge ohne angemessene Kommunikation',
+        '3: Wiederholte Verzögerungen, begrenzte Auswirkungen auf Planung',
+        '4: Wiederholte Verzögerungen mit deutlichen Auswirkungen auf interne Planung',
+        '5: Regelmäßige Lieferverzüge, Maßnahmen/Eskalation erforderlich',
+        '6: Erhebliche oder dauerhafte Lieferverzüge ohne angemessene Kommunikation',
       ],
     },
     {
-      title: 'Preis korrekt / Rechnungsstellung (Gewichtung 15%)',
+      title: 'Preis (Rechnung korrekt vs. AB/Angebot) (Gewichtung 15 %)',
       lines: [
         '1: Rechnungen stets korrekt und vertragskonform',
         '2: Einzelne formale Fehler ohne finanzielle Auswirkung',
-        '3: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
-        '4: Häufige oder schwerwiegende Abrechnungsfehler',
+        '3: Gelegentliche Abweichungen, Korrekturaufwand gering',
+        '4: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
+        '5: Häufige Abweichungen, finanzielle/operative Klärung nötig',
+        '6: Schwerwiegende oder wiederholte Abrechnungsfehler, Eskalation erforderlich',
       ],
     },
     {
-      title: 'Fehllieferungen / Falschlieferungen (Gewichtung 20%)',
+      title: 'Fehllieferungen / Falschlieferungen (Gewichtung 20 %)',
       lines: [
         '1: Lieferungen vollständig und korrekt',
         '2: Vereinzelte Abweichungen ohne relevante Auswirkungen',
-        '3: Wiederkehrende Mengen- oder Artikelfehler',
-        '4: Häufige Falschlieferungen oder gravierende Abweichungen',
+        '3: Gelegentliche Mengen-/Artikelfehler mit Korrekturaufwand',
+        '4: Wiederkehrende Mengen- oder Artikelfehler, Prozessaufwand deutlich',
+        '5: Häufige Falschlieferungen / gravierende Abweichungen, Eskalation nötig',
+        '6: Regelmäßig gravierende Falschlieferungen, Versorgung/Produktion gefährdet',
       ],
     },
     {
-      title: 'Nachlieferungen (Gewichtung 10%)',
+      title: 'Nachlieferungen (Gewichtung 10 %)',
       lines: [
         '1: Bestellungen werden vollständig geliefert',
         '2: Gelegentliche Teillieferungen ohne Beeinträchtigung',
-        '3: Regelmäßige Nachlieferungen mit Planungsaufwand',
-        '4: Häufige oder umfangreiche Nachlieferungen',
+        '3: Wiederkehrende Teillieferungen mit moderatem Planungsaufwand',
+        '4: Regelmäßige Nachlieferungen mit spürbarem Planungsaufwand',
+        '5: Häufige oder umfangreiche Nachlieferungen, Eskalation erforderlich',
+        '6: Sehr häufige/umfangreiche Nachlieferungen, erhebliche Beeinträchtigung',
       ],
     },
   ],
   EN: [
     {
-      title: 'Communication (Weighting 10%)',
+      title: 'Collaboration / Communication (Weighting 10%)',
       lines: [
         '1: Responds promptly and reliably without reminder (or N/A if no request occurred)',
         '2: Response only after a single follow-up',
         '3: Multiple follow-ups required; delays affect workflows',
-        '4: No or insufficient responses despite repeated contact attempts',
+        '4: Frequent late/unclear responses, noticeable process disruptions',
+        '5: Communication regularly insufficient; internal escalation required',
+        '6: No or insufficient responses despite repeated contact attempts',
       ],
     },
     {
@@ -210,8 +245,10 @@ const RATING_EXPLANATION = {
       lines: [
         '1: No quality-related complaints in the assessment period',
         '2: Isolated, minor complaints without systematic cause',
-        '3: Recurring complaints or relevant deviations requiring rework',
-        '4: Frequent or severe quality defects; CAPA required',
+        '3: Recurring minor complaints / moderate deviations with rework',
+        '4: Recurring relevant deviations with significant inspection/rework effort',
+        '5: Frequent quality defects; formal escalation required',
+        '6: Severe/frequent quality defects; CAPA mandatory',
       ],
     },
     {
@@ -219,17 +256,21 @@ const RATING_EXPLANATION = {
       lines: [
         '1: Delivery dates are reliably met',
         '2: Occasional delays with early notification',
-        '3: Repeated delivery delays impacting internal planning',
-        '4: Regular or significant delays without adequate communication',
+        '3: Repeated delays with limited impact on planning',
+        '4: Repeated delays with clear impact on internal planning',
+        '5: Regular delivery delays; measures/escalation required',
+        '6: Significant or ongoing delays without adequate communication',
       ],
     },
     {
-      title: 'Price accuracy / invoicing (Weighting 15%)',
+      title: 'Price (invoice vs. order/offer) (Weighting 15%)',
       lines: [
         '1: Invoices always correct and contract-compliant',
         '2: Isolated formal errors without financial impact',
-        '3: Recurring invoice errors requiring correction effort',
-        '4: Frequent or severe billing errors',
+        '3: Occasional deviations; low correction effort',
+        '4: Recurring billing errors with correction effort',
+        '5: Frequent deviations; financial/operational clarification needed',
+        '6: Severe or repeated billing errors; escalation required',
       ],
     },
     {
@@ -237,8 +278,10 @@ const RATING_EXPLANATION = {
       lines: [
         '1: Deliveries complete and correct',
         '2: Isolated deviations without relevant impact',
-        '3: Recurring quantity or item errors',
-        '4: Frequent wrong deliveries or major deviations',
+        '3: Occasional quantity/item errors with correction effort',
+        '4: Recurring quantity or item errors; clear process effort',
+        '5: Frequent wrong deliveries/major deviations; escalation required',
+        '6: Regular severe wrong deliveries; supply/production at risk',
       ],
     },
     {
@@ -246,8 +289,10 @@ const RATING_EXPLANATION = {
       lines: [
         '1: Orders delivered in full',
         '2: Occasional partial deliveries without impact',
-        '3: Regular backorders with planning effort',
-        '4: Frequent or extensive backorders',
+        '3: Recurring partial deliveries with moderate planning effort',
+        '4: Regular backorders with noticeable planning effort',
+        '5: Frequent or extensive backorders; escalation required',
+        '6: Very frequent/extensive backorders; significant impact',
       ],
     },
   ],
@@ -264,9 +309,25 @@ function drawCriteriaOverview(doc, language) {
   doc.moveDown(0.5);
 }
 
-function drawRatingExplanation(doc, language) {
+function drawRatingSystem(doc, language) {
+  const scale = language === 'EN' ? RATING_SCALE.EN : RATING_SCALE.DE;
+  doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Rating system' : 'Bewertungssystem');
+  doc.fontSize(9).fillColor('#333').text(
+    language === 'EN'
+      ? 'Grades: 1 = very good … 6 = unsatisfactory. Lower is better.'
+      : 'Noten: 1=sehr gut … 6=ungenügend. Niedriger ist besser.'
+  );
+  scale.forEach((line) => {
+    doc.fontSize(8).fillColor('#555').text(line);
+  });
+  doc.moveDown(0.5);
+}
+
+function drawCriteriaDefinitions(doc, language) {
   const content = language === 'EN' ? RATING_EXPLANATION.EN : RATING_EXPLANATION.DE;
-  doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Rating scale (1 = very good, 4 = critical)' : 'Notenskala (1 = sehr gut, 4 = kritisch)');
+  doc.fontSize(11).fillColor('#000').text(
+    language === 'EN' ? 'Criteria & grade definitions' : 'Kriterien & Notendefinitionen'
+  );
   content.forEach((section) => {
     doc.fontSize(9).fillColor('#333').text(section.title);
     section.lines.forEach((line) => {
@@ -373,9 +434,9 @@ async function buildInternalPdf({ supplierId, year, actor }) {
   doc.text(`Entscheidung: ${aggregates.decision || '—'}`);
   doc.moveDown();
 
-  doc.fontSize(11).fillColor('#000').text('Bewertungssystem');
+  drawRatingSystem(doc, 'DE');
   drawCriteriaOverview(doc, 'DE');
-  drawRatingExplanation(doc, 'DE');
+  drawCriteriaDefinitions(doc, 'DE');
 
   doc.fontSize(11).fillColor('#000').text('Kriterien (Durchschnitt)');
   aggregates.criterionAverages.forEach((criterion) => {
@@ -469,7 +530,7 @@ async function buildSupplierLetter({ supplierId, year, actor }) {
 
   const decision = aggregates.decision || decisionFor(aggregates.classification);
   const escalationNote =
-    aggregates.classification === 'D'
+    aggregates.classification === 'E' || aggregates.classification === 'F'
       ? language === 'EN'
           ? '\nPlease note: escalation is required for this status.'
           : '\nHinweis: Für diesen Status ist eine Eskalation erforderlich.'
@@ -477,13 +538,13 @@ async function buildSupplierLetter({ supplierId, year, actor }) {
   const avgScore = aggregates.averageGrade ?? '—';
   const bodyTextDe = `Sehr geehrte Damen und Herren,
 
-im Rahmen unserer Lieferantenbewertung für das Jahr ${year || ''} haben wir die Leistung Ihres Unternehmens bewertet. Der Ø-Score beträgt ${avgScore}. Das Ergebnis lautet: ${decision}. Die Bewertung basiert auf sechs Kriterien und einer Notenskala von 1 (sehr gut) bis 4 (kritisch).
+im Rahmen unserer Lieferantenbewertung für das Jahr ${year || ''} haben wir die Leistung Ihres Unternehmens bewertet. Der Ø-Score beträgt ${avgScore}. Das Ergebnis lautet: ${decision}. Die Bewertung basiert auf sechs Kriterien und einer Notenskala von 1 (sehr gut) bis 6 (ungenügend). Niedriger ist besser.
 
 Bitte entnehmen Sie die wesentlichen Kennzahlen der untenstehenden Zusammenfassung. Bei Rückfragen stehen wir gerne zur Verfügung.
 ${escalationNote}`;
   const bodyTextEn = `Dear Supplier,
 
-as part of our supplier evaluation for ${year || ''}, we assessed your overall performance. The average score is ${avgScore}. The result is: ${decision}. The evaluation is based on six criteria and a rating scale from 1 (very good) to 4 (critical).
+as part of our supplier evaluation for ${year || ''}, we assessed your overall performance. The average score is ${avgScore}. The result is: ${decision}. The evaluation is based on six criteria and a rating scale from 1 (very good) to 6 (unsatisfactory). Lower is better.
 
 Please find the key figures in the summary below. If you have questions, feel free to contact us.
 ${escalationNote}`;
@@ -514,8 +575,9 @@ ${escalationNote}`;
   });
   doc.moveDown(6);
 
+  drawRatingSystem(doc, language);
   drawCriteriaOverview(doc, language);
-  drawRatingExplanation(doc, language);
+  drawCriteriaDefinitions(doc, language);
 
   doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Evidence' : 'Nachweise (Evidence)');
   if (!aggregates.evidence.length) {

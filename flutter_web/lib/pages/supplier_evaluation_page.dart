@@ -70,68 +70,83 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     {'key': 'communication', 'label': 'Zusammenarbeit / Kommunikation', 'weight': 0.10, 'allowNa': true},
     {'key': 'quality', 'label': 'Produktqualität', 'weight': 0.30, 'allowNa': false},
     {'key': 'delivery', 'label': 'Einhaltung der Lieferfrist', 'weight': 0.15, 'allowNa': false},
-    {'key': 'price', 'label': 'Preis / Rechnungsstellung', 'weight': 0.15, 'allowNa': false},
-    {
-      'key': 'quantity',
-      'label': 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)',
-      'weight': 0.20,
-      'allowNa': false
-    },
+    {'key': 'price', 'label': 'Preis (Rechnung korrekt vs. AB/Angebot)', 'weight': 0.15, 'allowNa': false},
+    {'key': 'quantity', 'label': 'Fehllieferungen / Falschlieferungen', 'weight': 0.20, 'allowNa': false},
     {'key': 'backorders', 'label': 'Nachlieferungen', 'weight': 0.10, 'allowNa': false},
+  ];
+  static const List<String> _ratingScaleLines = [
+    'Note 1 = sehr gut / keine Abweichungen',
+    'Note 2 = gut / geringe Abweichungen',
+    'Note 3 = befriedigend / gelegentliche Abweichungen',
+    'Note 4 = ausreichend / wiederkehrende Abweichungen, spürbarer Aufwand',
+    'Note 5 = mangelhaft / häufige Abweichungen, deutlicher Aufwand/Eskalation',
+    'Note 6 = ungenügend / schwerwiegend, sofortige Maßnahmen erforderlich',
   ];
   static const List<Map<String, dynamic>> _ratingExplanation = [
     {
-      'title': 'Kommunikation (Gewichtung 10%)',
+      'title': 'Zusammenarbeit / Kommunikation (Gewichtung 10 %)',
       'lines': [
         '1: Reagiert zeitnah und zuverlässig ohne Erinnerung (oder N/A bei keiner Anfrage)',
         '2: Reaktion erst nach einmaliger Nachfrage',
         '3: Mehrmalige Nachfragen erforderlich, Verzögerungen beeinträchtigen Abläufe',
-        '4: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
+        '4: Häufig verspätete/unklare Rückmeldungen, merkliche Prozessstörungen',
+        '5: Kommunikation regelmäßig unzureichend, Eskalation intern erforderlich',
+        '6: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
       ],
     },
     {
-      'title': 'Produktqualität (Gewichtung 30%)',
+      'title': 'Produktqualität (Gewichtung 30 %)',
       'lines': [
         '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum',
         '2: Vereinzelte, geringfügige Beanstandungen ohne systematische Ursache',
-        '3: Wiederkehrende Beanstandungen oder relevante Abweichungen mit Aufwand zur Nacharbeit',
-        '4: Häufige oder schwerwiegende Qualitätsmängel, CAPA erforderlich',
+        '3: Wiederkehrende geringere Beanstandungen / moderate Abweichungen mit Nacharbeit',
+        '4: Wiederkehrende relevante Abweichungen, erheblicher Prüf-/Nacharbeitsaufwand',
+        '5: Häufige Qualitätsmängel, formale Eskalation erforderlich',
+        '6: Schwerwiegende/häufige Qualitätsmängel, CAPA zwingend erforderlich',
       ],
     },
     {
-      'title': 'Einhaltung der Lieferfrist (Gewichtung 15%)',
+      'title': 'Einhaltung der Lieferfrist (Gewichtung 15 %)',
       'lines': [
         '1: Liefertermine werden zuverlässig eingehalten',
         '2: Gelegentliche Verzögerungen mit frühzeitiger Information',
-        '3: Wiederholte Lieferverzögerungen mit Auswirkungen auf interne Planung',
-        '4: Regelmäßige oder erhebliche Lieferverzüge ohne angemessene Kommunikation',
+        '3: Wiederholte Verzögerungen, begrenzte Auswirkungen auf Planung',
+        '4: Wiederholte Verzögerungen mit deutlichen Auswirkungen auf interne Planung',
+        '5: Regelmäßige Lieferverzüge, Maßnahmen/Eskalation erforderlich',
+        '6: Erhebliche oder dauerhafte Lieferverzüge ohne angemessene Kommunikation',
       ],
     },
     {
-      'title': 'Preis korrekt / Rechnungsstellung (Gewichtung 15%)',
+      'title': 'Preis (Rechnung korrekt vs. AB/Angebot) (Gewichtung 15 %)',
       'lines': [
         '1: Rechnungen stets korrekt und vertragskonform',
         '2: Einzelne formale Fehler ohne finanzielle Auswirkung',
-        '3: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
-        '4: Häufige oder schwerwiegende Abrechnungsfehler',
+        '3: Gelegentliche Abweichungen, Korrekturaufwand gering',
+        '4: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
+        '5: Häufige Abweichungen, finanzielle/operative Klärung nötig',
+        '6: Schwerwiegende oder wiederholte Abrechnungsfehler, Eskalation erforderlich',
       ],
     },
     {
-      'title': 'Fehllieferungen / Falschlieferungen (Gewichtung 20%)',
+      'title': 'Fehllieferungen / Falschlieferungen (Gewichtung 20 %)',
       'lines': [
         '1: Lieferungen vollständig und korrekt',
         '2: Vereinzelte Abweichungen ohne relevante Auswirkungen',
-        '3: Wiederkehrende Mengen- oder Artikelfehler',
-        '4: Häufige Falschlieferungen oder gravierende Abweichungen',
+        '3: Gelegentliche Mengen-/Artikelfehler mit Korrekturaufwand',
+        '4: Wiederkehrende Mengen- oder Artikelfehler, Prozessaufwand deutlich',
+        '5: Häufige Falschlieferungen / gravierende Abweichungen, Eskalation nötig',
+        '6: Regelmäßig gravierende Falschlieferungen, Versorgung/Produktion gefährdet',
       ],
     },
     {
-      'title': 'Nachlieferungen (Gewichtung 10%)',
+      'title': 'Nachlieferungen (Gewichtung 10 %)',
       'lines': [
         '1: Bestellungen werden vollständig geliefert',
         '2: Gelegentliche Teillieferungen ohne Beeinträchtigung',
-        '3: Regelmäßige Nachlieferungen mit Planungsaufwand',
-        '4: Häufige oder umfangreiche Nachlieferungen',
+        '3: Wiederkehrende Teillieferungen mit moderatem Planungsaufwand',
+        '4: Regelmäßige Nachlieferungen mit spürbarem Planungsaufwand',
+        '5: Häufige oder umfangreiche Nachlieferungen, Eskalation erforderlich',
+        '6: Sehr häufige/umfangreiche Nachlieferungen, erhebliche Beeinträchtigung',
       ],
     },
   ];
@@ -640,6 +655,9 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       case 'C':
         return Colors.orange;
       case 'D':
+        return Colors.deepOrange;
+      case 'E':
+      case 'F':
         return Colors.redAccent;
       default:
         return Colors.grey;
@@ -649,6 +667,30 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   String _referenceLabel(String type) => type == 'BESTELLUNG' ? 'Bestellnummer' : 'Lieferscheinnummer';
 
   String _referencePlaceholder(String type) => type == 'BESTELLUNG' ? 'z. B. PO-4711' : 'z. B. LS-2025-12345';
+
+  List<Widget> _buildRatingExplanationWidgets() {
+    final textTheme = Theme.of(context).textTheme;
+    return [
+      Text('Noten: 1=sehr gut … 6=ungenügend. Niedriger ist besser.', style: textTheme.bodySmall),
+      const SizedBox(height: 8),
+      ..._ratingScaleLines.map((line) => Text(line, style: textTheme.bodySmall)),
+      const SizedBox(height: 12),
+      ..._ratingExplanation.map((item) {
+        final lines = (item['lines'] as List<dynamic>).cast<String>();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item['title'] as String, style: textTheme.titleSmall),
+              const SizedBox(height: 4),
+              ...lines.map((line) => Text(line, style: textTheme.bodySmall)),
+            ],
+          ),
+        );
+      }),
+    ];
+  }
 
   Future<void> _showRatingExplanation() async {
     if (!mounted) return;
@@ -665,20 +707,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
               children: [
                 Text('Wie wird bewertet?', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                ..._ratingExplanation.map((item) {
-                  final lines = (item['lines'] as List<dynamic>).cast<String>();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item['title'] as String, style: Theme.of(context).textTheme.titleSmall),
-                        const SizedBox(height: 4),
-                        ...lines.map((line) => Text(line, style: Theme.of(context).textTheme.bodySmall)),
-                      ],
-                    ),
-                  );
-                }),
+                ..._buildRatingExplanationWidgets(),
               ],
             ),
           ),
@@ -751,14 +780,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Sie können Einträge jederzeit nachträglich ergänzen oder korrigieren. Sobald alle Kategorien bewertet sind, wird der Fall automatisch abgeschlossen.',
+                      'Sie können Einträge jederzeit nachträglich ergänzen oder korrigieren. Sobald alle Kriterien bewertet sind, wird der Fall automatisch abgeschlossen.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     if (gradePreview != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Chip(
-                          label: Text('Ø-Score: ${_formatScore(gradePreview)} (niedriger ist besser)'),
+                          label: Text('Ø-Score: ${_formatScore(gradePreview)} (1=best, 6=schlecht)'),
                           backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                         ),
                       ),
@@ -878,7 +907,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                           children: [
                             Row(
                               children: [
-                                Text('Bewertung (alle Kategorien)', style: Theme.of(context).textTheme.titleSmall),
+                                Text('Bewertung (alle Kriterien)', style: Theme.of(context).textTheme.titleSmall),
                                 const SizedBox(width: 6),
                                 IconButton(
                                   icon: const Icon(Icons.info_outline, size: 18),
@@ -900,7 +929,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                                     Wrap(
                                       spacing: 6,
                                       children: [
-                                        for (final value in [1, 2, 3, 4])
+                                        for (final value in [1, 2, 3, 4, 5, 6])
                                           ChoiceChip(
                                             label: Text(value.toString()),
                                             selected: selected == value,
@@ -996,7 +1025,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       referenceNumber: referenceNumber,
       ratings: ratings,
       communicationNa: communicationNa,
-      ratingSchemaVersion: 2,
+      ratingSchemaVersion: 3,
       attachments: entry?.attachments ?? const [],
       includeInAnnual: includeInAnnual,
       status: _computePerformanceStatus(ratings, communicationNa: communicationNa),
@@ -1441,21 +1470,25 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     String classification;
     if (average == null) {
       classification = '';
-    } else if (average <= 1.5) {
+    } else if (average <= 1.80) {
       classification = 'A';
-    } else if (average <= 2.0) {
+    } else if (average <= 2.60) {
       classification = 'B';
-    } else if (average <= 2.5) {
+    } else if (average <= 3.40) {
       classification = 'C';
-    } else {
+    } else if (average <= 4.20) {
       classification = 'D';
+    } else if (average <= 5.00) {
+      classification = 'E';
+    } else {
+      classification = 'F';
     }
     String decision;
-    if (classification == 'A' || classification == 'B') {
+    if (classification == 'A' || classification == 'B' || classification == 'C') {
       decision = 'weiterhin zugelassen';
-    } else if (classification == 'C') {
-      decision = 'in Beobachtung';
     } else if (classification == 'D') {
+      decision = 'in Beobachtung';
+    } else if (classification == 'E' || classification == 'F') {
       decision = 'gesperrt / nicht zugelassen';
     } else {
       decision = '';
@@ -2251,22 +2284,19 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
           elevation: 1,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: ExpansionTile(
-            title: const Text('Bewertungssystem'),
+            title: const Text('Bewertungssystem & Kriterien erklärt'),
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            children: _ratingExplanation.map((item) {
-              final lines = (item['lines'] as List<dynamic>).cast<String>();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item['title'] as String, style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 4),
-                    ...lines.map((line) => Text(line, style: Theme.of(context).textTheme.bodySmall)),
-                  ],
+            children: [
+              SizedBox(
+                height: 320,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _buildRatingExplanationWidgets(),
+                  ),
                 ),
-              );
-            }).toList(),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -2297,7 +2327,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                     Text('Entscheidung: ${decision.isNotEmpty ? decision : '—'}'),
                   ],
                 ),
-                if (classification == 'D')
+                if (classification == 'E' || classification == 'F')
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(

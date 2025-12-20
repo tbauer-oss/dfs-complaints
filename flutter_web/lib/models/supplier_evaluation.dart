@@ -282,15 +282,31 @@ class SupplierPerformanceEntry {
     return int.tryParse(version?.toString() ?? '') ?? 1;
   }
 
-  static int _normalizeRatingValue(int value, int schemaVersion) {
-    if (schemaVersion < 2) {
+  static int _mapLegacyRating(int value, int maxValue) {
+    if (maxValue <= 4) {
+      if (value <= 1) return 1;
+      if (value == 2) return 2;
+      if (value == 3) return 4;
+      return 6;
+    }
+    if (maxValue == 5) {
       if (value <= 1) return 1;
       if (value == 2) return 2;
       if (value == 3) return 3;
-      return 4;
+      if (value == 4) return 5;
+      return 6;
     }
     if (value < 1) return 1;
-    if (value > 4) return 4;
+    if (value > 6) return 6;
+    return value;
+  }
+
+  static int _normalizeRatingValue(int value, int schemaVersion, int maxValue) {
+    if (schemaVersion < 3) {
+      return _mapLegacyRating(value, maxValue);
+    }
+    if (value < 1) return 1;
+    if (value > 6) return 6;
     return value;
   }
 
@@ -305,18 +321,34 @@ class SupplierPerformanceEntry {
       'backorders': null,
     };
     final rawRatings = json['ratings'];
+    final maxRatingValues = <int>[];
     if (rawRatings is Map) {
       rawRatings.forEach((key, value) {
         final parsed = value is int ? value : int.tryParse(value.toString());
-        ratings[key.toString()] = parsed == null ? null : _normalizeRatingValue(parsed, schemaVersion);
+        final normalizedKey = key.toString();
+        if (!ratings.containsKey(normalizedKey)) return;
+        if (parsed != null) {
+          maxRatingValues.add(parsed);
+        }
+        ratings[normalizedKey] = parsed == null ? null : parsed;
       });
     }
+    final legacyRating = int.tryParse(json['rating']?.toString() ?? '');
+    if (legacyRating != null) {
+      maxRatingValues.add(legacyRating);
+    }
+    final maxRating = maxRatingValues.isEmpty ? 0 : maxRatingValues.reduce((a, b) => a > b ? a : b);
+    ratings.updateAll((key, value) {
+      if (value == null) return null;
+      return _normalizeRatingValue(value, schemaVersion, maxRating);
+    });
     if (ratings.values.every((value) => value == null)) {
       final legacyType = _mapLegacyType(json['type']?.toString() ?? '');
-      final legacyRating = int.tryParse(json['rating']?.toString() ?? '');
+      final parsedLegacyRating = int.tryParse(json['rating']?.toString() ?? '');
       if (legacyType.isNotEmpty) {
-        ratings[legacyType] =
-            legacyRating == null ? null : _normalizeRatingValue(legacyRating, schemaVersion);
+        ratings[legacyType] = parsedLegacyRating == null
+            ? null
+            : _normalizeRatingValue(parsedLegacyRating, schemaVersion, parsedLegacyRating);
       }
     }
     return ratings;
