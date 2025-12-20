@@ -2152,17 +2152,27 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Lieferanten-Antwort');
   }
 
-  Future<void> adminDeleteSupplier(String id) async {
+  Future<Supplier?> adminDeleteSupplier(String id) async {
     final path = Uri(path: '/api/admin/suppliers', queryParameters: {'id': id}).toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
     _logSupplierRequest('DELETE', '/api/admin/suppliers', id, r.statusCode);
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['supplier'] is Map ? decoded['supplier'] as Map : null;
+    if (map != null) {
+      return Supplier.fromJson(map.cast<String, dynamic>());
+    }
+    return null;
   }
 
-  Future<List<SupplierPerformanceEntry>> adminSupplierPerformance({String? supplierId}) async {
-    final path = Uri(path: '/api/admin/supplier-performance', queryParameters: supplierId != null ? {'supplierId': supplierId} : {}).toString();
+  Future<List<SupplierPerformanceEntry>> adminSupplierPerformance({String? supplierId, bool includeDeleted = false}) async {
+    final queryParameters = <String, String>{
+      if (supplierId != null) 'supplierId': supplierId,
+      if (includeDeleted) 'includeDeleted': 'true',
+    };
+    final path = Uri(path: '/api/admin/supplier-performance', queryParameters: queryParameters).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2210,12 +2220,12 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Performance-Antwort');
   }
 
-  Future<void> adminDeleteSupplierPerformance(String id, {String? cancelReason}) async {
+  Future<void> adminDeleteSupplierPerformance(String id, {String? deleteReason}) async {
     final path = Uri(path: '/api/admin/supplier-performance', queryParameters: {'id': id}).toString();
     final r = await http.delete(
       _u(path),
       headers: _adminHeaders(auth: true),
-      body: cancelReason != null ? jsonEncode({'cancelReason': cancelReason}) : null,
+      body: deleteReason != null ? jsonEncode({'deleteReason': deleteReason}) : null,
     );
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2366,10 +2376,19 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Konfigurations-Antwort');
   }
 
-  Future<Uint8List> adminSupplierReportPdf({String? supplierId}) async {
+  Future<Uint8List> adminSupplierReportPdf({
+    String? supplierId,
+    int? year,
+    String type = 'internal',
+  }) async {
     final path = Uri(
       path: '/api/admin/supplier-reports',
-      queryParameters: {'format': 'pdf', if (supplierId != null) 'supplierId': supplierId},
+      queryParameters: {
+        'format': 'pdf',
+        if (supplierId != null) 'supplierId': supplierId,
+        if (year != null) 'year': year.toString(),
+        if (type.isNotEmpty) 'type': type,
+      },
     ).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {

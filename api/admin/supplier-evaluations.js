@@ -22,56 +22,92 @@ function isFilled(value) {
   return String(value).trim().length > 0;
 }
 
-function entryPoints(entry, config) {
-  const categories = Array.isArray(config?.categories) ? config.categories : [];
-  const category = categories.find((c) => c.name === entry.type) || categories[0];
-  const scoreMap = category?.scoreMap || {};
-  const numeric = Number(scoreMap[entry.rating]);
-  return Number.isFinite(numeric) ? numeric : null;
+const PERFORMANCE_CRITERIA = [
+  { key: 'communication', label: 'Kommunikation', weight: 0.1 },
+  { key: 'quality', label: 'Produktqualität', weight: 0.4 },
+  { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.2 },
+  { key: 'price', label: 'Preis korrekt', weight: 0.1 },
+  { key: 'quantity', label: 'Richtige Mengen/Produkte', weight: 0.1 },
+  { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
+];
+
+function entryGrade(entry) {
+  const ratings = entry?.ratings || {};
+  const parts = PERFORMANCE_CRITERIA.map(({ key, weight }) => {
+    const value = ratings[key];
+    return Number.isFinite(value) ? value * weight : null;
+  });
+  if (parts.some((value) => value == null)) return null;
+  return Number(parts.reduce((sum, value) => sum + value, 0).toFixed(2));
 }
 
-function computeAggregates(entries, config) {
-  const categories = Array.isArray(config?.categories) ? config.categories : [];
-  const byCategory = new Map();
-  for (const cat of categories) {
-    byCategory.set(cat.name, []);
-  }
-  for (const entry of entries) {
-    const points = entryPoints(entry, config);
-    if (!Number.isFinite(points)) continue;
-    if (!byCategory.has(entry.type)) byCategory.set(entry.type, []);
-    byCategory.get(entry.type).push(points);
-  }
+function classify(avg) {
+  if (!Number.isFinite(avg)) return '';
+  if (avg <= 1.5) return 'A';
+  if (avg <= 2.0) return 'B';
+  if (avg <= 2.5) return 'C';
+  return 'D';
+}
 
-  const categoryScores = {};
-  let totalScore = 0;
-  let weightSum = 0;
-  for (const category of categories) {
-    const points = byCategory.get(category.name) || [];
-    const avg = points.length ? points.reduce((sum, v) => sum + v, 0) / points.length : 0;
-    const weight = Number(category.weight || 0);
-    const weighted = weight > 0 ? avg * (weight / 100) : 0;
-    categoryScores[category.name] = {
-      avgPoints: Number(avg.toFixed(2)),
-      weightedScore: Number(weighted.toFixed(2)),
-      entries: points.length,
+function decisionFor(classification) {
+  if (classification === 'A' || classification === 'B') return 'weiterhin zugelassen';
+  if (classification === 'C') return 'in Beobachtung';
+  if (classification === 'D') return 'gesperrt / nicht zugelassen';
+  return '';
+}
+
+function computeAggregates(entries) {
+  const gradedEntries = entries
+    .map((entry) => ({
+      entry,
+      grade: entry.computedGrade ?? entryGrade(entry),
+    }))
+    .filter((item) => Number.isFinite(item.grade));
+
+  const avgGrade = gradedEntries.length
+    ? gradedEntries.reduce((sum, item) => sum + item.grade, 0) / gradedEntries.length
+    : null;
+  const classification = classify(avgGrade);
+  const decision = decisionFor(classification);
+
+  const criterionAverages = PERFORMANCE_CRITERIA.map((criterion) => {
+    const values = gradedEntries
+      .map((item) => item.entry?.ratings?.[criterion.key])
+      .filter((value) => Number.isFinite(value));
+    const avg = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    return {
+      key: criterion.key,
+      label: criterion.label,
+      weight: criterion.weight,
+      average: avg == null ? null : Number(avg.toFixed(2)),
     };
-    totalScore += weighted;
-    weightSum += weight;
-  }
+  });
 
-  const threshold = Number(config?.thresholds?.red || 0);
-  const negativeEntries = entries.filter((e) => {
-    const points = entryPoints(e, config);
-    return Number.isFinite(points) && threshold > 0 && points <= threshold;
-  }).length;
+  const sortedDrivers = [...criterionAverages]
+    .filter((item) => Number.isFinite(item.average))
+    .sort((a, b) => (b.average ?? 0) - (a.average ?? 0));
+  const topNegativeDrivers = sortedDrivers.slice(0, 2);
+
+  const evidence = entries.map((entry) => ({
+    id: entry.id,
+    date: entry.date,
+    referenceType: entry.referenceType,
+    referenceNumber: entry.referenceNumber,
+    description: entry.description,
+    includeInAnnual: entry.includeInAnnual,
+    status: entry.status,
+    grade: entry.computedGrade ?? entryGrade(entry),
+  }));
 
   return {
     totalEntries: entries.length,
-    negativeEntries,
-    categoryScores,
-    totalScore: Number(totalScore.toFixed(2)),
-    weightSum,
+    gradedEntries: gradedEntries.length,
+    averageGrade: avgGrade == null ? null : Number(avgGrade.toFixed(2)),
+    classification,
+    decision,
+    criterionAverages,
+    topNegativeDrivers,
+    evidence,
   };
 }
 
@@ -111,15 +147,17 @@ export default async function handler(req, res) {
       const config = await supplierEvalConfigGet();
       const entries = await supplierPerformanceAll({ supplierId: body?.supplierId });
       const relevant = entries.filter((e) => {
-        if (!e.includeInAnnual || e.status === 'cancelled') return false;
+        if (!e.includeInAnnual || e.status !== 'ABGESCHLOSSEN') return false;
+        if (e.deletedAt) return false;
         if (body?.periodFrom && e.date < Number(body.periodFrom)) return false;
         if (body?.periodTo && e.date > Number(body.periodTo)) return false;
         return true;
       });
-      const aggregates = computeAggregates(relevant, config);
+      const aggregates = computeAggregates(relevant);
       const payload = {
         ...body,
         aggregates,
+        decision: body?.decision || aggregates.decision,
         configVersion: config.version,
         configSnapshot: {
           version: config.version,
@@ -141,6 +179,7 @@ export default async function handler(req, res) {
         return bad(res, 'Bitte die Freigabe dokumentieren.', 400);
       }
       const saved = await supplierEvaluationSave(payload);
+      console.info('[supplier-evaluations] created', { evaluationId: saved.id, supplierId: saved.supplierId, year: saved.evalYear });
       if (payload.decision && payload.decision.toLowerCase().includes('sperr')) {
         await supplierEscalationSave({
           supplierId: payload.supplierId,

@@ -8,7 +8,6 @@ import {
   supplierPerformanceGet,
   supplierPerformanceSave,
   supplierPerformanceUpdate,
-  supplierPerformanceDelete,
   supplierEvalConfigGet,
   supplierEscalationAll,
   supplierEscalationSave,
@@ -28,15 +27,22 @@ function validateEntry(record) {
   if (!isFilled(record?.description)) return 'Bitte eine Kurzbeschreibung hinterlegen.';
   if (!isFilled(record?.referenceType)) return 'Bitte eine Bezugsart auswählen.';
   if (!isFilled(record?.referenceNumber)) return 'Bitte eine Bezugsnummer hinterlegen.';
+  const ratings = record?.ratings || {};
+  const ratingValues = Object.values(ratings);
+  if (ratingValues.some((value) => value != null && (!Number.isFinite(value) || value < 1 || value > 5))) {
+    return 'Bewertungen müssen zwischen 1 und 5 liegen oder leer bleiben.';
+  }
   return null;
 }
 
 function normalizeRatings(input) {
   const ratings = {
+    communication: null,
     quality: null,
     delivery: null,
-    documentation: null,
-    service: null,
+    price: null,
+    quantity: null,
+    backorders: null,
   };
   if (input && typeof input === 'object') {
     Object.entries(input).forEach(([key, value]) => {
@@ -54,33 +60,37 @@ function normalizeRatings(input) {
 
 function mapCategoryKey(name = '') {
   const value = String(name).toLowerCase();
+  if (value.includes('kommunik')) return 'communication';
   if (value.includes('qualität') || value.includes('qualitaet')) return 'quality';
-  if (value.includes('termin') || value.includes('liefer')) return 'delivery';
-  if (value.includes('dokument')) return 'documentation';
-  if (value.includes('service')) return 'service';
-  return '';
+  if (value.includes('lieferfrist') || value.includes('termin') || value.includes('liefer')) return 'delivery';
+  if (value.includes('preis')) return 'price';
+  if (value.includes('menge') || value.includes('produkt')) return 'quantity';
+  if (value.includes('nachliefer')) return 'backorders';
+  return 'communication';
 }
 
 function entryPoints(entry, config) {
-  const categories = Array.isArray(config?.categories) ? config.categories : [];
+  const weights = {
+    communication: 0.1,
+    quality: 0.4,
+    delivery: 0.2,
+    price: 0.1,
+    quantity: 0.1,
+    backorders: 0.1,
+  };
   const ratings = normalizeRatings(entry?.ratings);
-  const points = categories
-    .map((category) => {
-      const key = mapCategoryKey(category?.name);
-      if (!key || ratings[key] == null) return null;
-      const scoreMap = category?.scoreMap || {};
-      const mapped = Number(scoreMap[String(ratings[key])]);
-      return Number.isFinite(mapped) ? mapped : ratings[key];
-    })
-    .filter((value) => Number.isFinite(value));
-  if (!points.length) return null;
-  return points.reduce((sum, value) => sum + value, 0) / points.length;
+  const points = Object.entries(weights).map(([key, weight]) => {
+    const value = ratings[key];
+    return Number.isFinite(value) ? value * weight : null;
+  });
+  if (points.some((value) => value == null)) return null;
+  return Number(points.reduce((sum, value) => sum + value, 0).toFixed(2));
 }
 
 function computeStatus(ratings = {}) {
   const values = Object.values(normalizeRatings(ratings)).filter((value) => Number.isFinite(value));
   if (values.length === 0) return 'OFFEN';
-  if (values.length === 4) return 'ABGESCHLOSSEN';
+  if (values.length === 6) return 'ABGESCHLOSSEN';
   return 'IN_BEARBEITUNG';
 }
 
@@ -88,8 +98,9 @@ function applyReferenceFields(record = {}) {
   const reference = record.reference && typeof record.reference === 'object' ? record.reference : {};
   return {
     ...record,
-    referenceType: record.referenceType || reference.referenceType || '',
-    referenceNumber: record.referenceNumber || reference.referenceNumber || record.reference || '',
+    referenceType: record.referenceType != null ? record.referenceType : reference.referenceType || '',
+    referenceNumber:
+      record.referenceNumber != null ? record.referenceNumber : reference.referenceNumber || record.reference || '',
   };
 }
 
@@ -145,21 +156,26 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const { id, supplierId } = req.query || {};
+      const includeDeleted = req.query?.includeDeleted === 'true';
       if (id) {
         const entry = await supplierPerformanceGet(id);
         if (!entry) return bad(res, 'Eintrag nicht gefunden.', 404);
         return ok(res, { ok: true, entry });
       }
-      const list = await supplierPerformanceAll({ supplierId });
+      const list = await supplierPerformanceAll({ supplierId, includeDeleted });
       return ok(res, { ok: true, list });
     }
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
+      const ratings = normalizeRatings(body.ratings);
+      const computedGrade = entryPoints({ ratings }, {});
       const payload = {
         ...applyReferenceFields(body),
-        ratings: normalizeRatings(body.ratings),
-        status: computeStatus(body.ratings),
+        ratings,
+        computedGrade,
+        computedAt: computedGrade != null ? Date.now() : null,
+        status: computeStatus(ratings),
         createdAt: body?.createdAt || Date.now(),
         createdBy: actor.email,
         updatedBy: actor.email,
@@ -171,6 +187,7 @@ export default async function handler(req, res) {
       const err = validateEntry(payload);
       if (err) return bad(res, err, 400);
       const saved = await supplierPerformanceSave(payload);
+      console.info('[supplier-performance] created', { entryId: saved.id, supplierId: saved.supplierId });
       await maybeCreateTrendEscalation(saved, actor);
       return ok(res, { ok: true, entry: saved });
     }
@@ -198,10 +215,14 @@ export default async function handler(req, res) {
         ...body,
       };
       const withReference = applyReferenceFields(draft);
+      const nextRatings = normalizeRatings(draft.ratings ?? current.ratings);
+      const computedGrade = entryPoints({ ratings: nextRatings }, {});
       const merged = {
         ...withReference,
-        ratings: normalizeRatings(draft.ratings ?? current.ratings),
-        status: computeStatus(draft.ratings ?? current.ratings),
+        ratings: nextRatings,
+        computedGrade,
+        computedAt: computedGrade != null ? Date.now() : null,
+        status: computeStatus(nextRatings),
         updatedBy: actor.email,
         updatedAt: Date.now(),
         history: [...(current.history || []), historyEntry],
@@ -209,6 +230,7 @@ export default async function handler(req, res) {
       const err = validateEntry(merged);
       if (err) return bad(res, err, 400);
       const saved = await supplierPerformanceUpdate(id, merged);
+      console.info('[supplier-performance] updated', { entryId: saved.id, supplierId: saved.supplierId });
       await maybeCreateTrendEscalation(saved, actor);
       return ok(res, { ok: true, entry: saved });
     }
@@ -218,22 +240,20 @@ export default async function handler(req, res) {
       if (!id) return bad(res, 'Entry-ID fehlt.', 400);
       const current = await supplierPerformanceGet(id);
       if (!current) return bad(res, 'Eintrag nicht gefunden.', 404);
-      if (current.status === 'ABGESCHLOSSEN' || current.status === 'final') {
-        const body = readJson(req) || {};
-        if (!isFilled(body.cancelReason)) {
-          return bad(res, 'Bitte eine Stornierungsbegründung angeben.', 400);
-        }
-        const updated = await supplierPerformanceUpdate(id, {
-          status: 'cancelled',
-          cancelReason: body.cancelReason,
-          updatedBy: actor.email,
-          updatedAt: Date.now(),
-          history: [...(current.history || []), { action: 'cancelled', actor: actor.email, at: Date.now(), note: body.cancelReason }],
-        });
-        return ok(res, { ok: true, entry: updated });
+      const body = readJson(req) || {};
+      if (!isFilled(body.deleteReason)) {
+        return bad(res, 'Bitte eine Löschbegründung angeben.', 400);
       }
-      await supplierPerformanceDelete(id);
-      return ok(res, { ok: true });
+      const updated = await supplierPerformanceUpdate(id, {
+        deletedAt: Date.now(),
+        deletedBy: actor.email,
+        deletedReason: body.deleteReason,
+        updatedBy: actor.email,
+        updatedAt: Date.now(),
+        history: [...(current.history || []), { action: 'deleted', actor: actor.email, at: Date.now(), note: body.deleteReason }],
+      });
+      console.info('[supplier-performance] deleted', { entryId: updated.id, supplierId: updated.supplierId });
+      return ok(res, { ok: true, entry: updated });
     }
 
     return methodNotAllowed(res, req.method, ['GET', 'POST', 'PATCH', 'DELETE']);

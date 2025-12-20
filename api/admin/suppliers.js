@@ -103,7 +103,20 @@ export default async function handler(req, res) {
         supplierEscalationAll({ supplierId: id }),
       ]);
       if (perf.length || evals.length || escs.length) {
-        return bad(res, 'Lieferant kann nicht gelöscht werden, da bereits Bewertungen/Eskalationen existieren.', 409);
+        const body = readJson(req) || {};
+        const archived = await supplierUpdate(id, {
+          status: 'inaktiv',
+          archivedAt: Date.now(),
+          archivedBy: actor.email,
+          archivedReason: String(body?.archivedReason || 'Archiviert durch Löschversuch').trim(),
+          updatedBy: actor.email,
+          updatedAt: Date.now(),
+          history: [
+            ...(Array.isArray(body?.history) ? body.history : []),
+            { action: 'archived', actor: actor.email, at: Date.now(), note: 'Lieferant archiviert (verknüpfte Daten vorhanden)' },
+          ],
+        });
+        return ok(res, { ok: true, supplier: archived, archived: true });
       }
       await supplierDelete(id);
       return ok(res, { ok: true });

@@ -5116,6 +5116,7 @@ function normalizeSupplierStatus(status) {
   if (['zugelassen', 'approved', 'active'].includes(value)) return 'zugelassen';
   if (['gesperrt', 'blocked', 'locked'].includes(value)) return 'gesperrt';
   if (['in bewertung', 'in_bewertung', 'review', 'evaluation'].includes(value)) return 'in bewertung';
+  if (['inaktiv', 'inactive', 'archived'].includes(value)) return 'inaktiv';
   return 'zugelassen';
 }
 
@@ -5135,11 +5136,18 @@ function normalizeSupplierRecord(record = {}) {
   base.country = normalizeString(base.country || '');
   base.category = normalizeString(base.category || base.goodsGroup || '');
   base.critical = base.critical === true || base.critical === 'true' || base.critical === 1;
+  base.correspondenceLanguage = normalizeString(base.correspondenceLanguage || base.language || '').toUpperCase();
+  if (!base.correspondenceLanguage || !['DE', 'EN'].includes(base.correspondenceLanguage)) {
+    base.correspondenceLanguage = 'DE';
+  }
   base.status = normalizeSupplierStatus(base.status);
   base.notes = normalizeString(base.notes || '');
   base.blockedReason = normalizeString(base.blockedReason || '');
   base.blockedAt = normalizeDateValue(base.blockedAt) || null;
   base.blockedBy = normalizeString(base.blockedBy || '');
+  base.archivedAt = normalizeDateValue(base.archivedAt) || null;
+  base.archivedBy = normalizeString(base.archivedBy || '');
+  base.archivedReason = normalizeString(base.archivedReason || '');
   base.createdAt = normalizeDateValue(base.createdAt) || now;
   base.updatedAt = normalizeDateValue(base.updatedAt) || now;
   base.createdBy = normalizeString(base.createdBy || '');
@@ -5152,17 +5160,21 @@ function mapLegacyPerformanceType(type = '') {
   const value = String(type).toLowerCase();
   if (value.includes('qualität') || value.includes('qualitaet')) return 'quality';
   if (value.includes('termin') || value.includes('liefer')) return 'delivery';
-  if (value.includes('dokument')) return 'documentation';
-  if (value.includes('service')) return 'service';
+  if (value.includes('preis')) return 'price';
+  if (value.includes('menge')) return 'quantity';
+  if (value.includes('nachliefer')) return 'backorders';
+  if (value.includes('kommunik') || value.includes('dokument') || value.includes('service')) return 'communication';
   return '';
 }
 
 function normalizePerformanceRatings(ratings, legacyType, legacyRating) {
   const normalized = {
+    communication: null,
     quality: null,
     delivery: null,
-    documentation: null,
-    service: null,
+    price: null,
+    quantity: null,
+    backorders: null,
   };
   if (ratings && typeof ratings === 'object') {
     Object.entries(ratings).forEach(([key, value]) => {
@@ -5183,12 +5195,30 @@ function normalizePerformanceRatings(ratings, legacyType, legacyRating) {
   return normalized;
 }
 
+function computeEntryGrade(ratings = {}) {
+  const weights = {
+    communication: 0.1,
+    quality: 0.4,
+    delivery: 0.2,
+    price: 0.1,
+    quantity: 0.1,
+    backorders: 0.1,
+  };
+  const entries = Object.entries(weights).map(([key, weight]) => {
+    const value = ratings?.[key];
+    return Number.isFinite(value) ? value * weight : null;
+  });
+  if (entries.some((value) => value == null)) return null;
+  const total = entries.reduce((sum, value) => sum + value, 0);
+  return Number(total.toFixed(2));
+}
+
 function computePerformanceStatus(ratings, currentStatus) {
   const status = normalizeString(currentStatus || '');
   if (status.toLowerCase() === 'cancelled') return status;
   const values = Object.values(ratings || {}).filter((value) => Number.isFinite(value));
   if (values.length === 0) return 'OFFEN';
-  if (values.length === 4) return 'ABGESCHLOSSEN';
+  if (values.length === 6) return 'ABGESCHLOSSEN';
   return 'IN_BEARBEITUNG';
 }
 
@@ -5212,6 +5242,13 @@ function normalizePerformanceRecord(record = {}) {
   base.includeInAnnual = base.includeInAnnual !== false;
   base.status = computePerformanceStatus(base.ratings, base.status || 'OFFEN');
   base.cancelReason = normalizeString(base.cancelReason || '');
+  base.deletedAt = normalizeDateValue(base.deletedAt) || null;
+  base.deletedBy = normalizeString(base.deletedBy || '');
+  base.deletedReason = normalizeString(base.deletedReason || '');
+  const computedGrade = Number.isFinite(Number(base.computedGrade)) ? Number(base.computedGrade) : null;
+  const computed = computedGrade != null ? Number(computedGrade.toFixed(2)) : computeEntryGrade(base.ratings);
+  base.computedGrade = computed;
+  base.computedAt = normalizeDateValue(base.computedAt) || (computed != null ? now : null);
   base.createdAt = normalizeDateValue(base.createdAt) || now;
   base.updatedAt = normalizeDateValue(base.updatedAt) || now;
   base.createdBy = normalizeString(base.createdBy || '');
@@ -5236,6 +5273,9 @@ function normalizeSupplierEvaluationRecord(record = {}) {
   base.decision = normalizeString(base.decision || '');
   base.decisionReason = normalizeString(base.decisionReason || '');
   base.status = normalizeString(base.status || 'draft');
+  base.archivedAt = normalizeDateValue(base.archivedAt) || null;
+  base.archivedBy = normalizeString(base.archivedBy || '');
+  base.archivedReason = normalizeString(base.archivedReason || '');
   base.configVersion = Number(base.configVersion || 1);
   base.configSnapshot = base.configSnapshot && typeof base.configSnapshot === 'object' ? base.configSnapshot : {};
   base.createdAt = normalizeDateValue(base.createdAt) || now;
@@ -5278,25 +5318,37 @@ function defaultSupplierEvalConfig() {
     version: 1,
     categories: [
       {
-        name: 'Qualität',
+        name: 'Kommunikation',
+        weight: 10,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+      {
+        name: 'Produktqualität',
         weight: 40,
         scale: ['1', '2', '3', '4', '5'],
         scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
       },
       {
-        name: 'Termintreue',
-        weight: 30,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
-      },
-      {
-        name: 'Dokumentation',
+        name: 'Einhaltung der Lieferfrist',
         weight: 20,
         scale: ['1', '2', '3', '4', '5'],
         scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
       },
       {
-        name: 'Service',
+        name: 'Preis korrekt',
+        weight: 10,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+      {
+        name: 'Richtige Mengen/Produkte',
+        weight: 10,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+      {
+        name: 'Nachlieferungen',
         weight: 10,
         scale: ['1', '2', '3', '4', '5'],
         scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
@@ -5338,7 +5390,7 @@ function defaultSupplierLookups() {
     id: 'default',
     categories: [],
     countries: [],
-    statuses: ['zugelassen', 'in bewertung', 'gesperrt'],
+    statuses: ['zugelassen', 'in bewertung', 'gesperrt', 'inaktiv'],
     updatedAt: Date.now(),
     updatedBy: '',
     history: [],
@@ -5549,6 +5601,7 @@ export async function supplierPerformanceAll(filter = {}) {
   ensureSupplierStores();
   const r = getRedis();
   const filterSupplierId = normalizeString(filter.supplierId || '');
+  const includeDeleted = filter.includeDeleted === true;
   if (r) {
     const ids = await rsmembers(KEY_SUPPLIER_PERF_INDEX, r);
     const list = [];
@@ -5557,13 +5610,15 @@ export async function supplierPerformanceAll(filter = {}) {
       if (!raw || typeof raw !== 'object') continue;
       const normalized = normalizePerformanceRecord({ ...raw, id });
       if (filterSupplierId && normalized.supplierId !== filterSupplierId) continue;
+      if (!includeDeleted && normalized.deletedAt) continue;
       list.push(normalized);
     }
     list.sort((a, b) => (b.date || 0) - (a.date || 0));
     return list;
   }
   const list = Array.from(mem.supplierPerformance.values()).map((p) => normalizePerformanceRecord(p));
-  const filtered = filterSupplierId ? list.filter((p) => p.supplierId === filterSupplierId) : list;
+  const filteredBySupplier = filterSupplierId ? list.filter((p) => p.supplierId === filterSupplierId) : list;
+  const filtered = includeDeleted ? filteredBySupplier : filteredBySupplier.filter((p) => !p.deletedAt);
   filtered.sort((a, b) => (b.date || 0) - (a.date || 0));
   return filtered;
 }
