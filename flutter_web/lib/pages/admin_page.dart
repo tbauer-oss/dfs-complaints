@@ -38,6 +38,7 @@ import '../utils/app_error_mapper.dart';
 import '../widgets/fmea_risk_check_dialog.dart';
 import '../widgets/chat/internal_chat_fab.dart';
 import '../widgets/chat/internal_chat_overview.dart';
+import '../widgets/teams_actions_row.dart';
 import '../widgets/chat/internal_chat_panel.dart';
 import '../widgets/admin/avatar_cropper_dialog.dart';
 import '../widgets/admin/dashboard_onboarding_texts.dart';
@@ -6046,6 +6047,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             Text('Rolle: ${user.role.isEmpty ? '—' : user.role}'),
             const SizedBox(height: 6),
             Text('Status: ${user.portalStatus.isEmpty ? '—' : user.portalStatus}'),
+            const SizedBox(height: 12),
+            TeamsActionsRow(
+              userEmail: user.email,
+              displayName: user.label,
+              contextLabel: 'Mitarbeiterprofil ${user.label}',
+              contextUrl: Uri.base.toString(),
+            ),
           ],
         ),
         actions: [
@@ -12860,6 +12868,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                           icon: Icons.info_outline,
                                           title: 'Abteilungen',
                                           entries: departmentEntries,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        TeamsActionsRow(
+                                          userEmail: u.email,
+                                          displayName: u.displayName,
+                                          contextLabel: 'Mitarbeiterprofil ${u.displayName?.isNotEmpty == true ? u.displayName! : u.email}',
+                                          contextUrl: Uri.base.toString(),
+                                          showLabels: false,
                                         ),
                                         const SizedBox(height: 8),
                                         Wrap(
