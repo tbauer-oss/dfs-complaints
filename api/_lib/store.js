@@ -82,6 +82,7 @@ const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
 const KEY_PORTAL_NEWS = `${P}portal:news`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
+const KEY_CHANGE_COUNTER = (year) => `${P}change:counter:${year}`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -90,6 +91,7 @@ const mem = {
   pending: new Map(),
   complaints: new Map(),
   capaReports: new Map(),
+  changeRecords: new Map(),
   fmeas: new Map(),
   auditors: new Map(),
   auditorIndex: new Set(),
@@ -98,7 +100,7 @@ const mem = {
   auditFindings: new Map(),
   auditActions: new Map(),
   auditAnnualReports: new Map(),
-  counters: { ticket: 1, capa: {} },
+  counters: { ticket: 1, capa: {}, change: {} },
   catalogConfig: {},
   repPushTokens: new Map(),
   adminPushTokens: [],
@@ -3343,6 +3345,167 @@ export async function capaDelete(id) {
   const r = getRedis();
   if (r) await rdel(key); else mem.capaReports.delete(id);
   return true;
+}
+
+const CHANGE_TYPES = new Set(['process', 'document', 'product', 'system', 'other']);
+const CHANGE_PRODUCT_IMPACT = new Set(['none', 'low', 'relevant']);
+const CHANGE_DOC_IMPACT = new Set(['none', 'editorial', 'content']);
+const CHANGE_PROCESS_IMPACT = new Set(['none', 'yes']);
+const CHANGE_REG_IMPACT = new Set(['none', 'yes']);
+const CHANGE_SAFETY = new Set(['none', 'potential']);
+const CHANGE_RISK_DELTA = new Set(['none', 'increased']);
+const CHANGE_FURTHER_ANALYSIS = new Set(['no', 'yes']);
+const CHANGE_DECISIONS = new Set(['approved', 'approvedWithConditions', 'furtherEvaluation']);
+const CHANGE_FOLLOW_UPS = new Set(['prrc', 'fmea', 'capa']);
+const CHANGE_STATUS = new Set(['open', 'inProgress', 'closed']);
+
+function normalizeChangeEnum(value, allowed, fallback) {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return fallback;
+  const lc = raw.toLowerCase();
+  if (allowed.has(lc)) return lc;
+  return fallback;
+}
+
+export async function nextChangeNumber() {
+  const r = getRedis();
+  const year = new Date().getFullYear().toString().slice(-2);
+  const key = KEY_CHANGE_COUNTER(year);
+  if (r) {
+    const n = await withRedisTimeout(r.incr(key), 'change counter');
+    return `DFS-CHG-${year}_${String(n).padStart(4, '0')}`;
+  }
+  const current = mem.counters.change[year] ?? 1;
+  mem.counters.change[year] = current + 1;
+  return `DFS-CHG-${year}_${String(current).padStart(4, '0')}`;
+}
+
+function normalizeChangeRecord(data = {}) {
+  const now = Date.now();
+  const normalized = { ...data };
+  normalized.id = (normalized.id || normalized.changeId || crypto.randomUUID()).toString();
+  normalized.changeId = normalizeString(normalized.changeId || '');
+  if (!normalized.changeId) normalized.changeId = normalized.id.startsWith('DFS-CHG-') ? normalized.id : null;
+  normalized.title = normalizeString(normalized.title || '');
+  normalized.description = normalizeString(normalized.description || '');
+  normalized.justification = normalizeString(normalized.justification || '');
+  normalized.changeType = normalizeChangeEnum(normalized.changeType, CHANGE_TYPES, 'other');
+  normalized.initiator = normalizeString(normalized.initiator || normalized.createdBy || '');
+  normalized.createdAt = normalizeDateValue(normalized.createdAt) || now;
+  normalized.updatedAt = normalizeDateValue(normalized.updatedAt) || now;
+  normalized.affectedDocuments = normalizeArray(normalized.affectedDocuments || [])
+    .map(v => normalizeString(v))
+    .filter(Boolean);
+  normalized.affectedProcesses = normalizeArray(normalized.affectedProcesses || [])
+    .map(v => normalizeString(v))
+    .filter(Boolean);
+  normalized.trigger = normalizeString(normalized.trigger || '');
+
+  normalized.productImpact = normalizeChangeEnum(normalized.productImpact, CHANGE_PRODUCT_IMPACT, 'none');
+  normalized.documentationImpact = normalizeChangeEnum(normalized.documentationImpact, CHANGE_DOC_IMPACT, 'none');
+  normalized.processImpact = normalizeChangeEnum(normalized.processImpact, CHANGE_PROCESS_IMPACT, 'none');
+  normalized.regulatoryImpact = normalizeChangeEnum(normalized.regulatoryImpact, CHANGE_REG_IMPACT, 'none');
+  normalized.safetyRelevance = normalizeChangeEnum(normalized.safetyRelevance, CHANGE_SAFETY, 'none');
+  normalized.riskChange = normalizeChangeEnum(normalized.riskChange, CHANGE_RISK_DELTA, 'none');
+  normalized.furtherAnalysis = normalizeChangeEnum(normalized.furtherAnalysis, CHANGE_FURTHER_ANALYSIS, 'no');
+
+  normalized.decision = normalizeChangeEnum(normalized.decision, CHANGE_DECISIONS, '');
+  normalized.followUps = normalizeArray(normalized.followUps || [])
+    .map(v => normalizeChangeEnum(v, CHANGE_FOLLOW_UPS, ''))
+    .filter(Boolean);
+  normalized.followUpLink = normalizeString(normalized.followUpLink || '');
+  normalized.decisionNote = normalizeString(normalized.decisionNote || '');
+  normalized.decisionBy = normalizeString(normalized.decisionBy || '');
+  normalized.decisionAt = normalizeDateValue(normalized.decisionAt);
+
+  normalized.evaluator = normalizeString(normalized.evaluator || '');
+  normalized.evaluatedAt = normalizeDateValue(normalized.evaluatedAt);
+
+  normalized.implementationOwner = normalizeString(normalized.implementationOwner || '');
+  normalized.plannedDate = normalizeDateValue(normalized.plannedDate);
+  normalized.implementedAt = normalizeDateValue(normalized.implementedAt);
+  normalized.implemented = normalized.implemented === true || normalized.implemented === 'true' || normalized.implemented === 1;
+  normalized.documentsUpdated = normalized.documentsUpdated === true || normalized.documentsUpdated === 'true' || normalized.documentsUpdated === 1;
+  normalized.status = normalizeChangeEnum(normalized.status, CHANGE_STATUS, 'open');
+  normalized.implementationBy = normalizeString(normalized.implementationBy || '');
+
+  normalized.history = normalizeArray(normalized.history || [])
+    .map(h => ({
+      action: normalizeString(h?.action || ''),
+      actor: normalizeString(h?.actor || ''),
+      at: normalizeDateValue(h?.at) || now,
+      note: normalizeString(h?.note || ''),
+      fields: normalizeArray(h?.fields || []).map(v => normalizeString(v)).filter(Boolean),
+    }))
+    .filter(h => h.action);
+
+  return normalized;
+}
+
+function changeKey(id) {
+  return `${P}change:${id}`;
+}
+
+async function changeFindByNumber(changeId) {
+  if (!changeId) return null;
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}change:*`);
+    const vals = await Promise.all(keys.map(k => rget(k)));
+    return vals.find(v => (v?.changeId || '').toString() === changeId) || null;
+  }
+  for (const v of mem.changeRecords.values()) {
+    if ((v?.changeId || '').toString() === changeId) return v;
+  }
+  return null;
+}
+
+export async function changeSave(record = {}) {
+  const data = normalizeChangeRecord(record);
+  const key = changeKey(data.id);
+  const r = getRedis();
+  if (r) await rset(key, data); else mem.changeRecords.set(data.id, data);
+  return data;
+}
+
+export async function changeGet(idOrNumber) {
+  const key = changeKey(idOrNumber);
+  const r = getRedis();
+  if (r) {
+    const direct = await rget(key);
+    if (direct) return normalizeChangeRecord(direct);
+  } else if (mem.changeRecords.has(idOrNumber)) {
+    return normalizeChangeRecord(mem.changeRecords.get(idOrNumber));
+  }
+  const byNumber = await changeFindByNumber(idOrNumber);
+  return byNumber ? normalizeChangeRecord(byNumber) : null;
+}
+
+export async function changeAll() {
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}change:*`);
+    const list = await Promise.all(keys.map(k => rget(k)));
+    return list.map(v => normalizeChangeRecord(v));
+  }
+  return Array.from(mem.changeRecords.values()).map(v => normalizeChangeRecord(v));
+}
+
+export async function changeUpdate(id, patch = {}) {
+  const current = await changeGet(id);
+  if (!current) return null;
+  const updated = normalizeChangeRecord({
+    ...current,
+    ...patch,
+    updatedAt: Date.now(),
+  });
+  return await changeSave(updated);
+}
+
+export async function changeDelete(id) {
+  const key = changeKey(id);
+  const r = getRedis();
+  if (r) await rdel(key); else mem.changeRecords.delete(id);
 }
 
 /* =========================================================

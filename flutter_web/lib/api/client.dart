@@ -15,6 +15,7 @@ import '../models/rep_download_item.dart';
 import '../models/download_category.dart';
 import '../models/admin_rep_summary.dart';
 import '../models/capa_report.dart';
+import '../models/change_management.dart';
 import '../models/portal_user.dart';
 import '../models/fmea.dart';
 import 'config.dart';
@@ -1838,6 +1839,84 @@ class ApiClient {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     return r.bodyBytes;
+  }
+
+  // ---------- Admin: Change Management ----------
+  Future<List<ChangeManagementRecord>> adminChanges() async {
+    final r = await http.get(_u('/api/admin/changes'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['list'] is List
+        ? decoded['list'] as List
+        : decoded is List
+            ? decoded
+            : <dynamic>[];
+    final records = list
+        .whereType<Map>()
+        .map((e) => ChangeManagementRecord.fromJson(e.cast<String, dynamic>()))
+        .toList();
+    records.sort((a, b) => (b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+        .compareTo(a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    return records;
+  }
+
+  Future<Map<String, dynamic>> adminChangeSummary() async {
+    final r = await http.get(_u('/api/admin/changes?summary=1'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map && decoded['summary'] is Map) {
+      return (decoded['summary'] as Map).cast<String, dynamic>();
+    }
+    return const {};
+  }
+
+  Future<ChangeManagementRecord> adminSaveChange(ChangeManagementRecord record) async {
+    final r = await http.post(
+      _u('/api/admin/changes'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(record.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map && decoded['record'] is Map) {
+      return ChangeManagementRecord.fromJson((decoded['record'] as Map).cast<String, dynamic>());
+    }
+    if (decoded is Map) return ChangeManagementRecord.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'invalid response for change save');
+  }
+
+  Future<ChangeManagementRecord> adminUpdateChange(ChangeManagementRecord record) async {
+    final r = await http.patch(
+      _u('/api/admin/changes'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(record.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map && decoded['record'] is Map) {
+      return ChangeManagementRecord.fromJson((decoded['record'] as Map).cast<String, dynamic>());
+    }
+    if (decoded is Map) return ChangeManagementRecord.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'invalid response for change update');
+  }
+
+  Future<void> adminDeleteChange(String id) async {
+    final r = await http.delete(
+      _u('/api/admin/changes'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'id': id}),
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
 
   // ---------- Admin: FMEA (Liste & Risiken) ----------
