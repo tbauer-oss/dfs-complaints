@@ -1,6 +1,7 @@
 // api/admin/push-broadcast.js
 export const config = { runtime: 'nodejs' };
 
+import crypto from 'node:crypto';
 import {
   setCors,
   handlePreflight,
@@ -31,6 +32,20 @@ const LANG_ALIASES = {
   espanol: 'es',
 };
 
+const PUSH_SEND_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error(`${label} timed out after ${ms}ms`);
+      err.code = 'TIMEOUT';
+      reject(err);
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 function normalizeLangValue(value) {
   const raw = (value || '').toString().trim().toLowerCase();
   if (!raw) return null;
@@ -51,6 +66,29 @@ function isPushConfigured() {
   return raw.length > 0;
 }
 
+function tokenHash(token) {
+  return crypto.createHash('sha256').update(token).digest('hex').slice(0, 12);
+}
+
+function isInvalidTokenError(err) {
+  if (!err) return false;
+  const status = err.status || err.statusCode;
+  if (Number(status) === 404 || Number(status) === 410) return true;
+  const code = (err.code || '').toString().toLowerCase();
+  const message = (err.message || err.error || err.detail || err.body || err || '').toString().toLowerCase();
+  const haystack = `${code} ${message}`;
+  return (
+    haystack.includes('notregistered') ||
+    haystack.includes('invalidregistration') ||
+    haystack.includes('registration-token-not-registered') ||
+    haystack.includes('invalid-registration-token') ||
+    haystack.includes('invalid-token') ||
+    haystack.includes('expired') ||
+    haystack.includes('unregistered') ||
+    haystack.includes('requested entity was not found')
+  );
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
@@ -62,12 +100,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    const startedAt = Date.now();
     const body = readJson(req);
     const title = (body?.title || '').toString().trim();
     const message = (body?.body || '').toString().trim();
     // Optional: linkUrl (neues Feld), actionUrl (legacy)
     const linkUrl = (body?.linkUrl || body?.actionUrl || '').toString().trim();
     const dryRun = body?.dryRun === true || body?.dryRun === '1';
+    const debug = body?.debug === true;
     const modeRaw = (body?.mode || '').toString().trim().toLowerCase();
     const mode = modeRaw || 'broadcast';
     const targetType = (body?.targetType || '').toString().trim().toLowerCase();
@@ -84,9 +124,11 @@ export default async function handler(req, res) {
       return bad(res, 'title/body required', 400);
     }
 
+    // Token storage keys found: dfs:user:{email}.pushTokens, dfs:rep:{repId}:pushTokens, dfs:admin:pushTokens.
     const tokenByLang = new Map(); // lang -> Set(tokens)
     const tokenOwners = new Map(); // token -> email
     const tokenRepOwners = new Map(); // token -> repId
+    const targetUserIds = new Set();
 
     if (mode !== 'broadcast' && mode !== 'targeted') {
       return bad(res, 'mode invalid', 400);
@@ -109,6 +151,7 @@ export default async function handler(req, res) {
         for (const user of users) {
           const owner = (user?.email || '').toString().toLowerCase();
           if (!owner || !targets.has(owner)) continue;
+          targetUserIds.add(owner);
           const defaultLang = normLang(
             user?.lang ||
             user?.language ||
@@ -136,6 +179,7 @@ export default async function handler(req, res) {
       } else {
         for (const repId of targetIds) {
           const rep = await loadRepById(repId).catch(() => null);
+          if (rep) targetUserIds.add(repId);
           const defaultLang = normLang(rep?.lang || 'en');
           const pushTokens = await repPushTokens(repId);
           for (const entry of pushTokens) {
@@ -169,6 +213,7 @@ export default async function handler(req, res) {
           'en',
         );
         const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
+        if (pushTokens.length > 0 && owner) targetUserIds.add(owner);
         for (const entry of pushTokens) {
           const tok = (entry?.token || '').toString().trim();
           if (!tok) continue;
@@ -186,13 +231,27 @@ export default async function handler(req, res) {
       totalTokens += set.size;
     }
 
+    const stats = {
+      mode,
+      targetUsers: targetUserIds.size,
+      foundTokens: totalTokens,
+      sentOk: 0,
+      sentFailed: 0,
+      invalidTokensRemoved: 0,
+      durationMs: 0,
+    };
+    const errorsSample = [];
+
     if (totalTokens === 0) {
+      stats.durationMs = Date.now() - startedAt;
       return ok(res, {
         dryRun,
         totalTokens: 0,
         languages: [],
         invalidTokens: 0,
         errors: [],
+        stats,
+        errorsSample,
         timestamp: new Date().toISOString(),
       });
     }
@@ -205,6 +264,7 @@ export default async function handler(req, res) {
 
     // --- 2. Konfiguration prüfen ---
     if (!dryRun && !isPushConfigured()) {
+      stats.durationMs = Date.now() - startedAt;
       return ok(res, {
         dryRun,
         totalTokens,
@@ -218,6 +278,8 @@ export default async function handler(req, res) {
         errors: [
           'Push-Versand ist nicht konfiguriert (Service Account fehlt oder ist ungültig).',
         ],
+        stats,
+        errorsSample,
         timestamp: new Date().toISOString(),
       });
     }
@@ -229,19 +291,44 @@ export default async function handler(req, res) {
 
       if (!dryRun) {
         try {
-          sendResult = await sendPushToTokens(
-            tokens,
-            { title, body: message },
-            {
-              type: 'admin-broadcast',
-              lang,
-              ...(linkUrl ? { actionUrl: linkUrl } : {}),
-            },
+          sendResult = await withTimeout(
+            sendPushToTokens(
+              tokens,
+              { title, body: message },
+              {
+                type: 'admin-broadcast',
+                lang,
+                ...(linkUrl ? { actionUrl: linkUrl } : {}),
+              },
+            ),
+            PUSH_SEND_TIMEOUT_MS,
+            `push send (${lang})`,
           );
+
+          stats.sentOk += Number(sendResult?.successCount || 0);
+          stats.sentFailed += Number(sendResult?.failureCount || 0);
 
           // Invalid Tokens zum Aufräumen merken
           if (Array.isArray(sendResult?.invalidTokens)) {
             sendResult.invalidTokens.forEach((t) => invalidTokens.add(t));
+          }
+          if (Array.isArray(sendResult?.responses)) {
+            sendResult.responses.forEach((entry, idx) => {
+              if (entry?.success) return;
+              const token = tokens[idx];
+              const code = entry?.code || null;
+              const detail = entry?.error || '';
+              if (errorsSample.length < 10) {
+                errorsSample.push({
+                  tokenHash: token ? tokenHash(token) : 'unknown',
+                  code: code || 'send_failed',
+                  detail: detail?.toString() || '',
+                });
+              }
+              if (token && isInvalidTokenError({ code, message: detail })) {
+                invalidTokens.add(token);
+              }
+            });
           }
 
           // Nur echten Fehler loggen, wenn GAR KEIN Token erfolgreich war
@@ -268,6 +355,14 @@ export default async function handler(req, res) {
           }
         } catch (err) {
           errors.push(`Sprache ${lang}: ${err?.message || err}`);
+          stats.sentFailed += tokens.length;
+          if (errorsSample.length < 10) {
+            errorsSample.push({
+              tokenHash: tokens[0] ? tokenHash(tokens[0]) : 'unknown',
+              code: err?.code || 'send_failed',
+              detail: err?.message || String(err),
+            });
+          }
         }
       }
 
@@ -288,7 +383,7 @@ export default async function handler(req, res) {
           const owner = tokenRepOwners.get(badToken);
           if (!owner) continue;
           try {
-            await repPushTokenRemove(owner, badToken);
+            if (await repPushTokenRemove(owner, badToken)) stats.invalidTokensRemoved += 1;
           } catch (err) {
             console.error('[admin/push-broadcast] cleanup failed', err);
           }
@@ -298,7 +393,7 @@ export default async function handler(req, res) {
           const owner = tokenOwners.get(badToken);
           if (!owner) continue;
           try {
-            await pushTokenRemove(owner, badToken);
+            if (await pushTokenRemove(owner, badToken)) stats.invalidTokensRemoved += 1;
           } catch (err) {
             console.error('[admin/push-broadcast] cleanup failed', err);
           }
@@ -306,12 +401,15 @@ export default async function handler(req, res) {
       }
     }
 
+    stats.durationMs = Date.now() - startedAt;
     return ok(res, {
       dryRun,
       totalTokens,
       languages,
       invalidTokens: invalidTokens.size,
       errors,
+      stats,
+      errorsSample: debug ? errorsSample : errorsSample,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
