@@ -11336,7 +11336,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         croppedImage: cropped,
         onProgress: (sent, total) {
           if (!mounted) return;
-          final progress = total > 0 ? (sent / total).clamp(0, 1) : 0.0;
+          final progress = total > 0 ? (sent / total).clamp(0, 1).toDouble() : 0.0;
           setState(() {
             _portalUserAvatarProgress[user.email] = progress;
             _portalUserAvatarStatus[user.email] = 'Upload läuft… ${(progress * 100).toStringAsFixed(0)} %';
@@ -23259,9 +23259,10 @@ class AdminApi {
       if (onProgress != null) {
         final totalBytes = payload == null ? 0 : utf8.encode(payload).length;
         req.upload.onProgress.listen((event) {
-          final total = event.total.toInt();
+          final total = event.total ?? 0;
+          final loaded = event.loaded ?? 0;
           final computedTotal = total > 0 ? total : totalBytes;
-          onProgress(event.loaded.toInt(), computedTotal);
+          onProgress(loaded, computedTotal);
         });
       }
       final completer = Completer<html.HttpRequest>();
