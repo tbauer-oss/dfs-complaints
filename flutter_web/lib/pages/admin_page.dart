@@ -1395,6 +1395,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       allowed.add('capaReports');
       allowed.add('capaDashboard');
     }
+    if (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser) {
+      allowed.add('supplierEvaluation');
+    }
 
     _portalTilePermissions.forEach((tile, perm) {
       final normalized = _normalizeTilePermission(perm);
@@ -6963,7 +6966,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   bool _isViewAllowed(AdminView view) {
     final allowed = _baseViewsForRole(_portalRole);
-    if (!allowed.contains(view)) return false;
+    final isSupplierView = view == AdminView.supplierEvaluation;
+    if (!allowed.contains(view)) {
+      if (!(isSupplierView && (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser))) {
+        return false;
+      }
+    }
 
     final tileId = _viewToTileId(view);
     if (tileId == null) return true;
