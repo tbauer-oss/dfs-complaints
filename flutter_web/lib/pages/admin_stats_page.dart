@@ -30,7 +30,8 @@ class AdminStatsPage extends StatefulWidget {
   State<AdminStatsPage> createState() => _AdminStatsPageState();
 }
 
-class _AdminStatsPageState extends State<AdminStatsPage> {
+class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStateMixin {
+  static const String _globalSearchVisibleKey = 'admin_global_search_visible';
   final _productService = DfsProductService();
   Map<String, dynamic>? _stats;
   bool _loading = true;
@@ -43,6 +44,52 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   Map<String, DfsProduct> _productByArticle = const {};
   Map<String, List<DfsProduct>> _productsByArticleNumber = const {};
   Map<String, DfsProduct> _uniqueProductByArticleNumber = const {};
+  late final AnimationController _globalSearchController;
+  bool _globalSearchVisible = true;
+
+  double get _globalSearchHeight =>
+      GlobalSearchBar.preferredHeight * _globalSearchController.value;
+
+  void _loadGlobalSearchVisibility() {
+    try {
+      final stored = html.window.localStorage[_globalSearchVisibleKey];
+      if (stored != null) _globalSearchVisible = stored != 'false';
+    } catch (_) {}
+  }
+
+  void _setGlobalSearchVisibility(bool isVisible) {
+    if (_globalSearchVisible == isVisible) return;
+    setState(() => _globalSearchVisible = isVisible);
+    try {
+      html.window.localStorage[_globalSearchVisibleKey] = isVisible.toString();
+    } catch (_) {}
+    if (isVisible) {
+      _globalSearchController.forward();
+    } else {
+      _globalSearchController.reverse();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGlobalSearchVisibility();
+    _globalSearchController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      value: _globalSearchVisible ? 1 : 0,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
+    _loadProducts();
+    _loadStats();
+  }
+
+  @override
+  void dispose() {
+    _globalSearchController.dispose();
+    super.dispose();
+  }
 
   AdminView _resolveAdminView(GlobalSearchResult result) {
     if (result.type == GlobalSearchType.file) return AdminView.downloads;
@@ -72,13 +119,6 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   String? _selectedCountry;
   String? _selectedCustomer;
   String? _selectedProductGroup;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProducts();
-    _loadStats();
-  }
 
   Future<void> _loadStats({DateTime? from, DateTime? to}) async {
     final hasOverride = from != null || to != null;
@@ -573,10 +613,20 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final searchToggleLabel =
+        _globalSearchVisible ? 'Suche ausblenden' : 'Suche einblenden';
+    final searchToggleIcon =
+        _globalSearchVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined;
+    final shouldShowSearchBar = _globalSearchVisible || _globalSearchController.value > 0;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Statistik & KPIs'),
         actions: [
+          TextButton.icon(
+            onPressed: () => _setGlobalSearchVisibility(!_globalSearchVisible),
+            icon: Icon(searchToggleIcon),
+            label: Text(searchToggleLabel),
+          ),
           IconButton(
             tooltip: 'Aktualisieren',
             onPressed: _loading ? null : () => _loadStats(),
@@ -585,10 +635,23 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(GlobalSearchBar.preferredHeight),
-          child: GlobalSearchBar(
-            api: widget.api,
-            onNavigate: _handleGlobalSearchNavigate,
+          preferredSize: Size.fromHeight(_globalSearchHeight),
+          child: ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 180),
+                opacity: _globalSearchVisible ? 1 : 0,
+                child: shouldShowSearchBar
+                    ? GlobalSearchBar(
+                        api: widget.api,
+                        onNavigate: _handleGlobalSearchNavigate,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
           ),
         ),
       ),
