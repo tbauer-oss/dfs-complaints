@@ -1939,9 +1939,8 @@ class ApiClient {
 
   Future<void> adminDeleteChange(String id) async {
     final r = await http.delete(
-      _u('/api/admin/changes'),
+      _u('/api/admin/changes?id=$id'),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode({'id': id}),
     );
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
