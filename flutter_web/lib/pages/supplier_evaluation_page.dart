@@ -10,7 +10,14 @@ class SupplierEvaluationPage extends StatefulWidget {
   final ApiClient api;
   final bool canWrite;
   final bool isQm;
-  const SupplierEvaluationPage({super.key, required this.api, required this.canWrite, required this.isQm});
+  final bool canManageLookups;
+  const SupplierEvaluationPage({
+    super.key,
+    required this.api,
+    required this.canWrite,
+    required this.isQm,
+    required this.canManageLookups,
+  });
 
   @override
   State<SupplierEvaluationPage> createState() => _SupplierEvaluationPageState();
@@ -24,14 +31,52 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   List<SupplierAnnualEvaluation> _evaluations = const [];
   List<SupplierEscalation> _escalations = const [];
   SupplierEvaluationConfig? _config;
+  SupplierLookups _supplierLookups = SupplierLookups.empty();
   String? _supplierFilter;
+  String? _selectedSupplierId;
+  bool _savingSupplier = false;
+  bool _formDirty = false;
+
+  final _supplierFormKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _numberCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _contactCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _websiteCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  final _blockedReasonCtrl = TextEditingController();
+
+  String _status = 'zugelassen';
+  String _category = '';
+  String _country = '';
+  bool _critical = false;
 
   final _dateFmt = DateFormat('dd.MM.yyyy');
+  static const String _addLookupValue = '__add__';
+
+  List<String> get _statusOptions =>
+      _supplierLookups.statuses.isNotEmpty ? _supplierLookups.statuses : const ['zugelassen', 'in bewertung', 'gesperrt'];
 
   @override
   void initState() {
     super.initState();
     _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _numberCtrl.dispose();
+    _addressCtrl.dispose();
+    _contactCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _websiteCtrl.dispose();
+    _notesCtrl.dispose();
+    _blockedReasonCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -46,6 +91,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         widget.api.adminSupplierEvaluations(),
         widget.api.adminSupplierEscalations(),
         widget.api.adminSupplierEvalConfig(),
+        widget.api.adminSupplierLookups(),
       ]);
       setState(() {
         _suppliers = results[0] as List<Supplier>;
@@ -53,8 +99,24 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         _evaluations = results[2] as List<SupplierAnnualEvaluation>;
         _escalations = results[3] as List<SupplierEscalation>;
         _config = results[4] as SupplierEvaluationConfig;
+        _supplierLookups = results[5] as SupplierLookups;
         _loading = false;
       });
+      if (_selectedSupplierId != null) {
+        final selected = _suppliers.firstWhere(
+          (s) => s.id == _selectedSupplierId,
+          orElse: () => Supplier.fromJson({}),
+        );
+        if (selected.id.isNotEmpty) {
+          _selectSupplier(selected);
+        } else {
+          _startNewSupplier();
+        }
+      } else if (_suppliers.isNotEmpty) {
+        _selectSupplier(_suppliers.first);
+      } else {
+        _startNewSupplier();
+      }
     } catch (err) {
       final mapped = AppErrorMapper.map(err);
       setState(() {
@@ -102,49 +164,288 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     return supplier.name.isNotEmpty ? supplier.name : id;
   }
 
-  Future<void> _createSupplier() async {
-    final nameCtrl = TextEditingController();
-    final numberCtrl = TextEditingController();
-    final categoryCtrl = TextEditingController();
-    final contactCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    String status = 'zugelassen';
-    bool critical = false;
+  void _startNewSupplier() {
+    setState(() {
+      _selectedSupplierId = null;
+      _formDirty = false;
+      _nameCtrl.text = '';
+      _numberCtrl.text = '';
+      _addressCtrl.text = '';
+      _contactCtrl.text = '';
+      _emailCtrl.text = '';
+      _phoneCtrl.text = '';
+      _websiteCtrl.text = '';
+      _notesCtrl.text = '';
+      _blockedReasonCtrl.text = '';
+      _status = _statusOptions.contains('zugelassen') ? 'zugelassen' : _statusOptions.first;
+      _category = '';
+      _country = '';
+      _critical = false;
+    });
+  }
 
+  void _selectSupplier(Supplier supplier) {
+    setState(() {
+      _selectedSupplierId = supplier.id;
+      _formDirty = false;
+      _nameCtrl.text = supplier.name;
+      _numberCtrl.text = supplier.supplierNumber;
+      _addressCtrl.text = supplier.address;
+      _contactCtrl.text = supplier.contactName;
+      _emailCtrl.text = supplier.contactEmail;
+      _phoneCtrl.text = supplier.contactPhone;
+      _websiteCtrl.text = supplier.website;
+      _notesCtrl.text = supplier.notes;
+      _blockedReasonCtrl.text = supplier.blockedReason;
+      _status = _statusOptions.contains(supplier.status)
+          ? supplier.status
+          : (_statusOptions.isNotEmpty ? _statusOptions.first : supplier.status);
+      _category = supplier.category;
+      _country = supplier.country;
+      _critical = supplier.critical;
+    });
+  }
+
+  void _markSupplierDirty() {
+    setState(() => _formDirty = true);
+  }
+
+  bool _supplierFormValid() {
+    if (_nameCtrl.text.trim().isEmpty) return false;
+    if (_status.trim().isEmpty) return false;
+    if (_status == 'gesperrt' && _blockedReasonCtrl.text.trim().isEmpty) return false;
+    return true;
+  }
+
+  Supplier? _currentSupplier() {
+    if (_selectedSupplierId == null) return null;
+    return _suppliers.firstWhere(
+      (s) => s.id == _selectedSupplierId,
+      orElse: () => Supplier.fromJson({}),
+    );
+  }
+
+  Future<void> _saveSupplier() async {
+    if (!widget.canWrite) return;
+    final form = _supplierFormKey.currentState;
+    if (form == null || !form.validate()) return;
+    if (!_supplierFormValid()) return;
+
+    setState(() => _savingSupplier = true);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final existing = _currentSupplier();
+    final isEdit = existing != null && existing.id.isNotEmpty;
+    final blockedAt = _status == 'gesperrt'
+        ? (existing?.blockedAt ?? now)
+        : null;
+
+    final payload = Supplier(
+      id: isEdit ? existing!.id : '',
+      supplierNumber: _numberCtrl.text.trim(),
+      name: _nameCtrl.text.trim(),
+      address: _addressCtrl.text.trim(),
+      contactName: _contactCtrl.text.trim(),
+      contactEmail: _emailCtrl.text.trim(),
+      contactPhone: _phoneCtrl.text.trim(),
+      website: _websiteCtrl.text.trim(),
+      country: _country.trim(),
+      category: _category.trim(),
+      critical: _critical,
+      status: _status.trim(),
+      notes: _notesCtrl.text.trim(),
+      blockedReason: _status == 'gesperrt' ? _blockedReasonCtrl.text.trim() : '',
+      blockedAt: blockedAt,
+      blockedBy: existing?.blockedBy ?? '',
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      createdBy: existing?.createdBy ?? '',
+      updatedBy: existing?.updatedBy ?? '',
+      history: existing?.history ?? const [],
+    );
+
+    try {
+      final saved = isEdit
+          ? await widget.api.adminUpdateSupplier(payload)
+          : await widget.api.adminCreateSupplier(payload);
+      setState(() {
+        _suppliers = [
+          saved,
+          ..._suppliers.where((s) => s.id != saved.id),
+        ];
+        _selectedSupplierId = saved.id;
+        _formDirty = false;
+      });
+      _showSnack('Lieferant gespeichert.');
+    } catch (err) {
+      final mapped = AppErrorMapper.map(err);
+      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+    } finally {
+      if (mounted) {
+        setState(() => _savingSupplier = false);
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteSupplier(Supplier supplier) async {
+    if (!widget.canWrite) return;
+    var isDeleting = false;
+    String? dialogError;
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Lieferant löschen?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Dieser Vorgang kann nicht rückgängig gemacht werden.'),
+                  if (dialogError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(dialogError!, style: const TextStyle(color: Colors.redAccent)),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.pop(context, false),
+                  child: const Text('Abbrechen'),
+                ),
+                ElevatedButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () {
+                          setDialogState(() => isDeleting = true);
+                          widget.api.adminDeleteSupplier(supplier.id).then((_) {
+                            Navigator.pop(context, 'deleted');
+                          }).catchError((err) {
+                            if (err is ApiError && (err.status == 409 || err.status == 403)) {
+                              Navigator.pop(context, 'blocked');
+                              return;
+                            }
+                            final mapped = AppErrorMapper.map(err);
+                            setDialogState(() {
+                              dialogError = mapped.message.isEmpty
+                                  ? mapped.title
+                                  : '${mapped.title} ${mapped.message}'.trim();
+                              isDeleting = false;
+                            });
+                          });
+                        },
+                  child: isDeleting
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Löschen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (result == 'deleted') {
+      setState(() {
+        _suppliers = _suppliers.where((s) => s.id != supplier.id).toList();
+        if (_selectedSupplierId == supplier.id) {
+          _selectedSupplierId = null;
+          _startNewSupplier();
+        }
+        if (_supplierFilter == supplier.id) {
+          _supplierFilter = null;
+        }
+      });
+      _showSnack('Lieferant gelöscht.');
+    } else if (result == 'blocked') {
+      // Delete Constraint Handling: verständliche Meldung und Sperr-Alternative.
+      await _offerBlockInstead(supplier);
+    }
+  }
+
+  Future<void> _offerBlockInstead(Supplier supplier) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Lieferant anlegen'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name / Firma *')),
-                TextField(controller: numberCtrl, decoration: const InputDecoration(labelText: 'Lieferanten-Nr.')),
-                TextField(controller: categoryCtrl, decoration: const InputDecoration(labelText: 'Kategorie / Warengruppe')),
-                TextField(controller: contactCtrl, decoration: const InputDecoration(labelText: 'Kontaktname')),
-                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Kontakt E-Mail')),
-                TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'Kontakt Telefon')),
-                DropdownButtonFormField<String>(
-                  value: status,
-                  decoration: const InputDecoration(labelText: 'Status'),
-                  items: const [
-                    DropdownMenuItem(value: 'zugelassen', child: Text('zugelassen')),
-                    DropdownMenuItem(value: 'gesperrt', child: Text('gesperrt')),
-                    DropdownMenuItem(value: 'in bewertung', child: Text('in Bewertung')),
-                  ],
-                  onChanged: (value) => status = value ?? status,
-                ),
-                SwitchListTile.adaptive(
-                  value: critical,
-                  onChanged: (value) => critical = value,
-                  title: const Text('Kritischer Lieferant'),
-                ),
-                TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notizen')),
-              ],
+          title: const Text('Lieferant kann nicht gelöscht werden'),
+          content: const Text(
+            'Lieferant kann nicht gelöscht werden, da bereits Bewertungen/Eskalationen existieren.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('OK')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Stattdessen sperren'),
             ),
+          ],
+        );
+      },
+    );
+    if (result != true) return;
+    await _blockSupplier(supplier);
+  }
+
+  Future<void> _blockSupplier(Supplier supplier) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Lieferant sperren'),
+          content: TextField(
+            controller: reasonCtrl,
+            decoration: const InputDecoration(labelText: 'Sperrgrund *'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sperren')),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    if (reasonCtrl.text.trim().isEmpty) {
+      _showSnack('Bitte einen Sperrgrund angeben.');
+      return;
+    }
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final updated = await widget.api.adminUpdateSupplier(
+        supplier.copyWith(
+          status: 'gesperrt',
+          blockedReason: reasonCtrl.text.trim(),
+          blockedAt: now,
+          updatedAt: now,
+        ),
+      );
+      setState(() {
+        _suppliers = [updated, ..._suppliers.where((s) => s.id != updated.id)];
+        _selectSupplier(updated);
+      });
+      _showSnack('Lieferant gesperrt.');
+    } catch (err) {
+      final mapped = AppErrorMapper.map(err);
+      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+    }
+  }
+
+  Future<void> _addLookupOption({
+    required String label,
+    required String currentValue,
+    required List<String> values,
+    required void Function(String) onSelected,
+    required SupplierLookups Function(String) buildUpdatedLookups,
+  }) async {
+    final ctrl = TextEditingController(text: currentValue);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('$label hinzufügen'),
+          content: TextField(
+            controller: ctrl,
+            decoration: InputDecoration(labelText: '$label *'),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
@@ -153,39 +454,28 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         );
       },
     );
-
-    if (result != true) return;
-    if (nameCtrl.text.trim().isEmpty) {
-      _showSnack('Bitte einen Lieferantennamen angeben.');
+    if (confirmed != true) return;
+    final value = ctrl.text.trim();
+    if (value.isEmpty) {
+      _showSnack('Bitte einen Wert angeben.');
       return;
     }
-
+    if (values.contains(value)) {
+      onSelected(value);
+      _markSupplierDirty();
+      return;
+    }
+    if (!widget.canManageLookups) {
+      _showSnack('Sie haben keine Berechtigung, neue Optionen anzulegen.');
+      return;
+    }
     try {
-      final created = await widget.api.adminCreateSupplier(
-        Supplier(
-          id: '',
-          supplierNumber: numberCtrl.text.trim(),
-          name: nameCtrl.text.trim(),
-          address: '',
-          contactName: contactCtrl.text.trim(),
-          contactEmail: emailCtrl.text.trim(),
-          contactPhone: phoneCtrl.text.trim(),
-          category: categoryCtrl.text.trim(),
-          critical: critical,
-          status: status,
-          notes: notesCtrl.text.trim(),
-          blockedReason: '',
-          blockedAt: null,
-          blockedBy: '',
-          createdAt: DateTime.now().millisecondsSinceEpoch,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-          createdBy: '',
-          updatedBy: '',
-          history: const [],
-        ),
-      );
-      setState(() => _suppliers = [created, ..._suppliers]);
-      _showSnack('Lieferant gespeichert.');
+      final saved = await widget.api.adminUpdateSupplierLookups(buildUpdatedLookups(value));
+      setState(() {
+        _supplierLookups = saved;
+        onSelected(value);
+        _formDirty = true;
+      });
     } catch (err) {
       final mapped = AppErrorMapper.map(err);
       _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
@@ -627,34 +917,439 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     html.Url.revokeObjectUrl(url);
   }
 
+  Widget _buildSectionCard({required String title, required String description, required Widget child}) {
+    return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(description, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupplierListTile(Supplier supplier) {
+    final isSelected = supplier.id == _selectedSupplierId;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      elevation: isSelected ? 2 : 0.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ListTile(
+        selected: isSelected,
+        onTap: () => _selectSupplier(supplier),
+        title: Text(supplier.name),
+        subtitle: Text(
+          '${supplier.status} • ${supplier.category.isEmpty ? 'ohne Kategorie' : supplier.category}',
+        ),
+        trailing: Wrap(
+          spacing: 6,
+          children: [
+            if (supplier.critical)
+              const Icon(Icons.warning_amber_outlined, color: Colors.orange),
+            IconButton(
+              tooltip: 'Bearbeiten',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => _selectSupplier(supplier),
+            ),
+            IconButton(
+              tooltip: 'Löschen',
+              icon: const Icon(Icons.delete_outline),
+              color: Colors.redAccent,
+              onPressed: () => _confirmDeleteSupplier(supplier),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSuppliersTab() {
-    return ListView(
-      children: [
-        if (widget.canWrite)
+    final selected = _currentSupplier();
+    final isEditing = selected != null && selected.id.isNotEmpty;
+    final canSave = widget.canWrite && _supplierFormValid() && !_savingSupplier;
+
+    Widget buildListPane(bool isWide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: ElevatedButton.icon(
-              onPressed: _createSupplier,
-              icon: const Icon(Icons.add_business_outlined),
-              label: const Text('Lieferant anlegen'),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Lieferanten', style: Theme.of(context).textTheme.titleMedium),
+                ),
+                if (widget.canWrite)
+                  ElevatedButton.icon(
+                    onPressed: _startNewSupplier,
+                    icon: const Icon(Icons.add_business_outlined),
+                    label: const Text('Neuer Lieferant'),
+                  ),
+              ],
             ),
           ),
-        if (_suppliers.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('Keine Lieferanten vorhanden.'),
-          ),
-        ..._suppliers.map((s) {
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: ListTile(
-              title: Text(s.name),
-              subtitle: Text('${s.status} • ${s.category.isEmpty ? 'ohne Kategorie' : s.category}'),
-              trailing: s.critical ? const Icon(Icons.warning_amber_outlined, color: Colors.orange) : null,
+          if (_suppliers.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Noch keine Lieferanten angelegt. Jetzt starten…'),
+                      const SizedBox(height: 12),
+                      if (widget.canWrite)
+                        ElevatedButton.icon(
+                          onPressed: _startNewSupplier,
+                          icon: const Icon(Icons.add_outlined),
+                          label: const Text('Lieferant anlegen'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
+          if (_suppliers.isNotEmpty)
+            if (isWide)
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  itemCount: _suppliers.length,
+                  itemBuilder: (context, index) => _buildSupplierListTile(_suppliers[index]),
+                ),
+              )
+            else
+              ListView.builder(
+                padding: const EdgeInsets.only(bottom: 16),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _suppliers.length,
+                itemBuilder: (context, index) => _buildSupplierListTile(_suppliers[index]),
+              ),
+        ],
+      );
+    }
+
+    Widget formContent = Form(
+      key: _supplierFormKey,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  isEditing ? 'Lieferant bearbeiten' : 'Neuen Lieferanten anlegen',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (isEditing)
+                Text(
+                  _selectedSupplierId ?? '',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSectionCard(
+            title: 'Stammdaten',
+            description: 'Basisangaben zur Identifikation und Zuordnung des Lieferanten.',
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Name / Firma *'),
+                  onChanged: (_) => _markSupplierDirty(),
+                  validator: (value) => (value == null || value.trim().isEmpty) ? 'Pflichtfeld' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _numberCtrl,
+                  decoration: const InputDecoration(labelText: 'Lieferanten-Nr.'),
+                  onChanged: (_) => _markSupplierDirty(),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _websiteCtrl,
+                  decoration: const InputDecoration(labelText: 'Website'),
+                  onChanged: (_) => _markSupplierDirty(),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _addressCtrl,
+                  decoration: const InputDecoration(labelText: 'Adresse'),
+                  onChanged: (_) => _markSupplierDirty(),
+                ),
+              ],
+            ),
+          ),
+          _buildSectionCard(
+            title: 'Kontakt',
+            description: 'Ansprechpartner und Kommunikationswege.',
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: _contactCtrl,
+                  decoration: const InputDecoration(labelText: 'Ansprechpartner'),
+                  onChanged: (_) => _markSupplierDirty(),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _emailCtrl,
+                  decoration: const InputDecoration(labelText: 'E-Mail'),
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (_) => _markSupplierDirty(),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) return null;
+                    final trimmed = value.trim();
+                    final emailOk = RegExp(r'^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$').hasMatch(trimmed);
+                    return emailOk ? null : 'Ungültige E-Mail';
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _phoneCtrl,
+                  decoration: const InputDecoration(labelText: 'Telefon'),
+                  onChanged: (_) => _markSupplierDirty(),
+                ),
+              ],
+            ),
+          ),
+          _buildSectionCard(
+            title: 'Klassifizierung & Status',
+            description: 'Bewertung, Status und Risikoeinschätzung des Lieferanten.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: _statusOptions.contains(_status) ? _status : _statusOptions.first,
+                  decoration: const InputDecoration(labelText: 'Status *'),
+                  items: _statusOptions
+                      .map((status) => DropdownMenuItem(value: status, child: Text(status)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _status = value;
+                      _formDirty = true;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _category.isEmpty ? null : _category,
+                  decoration: const InputDecoration(labelText: 'Kategorie / Warengruppe'),
+                  items: [
+                    ..._supplierLookups.categories.map(
+                      (value) => DropdownMenuItem(value: value, child: Text(value)),
+                    ),
+                    if (widget.canManageLookups)
+                      const DropdownMenuItem(
+                        value: _addLookupValue,
+                        child: Text('+ Option hinzufügen…'),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    if (value == _addLookupValue) {
+                      _addLookupOption(
+                        label: 'Kategorie',
+                        currentValue: _category,
+                        values: _supplierLookups.categories,
+                        onSelected: (newValue) => setState(() => _category = newValue),
+                        buildUpdatedLookups: (value) => SupplierLookups(
+                          categories: [..._supplierLookups.categories, value].where((e) => e.isNotEmpty).toList(),
+                          countries: _supplierLookups.countries,
+                          statuses: _supplierLookups.statuses,
+                          updatedAt: _supplierLookups.updatedAt,
+                          updatedBy: _supplierLookups.updatedBy,
+                          history: _supplierLookups.history,
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      _category = value;
+                      _formDirty = true;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _country.isEmpty ? null : _country,
+                  decoration: const InputDecoration(labelText: 'Land'),
+                  items: [
+                    ..._supplierLookups.countries.map(
+                      (value) => DropdownMenuItem(value: value, child: Text(value)),
+                    ),
+                    if (widget.canManageLookups)
+                      const DropdownMenuItem(
+                        value: _addLookupValue,
+                        child: Text('+ Option hinzufügen…'),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    if (value == _addLookupValue) {
+                      _addLookupOption(
+                        label: 'Land',
+                        currentValue: _country,
+                        values: _supplierLookups.countries,
+                        onSelected: (newValue) => setState(() => _country = newValue),
+                        buildUpdatedLookups: (value) => SupplierLookups(
+                          categories: _supplierLookups.categories,
+                          countries: [..._supplierLookups.countries, value].where((e) => e.isNotEmpty).toList(),
+                          statuses: _supplierLookups.statuses,
+                          updatedAt: _supplierLookups.updatedAt,
+                          updatedBy: _supplierLookups.updatedBy,
+                          history: _supplierLookups.history,
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      _country = value;
+                      _formDirty = true;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Switch.adaptive(
+                      value: _critical,
+                      onChanged: (value) {
+                        // Toggle Fix: lokal gebundener State sorgt für sofortige UI-Aktualisierung.
+                        setState(() {
+                          _critical = value;
+                          _formDirty = true;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Kritisch: ${_critical ? 'Ja' : 'Nein'}'),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Kritisch = sicherheitsrelevanter Einfluss / VWB',
+                      child: const Icon(Icons.info_outline, size: 18),
+                    ),
+                  ],
+                ),
+                if (_status == 'gesperrt') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _blockedReasonCtrl,
+                    decoration: const InputDecoration(labelText: 'Sperrgrund *'),
+                    onChanged: (_) => _markSupplierDirty(),
+                    validator: (value) {
+                      if (_status != 'gesperrt') return null;
+                      return (value == null || value.trim().isEmpty) ? 'Pflichtfeld' : null;
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          _buildSectionCard(
+            title: 'Notizen & Anhänge',
+            description: 'Zusätzliche Hinweise oder Dokumente (optional).',
+            child: TextFormField(
+              controller: _notesCtrl,
+              decoration: const InputDecoration(labelText: 'Notizen'),
+              maxLines: 3,
+              onChanged: (_) => _markSupplierDirty(),
+            ),
+          ),
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: canSave ? _saveSupplier : null,
+                child: _savingSupplier
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Speichern'),
+              ),
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: () {
+                  if (isEditing) {
+                    final supplier = _currentSupplier();
+                    if (supplier != null && supplier.id.isNotEmpty) {
+                      _selectSupplier(supplier);
+                    }
+                  } else {
+                    _startNewSupplier();
+                  }
+                },
+                child: const Text('Abbrechen'),
+              ),
+              if (isEditing && _formDirty) ...[
+                const SizedBox(width: 12),
+                OutlinedButton(
+                  onPressed: () {
+                    final supplier = _currentSupplier();
+                    if (supplier != null && supplier.id.isNotEmpty) {
+                      _selectSupplier(supplier);
+                    }
+                  },
+                  child: const Text('Änderungen verwerfen'),
+                ),
+              ],
+              const Spacer(),
+              if (isEditing)
+                TextButton.icon(
+                  onPressed: () => _confirmDeleteSupplier(selected!),
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  label: const Text('Löschen'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 1050;
+        if (isWide) {
+          return Row(
+            children: [
+              Expanded(flex: 4, child: buildListPane(true)),
+              const VerticalDivider(width: 1),
+              Expanded(
+                flex: 6,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: formContent,
+                ),
+              ),
+            ],
           );
-        }),
-      ],
+        }
+        return ListView(
+          children: [
+            buildListPane(false),
+            const Divider(),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: formContent,
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
     );
   }
 

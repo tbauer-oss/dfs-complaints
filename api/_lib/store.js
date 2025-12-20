@@ -124,6 +124,7 @@ const mem = {
   supplierEscalations: new Map(),
   supplierEscalationIndex: new Set(),
   supplierEvalConfig: null,
+  supplierLookups: null,
 };
 
 export function normalizeTilePermission(value) {
@@ -5096,10 +5097,12 @@ const KEY_SUPPLIER_EVAL = (id) => `${P}supplierEval:${id}`;
 const KEY_SUPPLIER_ESC_INDEX = `${P}supplierEsc:index`;
 const KEY_SUPPLIER_ESC = (id) => `${P}supplierEsc:${id}`;
 const KEY_SUPPLIER_EVAL_CONFIG = `${P}supplierEvalConfig:default`;
+const KEY_SUPPLIER_LOOKUPS = `${P}supplierLookups:default`;
 
 function ensureSupplierStores() {
   if (!mem.suppliers) mem.suppliers = new Map();
   if (!mem.supplierIndex) mem.supplierIndex = new Set();
+  if (!mem.supplierLookups) mem.supplierLookups = null;
   if (!mem.supplierPerformance) mem.supplierPerformance = new Map();
   if (!mem.supplierPerformanceIndex) mem.supplierPerformanceIndex = new Set();
   if (!mem.supplierEvaluations) mem.supplierEvaluations = new Map();
@@ -5128,6 +5131,8 @@ function normalizeSupplierRecord(record = {}) {
   base.contactName = normalizeString(base.contactName || base.contact || '');
   base.contactEmail = normalizeString(base.contactEmail || '');
   base.contactPhone = normalizeString(base.contactPhone || '');
+  base.website = normalizeString(base.website || '');
+  base.country = normalizeString(base.country || '');
   base.category = normalizeString(base.category || base.goodsGroup || '');
   base.critical = base.critical === true || base.critical === 'true' || base.critical === 1;
   base.status = normalizeSupplierStatus(base.status);
@@ -5278,6 +5283,35 @@ function defaultSupplierEvalConfig() {
     updatedBy: '',
     history: [],
   };
+}
+
+function defaultSupplierLookups() {
+  return {
+    id: 'default',
+    categories: [],
+    countries: [],
+    statuses: ['zugelassen', 'in bewertung', 'gesperrt'],
+    updatedAt: Date.now(),
+    updatedBy: '',
+    history: [],
+  };
+}
+
+function normalizeSupplierLookups(lookups = {}) {
+  const base = lookups && typeof lookups === 'object' ? { ...lookups } : {};
+  const defaults = defaultSupplierLookups();
+  const merged = {
+    ...defaults,
+    ...base,
+  };
+  merged.id = 'default';
+  merged.categories = normalizeArray(merged.categories).map((e) => normalizeString(e)).filter(Boolean);
+  merged.countries = normalizeArray(merged.countries).map((e) => normalizeString(e)).filter(Boolean);
+  merged.statuses = defaults.statuses;
+  merged.updatedAt = normalizeDateValue(merged.updatedAt) || Date.now();
+  merged.updatedBy = normalizeString(merged.updatedBy || '');
+  merged.history = Array.isArray(merged.history) ? merged.history : [];
+  return merged;
 }
 
 function normalizeSupplierEvalConfig(config = {}) {
@@ -5688,6 +5722,38 @@ export async function supplierEvalConfigSave(input = {}, { updatedBy = '' } = {}
   const r = getRedis();
   if (r) {
     await rset(KEY_SUPPLIER_EVAL_CONFIG, merged, r);
+  }
+  return merged;
+}
+
+export async function supplierLookupsGet() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_SUPPLIER_LOOKUPS, r);
+    if (raw && typeof raw === 'object') return normalizeSupplierLookups(raw);
+  }
+  if (mem.supplierLookups) return normalizeSupplierLookups(mem.supplierLookups);
+  const fallback = normalizeSupplierLookups({});
+  mem.supplierLookups = fallback;
+  return fallback;
+}
+
+export async function supplierLookupsSave(input = {}, { updatedBy = '' } = {}) {
+  const current = await supplierLookupsGet();
+  const merged = normalizeSupplierLookups({
+    ...current,
+    ...input,
+    updatedAt: Date.now(),
+    updatedBy,
+    history: [
+      ...(current.history || []),
+      { updatedAt: current.updatedAt, updatedBy: current.updatedBy, snapshot: current },
+    ],
+  });
+  mem.supplierLookups = merged;
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER_LOOKUPS, merged, r);
   }
   return merged;
 }
