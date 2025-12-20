@@ -1571,6 +1571,40 @@ class ApiClient {
         .toList(growable: false);
   }
 
+  Future<List<CustomerNewsEntry>> adminFetchCustomerNewsEntries() async {
+    final r = await http.get(_u('/api/admin/news'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final txt = r.body.trim();
+    dynamic data = txt.isEmpty ? const {} : jsonDecode(txt);
+    if (data is Map && data['items'] is List) {
+      data = data['items'];
+    }
+    final list = data is List ? data : const [];
+    return list
+        .whereType<Map>()
+        .map((e) => CustomerNewsEntry.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<List<CustomerNewsEntry>> adminFetchPortalNewsEntries() async {
+    final r = await http.get(_u('/api/portal/admin/news'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final txt = r.body.trim();
+    dynamic data = txt.isEmpty ? const {} : jsonDecode(txt);
+    if (data is Map && data['items'] is List) {
+      data = data['items'];
+    }
+    final list = data is List ? data : const [];
+    return list
+        .whereType<Map>()
+        .map((e) => CustomerNewsEntry.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
   Future<RepDownloadItem> adminSaveDownload({
     String? id,
     required String title,

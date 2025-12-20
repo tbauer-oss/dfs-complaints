@@ -20,6 +20,9 @@ import '../models/customer_news_entry.dart';
 import '../models/dfs_product.dart';
 import '../models/faq.dart';
 import '../models/portal_user.dart' show PortalUserSummary;
+import '../models/rep_download_item.dart';
+import '../models/wiki_article.dart';
+import '../models/global_search.dart';
 import '../data/knowledge_base_data.dart';
 import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
@@ -34,6 +37,7 @@ import '../widgets/chat/internal_chat_fab.dart';
 import '../widgets/chat/internal_chat_overview.dart';
 import '../widgets/chat/internal_chat_panel.dart';
 import '../widgets/admin/avatar_cropper_dialog.dart';
+import '../widgets/admin/global_search_bar.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
@@ -5410,7 +5414,7 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Future<void> _openInternalChat() async {
+  Future<void> _openInternalChat({String? conversationId}) async {
     await _ensureChatAvatarMap();
     // Hinweis: Für Flutter Web mit aktivem Service Worker kann ein Hard Refresh nötig sein,
     // damit neue UI-Anpassungen direkt sichtbar werden.
@@ -5421,6 +5425,7 @@ class _AdminPageState extends State<AdminPage> {
       barrierDismissible: true,
       builder: (ctx) {
         ChatConversationSummary? selected;
+        var pendingConversationId = conversationId;
         return StatefulBuilder(
           builder: (context, setModalState) {
             final mediaQuery = MediaQuery.of(context);
@@ -5444,9 +5449,19 @@ class _AdminPageState extends State<AdminPage> {
                     child: InternalChatOverview(
                       chatService: _chatService,
                       currentUserId: _portalChatId,
-                      onConversationsLoaded: _handleConversationsSnapshot,
                       conversationListNotifier: _conversationListNotifier,
                       showHeaderActions: selected == null,
+                      onConversationsLoaded: (conversations) {
+                        _handleConversationsSnapshot(conversations);
+                        if (pendingConversationId == null) return;
+                        final match = conversations.firstWhereOrNull(
+                          (conv) => conv.conversationId == pendingConversationId,
+                        );
+                        if (match != null) {
+                          setModalState(() => selected = match);
+                          pendingConversationId = null;
+                        }
+                      },
                       onConversationDeleted: (deletedId) {
                         if (selected?.conversationId == deletedId) {
                           setModalState(() => selected = null);
@@ -5631,6 +5646,100 @@ class _AdminPageState extends State<AdminPage> {
         );
       },
     );
+  }
+
+  Future<void> _showWikiArticlePreview(WikiArticle article) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(article.title),
+        content: SizedBox(
+          width: 720,
+          child: SingleChildScrollView(
+            child: MarkdownBody(
+              data: article.contentMarkdown.isNotEmpty ? article.contentMarkdown : article.teaser,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _view = AdminView.wikiArticles);
+            },
+            child: const Text('Zur Wiki-Verwaltung'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPortalUserPreview(PortalUserSummary user) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(user.label),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('E-Mail: ${user.email}'),
+            const SizedBox(height: 6),
+            Text('Rolle: ${user.role.isEmpty ? '—' : user.role}'),
+            const SizedBox(height: 6),
+            Text('Status: ${user.portalStatus.isEmpty ? '—' : user.portalStatus}'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _view = AdminView.portalUsers);
+            },
+            child: const Text('Zur Nutzerverwaltung'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleGlobalSearchNavigate(GlobalSearchResult result) async {
+    if (result.type == GlobalSearchType.message && result.routeTarget.startsWith('chat:')) {
+      final convId = result.routeTarget.replaceFirst('chat:', '');
+      await _openInternalChat(conversationId: convId);
+      return;
+    }
+
+    if (result.type == GlobalSearchType.file && result.payload is RepDownloadItem) {
+      final item = result.payload as RepDownloadItem;
+      if (item.downloadUrl.isNotEmpty) {
+        html.window.open(item.downloadUrl, '_blank');
+      }
+      setState(() => _view = AdminView.downloads);
+      return;
+    }
+
+    if (result.type == GlobalSearchType.content && result.payload is WikiArticle) {
+      await _showWikiArticlePreview(result.payload as WikiArticle);
+      return;
+    }
+
+    if (result.type == GlobalSearchType.content && result.payload is CustomerNewsEntry) {
+      final entry = result.payload as CustomerNewsEntry;
+      setState(() {
+        _newsScope = result.routeTarget.contains('portal') ? 'portal' : 'customer';
+        _view = AdminView.news;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openNewsEditor(entry: entry));
+      return;
+    }
+
+    if (result.type == GlobalSearchType.user && result.payload is PortalUserSummary) {
+      await _showPortalUserPreview(result.payload as PortalUserSummary);
+      return;
+    }
   }
   PreferredSizeWidget _buildTopBar(String title, {required bool isNarrow}) {
     final theme = Theme.of(context);
@@ -5844,6 +5953,15 @@ class _AdminPageState extends State<AdminPage> {
         ),
         const SizedBox(width: 6),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(GlobalSearchBar.preferredHeight),
+        child: GlobalSearchBar(
+          api: widget.api,
+          chatService: _chatService,
+          currentUserId: _portalChatId,
+          onNavigate: _handleGlobalSearchNavigate,
+        ),
+      ),
     );
   }
 
