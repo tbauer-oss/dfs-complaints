@@ -857,6 +857,18 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
   }
 
+  OnboardingTourStep? _buildNavigationOnboardingStep() {
+    final targetKeys = [_onboardingNavKey, _onboardingDrawerKey];
+    final hasTarget = targetKeys.any((key) => _rectForKey(key, requireVisible: false) != null);
+    if (!hasTarget) return null;
+    return OnboardingTourStep(
+      title: 'Navigation & Sidebar',
+      description:
+          'Über die Sidebar wechseln Sie zwischen den Bereichen des Admin-Dashboards und sehen, welche Module für Sie freigeschaltet sind. Nutzen Sie sie, um schnell zu Reklamationen, Auswertungen oder Systemeinstellungen zu springen. Die Navigation hält Ihren Arbeitsfluss konsistent, egal ob Sie am großen Bildschirm oder mobil arbeiten.',
+      targetKeys: targetKeys,
+    );
+  }
+
   List<OnboardingTourStep> _buildOnboardingSteps() {
     final orderedEntries = <_OnboardingTileEntry>[];
     final seen = <String>{};
@@ -890,7 +902,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       });
       orderedEntries.addAll(entries.map((item) => item.entry));
     }
-    return orderedEntries
+    final steps = <OnboardingTourStep>[];
+    final navigationStep = _buildNavigationOnboardingStep();
+    if (navigationStep != null) {
+      steps.add(navigationStep);
+    }
+    steps.addAll(orderedEntries
         .map((entry) {
           final title = _resolveOnboardingTitle(entry);
           final description = _resolveOnboardingDescription(entry, title);
@@ -900,7 +917,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             targetKeys: [entry.key],
           );
         })
-        .toList(growable: false);
+        .toList(growable: false));
+    return steps;
   }
 
   Rect? _rectForKey(GlobalKey key, {bool requireVisible = false}) {
