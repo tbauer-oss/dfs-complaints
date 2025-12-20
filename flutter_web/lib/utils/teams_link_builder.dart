@@ -23,34 +23,33 @@ class TeamsLinkBuilder {
     return domains.any((d) => domain == d.toLowerCase());
   }
 
-  static TeamsDeepLink buildChatLink(String email, {String? message}) {
-    final params = <String, String>{'users': email};
+  static TeamsDeepLink buildChatLink(List<String> users, {String? message}) {
+    final usersValue = _buildUsersValue(users);
+    final params = <String, String>{'users': usersValue};
     if (message != null && message.trim().isNotEmpty) {
-      params['message'] = message.trim();
+      params['message'] = Uri.encodeQueryComponent(message.trim());
     }
-    final web = Uri.https('teams.microsoft.com', '/l/chat/0/0', params);
-    final app = Uri.parse('msteams://teams.microsoft.com/l/chat/0/0?${Uri(queryParameters: params).query}');
-    return TeamsDeepLink(primary: app, fallback: web);
+    final web = _buildTeamsUri(path: '/l/chat/0/0', params: params);
+    return TeamsDeepLink(primary: web, fallback: _buildTeamsWebHome());
   }
 
-  static TeamsDeepLink buildVideoCallLink(String email) {
-    final params = <String, String>{'users': email, 'withvideo': 'true'};
-    final web = Uri.https('teams.microsoft.com', '/l/call/0/0', params);
-    final app = Uri.parse('msteams://teams.microsoft.com/l/call/0/0?${Uri(queryParameters: params).query}');
-    return TeamsDeepLink(primary: app, fallback: web);
+  static TeamsDeepLink buildVideoCallLink(List<String> users) {
+    final usersValue = _buildUsersValue(users);
+    final params = <String, String>{'users': usersValue};
+    final web = _buildTeamsUri(path: '/l/call/0/0', params: params);
+    return TeamsDeepLink(primary: web, fallback: _buildTeamsWebHome());
   }
 
   static TeamsDeepLink buildMeetingLink({List<String> participants = const [], String? topic}) {
     final params = <String, String>{};
     if (participants.isNotEmpty) {
-      params['attendees'] = participants.join(',');
+      params['attendees'] = participants.map(Uri.encodeQueryComponent).join(',');
     }
     if (topic != null && topic.trim().isNotEmpty) {
-      params['subject'] = topic.trim();
+      params['subject'] = Uri.encodeQueryComponent(topic.trim());
     }
-    final web = Uri.https('teams.microsoft.com', '/l/meeting/new', params);
-    final app = Uri.parse('msteams://teams.microsoft.com/l/meeting/new?${Uri(queryParameters: params).query}');
-    return TeamsDeepLink(primary: app, fallback: web);
+    final web = _buildTeamsUri(path: '/l/meeting/new', params: params);
+    return TeamsDeepLink(primary: web, fallback: _buildTeamsWebHome());
   }
 
   static String buildContextMessage({required String label, required String url}) {
@@ -59,5 +58,27 @@ class TeamsLinkBuilder {
     if (trimmedLabel.isEmpty) return trimmedUrl;
     if (trimmedUrl.isEmpty) return trimmedLabel;
     return '$trimmedLabel\n$trimmedUrl';
+  }
+
+  static Uri _buildTeamsWebHome() {
+    return Uri.https('teams.microsoft.com', '/');
+  }
+
+  static String _buildUsersValue(List<String> users) {
+    return users
+        .map((user) => user.trim())
+        .where((user) => user.isNotEmpty)
+        .map(Uri.encodeQueryComponent)
+        .join(',');
+  }
+
+  static Uri _buildTeamsUri({required String path, required Map<String, String> params}) {
+    final query = params.entries.map((entry) => '${entry.key}=${entry.value}').join('&');
+    return Uri(
+      scheme: 'https',
+      host: 'teams.microsoft.com',
+      path: path,
+      query: query,
+    );
   }
 }
