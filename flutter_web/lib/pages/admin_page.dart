@@ -385,11 +385,14 @@ class _AvatarChatService extends ChatService {
   }
 }
 
-class _AdminPageState extends State<AdminPage> {
+class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   static const int _repReminderDefaultDelayDays = 4;
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
+  static const String _globalSearchVisibleKey = 'admin_global_search_visible';
   late final AdminApi _api;
   late final ChatService _chatService;
+  late final AnimationController _globalSearchController;
+  bool _globalSearchVisible = true;
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
@@ -444,6 +447,29 @@ class _AdminPageState extends State<AdminPage> {
   String _chatInboxInitializedKey() {
     final email = _portalEmail.trim().toLowerCase();
     return 'chat:v1:inboxInitialized:$email';
+  }
+
+  double get _globalSearchHeight =>
+      GlobalSearchBar.preferredHeight * _globalSearchController.value;
+
+  void _loadGlobalSearchVisibility() {
+    try {
+      final stored = html.window.localStorage[_globalSearchVisibleKey];
+      if (stored != null) _globalSearchVisible = stored != 'false';
+    } catch (_) {}
+  }
+
+  void _setGlobalSearchVisibility(bool isVisible) {
+    if (_globalSearchVisible == isVisible) return;
+    setState(() => _globalSearchVisible = isVisible);
+    try {
+      html.window.localStorage[_globalSearchVisibleKey] = isVisible.toString();
+    } catch (_) {}
+    if (isVisible) {
+      _globalSearchController.forward();
+    } else {
+      _globalSearchController.reverse();
+    }
   }
 
   void _logChatAvatarResolution(String email, String? avatarUrl) {
@@ -1235,6 +1261,14 @@ class _AdminPageState extends State<AdminPage> {
   @override
   void initState() {
     super.initState();
+    _loadGlobalSearchVisibility();
+    _globalSearchController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      value: _globalSearchVisible ? 1 : 0,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
     _api = AdminApi(onNewsChanged: widget.api.clearAllNewsCaches);
     _chatService = _AvatarChatService(
       widget.api,
@@ -1337,6 +1371,7 @@ class _AdminPageState extends State<AdminPage> {
 
   @override
   void dispose() {
+    _globalSearchController.dispose();
     _repFirstCtrl.dispose();
     _repLastCtrl.dispose();
     _repMailCtrl.dispose();
@@ -5787,6 +5822,11 @@ class _AdminPageState extends State<AdminPage> {
             ],
           )
         : null;
+    final searchToggleLabel =
+        _globalSearchVisible ? 'Suche ausblenden' : 'Suche einblenden';
+    final searchToggleIcon =
+        _globalSearchVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined;
+    final shouldShowSearchBar = _globalSearchVisible || _globalSearchController.value > 0;
 
     return AppBar(
       backgroundColor: theme.colorScheme.surface,
@@ -5935,6 +5975,11 @@ class _AdminPageState extends State<AdminPage> {
         ),
         w.ThemeAction(),
         const SizedBox(width: 2),
+        TextButton.icon(
+          onPressed: () => _setGlobalSearchVisibility(!_globalSearchVisible),
+          icon: Icon(searchToggleIcon),
+          label: Text(searchToggleLabel),
+        ),
         IconButton(
           tooltip: 'Alles neu laden',
           onPressed: () async {
@@ -5954,12 +5999,25 @@ class _AdminPageState extends State<AdminPage> {
         const SizedBox(width: 6),
       ],
       bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(GlobalSearchBar.preferredHeight),
-        child: GlobalSearchBar(
-          api: widget.api,
-          chatService: _chatService,
-          currentUserId: _portalChatId,
-          onNavigate: _handleGlobalSearchNavigate,
+        preferredSize: Size.fromHeight(_globalSearchHeight),
+        child: ClipRect(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: _globalSearchVisible ? 1 : 0,
+              child: shouldShowSearchBar
+                  ? GlobalSearchBar(
+                      api: widget.api,
+                      chatService: _chatService,
+                      currentUserId: _portalChatId,
+                      onNavigate: _handleGlobalSearchNavigate,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
         ),
       ),
     );
