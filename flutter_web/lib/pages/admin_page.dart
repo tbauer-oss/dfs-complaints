@@ -7305,6 +7305,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         tileIds: ['capaDashboard', 'capaReports', 'fmea', 'changeManagement', 'audits'],
       ),
       const _AdminMenuSectionState(
+        title: 'Connect+ Supplier Management',
+        subtitle: 'Lieferantenbewertung und Monitoring',
+        tileIds: ['supplierEvaluation'],
+      ),
+      const _AdminMenuSectionState(
         title: 'Connect+ Customer Management',
         subtitle: 'Anträge prüfen und Kunden anlegen',
         tileIds: ['pending', 'users', 'createCustomer'],
@@ -7318,11 +7323,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         title: 'Connect+ Content & Communication',
         subtitle: 'Informationen und Push-Kanäle pflegen',
         tileIds: ['news', 'faq', 'products', 'push', 'internalChat'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Lieferantenmanagement',
-        subtitle: 'Lieferantenbewertung und Monitoring',
-        tileIds: ['supplierEvaluation'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ System Administration',
