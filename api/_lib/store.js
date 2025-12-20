@@ -3465,10 +3465,13 @@ async function changeFindByNumber(changeId) {
   if (r) {
     const keys = await rkeys(`${P}change:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
-    return vals.find(v => (v?.changeId || '').toString() === changeId) || null;
+    const index = vals.findIndex(v => (v?.changeId || '').toString() === changeId);
+    if (index < 0) return null;
+    const id = keys[index].replace(`${P}change:`, '');
+    return { ...vals[index], id };
   }
-  for (const v of mem.changeRecords.values()) {
-    if ((v?.changeId || '').toString() === changeId) return v;
+  for (const [id, v] of mem.changeRecords.entries()) {
+    if ((v?.changeId || '').toString() === changeId) return { ...v, id };
   }
   return null;
 }
@@ -3486,9 +3489,9 @@ export async function changeGet(idOrNumber) {
   const r = getRedis();
   if (r) {
     const direct = await rget(key);
-    if (direct) return normalizeChangeRecord(direct);
+    if (direct) return normalizeChangeRecord({ ...direct, id: idOrNumber });
   } else if (mem.changeRecords.has(idOrNumber)) {
-    return normalizeChangeRecord(mem.changeRecords.get(idOrNumber));
+    return normalizeChangeRecord({ ...mem.changeRecords.get(idOrNumber), id: idOrNumber });
   }
   const byNumber = await changeFindByNumber(idOrNumber);
   return byNumber ? normalizeChangeRecord(byNumber) : null;
@@ -3499,9 +3502,12 @@ export async function changeAll() {
   if (r) {
     const keys = await rkeys(`${P}change:*`);
     const list = await Promise.all(keys.map(k => rget(k)));
-    return list.map(v => normalizeChangeRecord(v));
+    return list.map((v, index) => {
+      const id = keys[index].replace(`${P}change:`, '');
+      return normalizeChangeRecord({ ...v, id });
+    });
   }
-  return Array.from(mem.changeRecords.values()).map(v => normalizeChangeRecord(v));
+  return Array.from(mem.changeRecords.entries()).map(([id, v]) => normalizeChangeRecord({ ...v, id }));
 }
 
 export async function changeUpdate(id, patch = {}) {
