@@ -28,6 +28,7 @@ import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
 import '../services/chat_service.dart';
 import '../widgets/dialog_content_scroll.dart';
+import '../widgets/skeletons.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/password_field.dart';
 import '../widgets/theme_action.dart' as w;
@@ -848,6 +849,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   final List<String> _portalUserDepartments = [];
   final Map<String, String> _portalUserTilePermissions = {};
   final Map<String, bool> _portalUserAvatarBusy = {};
+  final Map<String, double> _portalUserAvatarProgress = {};
+  final Map<String, String> _portalUserAvatarStatus = {};
   PortalUser? _editingPortalUser;
   final _portalUserFormKey = GlobalKey<FormState>();
 
@@ -3139,11 +3142,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               FilledButton(
                 onPressed: busy ? null : submit,
                 child: busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))
                     : Text(t.save ?? 'Speichern'),
               ),
             ],
@@ -3639,11 +3638,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                               }
                             },
                       icon: _catCfgBusy
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))
                           : const Icon(Icons.save_outlined),
                       label: const Text('Speichern'),
                     ),
@@ -4058,7 +4053,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                         onChanged: (_) => _schedulePushRecipientSearch(),
                       ),
                       const SizedBox(height: 10),
-                      if (_pushRecipientsLoading) const LinearProgressIndicator(),
+                      if (_pushRecipientsLoading) const SkeletonBox(height: 4),
                       if (_pushRecipientsErr != null) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -4160,7 +4155,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       FilledButton.icon(
                         onPressed: _pushBusy ? null : () => _sendPushBroadcast(dryRun: false),
                         icon: _pushBusy
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                             : const Icon(Icons.send_outlined),
                         label: const Text('Push senden'),
                       ),
@@ -4172,7 +4167,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       OutlinedButton.icon(
                         onPressed: _pushSelfBusy ? null : _sendPushTestToSelf,
                         icon: _pushSelfBusy
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                             : const Icon(Icons.phone_android_outlined),
                         label: const Text('Test an mich selbst'),
                       ),
@@ -4203,7 +4198,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   ],
                   if (_pushBusy) ...[
                     const SizedBox(height: 12),
-                    const LinearProgressIndicator(),
+                    const SkeletonBox(height: 4),
                   ],
                   if (_pushErr != null) ...[
                     const SizedBox(height: 12),
@@ -4325,11 +4320,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       final reminderButton = FilledButton.icon(
         onPressed: _repRemindersBusy ? null : _runRepReminders,
         icon: _repRemindersBusy
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
             : const Icon(Icons.send_outlined),
         label: Text(_repRemindersBusy ? 'Läuft …' : 'Erinnerungen senden'),
       );
@@ -4512,7 +4503,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     children: [
                       buildHeader(),
                       const SizedBox(height: 8),
-                      if (_systemHealthBusy) const LinearProgressIndicator(),
+                      if (_systemHealthBusy) const SkeletonBox(height: 4),
                       if (_systemHealthErr != null) ...[
                         const SizedBox(height: 12),
                         Container(
@@ -4695,14 +4686,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 FilledButton.icon(
                   onPressed: _activityLoading ? null : _loadActivity,
                   icon: _activityLoading
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                       : const Icon(Icons.search),
                   label: Text(_activityLoading ? 'Lädt …' : 'Abrufen'),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            if (_activityLoading) const LinearProgressIndicator(),
+            if (_activityLoading) const SkeletonBox(height: 4),
             if (_activityErr != null) ...[
               const SizedBox(height: 8),
               Text('Fehler: $_activityErr', style: TextStyle(color: cs.error)),
@@ -4932,11 +4923,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                             if (_custBusy)
                               const Padding(
                                 padding: EdgeInsets.only(left: 12),
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2.4),
-                                ),
+                                child: SkeletonBox(width: 24, height: 24, borderRadius: BorderRadius.all(Radius.circular(6))),
                               ),
                           ],
                         ),
@@ -7316,7 +7303,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(width: 8),
                             if (_portalFeedLoading)
-                              const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                              const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4))),
                             if (_portalFeedErr != null)
                               Padding(
                                 padding: const EdgeInsets.only(left: 8),
@@ -7803,7 +7790,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 10),
                     if (_portalFeedLoading)
-                      const LinearProgressIndicator(minHeight: 3)
+                      const SkeletonBox(height: 3)
                     else if (_portalFeedErr != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -9799,7 +9786,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 12),
-            if (_activeNewsLoading) const LinearProgressIndicator(),
+            if (_activeNewsLoading) const SkeletonBox(height: 4),
             if (_activeNewsErr != null) ...[
               const SizedBox(height: 8),
               Text('Fehler beim Laden: $_activeNewsErr', style: const TextStyle(color: Colors.red)),
@@ -10042,7 +10029,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 12),
-            if (_faqLoading) const LinearProgressIndicator(),
+            if (_faqLoading) const SkeletonBox(height: 4),
             if (_faqErr != null) ...[
               const SizedBox(height: 8),
               Text('Fehler: $_faqErr', style: const TextStyle(color: Colors.red)),
@@ -10238,11 +10225,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 FilledButton.icon(
                   onPressed: _faqSeeding ? null : _seedFaqFromLegacyKnowledgeBase,
                   icon: _faqSeeding
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                       : const Icon(Icons.import_contacts_outlined),
                   label: Text(
                     'Wissensdatenbank importieren (${KnowledgeCategory.values.length} Kategorien / ${knowledgeItems.length} Einträge)'
@@ -10819,11 +10802,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       if (translating)
                         const Padding(
                           padding: EdgeInsets.only(left: 4),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2.2),
-                          ),
+                          child: SkeletonBox(width: 20, height: 20, borderRadius: BorderRadius.all(Radius.circular(6))),
                         ),
                     ],
                   ),
@@ -11103,7 +11082,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
             ]),
             const SizedBox(height: 8),
-            if (_loadPending) const LinearProgressIndicator(),
+            if (_loadPending) const SkeletonBox(height: 4),
             const SizedBox(height: 8),
             Expanded(
               child: _pending.isEmpty
@@ -11348,11 +11327,28 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       final cropped = await showAvatarCropperDialog(context, bytes);
       if (cropped == null) return;
       _setAvatarBusy(user.email, true);
-      final url = await _api.uploadPortalUserAvatar(email: user.email, croppedImage: cropped);
+      setState(() {
+        _portalUserAvatarProgress[user.email] = 0;
+        _portalUserAvatarStatus[user.email] = 'Upload läuft… 0 %';
+      });
+      final url = await _api.uploadPortalUserAvatar(
+        email: user.email,
+        croppedImage: cropped,
+        onProgress: (sent, total) {
+          if (!mounted) return;
+          final progress = total > 0 ? (sent / total).clamp(0, 1) : 0.0;
+          setState(() {
+            _portalUserAvatarProgress[user.email] = progress;
+            _portalUserAvatarStatus[user.email] = 'Upload läuft… ${(progress * 100).toStringAsFixed(0)} %';
+          });
+        },
+      );
       if (!mounted) return;
       setState(() {
         _updatePortalUserAvatarLocal(user.email, url);
         _portalUserAvatarBusy[user.email] = false;
+        _portalUserAvatarProgress[user.email] = 1;
+        _portalUserAvatarStatus[user.email] = 'Upload abgeschlossen';
       });
       await _refreshPortalUsers();
       ScaffoldMessenger.of(context)
@@ -11360,6 +11356,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (!mounted) return;
       _setAvatarBusy(user.email, false);
+      setState(() => _portalUserAvatarStatus[user.email] = 'Upload fehlgeschlagen: $e');
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Avatar-Upload fehlgeschlagen: $e')));
     }
@@ -12025,11 +12022,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   if (_roleTileVisibilityDirty) const Spacer(),
                   ElevatedButton.icon(
                     icon: _savingRoleTileVisibility
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))
                         : const Icon(Icons.save_outlined),
                     label: const Text('Einstellungen speichern'),
                     onPressed: _roleTileVisibilityDirty && !_savingRoleTileVisibility
@@ -12226,7 +12219,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                           style: theme.textTheme.titleMedium),
                       if (_portalUsersLoading) ...[
                         const SizedBox(width: 12),
-                        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                        const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4))),
                       ],
                       const SizedBox(width: 12),
                       if (!_portalUsersLoading)
@@ -12325,7 +12318,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       ),
                       child: const Text('Keine Mitarbeiter-/Portal-User für die Filter gefunden.'),
                     ),
-                  if (_portalUsersLoading) const LinearProgressIndicator(),
+                  if (_portalUsersLoading) const SkeletonBox(height: 4),
                   const SizedBox(height: 8),
                   if (filteredUsers.isNotEmpty)
                     ListView.separated(
@@ -12429,10 +12422,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                           children: [
                                             OutlinedButton.icon(
                                               icon: _portalUserAvatarBusy[u.email] == true
-                                                  ? const SizedBox(
+                                                  ? const SkeletonBox(
                                                       width: 16,
                                                       height: 16,
-                                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                                      borderRadius: BorderRadius.all(Radius.circular(4)),
                                                     )
                                                   : const Icon(Icons.upload_outlined),
                                               label: Text((u.avatar ?? '').isNotEmpty
@@ -12453,6 +12446,18 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                             ),
                                           ],
                                         ),
+                                        if (_portalUserAvatarStatus[u.email] != null) ...[
+                                          const SizedBox(height: 6),
+                                          LinearProgressIndicator(
+                                            value: _portalUserAvatarProgress[u.email] ?? 0,
+                                            minHeight: 4,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _portalUserAvatarStatus[u.email]!,
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -12633,7 +12638,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             // <<< Ende Filterzeile >>>
 
             const SizedBox(height: 8),
-            if (_loadUsers) const LinearProgressIndicator(),
+            if (_loadUsers) const SkeletonBox(height: 4),
             const SizedBox(height: 8),
 
             // Gefilterte Daten verwenden
@@ -12760,11 +12765,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                   if (busy)
-                    const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
+                    const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))),
                 ],
               ),
               Chip(
@@ -13157,7 +13158,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     if (_loadAllComplaints)
                       const Padding(
                         padding: EdgeInsets.only(right: 8),
-                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))),
                       ),
                     IconButton(
                       tooltip: 'Neu laden',
@@ -13327,7 +13328,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     if (_loadOpen)
                       const Padding(
                         padding: EdgeInsets.only(right: 8),
-                        child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))),
                       ),
                     IconButton(
                       tooltip: 'Neu laden',
@@ -13668,13 +13669,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   ),
                   if (_repBusy) ...[
                     const SizedBox(height: 16),
-                    const Center(
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
+                    const Center(child: SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))),
                   ],
                 ],
               ),
@@ -13920,10 +13915,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
             ),
             actions: [
-              if (busy) const Padding(
-                padding: EdgeInsets.only(right: 12),
-                child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
+              if (busy)
+                const Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))),
+                ),
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
             ],
           );
@@ -13962,7 +13958,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
               const SizedBox(width: 8),
               if (_loadReps)
-                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))),
               IconButton(
                 tooltip: 'Neu laden',
                 onPressed: _loadReps ? null : _refreshReps,
@@ -14743,11 +14739,7 @@ class _BusyDot extends StatelessWidget {
   const _BusyDot({super.key});
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 18,
-      height: 18,
-      child: CircularProgressIndicator(strokeWidth: 2),
-    );
+    return const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)));
   }
 }
 
@@ -15380,7 +15372,7 @@ class _ComplaintsDetailList extends StatelessWidget {
     if (r.loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: LinearProgressIndicator(),
+        child: const SkeletonBox(height: 4),
       );
     }
     if (r.error != null) {
@@ -18186,11 +18178,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                 ],
               ),
               if (_descTranslating)
-                const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                const SkeletonBox(width: 20, height: 20, borderRadius: BorderRadius.all(Radius.circular(6))),
             ],
           ),
           const SizedBox(height: 10),
@@ -20773,14 +20761,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                     ? null
                                     : _translateInternalEvaluation,
                                 icon: _translatingInternalEval
-                                    ? SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.2,
-                                          color: scheme.onPrimary,
-                                        ),
-                                      )
+                                    ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))
                                     : const Icon(Icons.g_translate),
                                 label: Text(_translatingInternalEval ? 'Übersetze…' : 'Übersetzen mit DeepL'),
                               ),
@@ -21167,11 +21148,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                                       ? null
                                       : _exportComplaintArchive,
                                   icon: _exportingArchive
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
-                                        )
+                                      ? const SkeletonBox(width: 16, height: 16, borderRadius: BorderRadius.all(Radius.circular(4)))
                                       : const Icon(Icons.archive_outlined),
                                   label: Text(
                                     _exportingArchive
@@ -22714,11 +22691,7 @@ class PrrcDashboardPage extends StatefulWidget {
           tooltip: 'Neu laden',
           onPressed: _loading ? null : _load,
           icon: _loading
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
-                )
+              ? const SkeletonBox(width: 20, height: 20, borderRadius: BorderRadius.all(Radius.circular(6)))
               : const Icon(Icons.refresh),
         ),
       ],
@@ -23089,11 +23062,7 @@ class PrrcDashboardPage extends StatefulWidget {
                       ElevatedButton.icon(
                         onPressed: _saving ? null : _savePrrc,
                         icon: _saving
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
-                              )
+                            ? const SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4)))
                             : const Icon(Icons.save_outlined),
                         label: const Text('Speichern'),
                       ),
@@ -23143,7 +23112,10 @@ class PrrcDashboardPage extends StatefulWidget {
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SkeletonTable(rows: 6, columns: 3, rowHeight: 16),
+                )
               : _error != null
                   ? Center(child: Text(_error!))
                   : Column(
@@ -23252,6 +23224,51 @@ class AdminApi {
         withCredentials: true,
       );
       return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          if (st == 403) {
+            throw 'Keine Berechtigung: Diese Aktion ist mit den aktuellen Kachel-Rechten nicht erlaubt.';
+          }
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
+    }
+  }
+
+  Future<html.HttpRequest> _requestWithProgress(
+    String method,
+    String path, {
+    Map<String, String>? q,
+    Object? body,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final payload = body is String ? body : (body == null ? null : jsonEncode(body));
+    try {
+      final req = html.HttpRequest();
+      req
+        ..open(method, _u(path, q).toString())
+        ..withCredentials = true;
+      final headers = _headersJson();
+      headers.forEach(req.setRequestHeader);
+      if (onProgress != null) {
+        final totalBytes = payload == null ? 0 : utf8.encode(payload).length;
+        req.upload.onProgress.listen((event) {
+          final total = event.total.toInt();
+          final computedTotal = total > 0 ? total : totalBytes;
+          onProgress(event.loaded.toInt(), computedTotal);
+        });
+      }
+      final completer = Completer<html.HttpRequest>();
+      req.onLoad.listen((_) => completer.complete(req));
+      req.onError.listen((event) => completer.completeError(event));
+      req.send(payload);
+      return await completer.future;
     } catch (e) {
       if (e is html.ProgressEvent) {
         final t = e.target;
@@ -23538,11 +23555,17 @@ class AdminApi {
     return PortalUser.fromJson(j);
   }
 
-  Future<String> uploadPortalUserAvatar({required String email, required String croppedImage}) async {
-    final res = await _request('POST', '/api/chat/v1/admin/avatar', body: {
-      'email': email,
-      'croppedImage': croppedImage,
-    });
+  Future<String> uploadPortalUserAvatar({
+    required String email,
+    required String croppedImage,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final res = await _requestWithProgress('POST', '/api/chat/v1/admin/avatar',
+        body: {
+          'email': email,
+          'croppedImage': croppedImage,
+        },
+        onProgress: onProgress);
     if (res.status != 200) throw 'avatar upload: HTTP ${res.status} ${res.responseText}';
     final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
     final url = (j['url'] ?? j['avatar'])?.toString();

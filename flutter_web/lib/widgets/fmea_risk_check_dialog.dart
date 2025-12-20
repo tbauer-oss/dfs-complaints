@@ -6,6 +6,7 @@ import '../models/dfs_product.dart';
 import '../models/fmea.dart';
 import '../pages/admin_fmea_page.dart';
 import '../services/product_lookup.dart';
+import 'skeletons.dart';
 
 class FmeaRiskMatch {
   final FmeaRiskEntry entry;
@@ -134,7 +135,7 @@ Future<void> openFmeaRiskCheckDialog({
           if (!snapshot.hasData) {
             return const AlertDialog(
               title: Text('FMEA prüfen'),
-              content: SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
+              content: SizedBox(height: 80, child: SkeletonTextBlock(lines: 3)),
             );
           }
           final data = snapshot.data!;

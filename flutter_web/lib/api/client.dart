@@ -1,4 +1,5 @@
 // lib/api/client.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
@@ -630,6 +631,45 @@ class ApiClient {
         withCredentials: true,
       );
       return res;
+    } catch (e) {
+      if (e is html.ProgressEvent) {
+        final t = e.target;
+        if (t is html.HttpRequest) {
+          final st = t.status;
+          final txt = t.responseText ?? '';
+          final stx = t.statusText ?? '';
+          throw 'HTTP $st $stx — ${txt.isEmpty ? "Request fehlgeschlagen" : txt}';
+        }
+      }
+      throw e.toString();
+    }
+  }
+
+  Future<html.HttpRequest> _requestWithProgress(
+    String method,
+    String path, {
+    Object? body,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final payload = body == null ? null : jsonEncode(body);
+    try {
+      final req = html.HttpRequest();
+      req
+        ..open(method, _u(path).toString())
+        ..withCredentials = true;
+      _headersJson().forEach(req.setRequestHeader);
+      if (onProgress != null) {
+        final totalBytes = payload == null ? 0 : utf8.encode(payload).length;
+        req.upload.onProgress.listen((event) {
+          final total = event.total.toInt();
+          onProgress(event.loaded.toInt(), total > 0 ? total : totalBytes);
+        });
+      }
+      final completer = Completer<html.HttpRequest>();
+      req.onLoad.listen((_) => completer.complete(req));
+      req.onError.listen((event) => completer.completeError(event));
+      req.send(payload);
+      return await completer.future;
     } catch (e) {
       if (e is html.ProgressEvent) {
         final t = e.target;
@@ -1615,6 +1655,7 @@ class ApiClient {
     bool? active,
     Map<String, dynamic>? file,
     List<String>? allowedRepresentatives,
+    void Function(int sent, int total)? onProgress,
   }) async {
     final body = <String, dynamic>{
       if (id != null) 'id': id,
@@ -1627,6 +1668,20 @@ class ApiClient {
       if (file != null) 'files': [file],
       if (allowedRepresentatives != null) 'allowedRepresentatives': allowedRepresentatives,
     };
+    if (onProgress != null) {
+      final res = await _requestWithProgress(
+        'POST',
+        '/api/admin/downloads',
+        body: body,
+        onProgress: onProgress,
+      );
+      if (res.status != 200 && res.status != 201) {
+        throw ApiError(res.status, _extractMessage(res.responseText ?? ''));
+      }
+      final decoded = jsonDecode(res.responseText ?? '{}');
+      if (decoded is Map) return RepDownloadItem.fromJson(decoded.cast<String, dynamic>());
+      throw ApiError(res.status, 'invalid response for admin download save');
+    }
     final r = await http.post(
       _u('/api/admin/downloads'),
       headers: _adminHeaders(auth: true),

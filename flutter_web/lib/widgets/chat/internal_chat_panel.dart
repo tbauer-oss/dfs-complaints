@@ -8,6 +8,7 @@ import '../../api/client.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_service.dart';
 import '../../utils/display_name_from_email.dart';
+import '../skeletons.dart';
 import 'conversation_avatar.dart';
 import 'emoji_picker.dart';
 import 'emoji_text.dart';
@@ -715,7 +716,12 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                 : () => _showMembersDialog(memberParticipants, fallbackNames: memberNames),
             onChangeGroupIcon: changeGroupIcon,
           ),
-          const Expanded(child: Center(child: CircularProgressIndicator())),
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: SkeletonTable(rows: 6, columns: 2, rowHeight: 16),
+            ),
+          ),
         ],
       );
     }
@@ -771,7 +777,10 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
                         ),
                       ),
                       child: _loading
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SkeletonTable(rows: 4, columns: 2, rowHeight: 14),
+                            )
                           : _errorMessage != null
                               ? Center(child: Text(_errorMessage!))
                               : Padding(

@@ -13,6 +13,7 @@ import '../data/document_languages.dart';
 import '../models/download_category.dart';
 import '../models/rep_download_item.dart';
 import '../models/admin_rep_summary.dart';
+import '../widgets/skeletons.dart';
 
 class AdminDownloadsPage extends StatefulWidget {
   final ApiClient api;
@@ -25,6 +26,8 @@ class AdminDownloadsPage extends StatefulWidget {
 class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   bool _loading = false;
   bool _saving = false;
+  double? _uploadProgress;
+  String? _uploadStatus;
   String? _err;
   List<RepDownloadItem> _items = const [];
   List<DownloadCategory> _categories = const [];
@@ -114,6 +117,8 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     _visibleToAll = true;
     _allowedRepIds = <String>{};
     _filePayload = null;
+    _uploadProgress = null;
+    _uploadStatus = null;
   }
 
   void _editItem(RepDownloadItem item) {
@@ -128,6 +133,8 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       _visibleToAll = item.allowedRepresentatives.isEmpty;
       _allowedRepIds = item.allowedRepresentatives.toSet();
       _filePayload = null;
+      _uploadProgress = null;
+      _uploadStatus = null;
     });
   }
 
@@ -244,7 +251,12 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       );
       return;
     }
-    setState(() => _saving = true);
+    final hasUpload = _filePayload != null;
+    setState(() {
+      _saving = true;
+      _uploadProgress = hasUpload ? 0 : null;
+      _uploadStatus = hasUpload ? 'Upload läuft… 0 %' : null;
+    });
     try {
       await widget.api.adminSaveDownload(
         id: _editing?.id,
@@ -256,18 +268,37 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
         active: _active,
         file: _filePayload,
         allowedRepresentatives: _visibleToAll ? <String>[] : _allowedRepIds.toList(),
+        onProgress: hasUpload
+            ? (sent, total) {
+                if (!mounted) return;
+                final progress = total > 0 ? (sent / total).clamp(0, 1) : 0.0;
+                setState(() {
+                  _uploadProgress = progress;
+                  _uploadStatus = 'Upload läuft… ${(progress * 100).toStringAsFixed(0)} %';
+                });
+              }
+            : null,
       );
       if (mounted) {
         _resetForm();
       }
       await _load();
       if (mounted) {
+        if (hasUpload) {
+          setState(() {
+            _uploadProgress = 1;
+            _uploadStatus = 'Upload abgeschlossen';
+          });
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_editing == null ? 'Dokument angelegt.' : 'Dokument aktualisiert.')),
         );
       }
     } catch (e) {
       if (mounted) {
+        if (hasUpload) {
+          setState(() => _uploadStatus = 'Upload fehlgeschlagen: $e');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
         );
@@ -946,6 +977,12 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
                   label: Text('${_filePayload?['name'] ?? ''} · ${_formatSize(_filePayload?['size'] ?? 0)}'),
                   avatar: const Icon(Icons.attachment_outlined, size: 18),
                 ),
+              if (_uploadStatus != null) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: _uploadProgress ?? 0),
+                const SizedBox(height: 6),
+                Text(_uploadStatus!, style: theme.textTheme.bodySmall),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -1015,7 +1052,15 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
 
   Widget _buildList() {
     if (_loading) {
-      return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: SkeletonTable(rows: 6, columns: 5, rowHeight: 16),
+          ),
+        ),
+      );
     }
     if (_err != null) {
       return Padding(

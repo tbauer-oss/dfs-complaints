@@ -13,6 +13,7 @@ import '../models/dfs_product.dart';
 import '../models/fmea.dart';
 import '../models/portal_user.dart';
 import '../services/dfs_product_service.dart';
+import '../widgets/skeletons.dart';
 
 class AdminFmeaPage extends StatefulWidget {
   final ApiClient api;
@@ -2072,7 +2073,10 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
               side: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
             child: _loadingLinks
-                ? const Center(child: CircularProgressIndicator())
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: SkeletonTable(rows: 6, columns: 3, rowHeight: 16),
+                  )
                 : ListView.builder(
                     itemCount: links.length,
                     itemBuilder: (ctx, idx) {
@@ -3207,4 +3211,3 @@ class _RiskDetailRow extends StatelessWidget {
     );
   }
 }
-

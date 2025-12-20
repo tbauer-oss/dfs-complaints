@@ -12,6 +12,7 @@ import '../../models/portal_user.dart';
 import '../../models/rep_download_item.dart';
 import '../../models/wiki_article.dart';
 import '../../services/chat_service.dart';
+import '../skeletons.dart';
 
 enum _DateFilter {
   today,
@@ -493,7 +494,7 @@ class _GlobalSearchBarState extends State<GlobalSearchBar> {
     if (_searching || _loading) {
       return const Padding(
         padding: EdgeInsets.all(20),
-        child: Center(child: CircularProgressIndicator()),
+        child: SkeletonTable(rows: 5, columns: 2, rowHeight: 16),
       );
     }
 
@@ -797,14 +798,7 @@ class _GlobalSearchBarState extends State<GlobalSearchBar> {
                   if (_searching || _loading)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
+                      child: SkeletonBox(width: 18, height: 18, borderRadius: BorderRadius.all(Radius.circular(4))),
                     ),
                 ],
               ),
