@@ -115,6 +115,15 @@ const mem = {
   repDownloadSeen: new Map(),
   adminUiConfig: null,
   auditCounters: {},
+  suppliers: new Map(),
+  supplierIndex: new Set(),
+  supplierPerformance: new Map(),
+  supplierPerformanceIndex: new Set(),
+  supplierEvaluations: new Map(),
+  supplierEvaluationIndex: new Set(),
+  supplierEscalations: new Map(),
+  supplierEscalationIndex: new Set(),
+  supplierEvalConfig: null,
 };
 
 export function normalizeTilePermission(value) {
@@ -5067,3 +5076,612 @@ async function updateAuditStatusAfterChange(auditId) {
 }
 
 export { AUDIT_TILE_ID, AUDIT_FINDING_SEVERITY };
+
+/* =====================================================================
+   SUPPLIER EVALUATION – Stammdaten, Performance, Bewertungen, Eskalation
+   ===================================================================== */
+
+const KEY_SUPPLIER_INDEX = `${P}supplier:index`;
+const KEY_SUPPLIER = (id) => `${P}supplier:${id}`;
+const KEY_SUPPLIER_PERF_INDEX = `${P}supplierPerf:index`;
+const KEY_SUPPLIER_PERF = (id) => `${P}supplierPerf:${id}`;
+const KEY_SUPPLIER_EVAL_INDEX = `${P}supplierEval:index`;
+const KEY_SUPPLIER_EVAL = (id) => `${P}supplierEval:${id}`;
+const KEY_SUPPLIER_ESC_INDEX = `${P}supplierEsc:index`;
+const KEY_SUPPLIER_ESC = (id) => `${P}supplierEsc:${id}`;
+const KEY_SUPPLIER_EVAL_CONFIG = `${P}supplierEvalConfig:default`;
+
+function ensureSupplierStores() {
+  if (!mem.suppliers) mem.suppliers = new Map();
+  if (!mem.supplierIndex) mem.supplierIndex = new Set();
+  if (!mem.supplierPerformance) mem.supplierPerformance = new Map();
+  if (!mem.supplierPerformanceIndex) mem.supplierPerformanceIndex = new Set();
+  if (!mem.supplierEvaluations) mem.supplierEvaluations = new Map();
+  if (!mem.supplierEvaluationIndex) mem.supplierEvaluationIndex = new Set();
+  if (!mem.supplierEscalations) mem.supplierEscalations = new Map();
+  if (!mem.supplierEscalationIndex) mem.supplierEscalationIndex = new Set();
+}
+
+function normalizeSupplierStatus(status) {
+  const value = normalizeString(status).toLowerCase();
+  if (['zugelassen', 'approved', 'active'].includes(value)) return 'zugelassen';
+  if (['gesperrt', 'blocked', 'locked'].includes(value)) return 'gesperrt';
+  if (['in bewertung', 'in_bewertung', 'review', 'evaluation'].includes(value)) return 'in bewertung';
+  return 'zugelassen';
+}
+
+function normalizeSupplierRecord(record = {}) {
+  const now = Date.now();
+  const base = { ...record };
+  const id = normalizeString(base.id || base.supplierId || base.supplier_id || crypto.randomUUID());
+  base.id = id;
+  base.supplierId = id;
+  base.supplierNumber = normalizeString(base.supplierNumber || base.supplierNo || base.number || '');
+  base.name = normalizeString(base.name || base.company || base.firma || '');
+  base.address = normalizeString(base.address || '');
+  base.contactName = normalizeString(base.contactName || base.contact || '');
+  base.contactEmail = normalizeString(base.contactEmail || '');
+  base.contactPhone = normalizeString(base.contactPhone || '');
+  base.category = normalizeString(base.category || base.goodsGroup || '');
+  base.critical = base.critical === true || base.critical === 'true' || base.critical === 1;
+  base.status = normalizeSupplierStatus(base.status);
+  base.notes = normalizeString(base.notes || '');
+  base.blockedReason = normalizeString(base.blockedReason || '');
+  base.blockedAt = normalizeDateValue(base.blockedAt) || null;
+  base.blockedBy = normalizeString(base.blockedBy || '');
+  base.createdAt = normalizeDateValue(base.createdAt) || now;
+  base.updatedAt = normalizeDateValue(base.updatedAt) || now;
+  base.createdBy = normalizeString(base.createdBy || '');
+  base.updatedBy = normalizeString(base.updatedBy || '');
+  base.history = Array.isArray(base.history) ? base.history : [];
+  return base;
+}
+
+function normalizePerformanceRecord(record = {}) {
+  const now = Date.now();
+  const base = { ...record };
+  const id = normalizeString(base.id || base.entryId || crypto.randomUUID());
+  base.id = id;
+  base.entryId = id;
+  base.supplierId = normalizeString(base.supplierId || '');
+  base.date = normalizeDateValue(base.date) || now;
+  base.type = normalizeString(base.type || '');
+  base.rating = normalizeString(base.rating || '');
+  base.description = normalizeString(base.description || '');
+  base.reference = normalizeString(base.reference || '');
+  base.attachments = normalizeArray(base.attachments);
+  base.includeInAnnual = base.includeInAnnual !== false;
+  base.status = normalizeString(base.status || 'open');
+  base.cancelReason = normalizeString(base.cancelReason || '');
+  base.createdAt = normalizeDateValue(base.createdAt) || now;
+  base.updatedAt = normalizeDateValue(base.updatedAt) || now;
+  base.createdBy = normalizeString(base.createdBy || '');
+  base.updatedBy = normalizeString(base.updatedBy || '');
+  base.history = Array.isArray(base.history) ? base.history : [];
+  return base;
+}
+
+function normalizeSupplierEvaluationRecord(record = {}) {
+  const now = Date.now();
+  const base = { ...record };
+  const id = normalizeString(base.id || base.evalId || crypto.randomUUID());
+  base.id = id;
+  base.evalId = id;
+  base.evalYear = Number(base.evalYear || base.year || now && new Date(now).getFullYear());
+  base.periodFrom = normalizeDateValue(base.periodFrom) || null;
+  base.periodTo = normalizeDateValue(base.periodTo) || null;
+  base.supplierId = normalizeString(base.supplierId || '');
+  base.aggregates = base.aggregates && typeof base.aggregates === 'object' ? base.aggregates : {};
+  base.commentEk = normalizeString(base.commentEk || '');
+  base.commentQm = normalizeString(base.commentQm || '');
+  base.decision = normalizeString(base.decision || '');
+  base.decisionReason = normalizeString(base.decisionReason || '');
+  base.status = normalizeString(base.status || 'draft');
+  base.configVersion = Number(base.configVersion || 1);
+  base.configSnapshot = base.configSnapshot && typeof base.configSnapshot === 'object' ? base.configSnapshot : {};
+  base.createdAt = normalizeDateValue(base.createdAt) || now;
+  base.updatedAt = normalizeDateValue(base.updatedAt) || now;
+  base.createdBy = normalizeString(base.createdBy || '');
+  base.updatedBy = normalizeString(base.updatedBy || '');
+  base.reviewedBy = normalizeString(base.reviewedBy || '');
+  base.approvedBy = normalizeString(base.approvedBy || '');
+  base.history = Array.isArray(base.history) ? base.history : [];
+  return base;
+}
+
+function normalizeSupplierEscalationRecord(record = {}) {
+  const now = Date.now();
+  const base = { ...record };
+  const id = normalizeString(base.id || base.escalationId || crypto.randomUUID());
+  base.id = id;
+  base.escalationId = id;
+  base.supplierId = normalizeString(base.supplierId || '');
+  base.trigger = normalizeString(base.trigger || '');
+  base.reason = normalizeString(base.reason || '');
+  base.severity = normalizeString(base.severity || 'mittel');
+  base.status = normalizeString(base.status || 'offen');
+  base.owner = normalizeString(base.owner || '');
+  base.dueDate = normalizeDateValue(base.dueDate) || null;
+  base.links = base.links && typeof base.links === 'object' ? base.links : {};
+  base.actions = normalizeString(base.actions || base.measures || '');
+  base.effectiveness = normalizeString(base.effectiveness || '');
+  base.createdAt = normalizeDateValue(base.createdAt) || now;
+  base.updatedAt = normalizeDateValue(base.updatedAt) || now;
+  base.createdBy = normalizeString(base.createdBy || '');
+  base.updatedBy = normalizeString(base.updatedBy || '');
+  base.history = Array.isArray(base.history) ? base.history : [];
+  return base;
+}
+
+function defaultSupplierEvalConfig() {
+  return {
+    id: 'default',
+    version: 1,
+    categories: [
+      {
+        name: 'Qualität',
+        weight: 40,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+      {
+        name: 'Termintreue',
+        weight: 30,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+      {
+        name: 'Dokumentation',
+        weight: 20,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+      {
+        name: 'Service',
+        weight: 10,
+        scale: ['1', '2', '3', '4', '5'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+      },
+    ],
+    thresholds: {
+      green: 4,
+      yellow: 3,
+      red: 2,
+      escalationScore: 2,
+    },
+    trend: {
+      windowDays: 90,
+      minEntries: 3,
+    },
+    annualWindow: {
+      defaultRange: 'previousYear',
+      startMonths: [1, 2, 3],
+    },
+    approval: {
+      allowedRoles: ['qm'],
+    },
+    editRules: {
+      entryEditDays: 7,
+    },
+    notifications: {
+      recipients: ['qm'],
+      reminderDays: 7,
+      emails: [],
+    },
+    updatedAt: Date.now(),
+    updatedBy: '',
+    history: [],
+  };
+}
+
+function normalizeSupplierEvalConfig(config = {}) {
+  const base = config && typeof config === 'object' ? { ...config } : {};
+  const defaultConfig = defaultSupplierEvalConfig();
+  const merged = {
+    ...defaultConfig,
+    ...base,
+  };
+  merged.id = 'default';
+  merged.version = Number(merged.version || 1);
+  merged.categories = Array.isArray(merged.categories) ? merged.categories : defaultConfig.categories;
+  merged.thresholds = merged.thresholds && typeof merged.thresholds === 'object' ? merged.thresholds : defaultConfig.thresholds;
+  merged.trend = merged.trend && typeof merged.trend === 'object' ? merged.trend : defaultConfig.trend;
+  merged.annualWindow = merged.annualWindow && typeof merged.annualWindow === 'object' ? merged.annualWindow : defaultConfig.annualWindow;
+  merged.approval = merged.approval && typeof merged.approval === 'object' ? merged.approval : defaultConfig.approval;
+  merged.editRules = merged.editRules && typeof merged.editRules === 'object' ? merged.editRules : defaultConfig.editRules;
+  merged.notifications =
+    merged.notifications && typeof merged.notifications === 'object' ? merged.notifications : defaultConfig.notifications;
+  merged.updatedAt = normalizeDateValue(merged.updatedAt) || Date.now();
+  merged.updatedBy = normalizeString(merged.updatedBy || '');
+  merged.history = Array.isArray(merged.history) ? merged.history : [];
+  return merged;
+}
+
+async function supplierIndexIds() {
+  ensureSupplierStores();
+  return Array.from(mem.supplierIndex || new Set());
+}
+
+async function supplierPerfIndexIds() {
+  ensureSupplierStores();
+  return Array.from(mem.supplierPerformanceIndex || new Set());
+}
+
+async function supplierEvalIndexIds() {
+  ensureSupplierStores();
+  return Array.from(mem.supplierEvaluationIndex || new Set());
+}
+
+async function supplierEscIndexIds() {
+  ensureSupplierStores();
+  return Array.from(mem.supplierEscalationIndex || new Set());
+}
+
+function addSupplierIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierIndex.add(String(id));
+}
+
+function removeSupplierIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierIndex.delete(String(id));
+}
+
+function addSupplierPerfIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierPerformanceIndex.add(String(id));
+}
+
+function removeSupplierPerfIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierPerformanceIndex.delete(String(id));
+}
+
+function addSupplierEvalIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierEvaluationIndex.add(String(id));
+}
+
+function removeSupplierEvalIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierEvaluationIndex.delete(String(id));
+}
+
+function addSupplierEscIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierEscalationIndex.add(String(id));
+}
+
+function removeSupplierEscIndex(id) {
+  if (!id) return;
+  ensureSupplierStores();
+  mem.supplierEscalationIndex.delete(String(id));
+}
+
+async function persistSupplierIndex(rclient = null) {
+  const r = rclient || getRedis();
+  if (!r) return;
+  const ids = await supplierIndexIds();
+  await rdel(KEY_SUPPLIER_INDEX, r);
+  if (ids.length) await rsadd(KEY_SUPPLIER_INDEX, ids, r);
+}
+
+async function persistSupplierPerfIndex(rclient = null) {
+  const r = rclient || getRedis();
+  if (!r) return;
+  const ids = await supplierPerfIndexIds();
+  await rdel(KEY_SUPPLIER_PERF_INDEX, r);
+  if (ids.length) await rsadd(KEY_SUPPLIER_PERF_INDEX, ids, r);
+}
+
+async function persistSupplierEvalIndex(rclient = null) {
+  const r = rclient || getRedis();
+  if (!r) return;
+  const ids = await supplierEvalIndexIds();
+  await rdel(KEY_SUPPLIER_EVAL_INDEX, r);
+  if (ids.length) await rsadd(KEY_SUPPLIER_EVAL_INDEX, ids, r);
+}
+
+async function persistSupplierEscIndex(rclient = null) {
+  const r = rclient || getRedis();
+  if (!r) return;
+  const ids = await supplierEscIndexIds();
+  await rdel(KEY_SUPPLIER_ESC_INDEX, r);
+  if (ids.length) await rsadd(KEY_SUPPLIER_ESC_INDEX, ids, r);
+}
+
+export async function supplierAll() {
+  ensureSupplierStores();
+  const r = getRedis();
+  if (r) {
+    const ids = await rsmembers(KEY_SUPPLIER_INDEX, r);
+    const list = [];
+    for (const id of ids || []) {
+      const raw = await rget(KEY_SUPPLIER(id), r);
+      if (!raw || typeof raw !== 'object') continue;
+      list.push(normalizeSupplierRecord({ ...raw, id }));
+    }
+    list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    return list;
+  }
+  const list = Array.from(mem.suppliers.values()).map((s) => normalizeSupplierRecord(s));
+  list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return list;
+}
+
+export async function supplierGet(id) {
+  if (!id) return null;
+  ensureSupplierStores();
+  const r = getRedis();
+  const raw = r ? await rget(KEY_SUPPLIER(id), r) : mem.suppliers.get(id);
+  return raw ? normalizeSupplierRecord({ ...raw, id }) : null;
+}
+
+export async function supplierSave(record = {}) {
+  const normalized = normalizeSupplierRecord(record);
+  ensureSupplierStores();
+  mem.suppliers.set(normalized.id, normalized);
+  addSupplierIndex(normalized.id);
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER(normalized.id), normalized);
+    await persistSupplierIndex(r);
+  }
+  return normalized;
+}
+
+export async function supplierUpdate(id, patch = {}) {
+  const current = await supplierGet(id);
+  if (!current) return null;
+  const updated = normalizeSupplierRecord({ ...current, ...patch, id, updatedAt: Date.now() });
+  return supplierSave(updated);
+}
+
+export async function supplierDelete(id) {
+  if (!id) return false;
+  ensureSupplierStores();
+  mem.suppliers.delete(id);
+  removeSupplierIndex(id);
+  const r = getRedis();
+  if (r) {
+    await rdel(KEY_SUPPLIER(id), r);
+    await persistSupplierIndex(r);
+  }
+  return true;
+}
+
+export async function supplierPerformanceAll(filter = {}) {
+  ensureSupplierStores();
+  const r = getRedis();
+  const filterSupplierId = normalizeString(filter.supplierId || '');
+  if (r) {
+    const ids = await rsmembers(KEY_SUPPLIER_PERF_INDEX, r);
+    const list = [];
+    for (const id of ids || []) {
+      const raw = await rget(KEY_SUPPLIER_PERF(id), r);
+      if (!raw || typeof raw !== 'object') continue;
+      const normalized = normalizePerformanceRecord({ ...raw, id });
+      if (filterSupplierId && normalized.supplierId !== filterSupplierId) continue;
+      list.push(normalized);
+    }
+    list.sort((a, b) => (b.date || 0) - (a.date || 0));
+    return list;
+  }
+  const list = Array.from(mem.supplierPerformance.values()).map((p) => normalizePerformanceRecord(p));
+  const filtered = filterSupplierId ? list.filter((p) => p.supplierId === filterSupplierId) : list;
+  filtered.sort((a, b) => (b.date || 0) - (a.date || 0));
+  return filtered;
+}
+
+export async function supplierPerformanceGet(id) {
+  if (!id) return null;
+  ensureSupplierStores();
+  const r = getRedis();
+  const raw = r ? await rget(KEY_SUPPLIER_PERF(id), r) : mem.supplierPerformance.get(id);
+  return raw ? normalizePerformanceRecord({ ...raw, id }) : null;
+}
+
+export async function supplierPerformanceSave(record = {}) {
+  const normalized = normalizePerformanceRecord(record);
+  ensureSupplierStores();
+  mem.supplierPerformance.set(normalized.id, normalized);
+  addSupplierPerfIndex(normalized.id);
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER_PERF(normalized.id), normalized);
+    await persistSupplierPerfIndex(r);
+  }
+  return normalized;
+}
+
+export async function supplierPerformanceUpdate(id, patch = {}) {
+  const current = await supplierPerformanceGet(id);
+  if (!current) return null;
+  const updated = normalizePerformanceRecord({ ...current, ...patch, id, updatedAt: Date.now() });
+  return supplierPerformanceSave(updated);
+}
+
+export async function supplierPerformanceDelete(id) {
+  if (!id) return false;
+  ensureSupplierStores();
+  mem.supplierPerformance.delete(id);
+  removeSupplierPerfIndex(id);
+  const r = getRedis();
+  if (r) {
+    await rdel(KEY_SUPPLIER_PERF(id), r);
+    await persistSupplierPerfIndex(r);
+  }
+  return true;
+}
+
+export async function supplierEvaluationAll(filter = {}) {
+  ensureSupplierStores();
+  const r = getRedis();
+  const filterSupplierId = normalizeString(filter.supplierId || '');
+  if (r) {
+    const ids = await rsmembers(KEY_SUPPLIER_EVAL_INDEX, r);
+    const list = [];
+    for (const id of ids || []) {
+      const raw = await rget(KEY_SUPPLIER_EVAL(id), r);
+      if (!raw || typeof raw !== 'object') continue;
+      const normalized = normalizeSupplierEvaluationRecord({ ...raw, id });
+      if (filterSupplierId && normalized.supplierId !== filterSupplierId) continue;
+      list.push(normalized);
+    }
+    list.sort((a, b) => (b.evalYear || 0) - (a.evalYear || 0));
+    return list;
+  }
+  const list = Array.from(mem.supplierEvaluations.values()).map((e) => normalizeSupplierEvaluationRecord(e));
+  const filtered = filterSupplierId ? list.filter((e) => e.supplierId === filterSupplierId) : list;
+  filtered.sort((a, b) => (b.evalYear || 0) - (a.evalYear || 0));
+  return filtered;
+}
+
+export async function supplierEvaluationGet(id) {
+  if (!id) return null;
+  ensureSupplierStores();
+  const r = getRedis();
+  const raw = r ? await rget(KEY_SUPPLIER_EVAL(id), r) : mem.supplierEvaluations.get(id);
+  return raw ? normalizeSupplierEvaluationRecord({ ...raw, id }) : null;
+}
+
+export async function supplierEvaluationSave(record = {}) {
+  const normalized = normalizeSupplierEvaluationRecord(record);
+  ensureSupplierStores();
+  mem.supplierEvaluations.set(normalized.id, normalized);
+  addSupplierEvalIndex(normalized.id);
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER_EVAL(normalized.id), normalized);
+    await persistSupplierEvalIndex(r);
+  }
+  return normalized;
+}
+
+export async function supplierEvaluationUpdate(id, patch = {}) {
+  const current = await supplierEvaluationGet(id);
+  if (!current) return null;
+  const updated = normalizeSupplierEvaluationRecord({ ...current, ...patch, id, updatedAt: Date.now() });
+  return supplierEvaluationSave(updated);
+}
+
+export async function supplierEvaluationDelete(id) {
+  if (!id) return false;
+  ensureSupplierStores();
+  mem.supplierEvaluations.delete(id);
+  removeSupplierEvalIndex(id);
+  const r = getRedis();
+  if (r) {
+    await rdel(KEY_SUPPLIER_EVAL(id), r);
+    await persistSupplierEvalIndex(r);
+  }
+  return true;
+}
+
+export async function supplierEscalationAll(filter = {}) {
+  ensureSupplierStores();
+  const r = getRedis();
+  const filterSupplierId = normalizeString(filter.supplierId || '');
+  if (r) {
+    const ids = await rsmembers(KEY_SUPPLIER_ESC_INDEX, r);
+    const list = [];
+    for (const id of ids || []) {
+      const raw = await rget(KEY_SUPPLIER_ESC(id), r);
+      if (!raw || typeof raw !== 'object') continue;
+      const normalized = normalizeSupplierEscalationRecord({ ...raw, id });
+      if (filterSupplierId && normalized.supplierId !== filterSupplierId) continue;
+      list.push(normalized);
+    }
+    list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return list;
+  }
+  const list = Array.from(mem.supplierEscalations.values()).map((e) => normalizeSupplierEscalationRecord(e));
+  const filtered = filterSupplierId ? list.filter((e) => e.supplierId === filterSupplierId) : list;
+  filtered.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return filtered;
+}
+
+export async function supplierEscalationGet(id) {
+  if (!id) return null;
+  ensureSupplierStores();
+  const r = getRedis();
+  const raw = r ? await rget(KEY_SUPPLIER_ESC(id), r) : mem.supplierEscalations.get(id);
+  return raw ? normalizeSupplierEscalationRecord({ ...raw, id }) : null;
+}
+
+export async function supplierEscalationSave(record = {}) {
+  const normalized = normalizeSupplierEscalationRecord(record);
+  ensureSupplierStores();
+  mem.supplierEscalations.set(normalized.id, normalized);
+  addSupplierEscIndex(normalized.id);
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER_ESC(normalized.id), normalized);
+    await persistSupplierEscIndex(r);
+  }
+  return normalized;
+}
+
+export async function supplierEscalationUpdate(id, patch = {}) {
+  const current = await supplierEscalationGet(id);
+  if (!current) return null;
+  const updated = normalizeSupplierEscalationRecord({ ...current, ...patch, id, updatedAt: Date.now() });
+  return supplierEscalationSave(updated);
+}
+
+export async function supplierEscalationDelete(id) {
+  if (!id) return false;
+  ensureSupplierStores();
+  mem.supplierEscalations.delete(id);
+  removeSupplierEscIndex(id);
+  const r = getRedis();
+  if (r) {
+    await rdel(KEY_SUPPLIER_ESC(id), r);
+    await persistSupplierEscIndex(r);
+  }
+  return true;
+}
+
+export async function supplierEvalConfigGet() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_SUPPLIER_EVAL_CONFIG, r);
+    if (raw && typeof raw === 'object') return normalizeSupplierEvalConfig(raw);
+  }
+  if (mem.supplierEvalConfig) return normalizeSupplierEvalConfig(mem.supplierEvalConfig);
+  const fallback = normalizeSupplierEvalConfig({});
+  mem.supplierEvalConfig = fallback;
+  return fallback;
+}
+
+export async function supplierEvalConfigSave(input = {}, { updatedBy = '' } = {}) {
+  const current = await supplierEvalConfigGet();
+  const nextVersion = current.version + 1;
+  const historyEntry = {
+    version: current.version,
+    updatedAt: current.updatedAt,
+    updatedBy: current.updatedBy,
+    snapshot: current,
+  };
+  const merged = normalizeSupplierEvalConfig({
+    ...current,
+    ...input,
+    version: nextVersion,
+    updatedAt: Date.now(),
+    updatedBy,
+    history: [...(current.history || []), historyEntry],
+  });
+  mem.supplierEvalConfig = merged;
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER_EVAL_CONFIG, merged, r);
+  }
+  return merged;
+}
