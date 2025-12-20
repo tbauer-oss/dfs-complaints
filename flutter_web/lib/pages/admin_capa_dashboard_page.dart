@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models/capa_report.dart';
+import '../widgets/app_error_view.dart';
 import '../widgets/skeletons.dart';
 import 'capa_detail_page.dart';
 
@@ -16,7 +17,7 @@ class AdminCapaDashboardPage extends StatefulWidget {
 
 class _AdminCapaDashboardPageState extends State<AdminCapaDashboardPage> {
   bool _loading = true;
-  String? _error;
+  Object? _error;
   Map<String, dynamic> _data = const {};
   List<CapaReport> _allCapas = const [];
   bool _loadingCapas = false;
@@ -40,7 +41,7 @@ class _AdminCapaDashboardPageState extends State<AdminCapaDashboardPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = e);
     } finally {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -188,20 +189,7 @@ class _AdminCapaDashboardPageState extends State<AdminCapaDashboardPage> {
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Erneut laden'),
-            ),
-          ],
-        ),
-      );
+      return AppErrorView(error: _error!, onRetry: _load);
     }
 
     return SingleChildScrollView(

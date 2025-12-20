@@ -18,7 +18,10 @@ import '../models/dfs_product.dart';
 import '../models/global_search.dart';
 import '../models/rep_download_item.dart';
 import '../services/dfs_product_service.dart';
+import '../utils/app_error_mapper.dart';
 import '../widgets/admin/global_search_bar.dart';
+import '../widgets/app_error_snackbar.dart';
+import '../widgets/app_error_view.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/skeletons.dart';
 import 'admin_page.dart';
@@ -36,7 +39,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
   final _productService = DfsProductService();
   Map<String, dynamic>? _stats;
   bool _loading = true;
-  String? _error;
+  Object? _error;
   DateTimeRange? _range;
   DateTime? _manualFrom;
   DateTime? _manualTo;
@@ -148,7 +151,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e;
         _loading = false;
       });
     }
@@ -382,9 +385,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export fehlgeschlagen: $e')),
-      );
+      AppErrorSnackBar.show(context, e);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -663,13 +664,13 @@ class _AdminStatsPageState extends State<AdminStatsPage> with TickerProviderStat
           }
           if (_error != null) {
             return _ErrorState(
-              message: _error!,
+              error: _error!,
               onRetry: () => _loadStats(),
             );
           }
           if (_stats == null) {
             return const _ErrorState(
-              message: 'Keine Daten verfügbar.',
+              error: AppErrorMessage.custom('Keine Daten verfügbar.'),
             );
           }
           return SingleChildScrollView(
@@ -2640,33 +2641,13 @@ class _EmptyPlaceholder extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  final String message;
+  final Object error;
   final VoidCallback? onRetry;
-  const _ErrorState({required this.message, this.onRetry});
+  const _ErrorState({required this.error, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 48),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-            ),
-          ),
-          if (onRetry != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Erneut versuchen')),
-          ],
-        ],
-      ),
-    );
+    return AppErrorView(error: error, onRetry: onRetry);
   }
 }
 
