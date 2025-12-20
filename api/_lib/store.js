@@ -5148,6 +5148,50 @@ function normalizeSupplierRecord(record = {}) {
   return base;
 }
 
+function mapLegacyPerformanceType(type = '') {
+  const value = String(type).toLowerCase();
+  if (value.includes('qualität') || value.includes('qualitaet')) return 'quality';
+  if (value.includes('termin') || value.includes('liefer')) return 'delivery';
+  if (value.includes('dokument')) return 'documentation';
+  if (value.includes('service')) return 'service';
+  return '';
+}
+
+function normalizePerformanceRatings(ratings, legacyType, legacyRating) {
+  const normalized = {
+    quality: null,
+    delivery: null,
+    documentation: null,
+    service: null,
+  };
+  if (ratings && typeof ratings === 'object') {
+    Object.entries(ratings).forEach(([key, value]) => {
+      if (!key) return;
+      if (value == null || value === '') {
+        normalized[key] = null;
+        return;
+      }
+      const parsed = Number.isFinite(Number(value)) ? Number(value) : null;
+      normalized[key] = parsed;
+    });
+  }
+  if (Object.values(normalized).every((value) => value == null)) {
+    const mappedKey = mapLegacyPerformanceType(legacyType);
+    const parsed = Number.isFinite(Number(legacyRating)) ? Number(legacyRating) : null;
+    if (mappedKey && parsed != null) normalized[mappedKey] = parsed;
+  }
+  return normalized;
+}
+
+function computePerformanceStatus(ratings, currentStatus) {
+  const status = normalizeString(currentStatus || '');
+  if (status.toLowerCase() === 'cancelled') return status;
+  const values = Object.values(ratings || {}).filter((value) => Number.isFinite(value));
+  if (values.length === 0) return 'OFFEN';
+  if (values.length === 4) return 'ABGESCHLOSSEN';
+  return 'IN_BEARBEITUNG';
+}
+
 function normalizePerformanceRecord(record = {}) {
   const now = Date.now();
   const base = { ...record };
@@ -5159,10 +5203,14 @@ function normalizePerformanceRecord(record = {}) {
   base.type = normalizeString(base.type || '');
   base.rating = normalizeString(base.rating || '');
   base.description = normalizeString(base.description || '');
-  base.reference = normalizeString(base.reference || '');
+  const reference = base.reference && typeof base.reference === 'object' ? base.reference : {};
+  base.referenceType = normalizeString(base.referenceType || reference.referenceType || '');
+  base.referenceNumber = normalizeString(base.referenceNumber || reference.referenceNumber || base.reference || '');
+  base.reference = normalizeString(base.reference || base.referenceNumber || '');
+  base.ratings = normalizePerformanceRatings(base.ratings, base.type, base.rating);
   base.attachments = normalizeArray(base.attachments);
   base.includeInAnnual = base.includeInAnnual !== false;
-  base.status = normalizeString(base.status || 'open');
+  base.status = computePerformanceStatus(base.ratings, base.status || 'OFFEN');
   base.cancelReason = normalizeString(base.cancelReason || '');
   base.createdAt = normalizeDateValue(base.createdAt) || now;
   base.updatedAt = normalizeDateValue(base.updatedAt) || now;
