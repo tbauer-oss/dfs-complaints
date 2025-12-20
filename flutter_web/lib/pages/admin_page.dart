@@ -21551,6 +21551,8 @@ class PrrcDashboardStats {
     return PrrcDashboardStats(
       counts: {
         'N/A': raw['N/A'] ?? 0,
+        'Keine Sicherheitsrelevanz festgestellt':
+            raw['Keine Sicherheitsrelevanz festgestellt'] ?? 0,
         'Sub': raw['Sub'] ?? raw['SUB'] ?? 0,
         'A': raw['A'] ?? 0,
         'B': raw['B'] ?? 0,
@@ -21632,7 +21634,15 @@ class PrrcDashboardPage extends StatefulWidget {
   List<ActiveUser> _customers = const <ActiveUser>[];
   List<PortalUserSummary> _portalUsers = const <PortalUserSummary>[];
   PrrcDashboardStats _stats = const PrrcDashboardStats(
-    counts: {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0},
+    counts: {
+      'N/A': 0,
+      'Keine Sicherheitsrelevanz festgestellt': 0,
+      'Sub': 0,
+      'A': 0,
+      'B': 0,
+      'C': 0,
+      'D': 0,
+    },
     unrated: 0,
     open: 0,
     incidents: 0,
@@ -21764,9 +21774,13 @@ class PrrcDashboardPage extends StatefulWidget {
   String _classification(AdminComplaint c) {
     final raw = (c.prrcClassification ?? '').trim();
     if (raw.isEmpty) return 'N/A';
+    if (raw.toLowerCase() == 'keine sicherheitsrelevanz festgestellt') {
+      return 'Keine Sicherheitsrelevanz festgestellt';
+    }
     final upper = raw.toUpperCase();
     if (upper == 'SUB') return 'Sub';
-    return upper;
+    if (raw.length == 1) return upper;
+    return raw;
   }
 
   bool _isUnrated(AdminComplaint c) => (c.prrcClassification ?? '').trim().isEmpty;
@@ -22005,7 +22019,15 @@ class PrrcDashboardPage extends StatefulWidget {
   }
 
   PrrcDashboardStats _localStats(List<AdminComplaint> list) {
-    final counts = {'N/A': 0, 'Sub': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
+    final counts = {
+      'N/A': 0,
+      'Keine Sicherheitsrelevanz festgestellt': 0,
+      'Sub': 0,
+      'A': 0,
+      'B': 0,
+      'C': 0,
+      'D': 0,
+    };
     var unrated = 0;
     var open = 0;
     var incidents = 0;
@@ -22391,7 +22413,15 @@ class PrrcDashboardPage extends StatefulWidget {
 
   Widget _buildKpis() {
     final counts = _stats.counts;
-    final chips = ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((c) {
+    final chips = [
+      'N/A',
+      'Keine Sicherheitsrelevanz festgestellt',
+      'Sub',
+      'A',
+      'B',
+      'C',
+      'D',
+    ].map((c) {
       final val = counts[c] ?? 0;
       return Chip(
         label: Text('$c: $val'),
@@ -22508,7 +22538,15 @@ class PrrcDashboardPage extends StatefulWidget {
           onChanged: (v) => setState(() => _categoryFilter = v ?? 'all'),
           items: [
             const DropdownMenuItem(value: 'all', child: Text('Alle PRRC-Kategorien')),
-            ...['N/A', 'Sub', 'A', 'B', 'C', 'D'].map(
+            ...[
+              'N/A',
+              'Keine Sicherheitsrelevanz festgestellt',
+              'Sub',
+              'A',
+              'B',
+              'C',
+              'D',
+            ].map(
               (c) => DropdownMenuItem<String>(value: c, child: Text(c)),
             ),
           ],
@@ -22843,25 +22881,23 @@ class PrrcDashboardPage extends StatefulWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text('Schnellauswahl', style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    children: ['N/A', 'Sub', 'A', 'B', 'C', 'D'].map((value) {
-                      final selected = _selectedClassification == value;
-                      return ChoiceChip(
-                        label: Text(value),
-                        selected: selected,
-                        onSelected: _saving ? null : (_) => setState(() => _selectedClassification = value),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: _selectedClassification,
-                    decoration: const InputDecoration(labelText: 'PRRC-Kategorie'),
+                    hint: const Text('Bitte auswählen'),
+                    decoration: const InputDecoration(
+                      labelText: 'Vorauswahl PRRC-Bewertung',
+                      isDense: true,
+                    ),
                     onChanged: _saving ? null : (v) => setState(() => _selectedClassification = v),
-                    items: ['N/A', 'Sub', 'A', 'B', 'C', 'D']
+                    items: [
+                      'N/A',
+                      'Keine Sicherheitsrelevanz festgestellt',
+                      'Sub',
+                      'A',
+                      'B',
+                      'C',
+                      'D',
+                    ]
                         .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
                         .toList(),
                   ),
