@@ -34,6 +34,7 @@ import '../widgets/legal_footer.dart';
 import '../widgets/password_field.dart';
 import '../widgets/theme_action.dart' as w;
 import '../utils/lang_utils.dart';
+import '../utils/app_error_mapper.dart';
 import '../widgets/fmea_risk_check_dialog.dart';
 import '../widgets/chat/internal_chat_fab.dart';
 import '../widgets/chat/internal_chat_overview.dart';
@@ -1093,7 +1094,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   String _custLang        = 'de';
   late Country _custCountry;
   bool _custBusy          = false;
-  String? _custErr;
+  Object? _custErr;
   _CustPasswordMode _custPasswordMode = _CustPasswordMode.adminSecret;
   final _createCustomerFormKey = GlobalKey<FormState>();
 
@@ -1111,15 +1112,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   List<CustomerNewsEntry> _newsEntriesPortal = [];
   bool _newsLoadingCustomer = false;
   bool _newsLoadingPortal = false;
-  String? _newsErrCustomer;
-  String? _newsErrPortal;
+  Object? _newsErrCustomer;
+  Object? _newsErrPortal;
   String _newsScope = 'portal';
   bool get _isPortalNewsScope => _newsScope == 'portal';
   List<CustomerNewsEntry> get _activeNewsEntries =>
       _isPortalNewsScope ? _newsEntriesPortal : _newsEntriesCustomer;
   bool get _activeNewsLoading =>
       _isPortalNewsScope ? _newsLoadingPortal : _newsLoadingCustomer;
-  String? get _activeNewsErr =>
+  Object? get _activeNewsErr =>
       _isPortalNewsScope ? _newsErrPortal : _newsErrCustomer;
   List<CustomerNewsEntry> _portalFeed = [];
   bool _portalFeedLoading = false;
@@ -1162,7 +1163,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   List<FaqEntry> _faqEntries = [];
   bool _faqLoading = false;
   bool _faqSeeding = false;
-  String? _faqErr;
+  Object? _faqErr;
   String? _faqSeedErr;
   bool _faqShowInactive = true;
   String _faqAudienceFilter = 'both';
@@ -1471,6 +1472,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   String _langLabel(String code) => deeplLangLabel(code);
 
+  String _formatError(Object error) {
+    final message = AppErrorMapper.map(error);
+    return message.message.isEmpty ? message.title : '${message.title} ${message.message}'.trim();
+  }
+
   String _newsCategoryLabel(String code) {
     final key = code.trim().toLowerCase();
     return _newsCategoryLabels[key] ?? _newsCategoryLabels['general']!;
@@ -1483,7 +1489,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   final _dentEsfrCtrl    = TextEditingController();
 
   bool _catCfgBusy = false;
-  String? _catCfgErr;
+  Object? _catCfgErr;
 
   // Push-Broadcast
   final _pushTitleCtrl = TextEditingController();
@@ -1495,13 +1501,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   PushRecipientType _pushRecipientType = PushRecipientType.customer;
   List<AdminPushRecipient> _pushRecipients = [];
   bool _pushRecipientsLoading = false;
-  String? _pushRecipientsErr;
+  Object? _pushRecipientsErr;
   Timer? _pushRecipientsSearchTimer;
   bool _pushBusy = false;
-  String? _pushErr;
+  Object? _pushErr;
   AdminPushBroadcastResult? _pushResult;
   bool _pushSelfBusy = false;
-  String? _pushSelfErr;
+  Object? _pushSelfErr;
   AdminPushSelfTestResult? _pushSelfResult;
 
   // Aktivitäts-Check (Kunden & Vertreter)
@@ -1510,7 +1516,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   String? _activitySelectedEmail;
   _ActivitySnapshot? _activity;
   bool _activityLoading = false;
-  String? _activityErr;
+  Object? _activityErr;
 
   String _stripPdfsPrefix(String? v) {
     if (v == null) return '';
@@ -2083,7 +2089,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler bei Vertreterzuordnung: $e')),
+        SnackBar(content: Text(_formatError(e))),
       );
     } finally {
       _setRepAssignmentBusy(email, false);
@@ -2486,7 +2492,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(_formatError(e))),
         );
       }
     } finally {
@@ -2531,9 +2537,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() {
         if (_isPortalNewsScope) {
-          _newsErrPortal = '$e';
+          _newsErrPortal = e;
         } else {
-          _newsErrCustomer = '$e';
+          _newsErrCustomer = e;
         }
       });
     } finally {
@@ -2658,7 +2664,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _faqErr = '$e');
+      setState(() => _faqErr = e);
     } finally {
       if (!mounted) return;
       setState(() => _faqLoading = false);
@@ -2688,7 +2694,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _pushRecipientsErr = e.toString());
+      setState(() => _pushRecipientsErr = e);
     } finally {
       if (!mounted) return;
       setState(() => _pushRecipientsLoading = false);
@@ -2761,9 +2767,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _pushErr = e.toString());
+      setState(() => _pushErr = e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Push-Versand: $e')),
+        SnackBar(content: Text(_formatError(e))),
       );
     } finally {
       if (mounted) setState(() => _pushBusy = false);
@@ -2789,9 +2795,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       await _showPushSelfResult(result);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _pushSelfErr = e.toString());
+      setState(() => _pushSelfErr = e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Test-Push: $e')),
+        SnackBar(content: Text(_formatError(e))),
       );
     } finally {
       if (mounted) setState(() => _pushSelfBusy = false);
@@ -3043,7 +3049,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       );
       if (mounted) setState(() {});
     } catch (e) {
-      setState(() => _catCfgErr = e.toString());
+      setState(() => _catCfgErr = e);
     }
   }
 
@@ -3144,7 +3150,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       } catch (_) {}
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     }
   }
@@ -3334,7 +3340,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       } catch (_) {}
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     }
   }
@@ -3358,7 +3364,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final oldPwCtrl = TextEditingController();
     final newPw1Ctrl = TextEditingController();
     final newPw2Ctrl = TextEditingController();
-    String? err;
+    Object? err;
     var busy = false;
 
     await showDialog<void>(
@@ -3367,7 +3373,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         builder: (ctx, setState) {
           Future<void> submit() async {
             if (newPw1Ctrl.text != newPw2Ctrl.text) {
-              setState(() => err = t.passwordsDontMatch);
+              setState(() => err = AppErrorMessage.custom(t.passwordsDontMatch ?? 'Passwörter stimmen nicht überein.'));
               return;
             }
 
@@ -3390,7 +3396,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               return;
             } catch (e) {
               if (!ctx.mounted) return;
-              setState(() => err = e.toString());
+              setState(() => err = e);
             } finally {
               if (!ctx.mounted) return;
               setState(() => busy = false);
@@ -3404,7 +3410,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (err != null) ...[
-                    Text(err!, style: const TextStyle(color: Colors.red)),
+                    Text(_formatError(err!), style: const TextStyle(color: Colors.red)),
                     const SizedBox(height: 8),
                   ],
                   PasswordField(
@@ -3771,7 +3777,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       _refreshNews();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     }
   }
@@ -3791,7 +3797,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     }
   }
@@ -3933,7 +3939,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                 }
                               } catch (e) {
                                 if (mounted) {
-                                  setState(() => _catCfgErr = e.toString());
+                                  setState(() => _catCfgErr = e);
                                 }
                               } finally {
                                 if (mounted) {
@@ -3965,7 +3971,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _catCfgErr!,
+                          _formatError(_catCfgErr!),
                           style: TextStyle(
                             color: cs.onErrorContainer,
                             fontSize: 13,
@@ -4361,7 +4367,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       if (_pushRecipientsErr != null) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'Fehler beim Laden: $_pushRecipientsErr',
+                          _formatError(_pushRecipientsErr!),
                           style: TextStyle(color: cs.error),
                         ),
                       ],
@@ -4479,7 +4485,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   ),
                   if (_pushSelfErr != null) ...[
                     const SizedBox(height: 8),
-                    Text('Test-Fehler: $_pushSelfErr', style: TextStyle(color: cs.error)),
+                    Text(_formatError(_pushSelfErr!), style: TextStyle(color: cs.error)),
                   ],
                   if (result?.stats != null) ...[
                     const SizedBox(height: 10),
@@ -4506,7 +4512,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   ],
                   if (_pushErr != null) ...[
                     const SizedBox(height: 12),
-                    Text('Fehler: $_pushErr', style: TextStyle(color: cs.error)),
+                    Text(_formatError(_pushErr!), style: TextStyle(color: cs.error)),
                   ],
                   if (result != null) ...[
                     const SizedBox(height: 20),
@@ -4872,7 +4878,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final email = (_activitySelectedEmail ?? _activityEmailCtrl.text).trim();
     if (email.isEmpty) {
       setState(() {
-        _activityErr = 'Bitte eine Auswahl treffen.';
+        _activityErr = const AppErrorMessage.custom('Bitte eine Auswahl treffen.');
         _activity = null;
       });
       return;
@@ -4886,7 +4892,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (res == null || res['found'] != true) {
         setState(() {
           _activity = null;
-          _activityErr = 'Kein Datensatz gefunden.';
+          _activityErr = const AppErrorMessage.custom('Kein Datensatz gefunden.');
         });
       } else {
         setState(() {
@@ -4896,7 +4902,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       setState(() {
-        _activityErr = e.toString();
+        _activityErr = e;
         _activity = null;
       });
     } finally {
@@ -5000,7 +5006,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             if (_activityLoading) const SkeletonBox(height: 4),
             if (_activityErr != null) ...[
               const SizedBox(height: 8),
-              Text('Fehler: $_activityErr', style: TextStyle(color: cs.error)),
+              Text(_formatError(_activityErr!), style: TextStyle(color: cs.error)),
             ],
             const SizedBox(height: 8),
             Expanded(
@@ -5271,7 +5277,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        _custErr!,
+                                        _formatError(_custErr!),
                                         style: theme.textTheme.bodyMedium?.copyWith(
                                           color: theme.colorScheme.onErrorContainer,
                                         ),
@@ -5582,7 +5588,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                             await _refreshAll();
                                           } catch (e) {
                                             if (mounted) {
-                                              setState(() => _custErr = e.toString());
+                                              setState(() => _custErr = e);
                                             }
                                           } finally {
                                             if (mounted) {
@@ -10211,7 +10217,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             if (_activeNewsLoading) const SkeletonBox(height: 4),
             if (_activeNewsErr != null) ...[
               const SizedBox(height: 8),
-              Text('Fehler beim Laden: $_activeNewsErr', style: const TextStyle(color: Colors.red)),
+              Text(_formatError(_activeNewsErr!), style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 12),
             if (_activeNewsEntries.isNotEmpty)
@@ -10454,7 +10460,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             if (_faqLoading) const SkeletonBox(height: 4),
             if (_faqErr != null) ...[
               const SizedBox(height: 8),
-              Text('Fehler: $_faqErr', style: const TextStyle(color: Colors.red)),
+              Text(_formatError(_faqErr!), style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 12),
             _buildFaqFilters(theme, filteredCategories, lang),
@@ -10774,7 +10780,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Löschen: $e')),
+        SnackBar(content: Text(_formatError(e))),
       );
     }
   }
@@ -10807,7 +10813,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Löschen: $e')),
+        SnackBar(content: Text(_formatError(e))),
       );
     }
   }
@@ -10826,7 +10832,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     bool active = category?.active ?? true;
     String translateSource = lang;
     bool translating = false;
-    String? translateErr;
+    Object? translateErr;
 
     await showDialog<void>(
       context: context,
@@ -10941,7 +10947,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                   }
                                 } catch (e) {
                                   setModalState(() {
-                                    translateErr = e.toString();
+                                    translateErr = e;
                                   });
                                 } finally {
                                   if (ctx.mounted) {
@@ -10954,7 +10960,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       ),
                       if (translateErr != null)
                         Text(
-                          translateErr!,
+                          _formatError(translateErr!),
                           style: TextStyle(color: Theme.of(context).colorScheme.error),
                         ),
                     ],
@@ -11029,7 +11035,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Fehler: $e')),
+                  SnackBar(content: Text(_formatError(e))),
                 );
               }
             },
@@ -11069,7 +11075,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     String previewLang = lang;
     String translateSource = lang;
     bool translating = false;
-    String? translateErr;
+    Object? translateErr;
 
     await showDialog<void>(
       context: context,
@@ -11210,7 +11216,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                                   }
                                 } catch (e) {
                                   setModalState(() {
-                                    translateErr = e.toString();
+                                    translateErr = e;
                                   });
                                 } finally {
                                   if (ctx.mounted) {
@@ -11235,7 +11241,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        translateErr!,
+                        _formatError(translateErr!),
                         style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
                     ),
@@ -11423,7 +11429,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               } catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Fehler: $e')),
+                  SnackBar(content: Text(_formatError(e))),
                 );
               }
             },
@@ -11528,7 +11534,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                             } catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                  .showSnackBar(SnackBar(content: Text(_formatError(e))));
                             }
                           },
                           onReject: () async {
@@ -11545,7 +11551,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                             } catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context)
-                                  .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                  .showSnackBar(SnackBar(content: Text(_formatError(e))));
                             }
                           },
                           onLoadComplaints: () => _loadComplaintsDetailed(p.email),
@@ -13102,7 +13108,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                               } catch (e) {
                                 if (!mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Fehler: $e')),
+                                  SnackBar(content: Text(_formatError(e))),
                                 );
                               }
                             },
@@ -13139,7 +13145,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                               } catch (e) {
                                 if (!mounted) return;
                                 ScaffoldMessenger.of(context)
-                                    .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                                    .showSnackBar(SnackBar(content: Text(_formatError(e))));
                               }
                             },
                           );
@@ -13851,7 +13857,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(_formatError(e))),
         );
       }
     } finally {
@@ -13958,7 +13964,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(_formatError(e))),
           );
         }
       }
@@ -14185,7 +14191,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             } catch (e) {
               setLocal(() => busy = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
               }
             }
           }
@@ -14239,7 +14245,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             } catch (e) {
               setLocal(() => busy = false);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
               }
             }
           }
@@ -15515,7 +15521,7 @@ class _UserTileState extends State<_UserTile> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Speichern: $e')),
+        SnackBar(content: Text(_formatError(e))),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -15800,7 +15806,7 @@ class _ComplaintsDetailList extends StatelessWidget {
     if (r.error != null) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text('Fehler beim Laden: ${r.error}', style: TextStyle(color: Colors.red)),
+        child: Text(_formatError(r.error!), style: TextStyle(color: Colors.red)),
       );
     }
     if (r.items.isEmpty) {
@@ -17711,14 +17717,14 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
   bool _noteOpen = false;
   bool _descTranslating = false;
   String? _descTranslation;
-  String? _descTranslationErr;
+  Object? _descTranslationErr;
   bool _descAutoDetectSource = true;
   String _descSourceLang = 'en';
   String? _payloadLang;
   String _internalEvalTargetLang = 'en';
   String _qmSummaryTargetLang = 'en';
   bool _translatingInternalEval = false;
-  String? _internalEvalTranslationError;
+  Object? _internalEvalTranslationError;
   String? _internalEvalCause;
   List<String> _selectedDepartments = [];
   late final AnimationController _blinkCtrl;
@@ -18094,7 +18100,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Fehler beim Sales-Abschluss: $e')));
+          .showSnackBar(SnackBar(content: Text(_formatError(e))));
     } finally {
       if (mounted) setState(() => _salesBusy = false);
     }
@@ -18172,7 +18178,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18199,7 +18205,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18229,7 +18235,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18274,8 +18280,8 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _internalEvalTranslationError = e.toString());
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        setState(() => _internalEvalTranslationError = e);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) {
@@ -18309,7 +18315,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18345,7 +18351,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18383,7 +18389,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18480,7 +18486,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(_formatError(e))),
         );
       }
     } finally {
@@ -18542,7 +18548,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _descTranslationErr = e.toString();
+        _descTranslationErr = e;
       });
     } finally {
       if (mounted) {
@@ -18675,7 +18681,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
           if (_descTranslationErr != null) ...[
             const SizedBox(height: 8),
             Text(
-              _descTranslationErr!,
+              _formatError(_descTranslationErr!),
               style: TextStyle(color: scheme.error),
             ),
           ],
@@ -18748,7 +18754,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(_formatError(e))),
         );
       }
     } finally {
@@ -18785,7 +18791,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(_formatError(e))),
         );
       }
     } finally {
@@ -18810,7 +18816,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18855,7 +18861,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18899,7 +18905,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18959,7 +18965,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -18989,7 +18995,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     }
   }
@@ -19338,7 +19344,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_formatError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -21192,7 +21198,7 @@ class _ComplaintEditorState extends State<_ComplaintEditor>
                           if (_internalEvalTranslationError != null) ...[
                             const SizedBox(height: 6),
                             Text(
-                              _internalEvalTranslationError!,
+                              _formatError(_internalEvalTranslationError!),
                               style: textTheme.bodySmall?.copyWith(color: scheme.error),
                             ),
                           ],

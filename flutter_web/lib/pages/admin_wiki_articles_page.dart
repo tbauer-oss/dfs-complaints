@@ -8,6 +8,8 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/wiki_article.dart';
 import '../models/wiki_category.dart';
+import '../utils/app_error_mapper.dart';
+import '../widgets/app_error_snackbar.dart';
 import '../widgets/skeletons.dart';
 
 class AdminWikiArticlesPage extends StatefulWidget {
@@ -35,7 +37,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     'it': 'Italiano',
   };
   bool _loading = true;
-  String? _err;
+  Object? _err;
   List<WikiArticle> _articles = const [];
   List<WikiCategory> _categories = const [];
   final Set<String> _deletingIds = {};
@@ -218,7 +220,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _err = e.toString());
+      setState(() => _err = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -442,9 +444,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _deletingIds.remove(article.id));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler: $e')),
-      );
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -968,9 +968,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                           if (!mounted) return;
                           Navigator.pop(ctx, true);
                         } catch (e) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(content: Text('Fehler: $e')),
-                          );
+                            AppErrorSnackBar.show(ctx, e);
                         }
                       },
                 child: const Text('Speichern'),
@@ -1196,7 +1194,7 @@ class _AdminWikiArticlesPageState extends State<AdminWikiArticlesPage> {
                 if (_err != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(_err!, style: TextStyle(color: cs.error)),
+                    child: Text(AppErrorMapper.map(_err!).title, style: TextStyle(color: cs.error)),
                   ),
                 const SizedBox(height: 8),
                 Expanded(

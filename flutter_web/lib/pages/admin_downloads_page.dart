@@ -13,6 +13,8 @@ import '../data/document_languages.dart';
 import '../models/download_category.dart';
 import '../models/rep_download_item.dart';
 import '../models/admin_rep_summary.dart';
+import '../utils/app_error_mapper.dart';
+import '../widgets/app_error_snackbar.dart';
 import '../widgets/skeletons.dart';
 
 class AdminDownloadsPage extends StatefulWidget {
@@ -28,7 +30,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   bool _saving = false;
   double? _uploadProgress;
   String? _uploadStatus;
-  String? _err;
+  Object? _err;
   List<RepDownloadItem> _items = const [];
   List<DownloadCategory> _categories = const [];
   List<AdminRepSummary> _reps = const [];
@@ -99,7 +101,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _err = e.toString();
+          _err = e;
           _loading = false;
         });
       }
@@ -297,11 +299,10 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     } catch (e) {
       if (mounted) {
         if (hasUpload) {
-          setState(() => _uploadStatus = 'Upload fehlgeschlagen: $e');
+          final message = AppErrorMapper.map(e);
+          setState(() => _uploadStatus = '${message.title} ${message.message}'.trim());
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Speichern fehlgeschlagen: $e')),
-        );
+        AppErrorSnackBar.show(context, e);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -325,9 +326,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       await widget.api.adminDeleteDownload(id);
       await _load();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
-      );
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -368,9 +367,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       final cats = await widget.api.adminAddDownloadCategory(name.trim());
       if (mounted) setState(() => _categories = cats);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kategorie konnte nicht angelegt werden: $e')),
-      );
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -401,9 +398,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
       if (mounted) setState(() => _categories = cats);
       if (hasDocs) await _load();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kategorie konnte nicht gelöscht werden: $e')),
-      );
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -1065,7 +1060,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
     if (_err != null) {
       return Padding(
         padding: const EdgeInsets.all(12),
-        child: Text(_err!, style: const TextStyle(color: Colors.red)),
+        child: Text(AppErrorMapper.map(_err!).title, style: const TextStyle(color: Colors.red)),
       );
     }
     if (_filteredItems.isEmpty) {

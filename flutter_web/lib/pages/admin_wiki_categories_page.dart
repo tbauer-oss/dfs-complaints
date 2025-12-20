@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models/wiki_category.dart';
+import '../utils/app_error_mapper.dart';
+import '../widgets/app_error_snackbar.dart';
 import '../widgets/skeletons.dart';
 
 class AdminWikiCategoriesPage extends StatefulWidget {
@@ -30,7 +32,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
   };
 
   bool _loading = true;
-  String? _err;
+  Object? _err;
   String _statusFilter = 'alle';
   List<WikiCategory> _categories = const [];
   final Set<String> _busyIds = {};
@@ -54,7 +56,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
       setState(() => _categories = cats);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _err = e.toString());
+      setState(() => _err = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -83,9 +85,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler: $e')),
-      );
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -395,7 +395,7 @@ class _AdminWikiCategoriesPageState extends State<AdminWikiCategoriesPage> {
                 if (_err != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(_err!, style: TextStyle(color: cs.error)),
+                    child: Text(AppErrorMapper.map(_err!).title, style: TextStyle(color: cs.error)),
                   ),
                 const SizedBox(height: 8),
                 Expanded(

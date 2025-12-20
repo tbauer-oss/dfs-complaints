@@ -18,6 +18,9 @@ import '../api/audit_admin_api.dart';
 import '../api/client.dart';
 import '../models/audit.dart';
 import '../models/portal_user.dart';
+import '../utils/app_error_mapper.dart';
+import '../widgets/app_error_snackbar.dart';
+import '../widgets/app_error_view.dart';
 import '../widgets/skeletons.dart';
 import '../widgets/dialog_content_scroll.dart';
 
@@ -135,7 +138,7 @@ class _AuditReportDraft {
 
 class _AuditOverviewTabState extends State<_AuditOverviewTab> {
   bool _loading = false;
-  String? _error;
+  Object? _error;
   List<Audit> _audits = const [];
   List<Auditor> _auditors = const [];
   final Map<String, List<_AuditPlanEntry>> _plans = {};
@@ -183,7 +186,7 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e;
         _loading = false;
       });
     }
@@ -231,7 +234,7 @@ class _AuditOverviewTabState extends State<_AuditOverviewTab> {
                     child: SkeletonTable(rows: 7, columns: 4, rowHeight: 16),
                   )
                 : _error != null
-                    ? _ErrorState(message: _error!, onRetry: _load)
+                    ? _ErrorState(error: _error!, onRetry: _load)
                     : _audits.isEmpty
                         ? const Center(child: Text('Keine Audits gefunden.'))
                         : Padding(
@@ -439,7 +442,7 @@ class _AuditProgramTab extends StatefulWidget {
 
 class _AuditProgramTabState extends State<_AuditProgramTab> {
   bool _loading = false;
-  String? _error;
+  Object? _error;
   List<AuditProgram> _programs = const [];
 
   @override
@@ -463,7 +466,7 @@ class _AuditProgramTabState extends State<_AuditProgramTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e;
         _loading = false;
       });
     }
@@ -477,7 +480,7 @@ class _AuditProgramTabState extends State<_AuditProgramTab> {
         child: SkeletonTable(rows: 5, columns: 3, rowHeight: 16),
       );
     }
-    if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
+    if (_error != null) return _ErrorState(error: _error!, onRetry: _load);
     return Scrollbar(
       thumbVisibility: true,
       child: ListView.builder(
@@ -610,7 +613,7 @@ class _AuditorMatrixTab extends StatefulWidget {
 
 class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
   bool _loading = true;
-  String? _error;
+  Object? _error;
   List<Auditor> _auditors = const [];
   List<PortalUserSummary> _dfsUsers = const [];
   List<String> _orgUnits = const ['QM', 'Operations', 'Produktion', 'IT', 'RA/QA', 'Logistik'];
@@ -647,7 +650,7 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e;
         _loading = false;
       });
     }
@@ -661,7 +664,7 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
         child: SkeletonTable(rows: 6, columns: 3, rowHeight: 16),
       );
     }
-    if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
+    if (_error != null) return _ErrorState(error: _error!, onRetry: _load);
     return Column(
       children: [
         Padding(
@@ -1105,7 +1108,7 @@ class _AnnualReportTab extends StatefulWidget {
 
 class _AnnualReportTabState extends State<_AnnualReportTab> {
   bool _loading = false;
-  String? _error;
+  Object? _error;
   List<AuditAnnualReport> _reports = const [];
   late int _year;
 
@@ -1131,7 +1134,7 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e;
         _loading = false;
       });
     }
@@ -1146,7 +1149,7 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Jahresbericht erstellt')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      AppErrorSnackBar.show(context, e);
       setState(() => _loading = false);
     }
   }
@@ -1159,7 +1162,7 @@ class _AnnualReportTabState extends State<_AnnualReportTab> {
         child: SkeletonTable(rows: 5, columns: 2, rowHeight: 16),
       );
     }
-    if (_error != null) return _ErrorState(message: _error!, onRetry: _load);
+    if (_error != null) return _ErrorState(error: _error!, onRetry: _load);
     return Column(
       children: [
         Padding(
@@ -1229,7 +1232,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   String? _lead;
   String? _coAuditor;
   bool _busy = false;
-  String? _error;
+  Object? _error;
 
   List<Auditor> get _eligibleAuditors {
     final orgUnit = _orgUnit.text.trim().toLowerCase();
@@ -1252,14 +1255,6 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
   }
 
   bool _isLeadAllowed(String? id) => id == null || _eligibleAuditors.any((a) => a.id == id);
-
-  String _errorText(Object e) {
-    if (e is ApiError) {
-      if (e.details.isNotEmpty) return '${e.message}: ${e.details.join('; ')}';
-      return e.message;
-    }
-    return e.toString();
-  }
 
   @override
   void initState() {
@@ -1288,7 +1283,10 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                child: Text(
+                  AppErrorMapper.map(_error!).title,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
             TextField(controller: _title, decoration: const InputDecoration(labelText: 'Titel')),
             const SizedBox(height: 12),
@@ -1458,7 +1456,7 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
 
   Future<void> _save() async {
     if (!_isLeadAllowed(_lead)) {
-      setState(() => _error = 'Unabhängiger, qualifizierter Lead Auditor erforderlich.');
+      setState(() => _error = const AppErrorMessage.custom('Unabhängiger, qualifizierter Lead Auditor erforderlich.'));
       return;
     }
     setState(() => _busy = true);
@@ -1502,8 +1500,8 @@ class _AuditEditorDialogState extends State<_AuditEditorDialog> {
       }
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
-      setState(() => _error = _errorText(e));
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_error!)));
+      setState(() => _error = e);
+      AppErrorSnackBar.show(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1545,15 +1543,9 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
   bool _planSaving = false;
   bool _planLoaded = false;
   bool _planMissing = false;
-  String? _error;
+  Object? _error;
 
-  String _planErrorMessage(Object error) {
-    if (error is ApiError) {
-      if (error.status == 404) return 'Auditplan nicht gefunden (404).';
-      return 'Auditplan konnte nicht geladen werden: ${error.message}';
-    }
-    return 'Auditplan konnte nicht geladen werden: $error';
-  }
+  AppErrorMessage _planErrorMessage(Object error) => AppErrorMapper.map(error);
 
   Future<void> _loadEvidence() async {
     setState(() {
@@ -1571,7 +1563,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       setState(() {
         _evidenceLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nachweise konnten nicht geladen werden: $e')));
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -1629,10 +1621,10 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       if (!mounted) return;
       setState(() {
         _evidenceLoading = false;
-        _evidenceUploadStatus = 'Upload fehlgeschlagen: $e';
+        final message = AppErrorMapper.map(e);
+        _evidenceUploadStatus = '${message.title} ${message.message}'.trim();
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Nachweis-Upload fehlgeschlagen: $e')));
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -1649,8 +1641,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
     } catch (e) {
       if (!mounted) return;
       setState(() => _evidenceLoading = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Nachweis konnte nicht gelöscht werden: $e')));
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -2157,7 +2148,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
               child: SkeletonTable(rows: 6, columns: 3, rowHeight: 16),
             )
           : _error != null
-              ? _ErrorState(message: _error!, onRetry: _load)
+              ? _ErrorState(error: _error!, onRetry: _load)
               : TabBarView(
                   controller: _tabs,
                   children: [
@@ -2277,7 +2268,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Auditplan gespeichert.')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      AppErrorSnackBar.show(context, e);
     } finally {
       if (mounted) setState(() => _planSaving = false);
     }
@@ -2431,7 +2422,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Audit archiviert.')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      AppErrorSnackBar.show(context, e);
     }
   }
 
@@ -2471,7 +2462,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         Navigator.of(context).pop(true);
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+        AppErrorSnackBar.show(context, e);
       }
     }
   }
@@ -2760,7 +2751,7 @@ class _FindingDialogState extends State<_FindingDialog> {
   String _type = 'Minor';
   String _status = 'open';
   bool _busy = false;
-  String? _error;
+  Object? _error;
 
   @override
   void initState() {
@@ -2783,7 +2774,10 @@ class _FindingDialogState extends State<_FindingDialog> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                child: Text(
+                  AppErrorMapper.map(_error!).title,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
             DropdownButtonFormField<String>(
               value: _type,
@@ -2838,7 +2832,7 @@ class _FindingDialogState extends State<_FindingDialog> {
       ));
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -2863,7 +2857,7 @@ class _ActionDialogState extends State<_ActionDialog> {
   String _status = 'open';
   DateTime? _due;
   bool _busy = false;
-  String? _error;
+  Object? _error;
 
   @override
   void initState() {
@@ -2887,7 +2881,10 @@ class _ActionDialogState extends State<_ActionDialog> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                child: Text(
+                  AppErrorMapper.map(_error!).title,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
             DropdownButtonFormField<String>(
               value: _type,
@@ -2966,7 +2963,7 @@ class _ActionDialogState extends State<_ActionDialog> {
       ));
       if (mounted) Navigator.pop(context, saved);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -2974,24 +2971,13 @@ class _ActionDialogState extends State<_ActionDialog> {
 }
 
 class _ErrorState extends StatelessWidget {
-  final String message;
+  final Object error;
   final VoidCallback? onRetry;
-  const _ErrorState({required this.message, this.onRetry});
+  const _ErrorState({required this.error, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          if (onRetry != null) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_outlined), label: const Text('Erneut versuchen')),
-          ]
-        ],
-      ),
-    );
+    return AppErrorView(error: error, onRetry: onRetry);
   }
 }
 
