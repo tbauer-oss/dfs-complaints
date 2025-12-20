@@ -1170,6 +1170,9 @@ class _AdminPageState extends State<AdminPage> {
   bool _pushBusy = false;
   String? _pushErr;
   AdminPushBroadcastResult? _pushResult;
+  bool _pushSelfBusy = false;
+  String? _pushSelfErr;
+  AdminPushSelfTestResult? _pushSelfResult;
 
   // Aktivitäts-Check (Kunden & Vertreter)
   final _activityEmailCtrl = TextEditingController();
@@ -2393,13 +2396,23 @@ class _AdminPageState extends State<AdminPage> {
       );
       if (!mounted) return;
       setState(() => _pushResult = result);
+      final stats = result.stats;
+      final foundTokens = stats?.foundTokens ?? result.totalTokens;
       final modeLabel = _pushIsTargeted ? 'Auswahl' : 'Alle';
       final text = dryRun
-          ? 'Testlauf: ${result.totalTokens} Empfänger ($modeLabel).'
-          : 'Gesendet an ${result.totalTokens} Empfänger ($modeLabel).';
+          ? 'Testlauf: $foundTokens Empfängergeräte ($modeLabel).'
+          : 'Gesendet ok: ${stats?.sentOk ?? result.totalTokens} / $foundTokens ($modeLabel).';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(text)),
       );
+      if (dryRun && foundTokens == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Warnung: Keine registrierten Geräte/Tokens vorhanden.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _pushErr = e.toString());
@@ -2409,6 +2422,85 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       if (mounted) setState(() => _pushBusy = false);
     }
+  }
+
+  Future<void> _sendPushTestToSelf() async {
+    if (_pushSelfBusy) return;
+    setState(() {
+      _pushSelfBusy = true;
+      _pushSelfErr = null;
+    });
+
+    final linkUrl = _pushLinkCtrl.text.trim();
+    try {
+      final result = await _api.sendPushTestToSelf(
+        title: 'Test',
+        body: 'Push Test',
+        linkUrl: linkUrl.isEmpty ? null : linkUrl,
+      );
+      if (!mounted) return;
+      setState(() => _pushSelfResult = result);
+      await _showPushSelfResult(result);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pushSelfErr = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Test-Push: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _pushSelfBusy = false);
+    }
+  }
+
+  Future<void> _showPushSelfResult(AdminPushSelfTestResult result) async {
+    final stats = result.stats;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Test an mich selbst'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tokens gefunden: ${result.tokensFound}'),
+              const SizedBox(height: 6),
+              Text('Gesendet ok: ${stats.sentOk} / ${stats.foundTokens}'),
+              Text('Fehlgeschlagen: ${stats.sentFailed}'),
+              if (stats.invalidTokensRemoved > 0)
+                Text('Ungültige Tokens bereinigt: ${stats.invalidTokensRemoved}'),
+              if (result.tokensFound == 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Keine registrierten Geräte/Tokens vorhanden.',
+                  style: TextStyle(color: cs.error),
+                ),
+              ],
+              if (result.errorsSample.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Fehler (Auszug):', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                for (final err in result.errorsSample)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      '• ${err.code}: ${err.detail} (${err.tokenHash})',
+                      style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
   }
 
   List<String> _composeRepRegionOptions(Iterable<Rep> reps) {
@@ -3741,6 +3833,8 @@ class _AdminPageState extends State<AdminPage> {
 
     Widget _buildResult(AdminPushBroadcastResult res) {
       final ts = dateFmt.format(res.timestamp.toLocal());
+      final stats = res.stats;
+      final foundTokens = stats?.foundTokens ?? res.totalTokens;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3749,10 +3843,13 @@ class _AdminPageState extends State<AdminPage> {
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          Text('${res.totalTokens} registrierte Geräte in ${res.languages.length} Sprachgruppen.'),
-          if (res.invalidTokens > 0) ...[
+          Text('$foundTokens registrierte Geräte in ${res.languages.length} Sprachgruppen.'),
+          if ((stats?.invalidTokensRemoved ?? res.invalidTokens) > 0) ...[
             const SizedBox(height: 6),
-            Text('Ungültige Tokens bereinigt: ${res.invalidTokens}', style: TextStyle(color: cs.error)),
+            Text(
+              'Ungültige Tokens bereinigt: ${stats?.invalidTokensRemoved ?? res.invalidTokens}',
+              style: TextStyle(color: cs.error),
+            ),
           ],
           if (res.languages.isEmpty) ...[
             const SizedBox(height: 12),
@@ -4033,8 +4130,38 @@ class _AdminPageState extends State<AdminPage> {
                         icon: const Icon(Icons.calculate_outlined),
                         label: const Text('Testlauf (nur zählen)'),
                       ),
+                      OutlinedButton.icon(
+                        onPressed: _pushSelfBusy ? null : _sendPushTestToSelf,
+                        icon: _pushSelfBusy
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.phone_android_outlined),
+                        label: const Text('Test an mich selbst'),
+                      ),
                     ],
                   ),
+                  if (_pushSelfErr != null) ...[
+                    const SizedBox(height: 8),
+                    Text('Test-Fehler: $_pushSelfErr', style: TextStyle(color: cs.error)),
+                  ],
+                  if (result?.stats != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Empfängergeräte gefunden: ${result!.stats!.foundTokens}',
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    if (result!.stats!.foundTokens == 0)
+                      Text(
+                        'Keine registrierten Geräte/Tokens vorhanden.',
+                        style: TextStyle(color: cs.error),
+                      ),
+                    if (!result!.dryRun) ...[
+                      const SizedBox(height: 4),
+                      Text('Gesendet ok: ${result!.stats!.sentOk} / ${result!.stats!.foundTokens}'),
+                      Text('Fehlgeschlagen: ${result!.stats!.sentFailed}'),
+                      if (result!.stats!.invalidTokensRemoved > 0)
+                        Text('Ungültige Tokens bereinigt: ${result!.stats!.invalidTokensRemoved}'),
+                    ],
+                  ],
                   if (_pushBusy) ...[
                     const SizedBox(height: 12),
                     const LinearProgressIndicator(),
@@ -16111,6 +16238,8 @@ class AdminPushBroadcastResult {
   final List<AdminPushBroadcastLanguage> languages;
   final List<String> errors;
   final DateTime timestamp;
+  final AdminPushStats? stats;
+  final List<AdminPushErrorSample> errorsSample;
 
   AdminPushBroadcastResult({
     required this.dryRun,
@@ -16119,8 +16248,11 @@ class AdminPushBroadcastResult {
     required List<AdminPushBroadcastLanguage> languages,
     required List<String> errors,
     required this.timestamp,
+    this.stats,
+    List<AdminPushErrorSample>? errorsSample,
   })  : languages = List.unmodifiable(languages),
-        errors = List.unmodifiable(errors);
+        errors = List.unmodifiable(errors),
+        errorsSample = List.unmodifiable(errorsSample ?? const []);
 
   factory AdminPushBroadcastResult.fromJson(Map<String, dynamic> json) {
     final langs = <AdminPushBroadcastLanguage>[];
@@ -16141,6 +16273,15 @@ class AdminPushBroadcastResult {
         if (s.isNotEmpty) errs.add(s);
       }
     }
+    final rawSamples = json['errorsSample'];
+    final samples = <AdminPushErrorSample>[];
+    if (rawSamples is List) {
+      for (final entry in rawSamples) {
+        if (entry is Map) {
+          samples.add(AdminPushErrorSample.fromJson(Map<String, dynamic>.from(entry)));
+        }
+      }
+    }
     final tsRaw = json['timestamp']?.toString();
     final ts = (tsRaw != null && tsRaw.isNotEmpty) ? (DateTime.tryParse(tsRaw) ?? DateTime.now()) : DateTime.now();
     return AdminPushBroadcastResult(
@@ -16150,6 +16291,115 @@ class AdminPushBroadcastResult {
       languages: langs,
       errors: errs,
       timestamp: ts,
+      stats: json['stats'] is Map
+          ? AdminPushStats.fromJson(Map<String, dynamic>.from(json['stats'] as Map))
+          : null,
+      errorsSample: samples,
+    );
+  }
+}
+
+class AdminPushStats {
+  final String mode;
+  final int targetUsers;
+  final int foundTokens;
+  final int sentOk;
+  final int sentFailed;
+  final int invalidTokensRemoved;
+  final int durationMs;
+
+  AdminPushStats({
+    required this.mode,
+    required this.targetUsers,
+    required this.foundTokens,
+    required this.sentOk,
+    required this.sentFailed,
+    required this.invalidTokensRemoved,
+    required this.durationMs,
+  });
+
+  factory AdminPushStats.fromJson(Map<String, dynamic> json) {
+    return AdminPushStats(
+      mode: (json['mode'] ?? '').toString(),
+      targetUsers: json['targetUsers'] is num ? (json['targetUsers'] as num).toInt() : 0,
+      foundTokens: json['foundTokens'] is num ? (json['foundTokens'] as num).toInt() : 0,
+      sentOk: json['sentOk'] is num ? (json['sentOk'] as num).toInt() : 0,
+      sentFailed: json['sentFailed'] is num ? (json['sentFailed'] as num).toInt() : 0,
+      invalidTokensRemoved: json['invalidTokensRemoved'] is num ? (json['invalidTokensRemoved'] as num).toInt() : 0,
+      durationMs: json['durationMs'] is num ? (json['durationMs'] as num).toInt() : 0,
+    );
+  }
+}
+
+class AdminPushErrorSample {
+  final String tokenHash;
+  final String code;
+  final String detail;
+
+  AdminPushErrorSample({
+    required this.tokenHash,
+    required this.code,
+    required this.detail,
+  });
+
+  factory AdminPushErrorSample.fromJson(Map<String, dynamic> json) {
+    return AdminPushErrorSample(
+      tokenHash: (json['tokenHash'] ?? '').toString(),
+      code: (json['code'] ?? '').toString(),
+      detail: (json['detail'] ?? '').toString(),
+    );
+  }
+}
+
+class AdminPushSelfTestResult {
+  final bool ok;
+  final String message;
+  final AdminPushStats stats;
+  final List<AdminPushErrorSample> errorsSample;
+  final String selfUserId;
+  final int tokensFound;
+  final Map<String, dynamic>? provider;
+
+  AdminPushSelfTestResult({
+    required this.ok,
+    required this.message,
+    required this.stats,
+    required this.errorsSample,
+    required this.selfUserId,
+    required this.tokensFound,
+    this.provider,
+  });
+
+  factory AdminPushSelfTestResult.fromJson(Map<String, dynamic> json) {
+    final rawSamples = json['errorsSample'];
+    final samples = <AdminPushErrorSample>[];
+    if (rawSamples is List) {
+      for (final entry in rawSamples) {
+        if (entry is Map) {
+          samples.add(AdminPushErrorSample.fromJson(Map<String, dynamic>.from(entry)));
+        }
+      }
+    }
+    return AdminPushSelfTestResult(
+      ok: json['ok'] == true,
+      message: (json['message'] ?? '').toString(),
+      stats: json['stats'] is Map
+          ? AdminPushStats.fromJson(Map<String, dynamic>.from(json['stats'] as Map))
+          : AdminPushStats(
+              mode: '',
+              targetUsers: 0,
+              foundTokens: 0,
+              sentOk: 0,
+              sentFailed: 0,
+              invalidTokensRemoved: 0,
+              durationMs: 0,
+            ),
+      errorsSample: samples,
+      selfUserId: (json['selfUserId'] ?? '').toString(),
+      tokensFound: json['tokensFound'] is num ? (json['tokensFound'] as num).toInt() : 0,
+      provider: json['provider'] is Map
+          ? Map<String, dynamic>.from(json['provider'] as Map)
+          : null,
     );
   }
 }
@@ -23725,6 +23975,25 @@ class AdminApi {
     final txt = res.responseText?.trim() ?? '';
     final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
     return AdminPushBroadcastResult.fromJson(j);
+  }
+
+  Future<AdminPushSelfTestResult> sendPushTestToSelf({
+    required String title,
+    required String body,
+    String? linkUrl,
+  }) async {
+    final payload = <String, dynamic>{
+      'title': title,
+      'body': body,
+      if (linkUrl != null && linkUrl.trim().isNotEmpty) 'linkUrl': linkUrl.trim(),
+    };
+    final res = await _request('POST', '/api/admin/push-test-to-self', body: payload);
+    if (res.status != 200) {
+      throw 'push test-to-self POST: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText?.trim() ?? '';
+    final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    return AdminPushSelfTestResult.fromJson(j);
   }
 
   Future<SystemHealthResult> fetchSystemHealth() async {
