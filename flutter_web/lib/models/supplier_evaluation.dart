@@ -220,11 +220,14 @@ class SupplierPerformanceEntry {
   final String referenceType;
   final String referenceNumber;
   final Map<String, int?> ratings;
+  final bool communicationNa;
+  final int ratingSchemaVersion;
   final List<dynamic> attachments;
   final bool includeInAnnual;
   final String status;
   final String cancelReason;
   final double? computedGrade;
+  final double? computedScore;
   final int? computedAt;
   final int? deletedAt;
   final String deletedBy;
@@ -243,11 +246,14 @@ class SupplierPerformanceEntry {
     required this.referenceType,
     required this.referenceNumber,
     required this.ratings,
+    required this.communicationNa,
+    required this.ratingSchemaVersion,
     required this.attachments,
     required this.includeInAnnual,
     required this.status,
     required this.cancelReason,
     required this.computedGrade,
+    required this.computedScore,
     required this.computedAt,
     required this.deletedAt,
     required this.deletedBy,
@@ -270,7 +276,26 @@ class SupplierPerformanceEntry {
     return '';
   }
 
+  static int _resolveRatingSchemaVersion(Map<String, dynamic> json) {
+    final version = json['ratingSchemaVersion'];
+    if (version is num) return version.toInt();
+    return int.tryParse(version?.toString() ?? '') ?? 1;
+  }
+
+  static int _normalizeRatingValue(int value, int schemaVersion) {
+    if (schemaVersion < 2) {
+      if (value <= 1) return 1;
+      if (value == 2) return 2;
+      if (value == 3) return 3;
+      return 4;
+    }
+    if (value < 1) return 1;
+    if (value > 4) return 4;
+    return value;
+  }
+
   static Map<String, int?> _normalizeRatings(Map<String, dynamic> json) {
+    final schemaVersion = _resolveRatingSchemaVersion(json);
     final ratings = <String, int?>{
       'communication': null,
       'quality': null,
@@ -283,14 +308,15 @@ class SupplierPerformanceEntry {
     if (rawRatings is Map) {
       rawRatings.forEach((key, value) {
         final parsed = value is int ? value : int.tryParse(value.toString());
-        ratings[key.toString()] = parsed;
+        ratings[key.toString()] = parsed == null ? null : _normalizeRatingValue(parsed, schemaVersion);
       });
     }
     if (ratings.values.every((value) => value == null)) {
       final legacyType = _mapLegacyType(json['type']?.toString() ?? '');
       final legacyRating = int.tryParse(json['rating']?.toString() ?? '');
       if (legacyType.isNotEmpty) {
-        ratings[legacyType] = legacyRating;
+        ratings[legacyType] =
+            legacyRating == null ? null : _normalizeRatingValue(legacyRating, schemaVersion);
       }
     }
     return ratings;
@@ -308,11 +334,16 @@ class SupplierPerformanceEntry {
                 '')
             .toString(),
         ratings: _normalizeRatings(json),
+        communicationNa: json['communicationNa'] == true,
+        ratingSchemaVersion: _resolveRatingSchemaVersion(json),
         attachments: (json['attachments'] as List?) ?? const [],
         includeInAnnual: json['includeInAnnual'] != false,
         status: (json['status'] ?? '').toString(),
         cancelReason: (json['cancelReason'] ?? '').toString(),
         computedGrade: json['computedGrade'] is num ? (json['computedGrade'] as num).toDouble() : null,
+        computedScore: json['computedScore'] is num
+            ? (json['computedScore'] as num).toDouble()
+            : (json['computedGrade'] is num ? (json['computedGrade'] as num).toDouble() : null),
         computedAt: json['computedAt'] is int ? json['computedAt'] as int : null,
         deletedAt: json['deletedAt'] is int ? json['deletedAt'] as int : null,
         deletedBy: (json['deletedBy'] ?? '').toString(),
@@ -332,11 +363,14 @@ class SupplierPerformanceEntry {
         'referenceType': referenceType,
         'referenceNumber': referenceNumber,
         'ratings': ratings.map((key, value) => MapEntry(key, value)),
+        'communicationNa': communicationNa,
+        'ratingSchemaVersion': ratingSchemaVersion,
         'attachments': attachments,
         'includeInAnnual': includeInAnnual,
         'status': status,
         'cancelReason': cancelReason,
         'computedGrade': computedGrade,
+        'computedScore': computedScore,
         'computedAt': computedAt,
         'deletedAt': deletedAt,
         'deletedBy': deletedBy,

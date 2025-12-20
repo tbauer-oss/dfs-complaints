@@ -23,22 +23,30 @@ function isFilled(value) {
 }
 
 const PERFORMANCE_CRITERIA = [
-  { key: 'communication', label: 'Kommunikation', weight: 0.1 },
-  { key: 'quality', label: 'Produktqualität', weight: 0.4 },
-  { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.2 },
-  { key: 'price', label: 'Preis korrekt', weight: 0.1 },
-  { key: 'quantity', label: 'Richtige Mengen/Produkte', weight: 0.1 },
+  { key: 'communication', label: 'Zusammenarbeit / Kommunikation', weight: 0.1 },
+  { key: 'quality', label: 'Produktqualität', weight: 0.3 },
+  { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.15 },
+  { key: 'price', label: 'Preis / Rechnungsstellung', weight: 0.15 },
+  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)', weight: 0.2 },
   { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
 ];
 
 function entryGrade(entry) {
   const ratings = entry?.ratings || {};
-  const parts = PERFORMANCE_CRITERIA.map(({ key, weight }) => {
+  const communicationNa = entry?.communicationNa === true;
+  let total = 0;
+  let weightTotal = 0;
+  for (const { key, weight } of PERFORMANCE_CRITERIA) {
     const value = ratings[key];
-    return Number.isFinite(value) ? value * weight : null;
-  });
-  if (parts.some((value) => value == null)) return null;
-  return Number(parts.reduce((sum, value) => sum + value, 0).toFixed(2));
+    if (key === 'communication' && communicationNa && value == null) {
+      continue;
+    }
+    if (!Number.isFinite(value)) return null;
+    total += value * weight;
+    weightTotal += weight;
+  }
+  if (!weightTotal) return null;
+  return Number((total / weightTotal).toFixed(2));
 }
 
 function classify(avg) {
@@ -56,11 +64,21 @@ function decisionFor(classification) {
   return '';
 }
 
-function computeAggregates(entries) {
+function isEntryComplete(entry) {
+  const ratings = entry?.ratings || {};
+  const communicationNa = entry?.communicationNa === true;
+  for (const { key } of PERFORMANCE_CRITERIA) {
+    if (key === 'communication' && communicationNa && ratings[key] == null) continue;
+    if (!Number.isFinite(ratings[key])) return false;
+  }
+  return true;
+}
+
+function computeAggregates(entries, allEntries = entries) {
   const gradedEntries = entries
     .map((entry) => ({
       entry,
-      grade: entry.computedGrade ?? entryGrade(entry),
+      grade: entry.computedScore ?? entry.computedGrade ?? entryGrade(entry),
     }))
     .filter((item) => Number.isFinite(item.grade));
 
@@ -72,6 +90,9 @@ function computeAggregates(entries) {
 
   const criterionAverages = PERFORMANCE_CRITERIA.map((criterion) => {
     const values = gradedEntries
+      .filter(
+        (item) => !(criterion.key === 'communication' && item.entry?.communicationNa === true)
+      )
       .map((item) => item.entry?.ratings?.[criterion.key])
       .filter((value) => Number.isFinite(value));
     const avg = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
@@ -96,12 +117,21 @@ function computeAggregates(entries) {
     description: entry.description,
     includeInAnnual: entry.includeInAnnual,
     status: entry.status,
-    grade: entry.computedGrade ?? entryGrade(entry),
+    grade: entry.computedScore ?? entry.computedGrade ?? entryGrade(entry),
+    communicationNa: entry.communicationNa === true,
   }));
 
+  const deletedEntries = allEntries.filter((entry) => entry.deletedAt).length;
+  const openEntries = allEntries.filter((entry) => {
+    if (entry.deletedAt) return false;
+    return !entry.includeInAnnual || !isEntryComplete(entry);
+  }).length;
+
   return {
-    totalEntries: entries.length,
-    gradedEntries: gradedEntries.length,
+    totalEntries: allEntries.length,
+    deletedEntries,
+    openEntries,
+    includedEntries: gradedEntries.length,
     averageGrade: avgGrade == null ? null : Number(avgGrade.toFixed(2)),
     classification,
     decision,
@@ -145,7 +175,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = readJson(req) || {};
       const config = await supplierEvalConfigGet();
-      const entries = await supplierPerformanceAll({ supplierId: body?.supplierId });
+      const entries = await supplierPerformanceAll({ supplierId: body?.supplierId, includeDeleted: true });
       const relevant = entries.filter((e) => {
         if (!e.includeInAnnual || e.status !== 'ABGESCHLOSSEN') return false;
         if (e.deletedAt) return false;
@@ -153,7 +183,7 @@ export default async function handler(req, res) {
         if (body?.periodTo && e.date > Number(body.periodTo)) return false;
         return true;
       });
-      const aggregates = computeAggregates(relevant);
+      const aggregates = computeAggregates(relevant, entries);
       const payload = {
         ...body,
         aggregates,

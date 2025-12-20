@@ -64,14 +64,76 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   int _annualYear = DateTime.now().year;
 
   final _dateFmt = DateFormat('dd.MM.yyyy');
+  final _scoreFmt = NumberFormat('0.00', 'de_DE');
   static const String _addLookupValue = '__add__';
   static const List<Map<String, dynamic>> _performanceCategories = [
-    {'key': 'communication', 'label': 'Kommunikation', 'weight': 0.1},
-    {'key': 'quality', 'label': 'Produktqualität', 'weight': 0.4},
-    {'key': 'delivery', 'label': 'Einhaltung der Lieferfrist', 'weight': 0.2},
-    {'key': 'price', 'label': 'Preis korrekt', 'weight': 0.1},
-    {'key': 'quantity', 'label': 'Richtige Mengen/Produkte', 'weight': 0.1},
-    {'key': 'backorders', 'label': 'Nachlieferungen', 'weight': 0.1},
+    {'key': 'communication', 'label': 'Zusammenarbeit / Kommunikation', 'weight': 0.10, 'allowNa': true},
+    {'key': 'quality', 'label': 'Produktqualität', 'weight': 0.30, 'allowNa': false},
+    {'key': 'delivery', 'label': 'Einhaltung der Lieferfrist', 'weight': 0.15, 'allowNa': false},
+    {'key': 'price', 'label': 'Preis / Rechnungsstellung', 'weight': 0.15, 'allowNa': false},
+    {
+      'key': 'quantity',
+      'label': 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)',
+      'weight': 0.20,
+      'allowNa': false
+    },
+    {'key': 'backorders', 'label': 'Nachlieferungen', 'weight': 0.10, 'allowNa': false},
+  ];
+  static const List<Map<String, dynamic>> _ratingExplanation = [
+    {
+      'title': 'Kommunikation (Gewichtung 10%)',
+      'lines': [
+        '1: Reagiert zeitnah und zuverlässig ohne Erinnerung (oder N/A bei keiner Anfrage)',
+        '2: Reaktion erst nach einmaliger Nachfrage',
+        '3: Mehrmalige Nachfragen erforderlich, Verzögerungen beeinträchtigen Abläufe',
+        '4: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
+      ],
+    },
+    {
+      'title': 'Produktqualität (Gewichtung 30%)',
+      'lines': [
+        '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum',
+        '2: Vereinzelte, geringfügige Beanstandungen ohne systematische Ursache',
+        '3: Wiederkehrende Beanstandungen oder relevante Abweichungen mit Aufwand zur Nacharbeit',
+        '4: Häufige oder schwerwiegende Qualitätsmängel, CAPA erforderlich',
+      ],
+    },
+    {
+      'title': 'Einhaltung der Lieferfrist (Gewichtung 15%)',
+      'lines': [
+        '1: Liefertermine werden zuverlässig eingehalten',
+        '2: Gelegentliche Verzögerungen mit frühzeitiger Information',
+        '3: Wiederholte Lieferverzögerungen mit Auswirkungen auf interne Planung',
+        '4: Regelmäßige oder erhebliche Lieferverzüge ohne angemessene Kommunikation',
+      ],
+    },
+    {
+      'title': 'Preis korrekt / Rechnungsstellung (Gewichtung 15%)',
+      'lines': [
+        '1: Rechnungen stets korrekt und vertragskonform',
+        '2: Einzelne formale Fehler ohne finanzielle Auswirkung',
+        '3: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
+        '4: Häufige oder schwerwiegende Abrechnungsfehler',
+      ],
+    },
+    {
+      'title': 'Fehllieferungen / Falschlieferungen (Gewichtung 20%)',
+      'lines': [
+        '1: Lieferungen vollständig und korrekt',
+        '2: Vereinzelte Abweichungen ohne relevante Auswirkungen',
+        '3: Wiederkehrende Mengen- oder Artikelfehler',
+        '4: Häufige Falschlieferungen oder gravierende Abweichungen',
+      ],
+    },
+    {
+      'title': 'Nachlieferungen (Gewichtung 10%)',
+      'lines': [
+        '1: Bestellungen werden vollständig geliefert',
+        '2: Gelegentliche Teillieferungen ohne Beeinträchtigung',
+        '3: Regelmäßige Nachlieferungen mit Planungsaufwand',
+        '4: Häufige oder umfangreiche Nachlieferungen',
+      ],
+    },
   ];
 
   List<String> get _statusOptions =>
@@ -111,7 +173,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     try {
       final results = await Future.wait([
         widget.api.adminSuppliers(),
-        widget.api.adminSupplierPerformance(includeDeleted: _showDeletedEntries),
+        widget.api.adminSupplierPerformance(includeDeleted: true),
         widget.api.adminSupplierEvaluations(),
         widget.api.adminSupplierEscalations(),
         widget.api.adminSupplierEvalConfig(),
@@ -510,26 +572,49 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     };
   }
 
-  int _ratedCount(Map<String, int?> ratings) => ratings.values.where((value) => value != null).length;
-
-  double? _computeEntryGrade(Map<String, int?> ratings) {
-    final weighted = _performanceCategories.map((category) {
-      final key = category['key'] as String;
-      final weight = category['weight'] as double;
-      final value = ratings[key];
-      return value == null ? null : value * weight;
-    }).toList();
-    if (weighted.any((value) => value == null)) return null;
-    final total = weighted.fold<double>(0, (sum, value) => sum + (value ?? 0));
-    return double.parse(total.toStringAsFixed(2));
+  int _ratedCount(Map<String, int?> ratings, {bool communicationNa = false}) {
+    var count = ratings.values.where((value) => value != null).length;
+    if (communicationNa && ratings['communication'] == null) {
+      count += 1;
+    }
+    return count;
   }
 
-  String _formatGrade(double? grade) => grade == null ? '—' : grade.toStringAsFixed(2);
+  bool _isPerformanceComplete(Map<String, int?> ratings, {bool communicationNa = false}) {
+    for (final category in _performanceCategories) {
+      final key = category['key'] as String;
+      if (key == 'communication' && communicationNa) {
+        continue;
+      }
+      if (ratings[key] == null) return false;
+    }
+    return true;
+  }
 
-  String _computePerformanceStatus(Map<String, int?> ratings) {
-    final count = _ratedCount(ratings);
+  double? _computeEntryScore(Map<String, int?> ratings, {bool communicationNa = false}) {
+    double total = 0;
+    double weightTotal = 0;
+    for (final category in _performanceCategories) {
+      final key = category['key'] as String;
+      final weight = category['weight'] as double;
+      if (key == 'communication' && communicationNa && ratings[key] == null) {
+        continue;
+      }
+      final value = ratings[key];
+      if (value == null) return null;
+      total += value * weight;
+      weightTotal += weight;
+    }
+    if (weightTotal == 0) return null;
+    return double.parse((total / weightTotal).toStringAsFixed(2));
+  }
+
+  String _formatScore(double? grade) => grade == null ? '—' : _scoreFmt.format(grade);
+
+  String _computePerformanceStatus(Map<String, int?> ratings, {bool communicationNa = false}) {
+    final count = _ratedCount(ratings, communicationNa: communicationNa);
     if (count == 0) return 'OFFEN';
-    if (count == _performanceCategories.length) return 'ABGESCHLOSSEN';
+    if (_isPerformanceComplete(ratings, communicationNa: communicationNa)) return 'ABGESCHLOSSEN';
     return 'IN_BEARBEITUNG';
   }
 
@@ -565,6 +650,43 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   String _referencePlaceholder(String type) => type == 'BESTELLUNG' ? 'z. B. PO-4711' : 'z. B. LS-2025-12345';
 
+  Future<void> _showRatingExplanation() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Text('Wie wird bewertet?', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                ..._ratingExplanation.map((item) {
+                  final lines = (item['lines'] as List<dynamic>).cast<String>();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item['title'] as String, style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 4),
+                        ...lines.map((line) => Text(line, style: Theme.of(context).textTheme.bodySmall)),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _formatReference(SupplierPerformanceEntry entry) {
     final label = entry.referenceType == 'BESTELLUNG' ? 'Bestellung' : 'Lieferschein';
     return entry.referenceNumber.isNotEmpty ? '$label ${entry.referenceNumber}' : label;
@@ -592,15 +714,17 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     String referenceType = entry?.referenceType.isNotEmpty == true ? entry!.referenceType : 'LIEFERSCHEIN';
     bool includeInAnnual = entry?.includeInAnnual ?? true;
     final ratings = Map<String, int?>.from(entry?.ratings ?? _defaultRatings());
+    bool communicationNa = entry?.communicationNa ?? false;
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final status = _computePerformanceStatus(ratings);
-            final progressText = '${_ratedCount(ratings)}/${_performanceCategories.length} bewertet';
-            final gradePreview = _computeEntryGrade(ratings);
+            final status = _computePerformanceStatus(ratings, communicationNa: communicationNa);
+            final progressText =
+                '${_ratedCount(ratings, communicationNa: communicationNa)}/${_performanceCategories.length} bewertet';
+            final gradePreview = _computeEntryScore(ratings, communicationNa: communicationNa);
             return AlertDialog(
               title: Text(isEditing ? 'Performance-Fall bearbeiten' : 'Performance-Fall erfassen'),
               content: SingleChildScrollView(
@@ -630,13 +754,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       'Sie können Einträge jederzeit nachträglich ergänzen oder korrigieren. Sobald alle Kategorien bewertet sind, wird der Fall automatisch abgeschlossen.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    if (gradePreview != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Vorschau Gesamtwertung: ${_formatGrade(gradePreview)}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    if (gradePreview != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Chip(
+                          label: Text('Ø-Score: ${_formatScore(gradePreview)} (niedriger ist besser)'),
+                          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        ),
                       ),
-                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: supplierId,
@@ -751,11 +876,22 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Bewertung (alle Kategorien)', style: Theme.of(context).textTheme.titleSmall),
+                            Row(
+                              children: [
+                                Text('Bewertung (alle Kategorien)', style: Theme.of(context).textTheme.titleSmall),
+                                const SizedBox(width: 6),
+                                IconButton(
+                                  icon: const Icon(Icons.info_outline, size: 18),
+                                  tooltip: 'Wie wird bewertet?',
+                                  onPressed: _showRatingExplanation,
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 12),
                             ..._performanceCategories.map((category) {
                               final key = category['key'] as String;
                               final selected = ratings[key];
+                              final allowNa = category['allowNa'] == true;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Row(
@@ -764,16 +900,35 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                                     Wrap(
                                       spacing: 6,
                                       children: [
-                                        for (final value in [1, 2, 3, 4, 5])
+                                        for (final value in [1, 2, 3, 4])
                                           ChoiceChip(
                                             label: Text(value.toString()),
                                             selected: selected == value,
-                                            onSelected: (_) => setModalState(() => ratings[key] = value),
+                                            onSelected: (_) => setModalState(() {
+                                              ratings[key] = value;
+                                              if (key == 'communication') {
+                                                communicationNa = false;
+                                              }
+                                            }),
+                                          ),
+                                        if (allowNa)
+                                          ChoiceChip(
+                                            label: const Text('N/A'),
+                                            selected: communicationNa && selected == null,
+                                            onSelected: (_) => setModalState(() {
+                                              communicationNa = true;
+                                              ratings[key] = null;
+                                            }),
                                           ),
                                         ChoiceChip(
-                                          label: const Text('noch offen'),
-                                          selected: selected == null,
-                                          onSelected: (_) => setModalState(() => ratings[key] = null),
+                                          label: const Text('zurücksetzen'),
+                                          selected: selected == null && (!allowNa || !communicationNa),
+                                          onSelected: (_) => setModalState(() {
+                                            ratings[key] = null;
+                                            if (key == 'communication') {
+                                              communicationNa = false;
+                                            }
+                                          }),
                                         ),
                                       ],
                                     ),
@@ -791,7 +946,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       onChanged: (value) => setModalState(() => includeInAnnual = value),
                       title: const Text('In Jahresbewertung berücksichtigen'),
                     ),
-                    if (_computePerformanceStatus(ratings) != 'ABGESCHLOSSEN')
+                    if (_computePerformanceStatus(ratings, communicationNa: communicationNa) != 'ABGESCHLOSSEN')
                       Padding(
                         padding: const EdgeInsets.only(left: 16, bottom: 4),
                         child: Text(
@@ -807,6 +962,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                   TextButton(
                     onPressed: () => setModalState(() {
                       ratings.updateAll((key, value) => null);
+                      communicationNa = false;
                     }),
                     child: const Text('Bewertungen zurücksetzen'),
                   ),
@@ -839,11 +995,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       referenceType: referenceType,
       referenceNumber: referenceNumber,
       ratings: ratings,
+      communicationNa: communicationNa,
+      ratingSchemaVersion: 2,
       attachments: entry?.attachments ?? const [],
       includeInAnnual: includeInAnnual,
-      status: _computePerformanceStatus(ratings),
+      status: _computePerformanceStatus(ratings, communicationNa: communicationNa),
       cancelReason: entry?.cancelReason ?? '',
-      computedGrade: _computeEntryGrade(ratings),
+      computedGrade: _computeEntryScore(ratings, communicationNa: communicationNa),
+      computedScore: _computeEntryScore(ratings, communicationNa: communicationNa),
       computedAt: DateTime.now().millisecondsSinceEpoch,
       deletedAt: entry?.deletedAt,
       deletedBy: entry?.deletedBy ?? '',
@@ -875,7 +1034,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   Future<void> _reloadPerformanceEntries({bool includeDeleted = false}) async {
     try {
-      final refreshed = await widget.api.adminSupplierPerformance(includeDeleted: includeDeleted);
+      final refreshed = await widget.api.adminSupplierPerformance(includeDeleted: true);
       setState(() => _entries = refreshed);
     } catch (err) {
       final mapped = AppErrorMapper.map(err);
@@ -1270,9 +1429,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   Map<String, dynamic> _computeAnnualSummary(List<SupplierPerformanceEntry> entries) {
     final included = entries.where(
-      (entry) => entry.includeInAnnual && _computePerformanceStatus(entry.ratings) == 'ABGESCHLOSSEN',
+      (entry) =>
+          entry.includeInAnnual &&
+          _computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa) == 'ABGESCHLOSSEN',
     );
-    final grades = included.map((entry) => _computeEntryGrade(entry.ratings)).whereType<double>().toList();
+    final grades = included
+        .map((entry) => _computeEntryScore(entry.ratings, communicationNa: entry.communicationNa))
+        .whereType<double>()
+        .toList();
     final average = grades.isEmpty ? null : grades.reduce((a, b) => a + b) / grades.length;
     String classification;
     if (average == null) {
@@ -1299,7 +1463,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     final criterionAverages = _performanceCategories.map((category) {
       final key = category['key'] as String;
       final label = category['label'] as String;
-      final values = included.map((entry) => entry.ratings[key]).whereType<int>().toList();
+      final values = included
+          .where((entry) => !(key == 'communication' && entry.communicationNa))
+          .map((entry) => entry.ratings[key])
+          .whereType<int>()
+          .toList();
       final avg = values.isEmpty ? null : values.reduce((a, b) => a + b) / values.length;
       return {
         'key': key,
@@ -1314,13 +1482,22 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     debugPrint(
       '[supplier-evaluation] annual summary recomputed: included=${included.length}, avg=${average?.toStringAsFixed(2) ?? '—'}',
     );
+    final includedList = included.toList();
+    final openEntries = entries.where((entry) {
+      final complete =
+          _computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa) == 'ABGESCHLOSSEN';
+      return !entry.includeInAnnual || !complete;
+    }).toList();
     return {
-      'includedEntries': included.toList(),
+      'includedEntries': includedList,
       'average': average == null ? null : double.parse(average.toStringAsFixed(2)),
       'classification': classification,
       'decision': decision,
       'criterionAverages': criterionAverages,
       'topDrivers': worstDrivers,
+      'totalEntries': entries.length,
+      'includedCount': includedList.length,
+      'openCount': openEntries.length,
     };
   }
 
@@ -1785,7 +1962,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         _showDeletedEntries ? filteredBySupplier : filteredBySupplier.where((e) => e.deletedAt == null).toList();
     final entries = _performanceStatusFilter == null
         ? filteredByDeleted
-        : filteredByDeleted.where((e) => _computePerformanceStatus(e.ratings) == _performanceStatusFilter).toList();
+        : filteredByDeleted
+            .where(
+              (e) => _computePerformanceStatus(e.ratings, communicationNa: e.communicationNa) == _performanceStatusFilter,
+            )
+            .toList();
     return ListView(
       children: [
         Padding(
@@ -1847,9 +2028,12 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
             child: Text('Keine Performance-Einträge vorhanden.'),
           ),
         ...entries.map((entry) {
-          final status = entry.deletedAt != null ? 'GELÖSCHT' : _computePerformanceStatus(entry.ratings);
-          final progress = '${_ratedCount(entry.ratings)}/${_performanceCategories.length} bewertet';
-          final grade = _computeEntryGrade(entry.ratings);
+          final status = entry.deletedAt != null
+              ? 'GELÖSCHT'
+              : _computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa);
+          final progress =
+              '${_ratedCount(entry.ratings, communicationNa: entry.communicationNa)}/${_performanceCategories.length} bewertet';
+          final grade = _computeEntryScore(entry.ratings, communicationNa: entry.communicationNa);
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             shape: RoundedRectangleBorder(
@@ -1900,7 +2084,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                             labelStyle: const TextStyle(color: Colors.white),
                           ),
                           Text(progress, style: Theme.of(context).textTheme.bodySmall),
-                          Text('Note: ${_formatGrade(grade)}', style: Theme.of(context).textTheme.bodySmall),
+                          Text('Score: ${_formatScore(grade)}', style: Theme.of(context).textTheme.bodySmall),
                         ],
                       ),
                     ),
@@ -1964,6 +2148,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     final decision = summary['decision'] as String;
     final criterionAverages = summary['criterionAverages'] as List<dynamic>;
     final topDrivers = summary['topDrivers'] as List<dynamic>;
+    final totalEntries = (summary['totalEntries'] as int? ?? annualEntries.length);
+    final openCount = summary['openCount'] as int? ?? 0;
+    final deletedCount = _entries.where((entry) {
+      if (entry.supplierId != supplierId) return false;
+      final entryYear = DateTime.fromMillisecondsSinceEpoch(entry.date).year;
+      return entryYear == selectedYear && entry.deletedAt != null;
+    }).length;
+    final totalWithDeleted = totalEntries + deletedCount;
     final duplicates = _evaluations.where((e) => e.supplierId == supplierId && e.evalYear == selectedYear && e.archivedAt == null).toList();
     final evalsForSelection = _evaluations.where((e) => e.supplierId == supplierId && e.evalYear == selectedYear).toList();
 
@@ -2058,6 +2250,29 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         Card(
           elevation: 1,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ExpansionTile(
+            title: const Text('Bewertungssystem'),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            children: _ratingExplanation.map((item) {
+              final lines = (item['lines'] as List<dynamic>).cast<String>();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item['title'] as String, style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    ...lines.map((line) => Text(line, style: Theme.of(context).textTheme.bodySmall)),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -2069,8 +2284,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    Text('Einträge berücksichtigt: ${included.length}'),
-                    Text('Ø Note: ${_formatGrade(avg)}'),
+                    Text('Fälle gesamt: $totalWithDeleted'),
+                    Text('Berücksichtigt: ${included.length}'),
+                    Text('Offen: $openCount'),
+                    Text('Gelöscht: $deletedCount'),
+                    Text('Ø Score: ${_formatScore(avg)}'),
                     Chip(
                       label: Text(classification.isEmpty ? '—' : classification),
                       backgroundColor: _classificationColor(classification),
@@ -2140,7 +2358,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                         DataColumn(label: Text('Bezug')),
                         DataColumn(label: Text('Nummer')),
                         DataColumn(label: Text('Kurzbeschreibung')),
-                        DataColumn(label: Text('Note')),
+                        DataColumn(label: Text('Score')),
+                        DataColumn(label: Text('Kommunikation N/A')),
                         DataColumn(label: Text('Jahresbewertung')),
                         DataColumn(label: Text('Status')),
                       ],
@@ -2151,9 +2370,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                             DataCell(Text(entry.referenceType)),
                             DataCell(Text(entry.referenceNumber)),
                             DataCell(Text(entry.description)),
-                            DataCell(Text(_formatGrade(_computeEntryGrade(entry.ratings)))),
+                            DataCell(Text(_formatScore(
+                                _computeEntryScore(entry.ratings, communicationNa: entry.communicationNa)))),
+                            DataCell(Text(entry.communicationNa ? 'Ja' : 'Nein')),
                             DataCell(Text(entry.includeInAnnual ? 'Ja' : 'Nein')),
-                            DataCell(Text(_computePerformanceStatus(entry.ratings))),
+                            DataCell(Text(_computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa))),
                           ],
                         );
                       }).toList(),

@@ -5167,7 +5167,7 @@ function mapLegacyPerformanceType(type = '') {
   return '';
 }
 
-function normalizePerformanceRatings(ratings, legacyType, legacyRating) {
+function normalizePerformanceRatings(ratings, legacyType, legacyRating, ratingSchemaVersion = 1) {
   const normalized = {
     communication: null,
     quality: null,
@@ -5175,6 +5175,18 @@ function normalizePerformanceRatings(ratings, legacyType, legacyRating) {
     price: null,
     quantity: null,
     backorders: null,
+  };
+  const mapScore = (value) => {
+    if (!Number.isFinite(value)) return null;
+    if (ratingSchemaVersion < 2) {
+      if (value <= 1) return 1;
+      if (value === 2) return 2;
+      if (value === 3) return 3;
+      return 4;
+    }
+    if (value < 1) return 1;
+    if (value > 4) return 4;
+    return value;
   };
   if (ratings && typeof ratings === 'object') {
     Object.entries(ratings).forEach(([key, value]) => {
@@ -5184,41 +5196,51 @@ function normalizePerformanceRatings(ratings, legacyType, legacyRating) {
         return;
       }
       const parsed = Number.isFinite(Number(value)) ? Number(value) : null;
-      normalized[key] = parsed;
+      normalized[key] = mapScore(parsed);
     });
   }
   if (Object.values(normalized).every((value) => value == null)) {
     const mappedKey = mapLegacyPerformanceType(legacyType);
     const parsed = Number.isFinite(Number(legacyRating)) ? Number(legacyRating) : null;
-    if (mappedKey && parsed != null) normalized[mappedKey] = parsed;
+    if (mappedKey && parsed != null) normalized[mappedKey] = mapScore(parsed);
   }
   return normalized;
 }
 
-function computeEntryGrade(ratings = {}) {
+function computeEntryGrade(ratings = {}, { communicationNa = false } = {}) {
   const weights = {
     communication: 0.1,
-    quality: 0.4,
-    delivery: 0.2,
-    price: 0.1,
-    quantity: 0.1,
+    quality: 0.3,
+    delivery: 0.15,
+    price: 0.15,
+    quantity: 0.2,
     backorders: 0.1,
   };
-  const entries = Object.entries(weights).map(([key, weight]) => {
+  let total = 0;
+  let weightTotal = 0;
+  for (const [key, weight] of Object.entries(weights)) {
     const value = ratings?.[key];
-    return Number.isFinite(value) ? value * weight : null;
-  });
-  if (entries.some((value) => value == null)) return null;
-  const total = entries.reduce((sum, value) => sum + value, 0);
-  return Number(total.toFixed(2));
+    if (key === 'communication' && communicationNa && value == null) {
+      continue;
+    }
+    if (!Number.isFinite(value)) return null;
+    total += value * weight;
+    weightTotal += weight;
+  }
+  if (!weightTotal) return null;
+  return Number((total / weightTotal).toFixed(2));
 }
 
-function computePerformanceStatus(ratings, currentStatus) {
+function computePerformanceStatus(ratings, currentStatus, communicationNa = false) {
   const status = normalizeString(currentStatus || '');
   if (status.toLowerCase() === 'cancelled') return status;
-  const values = Object.values(ratings || {}).filter((value) => Number.isFinite(value));
+  const keys = Object.keys(ratings || {});
+  const values = Object.entries(ratings || {}).filter(([key, value]) => {
+    if (key === 'communication' && communicationNa && value == null) return true;
+    return Number.isFinite(value);
+  });
   if (values.length === 0) return 'OFFEN';
-  if (values.length === 6) return 'ABGESCHLOSSEN';
+  if (values.length === keys.length) return 'ABGESCHLOSSEN';
   return 'IN_BEARBEITUNG';
 }
 
@@ -5237,16 +5259,26 @@ function normalizePerformanceRecord(record = {}) {
   base.referenceType = normalizeString(base.referenceType || reference.referenceType || '');
   base.referenceNumber = normalizeString(base.referenceNumber || reference.referenceNumber || base.reference || '');
   base.reference = normalizeString(base.reference || base.referenceNumber || '');
-  base.ratings = normalizePerformanceRatings(base.ratings, base.type, base.rating);
+  const schemaVersion = Number(base.ratingSchemaVersion || 1);
+  base.ratingSchemaVersion = schemaVersion >= 2 ? 2 : 1;
+  base.communicationNa = base.communicationNa === true;
+  base.ratings = normalizePerformanceRatings(base.ratings, base.type, base.rating, base.ratingSchemaVersion);
   base.attachments = normalizeArray(base.attachments);
   base.includeInAnnual = base.includeInAnnual !== false;
-  base.status = computePerformanceStatus(base.ratings, base.status || 'OFFEN');
+  base.status = computePerformanceStatus(base.ratings, base.status || 'OFFEN', base.communicationNa);
   base.cancelReason = normalizeString(base.cancelReason || '');
   base.deletedAt = normalizeDateValue(base.deletedAt) || null;
   base.deletedBy = normalizeString(base.deletedBy || '');
   base.deletedReason = normalizeString(base.deletedReason || '');
   const computedGrade = Number.isFinite(Number(base.computedGrade)) ? Number(base.computedGrade) : null;
-  const computed = computedGrade != null ? Number(computedGrade.toFixed(2)) : computeEntryGrade(base.ratings);
+  const computedScore = Number.isFinite(Number(base.computedScore)) ? Number(base.computedScore) : null;
+  const computed =
+    computedScore != null
+      ? Number(computedScore.toFixed(2))
+      : computedGrade != null
+          ? Number(computedGrade.toFixed(2))
+          : computeEntryGrade(base.ratings, { communicationNa: base.communicationNa });
+  base.computedScore = computed;
   base.computedGrade = computed;
   base.computedAt = normalizeDateValue(base.computedAt) || (computed != null ? now : null);
   base.createdAt = normalizeDateValue(base.createdAt) || now;
@@ -5315,43 +5347,43 @@ function normalizeSupplierEscalationRecord(record = {}) {
 function defaultSupplierEvalConfig() {
   return {
     id: 'default',
-    version: 1,
+    version: 2,
     categories: [
       {
-        name: 'Kommunikation',
+        name: 'Zusammenarbeit / Kommunikation',
         weight: 10,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+        scale: ['1', '2', '3', '4', 'N/A'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, 'N/A': null },
       },
       {
         name: 'Produktqualität',
-        weight: 40,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+        weight: 30,
+        scale: ['1', '2', '3', '4'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4 },
       },
       {
         name: 'Einhaltung der Lieferfrist',
+        weight: 15,
+        scale: ['1', '2', '3', '4'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4 },
+      },
+      {
+        name: 'Preis / Rechnungsstellung',
+        weight: 15,
+        scale: ['1', '2', '3', '4'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4 },
+      },
+      {
+        name: 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)',
         weight: 20,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
-      },
-      {
-        name: 'Preis korrekt',
-        weight: 10,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
-      },
-      {
-        name: 'Richtige Mengen/Produkte',
-        weight: 10,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+        scale: ['1', '2', '3', '4'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4 },
       },
       {
         name: 'Nachlieferungen',
         weight: 10,
-        scale: ['1', '2', '3', '4', '5'],
-        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 },
+        scale: ['1', '2', '3', '4'],
+        scoreMap: { '1': 1, '2': 2, '3': 3, '4': 4 },
       },
     ],
     thresholds: {

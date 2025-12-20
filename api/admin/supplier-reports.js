@@ -97,22 +97,30 @@ async function buildSummaryPdf() {
 }
 
 const PERFORMANCE_CRITERIA = [
-  { key: 'communication', label: 'Kommunikation', weight: 0.1 },
-  { key: 'quality', label: 'Produktqualität', weight: 0.4 },
-  { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.2 },
-  { key: 'price', label: 'Preis korrekt', weight: 0.1 },
-  { key: 'quantity', label: 'Richtige Mengen/Produkte', weight: 0.1 },
+  { key: 'communication', label: 'Zusammenarbeit / Kommunikation', weight: 0.1 },
+  { key: 'quality', label: 'Produktqualität', weight: 0.3 },
+  { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.15 },
+  { key: 'price', label: 'Preis / Rechnungsstellung', weight: 0.15 },
+  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen (Richtige Mengen / richtige Produkte)', weight: 0.2 },
   { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
 ];
 
 function entryGrade(entry) {
   const ratings = entry?.ratings || {};
-  const parts = PERFORMANCE_CRITERIA.map(({ key, weight }) => {
+  const communicationNa = entry?.communicationNa === true;
+  let total = 0;
+  let weightTotal = 0;
+  for (const { key, weight } of PERFORMANCE_CRITERIA) {
     const value = ratings[key];
-    return Number.isFinite(value) ? value * weight : null;
-  });
-  if (parts.some((value) => value == null)) return null;
-  return Number(parts.reduce((sum, value) => sum + value, 0).toFixed(2));
+    if (key === 'communication' && communicationNa && value == null) {
+      continue;
+    }
+    if (!Number.isFinite(value)) return null;
+    total += value * weight;
+    weightTotal += weight;
+  }
+  if (!weightTotal) return null;
+  return Number((total / weightTotal).toFixed(2));
 }
 
 function classify(avg) {
@@ -130,11 +138,150 @@ function decisionFor(classification) {
   return '';
 }
 
+const RATING_EXPLANATION = {
+  DE: [
+    {
+      title: 'Kommunikation (Gewichtung 10%)',
+      lines: [
+        '1: Reagiert zeitnah und zuverlässig ohne Erinnerung (oder N/A bei keiner Anfrage)',
+        '2: Reaktion erst nach einmaliger Nachfrage',
+        '3: Mehrmalige Nachfragen erforderlich, Verzögerungen beeinträchtigen Abläufe',
+        '4: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
+      ],
+    },
+    {
+      title: 'Produktqualität (Gewichtung 30%)',
+      lines: [
+        '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum',
+        '2: Vereinzelte, geringfügige Beanstandungen ohne systematische Ursache',
+        '3: Wiederkehrende Beanstandungen oder relevante Abweichungen mit Aufwand zur Nacharbeit',
+        '4: Häufige oder schwerwiegende Qualitätsmängel, CAPA erforderlich',
+      ],
+    },
+    {
+      title: 'Einhaltung der Lieferfrist (Gewichtung 15%)',
+      lines: [
+        '1: Liefertermine werden zuverlässig eingehalten',
+        '2: Gelegentliche Verzögerungen mit frühzeitiger Information',
+        '3: Wiederholte Lieferverzögerungen mit Auswirkungen auf interne Planung',
+        '4: Regelmäßige oder erhebliche Lieferverzüge ohne angemessene Kommunikation',
+      ],
+    },
+    {
+      title: 'Preis korrekt / Rechnungsstellung (Gewichtung 15%)',
+      lines: [
+        '1: Rechnungen stets korrekt und vertragskonform',
+        '2: Einzelne formale Fehler ohne finanzielle Auswirkung',
+        '3: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
+        '4: Häufige oder schwerwiegende Abrechnungsfehler',
+      ],
+    },
+    {
+      title: 'Fehllieferungen / Falschlieferungen (Gewichtung 20%)',
+      lines: [
+        '1: Lieferungen vollständig und korrekt',
+        '2: Vereinzelte Abweichungen ohne relevante Auswirkungen',
+        '3: Wiederkehrende Mengen- oder Artikelfehler',
+        '4: Häufige Falschlieferungen oder gravierende Abweichungen',
+      ],
+    },
+    {
+      title: 'Nachlieferungen (Gewichtung 10%)',
+      lines: [
+        '1: Bestellungen werden vollständig geliefert',
+        '2: Gelegentliche Teillieferungen ohne Beeinträchtigung',
+        '3: Regelmäßige Nachlieferungen mit Planungsaufwand',
+        '4: Häufige oder umfangreiche Nachlieferungen',
+      ],
+    },
+  ],
+  EN: [
+    {
+      title: 'Communication (Weighting 10%)',
+      lines: [
+        '1: Responds promptly and reliably without reminder (or N/A if no request occurred)',
+        '2: Response only after a single follow-up',
+        '3: Multiple follow-ups required; delays affect workflows',
+        '4: No or insufficient responses despite repeated contact attempts',
+      ],
+    },
+    {
+      title: 'Product quality (Weighting 30%)',
+      lines: [
+        '1: No quality-related complaints in the assessment period',
+        '2: Isolated, minor complaints without systematic cause',
+        '3: Recurring complaints or relevant deviations requiring rework',
+        '4: Frequent or severe quality defects; CAPA required',
+      ],
+    },
+    {
+      title: 'Delivery reliability (Weighting 15%)',
+      lines: [
+        '1: Delivery dates are reliably met',
+        '2: Occasional delays with early notification',
+        '3: Repeated delivery delays impacting internal planning',
+        '4: Regular or significant delays without adequate communication',
+      ],
+    },
+    {
+      title: 'Price accuracy / invoicing (Weighting 15%)',
+      lines: [
+        '1: Invoices always correct and contract-compliant',
+        '2: Isolated formal errors without financial impact',
+        '3: Recurring invoice errors requiring correction effort',
+        '4: Frequent or severe billing errors',
+      ],
+    },
+    {
+      title: 'Wrong deliveries (Weighting 20%)',
+      lines: [
+        '1: Deliveries complete and correct',
+        '2: Isolated deviations without relevant impact',
+        '3: Recurring quantity or item errors',
+        '4: Frequent wrong deliveries or major deviations',
+      ],
+    },
+    {
+      title: 'Backorders (Weighting 10%)',
+      lines: [
+        '1: Orders delivered in full',
+        '2: Occasional partial deliveries without impact',
+        '3: Regular backorders with planning effort',
+        '4: Frequent or extensive backorders',
+      ],
+    },
+  ],
+};
+
+function drawCriteriaOverview(doc, language) {
+  doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Criteria & weights' : 'Bewertungskriterien & Gewichte');
+  PERFORMANCE_CRITERIA.forEach((criterion) => {
+    doc
+      .fontSize(9)
+      .fillColor('#333')
+      .text(`• ${criterion.label} (${Math.round(criterion.weight * 100)}%)`);
+  });
+  doc.moveDown(0.5);
+}
+
+function drawRatingExplanation(doc, language) {
+  const content = language === 'EN' ? RATING_EXPLANATION.EN : RATING_EXPLANATION.DE;
+  doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Rating scale (1 = very good, 4 = critical)' : 'Notenskala (1 = sehr gut, 4 = kritisch)');
+  content.forEach((section) => {
+    doc.fontSize(9).fillColor('#333').text(section.title);
+    section.lines.forEach((line) => {
+      doc.fontSize(8).fillColor('#555').text(line);
+    });
+    doc.moveDown(0.2);
+  });
+  doc.moveDown(0.5);
+}
+
 function buildAggregates(entries) {
   const graded = entries
     .map((entry) => ({
       entry,
-      grade: entry.computedGrade ?? entryGrade(entry),
+      grade: entry.computedScore ?? entry.computedGrade ?? entryGrade(entry),
     }))
     .filter((item) => Number.isFinite(item.grade));
   const avg = graded.length ? graded.reduce((sum, item) => sum + item.grade, 0) / graded.length : null;
@@ -142,6 +289,7 @@ function buildAggregates(entries) {
   const decision = decisionFor(classification);
   const criterionAverages = PERFORMANCE_CRITERIA.map((criterion) => {
     const values = graded
+      .filter((item) => !(criterion.key === 'communication' && item.entry?.communicationNa === true))
       .map((item) => item.entry?.ratings?.[criterion.key])
       .filter((value) => Number.isFinite(value));
     const avgValue = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
@@ -169,7 +317,8 @@ function buildAggregates(entries) {
       referenceNumber: entry.referenceNumber,
       description: entry.description,
       status: entry.status,
-      grade: entry.computedGrade ?? entryGrade(entry),
+      grade: entry.computedScore ?? entry.computedGrade ?? entryGrade(entry),
+      communicationNa: entry.communicationNa === true,
     })),
   };
 }
@@ -219,10 +368,14 @@ async function buildInternalPdf({ supplierId, year, actor }) {
 
   doc.fontSize(12).fillColor('#000').text('Gesamtbewertung');
   doc.fontSize(10).fillColor('#333').text(`Einträge berücksichtigt: ${aggregates.gradedEntries}`);
-  doc.text(`Durchschnittsnote: ${aggregates.averageGrade ?? '—'}`);
+  doc.text(`Ø-Score: ${aggregates.averageGrade ?? '—'}`);
   doc.text(`Klassifikation: ${aggregates.classification || '—'}`);
   doc.text(`Entscheidung: ${aggregates.decision || '—'}`);
   doc.moveDown();
+
+  doc.fontSize(11).fillColor('#000').text('Bewertungssystem');
+  drawCriteriaOverview(doc, 'DE');
+  drawRatingExplanation(doc, 'DE');
 
   doc.fontSize(11).fillColor('#000').text('Kriterien (Durchschnitt)');
   aggregates.criterionAverages.forEach((criterion) => {
@@ -239,7 +392,9 @@ async function buildInternalPdf({ supplierId, year, actor }) {
         .fontSize(9)
         .fillColor('#333')
         .text(
-          `${formatDate(entry.date)} • ${entry.referenceType || 'Bezug'} ${entry.referenceNumber || ''} • ${entry.description} • Note ${entry.grade ?? '—'}`
+          `${formatDate(entry.date)} • ${entry.referenceType || 'Bezug'} ${entry.referenceNumber || ''} • ${
+            entry.description
+          } • Score ${entry.grade ?? '—'} • Kommunikation N/A: ${entry.communicationNa ? 'Ja' : 'Nein'}`
         );
     });
   }
@@ -319,15 +474,16 @@ async function buildSupplierLetter({ supplierId, year, actor }) {
           ? '\nPlease note: escalation is required for this status.'
           : '\nHinweis: Für diesen Status ist eine Eskalation erforderlich.'
       : '';
+  const avgScore = aggregates.averageGrade ?? '—';
   const bodyTextDe = `Sehr geehrte Damen und Herren,
 
-im Rahmen unserer Lieferantenbewertung für das Jahr ${year || ''} haben wir die Leistung Ihres Unternehmens bewertet. Das Ergebnis lautet: ${decision}.
+im Rahmen unserer Lieferantenbewertung für das Jahr ${year || ''} haben wir die Leistung Ihres Unternehmens bewertet. Der Ø-Score beträgt ${avgScore}. Das Ergebnis lautet: ${decision}. Die Bewertung basiert auf sechs Kriterien und einer Notenskala von 1 (sehr gut) bis 4 (kritisch).
 
 Bitte entnehmen Sie die wesentlichen Kennzahlen der untenstehenden Zusammenfassung. Bei Rückfragen stehen wir gerne zur Verfügung.
 ${escalationNote}`;
   const bodyTextEn = `Dear Supplier,
 
-as part of our supplier evaluation for ${year || ''}, we assessed your overall performance. The result is: ${decision}.
+as part of our supplier evaluation for ${year || ''}, we assessed your overall performance. The average score is ${avgScore}. The result is: ${decision}. The evaluation is based on six criteria and a rating scale from 1 (very good) to 4 (critical).
 
 Please find the key figures in the summary below. If you have questions, feel free to contact us.
 ${escalationNote}`;
@@ -336,17 +492,48 @@ ${escalationNote}`;
   });
 
   doc.moveDown();
-  doc.rect(48, doc.y, 500, 70).stroke('#ccc');
-  const boxTop = doc.y + 8;
-  doc.fontSize(10).fillColor('#000').text(`Ø Note: ${aggregates.averageGrade ?? '—'}`, 60, boxTop);
-  doc.text(`Klassifikation: ${aggregates.classification || '—'}`, 60, boxTop + 14);
-  doc.text(`Entscheidung: ${decision || '—'}`, 60, boxTop + 28);
-  doc.text(
-    `Top Treiber: ${aggregates.topNegativeDrivers.map((d) => d.label).join(', ') || '—'}`,
-    60,
-    boxTop + 42
-  );
+  const criteriaLines = aggregates.criterionAverages || [];
+  const baseLines = 4;
+  const boxHeight = 22 + (baseLines + criteriaLines.length + 1) * 12;
+  doc.rect(48, doc.y, 500, boxHeight).stroke('#ccc');
+  let boxTop = doc.y + 8;
+  doc
+    .fontSize(10)
+    .fillColor('#000')
+    .text(`${language === 'EN' ? 'Average score' : 'Ø-Score'}: ${aggregates.averageGrade ?? '—'}`, 60, boxTop);
+  boxTop += 14;
+  doc.text(`${language === 'EN' ? 'Classification' : 'Klassifikation'}: ${aggregates.classification || '—'}`, 60, boxTop);
+  boxTop += 14;
+  doc.text(`${language === 'EN' ? 'Decision' : 'Entscheidung'}: ${decision || '—'}`, 60, boxTop);
+  boxTop += 18;
+  doc.text(language === 'EN' ? 'Criterion averages:' : 'Durchschnitt je Kriterium:', 60, boxTop);
+  boxTop += 12;
+  criteriaLines.forEach((criterion) => {
+    doc.text(`${criterion.label}: ${criterion.average ?? '—'}`, 72, boxTop);
+    boxTop += 12;
+  });
   doc.moveDown(6);
+
+  drawCriteriaOverview(doc, language);
+  drawRatingExplanation(doc, language);
+
+  doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Evidence' : 'Nachweise (Evidence)');
+  if (!aggregates.evidence.length) {
+    doc.fontSize(9).fillColor('#555').text(language === 'EN' ? 'No entries available.' : 'Keine Einträge vorhanden.');
+  } else {
+    aggregates.evidence.forEach((entry) => {
+      doc
+        .fontSize(9)
+        .fillColor('#333')
+        .text(
+          `${formatDate(entry.date, language === 'EN' ? 'en-US' : 'de-DE')} • ${
+            entry.referenceType || (language === 'EN' ? 'Reference' : 'Bezug')
+          } ${entry.referenceNumber || ''} • ${entry.description} • Score ${entry.grade ?? '—'} • ${
+            language === 'EN' ? 'Communication N/A' : 'Kommunikation N/A'
+          }: ${entry.communicationNa ? (language === 'EN' ? 'Yes' : 'Ja') : language === 'EN' ? 'No' : 'Nein'}`
+        );
+    });
+  }
 
   doc.fontSize(11).fillColor('#333').text(
     language === 'EN'
