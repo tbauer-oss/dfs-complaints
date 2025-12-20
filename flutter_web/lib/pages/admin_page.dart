@@ -39,6 +39,7 @@ import '../widgets/chat/internal_chat_fab.dart';
 import '../widgets/chat/internal_chat_overview.dart';
 import '../widgets/chat/internal_chat_panel.dart';
 import '../widgets/admin/avatar_cropper_dialog.dart';
+import '../widgets/admin/dashboard_onboarding_texts.dart';
 import '../widgets/admin/global_search_bar.dart';
 import '../widgets/admin/onboarding_tour.dart';
 import 'admin_stats_page.dart';
@@ -389,9 +390,10 @@ class _AvatarChatService extends ChatService {
 }
 
 class _OnboardingTileEntry {
-  _OnboardingTileEntry({required this.key});
+  _OnboardingTileEntry({required this.key, required this.tileId});
 
   final GlobalKey key;
+  final String tileId;
   String? title;
   String? description;
   String? semanticLabel;
@@ -425,7 +427,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   int _onboardingIndex = 0;
   List<OnboardingTourStep> _onboardingSteps = const [];
   OverlayEntry? _onboardingOverlayEntry;
-  bool _onboardingSkipScheduled = false;
+  bool _onboardingScrollInProgress = false;
+  final ScrollController _menuScrollController = ScrollController();
   String _portalRole = '';
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
@@ -807,7 +810,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     int? onboardingOrder,
     String? tileType,
   }) {
-    final entry = _onboardingTiles.putIfAbsent(tileId, () => _OnboardingTileEntry(key: GlobalKey()));
+    final entry = _onboardingTiles.putIfAbsent(
+      tileId,
+      () => _OnboardingTileEntry(key: GlobalKey(), tileId: tileId),
+    );
     entry
       ..title = onboardingTitle ?? entry.title
       ..description = onboardingDescription ?? entry.description
@@ -831,6 +837,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       final value = candidate?.trim();
       if (value != null && value.isNotEmpty) return value;
     }
+    if (kDebugMode) {
+      debugPrint('TODO: add onboarding text for tileId "${entry.tileId}"');
+    }
     return _fallbackOnboardingDescription(entry.tileType, title);
   }
 
@@ -849,84 +858,91 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   List<OnboardingTourStep> _buildOnboardingSteps() {
-    final entries = <_OnboardingTileSnapshot>[];
-    for (final entry in _onboardingTiles.values) {
-      final rect = _rectForKey(entry.key);
-      if (rect == null) continue;
-      entries.add(_OnboardingTileSnapshot(rect: rect, entry: entry));
-    }
-    if (entries.isEmpty) return const [];
-    entries.sort((a, b) {
-      final aOrder = a.entry.order;
-      final bOrder = b.entry.order;
-      if (aOrder != null || bOrder != null) {
-        return (aOrder ?? 1 << 30).compareTo(bOrder ?? 1 << 30);
+    final orderedEntries = <_OnboardingTileEntry>[];
+    final seen = <String>{};
+    for (final section in _menuSections) {
+      for (final tileId in section.tileIds) {
+        if (seen.contains(tileId)) continue;
+        final entry = _onboardingTiles[tileId];
+        if (entry == null) continue;
+        if (_rectForKey(entry.key, requireVisible: false) == null) continue;
+        orderedEntries.add(entry);
+        seen.add(tileId);
       }
-      final topCompare = a.rect.top.compareTo(b.rect.top);
-      if (topCompare != 0) return topCompare;
-      return a.rect.left.compareTo(b.rect.left);
-    });
-    return entries
-        .map((item) {
-          final title = _resolveOnboardingTitle(item.entry);
-          final description = _resolveOnboardingDescription(item.entry, title);
+    }
+    if (orderedEntries.isEmpty) {
+      final entries = <_OnboardingTileSnapshot>[];
+      for (final entry in _onboardingTiles.values) {
+        final rect = _rectForKey(entry.key, requireVisible: false);
+        if (rect == null) continue;
+        entries.add(_OnboardingTileSnapshot(rect: rect, entry: entry));
+      }
+      if (entries.isEmpty) return const [];
+      entries.sort((a, b) {
+        final aOrder = a.entry.order;
+        final bOrder = b.entry.order;
+        if (aOrder != null || bOrder != null) {
+          return (aOrder ?? 1 << 30).compareTo(bOrder ?? 1 << 30);
+        }
+        final topCompare = a.rect.top.compareTo(b.rect.top);
+        if (topCompare != 0) return topCompare;
+        return a.rect.left.compareTo(b.rect.left);
+      });
+      orderedEntries.addAll(entries.map((item) => item.entry));
+    }
+    return orderedEntries
+        .map((entry) {
+          final title = _resolveOnboardingTitle(entry);
+          final description = _resolveOnboardingDescription(entry, title);
           return OnboardingTourStep(
             title: title,
             description: description,
-            targetKeys: [item.entry.key],
+            targetKeys: [entry.key],
           );
         })
         .toList(growable: false);
   }
 
-  Rect? _rectForKey(GlobalKey key) {
+  Rect? _rectForKey(GlobalKey key, {bool requireVisible = false}) {
     final context = key.currentContext;
     if (context == null) return null;
     final renderObject = context.findRenderObject();
     if (renderObject is! RenderBox || !renderObject.hasSize) return null;
     final offset = renderObject.localToGlobal(Offset.zero);
     final rect = offset & renderObject.size;
-    final screen = Offset.zero & MediaQuery.of(this.context).size;
-    if (!rect.overlaps(screen)) return null;
+    if (requireVisible) {
+      final screen = Offset.zero & MediaQuery.of(this.context).size;
+      if (!rect.overlaps(screen)) return null;
+    }
     return rect;
   }
 
   Rect? _resolveOnboardingRect(OnboardingTourStep step) {
     for (final key in step.targetKeys) {
-      final rect = _rectForKey(key);
+      final rect = _rectForKey(key, requireVisible: true);
       if (rect != null) return rect;
     }
     return null;
   }
 
-  int? _findNextVisibleStepIndex(int startIndex, {required bool forward}) {
-    if (_onboardingSteps.isEmpty) return null;
-    if (forward) {
-      for (var i = startIndex; i < _onboardingSteps.length; i++) {
-        if (_resolveOnboardingRect(_onboardingSteps[i]) != null) return i;
-      }
-    } else {
-      for (var i = startIndex; i >= 0; i--) {
-        if (_resolveOnboardingRect(_onboardingSteps[i]) != null) return i;
-      }
+  Future<void> _scrollToOnboardingStep(int index) async {
+    if (_onboardingScrollInProgress || !_onboardingVisible || _onboardingSteps.isEmpty) return;
+    if (index < 0 || index >= _onboardingSteps.length) return;
+    final step = _onboardingSteps[index];
+    final context = step.targetKeys.firstOrNull?.currentContext;
+    if (context == null) return;
+    _onboardingScrollInProgress = true;
+    try {
+      await Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        alignment: 0.12,
+      );
+    } finally {
+      _onboardingScrollInProgress = false;
     }
-    return null;
-  }
-
-  void _scheduleOnboardingSkip() {
-    if (_onboardingSkipScheduled) return;
-    _onboardingSkipScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _onboardingSkipScheduled = false;
-      if (!_onboardingVisible) return;
-      final next = _findNextVisibleStepIndex(_onboardingIndex + 1, forward: true);
-      if (next == null) {
-        _finishOnboarding(markSeen: true);
-        return;
-      }
-      setState(() => _onboardingIndex = next);
-      _onboardingOverlayEntry?.markNeedsBuild();
-    });
+    _onboardingOverlayEntry?.markNeedsBuild();
   }
 
   void _showOnboardingOverlay() {
@@ -944,7 +960,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         final step = _onboardingSteps[_onboardingIndex];
         final rect = _resolveOnboardingRect(step);
         if (rect == null) {
-          _scheduleOnboardingSkip();
+          _scrollToOnboardingStep(_onboardingIndex);
           return const SizedBox.shrink();
         }
         return OnboardingTourOverlay(
@@ -973,13 +989,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       OnboardingPrefs.reset(_onboardingUserId);
     }
     _onboardingSteps = _buildOnboardingSteps();
-    final startIndex = _findNextVisibleStepIndex(0, forward: true);
-    if (startIndex == null) return;
+    if (_onboardingSteps.isEmpty) return;
     setState(() {
-      _onboardingIndex = startIndex;
+      _onboardingIndex = 0;
       _onboardingVisible = true;
     });
     _showOnboardingOverlay();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToOnboardingStep(_onboardingIndex));
   }
 
   void _finishOnboarding({required bool markSeen}) {
@@ -991,13 +1007,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   void _onboardingNext() {
-    final next = _findNextVisibleStepIndex(_onboardingIndex + 1, forward: true);
-    if (next == null) {
+    final next = _onboardingIndex + 1;
+    if (next >= _onboardingSteps.length) {
       _finishOnboarding(markSeen: true);
       return;
     }
     setState(() => _onboardingIndex = next);
     _onboardingOverlayEntry?.markNeedsBuild();
+    _scrollToOnboardingStep(next);
   }
 
   void _onboardingSkipStep() {
@@ -1005,10 +1022,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   void _onboardingBack() {
-    final prev = _findNextVisibleStepIndex(_onboardingIndex - 1, forward: false);
-    if (prev == null) return;
+    final prev = _onboardingIndex - 1;
+    if (prev < 0) return;
     setState(() => _onboardingIndex = prev);
     _onboardingOverlayEntry?.markNeedsBuild();
+    _scrollToOnboardingStep(prev);
   }
 
   // Ladeflags / Fehler
@@ -1670,6 +1688,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _portalUserPasswordCtrl.dispose();
     _portalUserPasswordRepeatCtrl.dispose();
     _portalUserDepartmentCtrl.dispose();
+    _menuScrollController.dispose();
     _conversationListNotifier.removeListener(_syncConversationListFromNotifier);
     _conversationListNotifier.dispose();
     _chatUnreadTimer?.cancel();
@@ -8147,6 +8166,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
 
     return CustomScrollView(
+      controller: _menuScrollController,
       slivers: [
         SliverToBoxAdapter(child: _buildPortalFeedCard()),
         if (_menuEditMode)
@@ -8727,6 +8747,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     int? onboardingOrder,
     String tileType = 'module',
   }) {
+    final onboardingText = DashboardOnboardingTexts.forTile(tileId);
     final tile = AdminTilePro(
       label: label,
       subtitle: subtitle,
@@ -8744,8 +8765,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     return _registerOnboardingTile(
       tileId: tileId,
       child: tile,
-      onboardingTitle: onboardingTitle ?? label,
-      onboardingDescription: onboardingDescription ?? subtitle,
+      onboardingTitle: onboardingTitle ?? onboardingText?.title ?? label,
+      onboardingDescription: onboardingDescription ?? onboardingText?.body,
       semanticLabel: semanticLabel,
       tooltipText: tooltipText,
       onboardingOrder: onboardingOrder,
