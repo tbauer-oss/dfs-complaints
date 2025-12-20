@@ -290,7 +290,15 @@ class _ComplaintListPageState extends State<ComplaintListPage> {
     'notes': 'CAPA / Maßnahmen',
   };
 
-  static const List<String> _prrcOptions = ['N/A', 'Sub', 'A', 'B', 'C', 'D'];
+  static const List<String> _prrcOptions = [
+    'N/A',
+    'Keine Sicherheitsrelevanz festgestellt',
+    'Sub',
+    'A',
+    'B',
+    'C',
+    'D',
+  ];
 
   static const List<(String, String)> _baseColumnDefs = [
     ('Interne Reklamationsnummer', 'internalNumber'),
