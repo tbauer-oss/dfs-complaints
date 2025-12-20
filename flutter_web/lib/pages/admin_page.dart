@@ -6298,12 +6298,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         ),
         w.ThemeAction(),
         const SizedBox(width: 2),
-        TextButton.icon(
-          key: _onboardingSearchToggleKey,
-          onPressed: () => _setGlobalSearchVisibility(!_globalSearchVisible),
-          icon: Icon(searchToggleIcon),
-          label: Text(searchToggleLabel),
-        ),
         IconButton(
           tooltip: 'Alles neu laden',
           onPressed: () async {
@@ -6316,9 +6310,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           icon: const Icon(Icons.refresh),
         ),
         TextButton.icon(
+          key: _onboardingSearchToggleKey,
+          onPressed: () => _setGlobalSearchVisibility(!_globalSearchVisible),
+          icon: Icon(searchToggleIcon),
+          label: Text(searchToggleLabel),
+        ),
+        TextButton.icon(
           onPressed: () => _startOnboarding(force: true),
           icon: const Icon(Icons.help_outline),
-          label: const Text('Onboarding erneut starten'),
+          label: const Text('Tour starten'),
         ),
         TextButton.icon(
           onPressed: _logoutAdmin,
