@@ -47,7 +47,8 @@ class OnboardingTourOverlay extends StatelessWidget {
         : Colors.black.withOpacity(0.48);
     final highlightColor = theme.colorScheme.primary;
     final padding = 16.0;
-    final tooltipWidth = math.min(360.0, size.width - padding * 2);
+    final tooltipWidth = math.min(420.0, math.min(size.width * 0.35, size.width - padding * 2));
+    final tooltipMaxHeight = math.min(420.0, size.height * 0.4);
     final tooltipLeft = (targetRect.center.dx - tooltipWidth / 2)
         .clamp(padding, size.width - tooltipWidth - padding)
         .toDouble();
@@ -106,7 +107,10 @@ class OnboardingTourOverlay extends StatelessWidget {
             top: tooltipTop,
             bottom: tooltipBottom,
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: tooltipWidth),
+              constraints: BoxConstraints(
+                maxWidth: tooltipWidth,
+                maxHeight: tooltipMaxHeight,
+              ),
               child: Material(
                 elevation: 8,
                 borderRadius: BorderRadius.circular(16),
@@ -131,9 +135,17 @@ class OnboardingTourOverlay extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        step.description,
-                        style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: Scrollbar(
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            child: SelectableText(
+                              step.description,
+                              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Row(
