@@ -661,8 +661,9 @@ class ApiClient {
       if (onProgress != null) {
         final totalBytes = payload == null ? 0 : utf8.encode(payload).length;
         req.upload.onProgress.listen((event) {
-          final total = event.total.toInt();
-          onProgress(event.loaded.toInt(), total > 0 ? total : totalBytes);
+          final total = event.total ?? 0;
+          final loaded = event.loaded ?? 0;
+          onProgress(loaded, total > 0 ? total : totalBytes);
         });
       }
       final completer = Completer<html.HttpRequest>();
@@ -1675,12 +1676,13 @@ class ApiClient {
         body: body,
         onProgress: onProgress,
       );
-      if (res.status != 200 && res.status != 201) {
-        throw ApiError(res.status, _extractMessage(res.responseText ?? ''));
+      final status = res.status ?? 0;
+      if (status != 200 && status != 201) {
+        throw ApiError(status, _extractMessage(res.responseText ?? ''));
       }
       final decoded = jsonDecode(res.responseText ?? '{}');
       if (decoded is Map) return RepDownloadItem.fromJson(decoded.cast<String, dynamic>());
-      throw ApiError(res.status, 'invalid response for admin download save');
+      throw ApiError(status, 'invalid response for admin download save');
     }
     final r = await http.post(
       _u('/api/admin/downloads'),

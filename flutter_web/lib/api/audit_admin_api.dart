@@ -36,7 +36,7 @@ class AuditAdminApi {
   }
 
   Map<String, dynamic> _decodeHtmlResponse(html.HttpRequest r) {
-    final status = r.status;
+    final status = r.status ?? 0;
     final body = r.responseText ?? '';
     if (status < 200 || status >= 300) {
       final parsed = _parseErrorBody(body);
@@ -213,8 +213,9 @@ class AuditAdminApi {
     _headersJson().forEach(req.setRequestHeader);
     final totalBytes = utf8.encode(payload).length;
     req.upload.onProgress.listen((event) {
-      final total = event.total.toInt();
-      onProgress(event.loaded.toInt(), total > 0 ? total : totalBytes);
+      final total = event.total ?? 0;
+      final loaded = event.loaded ?? 0;
+      onProgress(loaded, total > 0 ? total : totalBytes);
     });
     req.onLoad.listen((_) => completer.complete(req));
     req.onError.listen((event) => completer.completeError(event));

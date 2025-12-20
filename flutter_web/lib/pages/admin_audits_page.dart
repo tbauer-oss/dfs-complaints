@@ -1611,7 +1611,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
         files,
         onProgress: (sent, total) {
           if (!mounted) return;
-          final progress = total > 0 ? (sent / total).clamp(0, 1) : 0.0;
+          final progress = total > 0 ? (sent / total).clamp(0, 1).toDouble() : 0.0;
           setState(() {
             _evidenceUploadProgress = progress;
             _evidenceUploadStatus = 'Upload läuft… ${(progress * 100).toStringAsFixed(0)} %';
