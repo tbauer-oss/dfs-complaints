@@ -15,11 +15,30 @@ import '../models/portal_user.dart';
 import '../services/dfs_product_service.dart';
 import '../widgets/skeletons.dart';
 
+class ChangeContext {
+  final String changeId;
+  final String title;
+  final String justification;
+
+  const ChangeContext({
+    required this.changeId,
+    required this.title,
+    required this.justification,
+  });
+}
+
 class AdminFmeaPage extends StatefulWidget {
   final ApiClient api;
   final bool canEdit;
   final String? initialMdrTd;
-  const AdminFmeaPage({super.key, required this.api, required this.canEdit, this.initialMdrTd});
+  final ChangeContext? changeContext;
+  const AdminFmeaPage({
+    super.key,
+    required this.api,
+    required this.canEdit,
+    this.initialMdrTd,
+    this.changeContext,
+  });
 
   @override
   State<AdminFmeaPage> createState() => _AdminFmeaPageState();
@@ -76,6 +95,35 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
 
   List<PortalUserSummary> get _prrcUsers =>
       _portalUsers.where((u) => u.isPrrc).toList(growable: false);
+
+  Widget _buildChangeBanner(ThemeData theme) {
+    final ctx = widget.changeContext;
+    if (ctx == null) return const SizedBox.shrink();
+    final cs = theme.colorScheme;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.primary.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'FMEA-Anpassung ausgelöst aus Change ${ctx.changeId}',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text('Titel: ${ctx.title.isEmpty ? '—' : ctx.title}'),
+          const SizedBox(height: 4),
+          Text('Begründung: ${ctx.justification.isEmpty ? '—' : ctx.justification}'),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -2988,6 +3036,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
               body: SafeArea(
                 child: Column(
                   children: [
+                    if (widget.changeContext != null) _buildChangeBanner(theme),
                     Material(
                       elevation: 2,
                       color: theme.colorScheme.surface,

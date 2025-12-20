@@ -45,6 +45,7 @@ class ChangeManagementRecord {
 
   final List<String> affectedDocuments;
   final List<String> affectedProcesses;
+  final String affectedProcessOther;
   final String trigger;
 
   final String productImpact;
@@ -64,6 +65,15 @@ class ChangeManagementRecord {
   final String decisionNote;
   final String decisionBy;
   final DateTime? decisionAt;
+  final String prrcDecision;
+  final String prrcNote;
+  final String prrcBy;
+  final DateTime? prrcAt;
+
+  final String fmeaId;
+  final String fmeaStatus;
+  final String capaId;
+  final String capaStatus;
 
   final String implementationOwner;
   final DateTime? plannedDate;
@@ -87,6 +97,7 @@ class ChangeManagementRecord {
     this.updatedAt,
     this.affectedDocuments = const [],
     this.affectedProcesses = const [],
+    this.affectedProcessOther = '',
     this.trigger = '',
     this.productImpact = 'none',
     this.documentationImpact = 'none',
@@ -103,6 +114,14 @@ class ChangeManagementRecord {
     this.decisionNote = '',
     this.decisionBy = '',
     this.decisionAt,
+    this.prrcDecision = '',
+    this.prrcNote = '',
+    this.prrcBy = '',
+    this.prrcAt,
+    this.fmeaId = '',
+    this.fmeaStatus = '',
+    this.capaId = '',
+    this.capaStatus = '',
     this.implementationOwner = '',
     this.plannedDate,
     this.implementedAt,
@@ -129,6 +148,7 @@ class ChangeManagementRecord {
         affectedProcesses: (json['affectedProcesses'] is List)
             ? (json['affectedProcesses'] as List).map((e) => e.toString()).toList()
             : const [],
+        affectedProcessOther: (json['affectedProcessOther'] ?? '').toString(),
         trigger: (json['trigger'] ?? '').toString(),
         productImpact: (json['productImpact'] ?? 'none').toString(),
         documentationImpact: (json['documentationImpact'] ?? 'none').toString(),
@@ -147,6 +167,14 @@ class ChangeManagementRecord {
         decisionNote: (json['decisionNote'] ?? '').toString(),
         decisionBy: (json['decisionBy'] ?? '').toString(),
         decisionAt: _parseDate(json['decisionAt']),
+        prrcDecision: (json['prrcDecision'] ?? '').toString(),
+        prrcNote: (json['prrcNote'] ?? '').toString(),
+        prrcBy: (json['prrcBy'] ?? '').toString(),
+        prrcAt: _parseDate(json['prrcAt']),
+        fmeaId: (json['fmeaId'] ?? '').toString(),
+        fmeaStatus: (json['fmeaStatus'] ?? '').toString(),
+        capaId: (json['capaId'] ?? '').toString(),
+        capaStatus: (json['capaStatus'] ?? '').toString(),
         implementationOwner: (json['implementationOwner'] ?? '').toString(),
         plannedDate: _parseDate(json['plannedDate']),
         implementedAt: _parseDate(json['implementedAt']),
@@ -174,6 +202,7 @@ class ChangeManagementRecord {
         'updatedAt': updatedAt?.millisecondsSinceEpoch,
         'affectedDocuments': affectedDocuments,
         'affectedProcesses': affectedProcesses,
+        'affectedProcessOther': affectedProcessOther,
         'trigger': trigger,
         'productImpact': productImpact,
         'documentationImpact': documentationImpact,
@@ -190,6 +219,14 @@ class ChangeManagementRecord {
         'decisionNote': decisionNote,
         'decisionBy': decisionBy,
         'decisionAt': decisionAt?.millisecondsSinceEpoch,
+        'prrcDecision': prrcDecision,
+        'prrcNote': prrcNote,
+        'prrcBy': prrcBy,
+        'prrcAt': prrcAt?.millisecondsSinceEpoch,
+        'fmeaId': fmeaId,
+        'fmeaStatus': fmeaStatus,
+        'capaId': capaId,
+        'capaStatus': capaStatus,
         'implementationOwner': implementationOwner,
         'plannedDate': plannedDate?.millisecondsSinceEpoch,
         'implementedAt': implementedAt?.millisecondsSinceEpoch,
@@ -212,6 +249,7 @@ class ChangeManagementRecord {
     DateTime? updatedAt,
     List<String>? affectedDocuments,
     List<String>? affectedProcesses,
+    String? affectedProcessOther,
     String? trigger,
     String? productImpact,
     String? documentationImpact,
@@ -228,6 +266,14 @@ class ChangeManagementRecord {
     String? decisionNote,
     String? decisionBy,
     DateTime? decisionAt,
+    String? prrcDecision,
+    String? prrcNote,
+    String? prrcBy,
+    DateTime? prrcAt,
+    String? fmeaId,
+    String? fmeaStatus,
+    String? capaId,
+    String? capaStatus,
     String? implementationOwner,
     DateTime? plannedDate,
     DateTime? implementedAt,
@@ -249,6 +295,7 @@ class ChangeManagementRecord {
         updatedAt: updatedAt ?? this.updatedAt,
         affectedDocuments: affectedDocuments ?? this.affectedDocuments,
         affectedProcesses: affectedProcesses ?? this.affectedProcesses,
+        affectedProcessOther: affectedProcessOther ?? this.affectedProcessOther,
         trigger: trigger ?? this.trigger,
         productImpact: productImpact ?? this.productImpact,
         documentationImpact: documentationImpact ?? this.documentationImpact,
@@ -265,6 +312,14 @@ class ChangeManagementRecord {
         decisionNote: decisionNote ?? this.decisionNote,
         decisionBy: decisionBy ?? this.decisionBy,
         decisionAt: decisionAt ?? this.decisionAt,
+        prrcDecision: prrcDecision ?? this.prrcDecision,
+        prrcNote: prrcNote ?? this.prrcNote,
+        prrcBy: prrcBy ?? this.prrcBy,
+        prrcAt: prrcAt ?? this.prrcAt,
+        fmeaId: fmeaId ?? this.fmeaId,
+        fmeaStatus: fmeaStatus ?? this.fmeaStatus,
+        capaId: capaId ?? this.capaId,
+        capaStatus: capaStatus ?? this.capaStatus,
         implementationOwner: implementationOwner ?? this.implementationOwner,
         plannedDate: plannedDate ?? this.plannedDate,
         implementedAt: implementedAt ?? this.implementedAt,

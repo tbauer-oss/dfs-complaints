@@ -1785,6 +1785,22 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Antwort für Portal-User');
   }
 
+  Future<List<PortalUserSummary>> adminStaffUsers({bool includeInactive = false}) async {
+    final r = await http.get(
+      _u('/api/admin/users?scope=staff&includeInactive=${includeInactive ? 'true' : 'false'}'),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['users'] is List ? decoded['users'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => PortalUserSummary.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
   Future<CapaReport> adminSaveCapa(CapaReport report) async {
     final r = await http.post(
       _u('/api/admin/capas'),
