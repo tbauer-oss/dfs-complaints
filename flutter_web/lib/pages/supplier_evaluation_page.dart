@@ -595,6 +595,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     final isEditing = entry != null;
     final descCtrl = TextEditingController(text: entry?.description ?? '');
     final refCtrl = TextEditingController(text: entry?.referenceNumber ?? '');
+    final quickChips = [
+      const {'label': 'Routinebewertung', 'text': 'Routinebewertung'},
+      const {'label': 'Verspätete Lieferung', 'text': 'Verspätete Lieferung'},
+      const {'label': 'Qualitätsabweichung', 'text': 'Qualitätsabweichung festgestellt'},
+      const {'label': 'Dokumentation unvollständig', 'text': 'Dokumentation unvollständig'},
+      const {'label': 'Erstlieferung', 'text': 'Erstlieferung'},
+    ];
+    String? lastChipText;
     DateTime selectedDate =
         entry != null ? DateTime.fromMillisecondsSinceEpoch(entry.date) : DateTime.now();
     String supplierId = entry?.supplierId ?? _suppliers.first.id;
@@ -663,7 +671,63 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                         }
                       },
                     ),
-                    TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Kurzbeschreibung *')),
+                    TextField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(labelText: 'Kurzbeschreibung *'),
+                      onChanged: (value) {
+                        if (lastChipText != null && value.trim() != lastChipText) {
+                          lastChipText = null;
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text('Schnellauswahl (optional)', style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          message: 'Klicken Sie auf einen Vorschlag, um die Kurzbeschreibung schnell zu füllen.',
+                          child: Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: quickChips.map((chip) {
+                        return ActionChip(
+                          label: Text(chip['label']!),
+                          backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+                          labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          onPressed: () {
+                            final chipText = chip['text']!;
+                            final currentText = descCtrl.text;
+                            final trimmed = currentText.trim();
+                            if (trimmed.isEmpty || (lastChipText != null && trimmed == lastChipText)) {
+                              lastChipText = chipText;
+                              descCtrl.value = descCtrl.value.copyWith(
+                                text: chipText,
+                                selection: TextSelection.collapsed(offset: chipText.length),
+                              );
+                              return;
+                            }
+                            final baseText = currentText.trimRight();
+                            final separator = baseText.isEmpty ? '' : ' – ';
+                            final newText = '$baseText$separator$chipText';
+                            lastChipText = null;
+                            descCtrl.value = descCtrl.value.copyWith(
+                              text: newText,
+                              selection: TextSelection.collapsed(offset: newText.length),
+                            );
+                          },
+                        );
+                      }).toList(),
+                    ),
                     const SizedBox(height: 12),
                     Text('Bezug *', style: Theme.of(context).textTheme.titleSmall),
                     const SizedBox(height: 8),
