@@ -1924,6 +1924,19 @@ class ApiClient {
     throw ApiError(r.statusCode, 'invalid response for change update');
   }
 
+  Future<ChangeManagementRecord> adminChange(String idOrNumber) async {
+    final r = await http.get(_u('/api/admin/changes?id=$idOrNumber'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map && decoded['record'] is Map) {
+      return ChangeManagementRecord.fromJson((decoded['record'] as Map).cast<String, dynamic>());
+    }
+    if (decoded is Map) return ChangeManagementRecord.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'invalid response for change lookup');
+  }
+
   Future<void> adminDeleteChange(String id) async {
     final r = await http.delete(
       _u('/api/admin/changes'),

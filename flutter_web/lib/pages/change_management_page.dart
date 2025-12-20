@@ -391,47 +391,51 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
     }
 
     if (!prevFollowUps.contains('capa') && newFollowUps.contains('capa')) {
-      final changeRef = saved.changeId.isNotEmpty ? saved.changeId : saved.id;
-      CapaReport? capa;
-      if (saved.capaId.isEmpty) {
-        final problemLines = [
-          'Auslöser: Change Management',
-          'Referenz: $changeRef',
-          if (saved.justification.trim().isNotEmpty) 'Begründung: ${saved.justification.trim()}',
-        ];
-        final prefill = CapaReport(
-          title: saved.title,
-          changeId: changeRef,
-          sections: CapaSections(problem: problemLines.join('\n')),
-        );
-        try {
-          capa = await widget.api.adminSaveCapa(prefill);
-          final updated = await widget.api.adminUpdateChange(
-            saved.copyWith(
-              capaId: capa.effectiveNumber,
-              capaStatus: capa.status,
-            ),
-          );
-          if (mounted) setState(() => _record = updated);
-        } catch (e) {
-          if (mounted) setState(() => _error = e.toString());
-        }
-      }
-      if (!mounted) return;
-      if (capa != null) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => CapaDetailPage(
-              api: widget.api,
-              canWrite: widget.canWrite,
-              initialReport: capa,
-              changeId: changeRef,
-            ),
+      await _createAndOpenCapa(saved);
+    }
+  }
+
+  Future<void> _createAndOpenCapa(ChangeManagementRecord saved) async {
+    final changeRef = saved.changeId.isNotEmpty ? saved.changeId : saved.id;
+    CapaReport? capa;
+    if (saved.capaId.isEmpty) {
+      final problemLines = [
+        'Auslöser: Change Management',
+        'Referenz: $changeRef',
+        if (saved.justification.trim().isNotEmpty) 'Begründung: ${saved.justification.trim()}',
+      ];
+      final prefill = CapaReport(
+        title: saved.title,
+        changeId: changeRef,
+        sections: CapaSections(problem: problemLines.join('\n')),
+      );
+      try {
+        capa = await widget.api.adminSaveCapa(prefill);
+        final updated = await widget.api.adminUpdateChange(
+          saved.copyWith(
+            capaId: capa.effectiveNumber,
+            capaStatus: capa.status,
           ),
         );
-      } else if (saved.capaId.isNotEmpty) {
-        await _openCapaById(saved.capaId);
+        if (mounted) setState(() => _record = updated);
+      } catch (e) {
+        if (mounted) setState(() => _error = e.toString());
       }
+    }
+    if (!mounted) return;
+    if (capa != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CapaDetailPage(
+            api: widget.api,
+            canWrite: widget.canWrite,
+            initialReport: capa,
+            changeId: changeRef,
+          ),
+        ),
+      );
+    } else if (saved.capaId.isNotEmpty) {
+      await _openCapaById(saved.capaId);
     }
   }
 
@@ -1069,6 +1073,20 @@ class _ChangeManagementDetailPageState extends State<ChangeManagementDetailPage>
                       onPressed: () => _openCapaById(_record.capaId),
                       icon: const Icon(Icons.open_in_new),
                       label: const Text('CAPA öffnen'),
+                    ),
+                  if (widget.canWrite && _record.capaId.isEmpty)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        if (_record.id.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Bitte Change zuerst speichern.')),
+                          );
+                          return;
+                        }
+                        await _createAndOpenCapa(_record);
+                      },
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: const Text('CAPA anlegen'),
                     ),
                 ],
               ),

@@ -14,6 +14,19 @@ import '../models/fmea.dart';
 import '../models/portal_user.dart';
 import '../services/dfs_product_service.dart';
 import '../widgets/skeletons.dart';
+import 'change_management_page.dart';
+
+class ChangeContext {
+  final String changeId;
+  final String title;
+  final String justification;
+
+  const ChangeContext({
+    required this.changeId,
+    required this.title,
+    required this.justification,
+  });
+}
 
 class ChangeContext {
   final String changeId;
@@ -96,6 +109,29 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
   List<PortalUserSummary> get _prrcUsers =>
       _portalUsers.where((u) => u.isPrrc).toList(growable: false);
 
+  Future<void> _openChangeFromContext() async {
+    final ctx = widget.changeContext;
+    if (ctx == null || ctx.changeId.trim().isEmpty) return;
+    try {
+      final record = await widget.api.adminChange(ctx.changeId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChangeManagementDetailPage(
+            api: widget.api,
+            canWrite: widget.canEdit,
+            initialRecord: record,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Change ${ctx.changeId} konnte nicht geöffnet werden.')),
+      );
+    }
+  }
+
   Widget _buildChangeBanner(ThemeData theme) {
     final ctx = widget.changeContext;
     if (ctx == null) return const SizedBox.shrink();
@@ -120,6 +156,15 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
           Text('Titel: ${ctx.title.isEmpty ? '—' : ctx.title}'),
           const SizedBox(height: 4),
           Text('Begründung: ${ctx.justification.isEmpty ? '—' : ctx.justification}'),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _openChangeFromContext,
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Zum Change'),
+            ),
+          ),
         ],
       ),
     );
