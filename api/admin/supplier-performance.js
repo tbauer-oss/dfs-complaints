@@ -29,13 +29,13 @@ function validateEntry(record) {
   if (!isFilled(record?.referenceNumber)) return 'Bitte eine Bezugsnummer hinterlegen.';
   const ratings = record?.ratings || {};
   const ratingValues = Object.values(ratings);
-  if (ratingValues.some((value) => value != null && (!Number.isFinite(value) || value < 1 || value > 5))) {
-    return 'Bewertungen müssen zwischen 1 und 5 liegen oder leer bleiben.';
+  if (ratingValues.some((value) => value != null && (!Number.isFinite(value) || value < 1 || value > 4))) {
+    return 'Bewertungen müssen zwischen 1 und 4 liegen oder leer bleiben.';
   }
   return null;
 }
 
-function normalizeRatings(input) {
+function normalizeRatings(input, ratingSchemaVersion = 2) {
   const ratings = {
     communication: null,
     quality: null,
@@ -43,6 +43,18 @@ function normalizeRatings(input) {
     price: null,
     quantity: null,
     backorders: null,
+  };
+  const mapScore = (value) => {
+    if (!Number.isFinite(value)) return null;
+    if (ratingSchemaVersion < 2) {
+      if (value <= 1) return 1;
+      if (value === 2) return 2;
+      if (value === 3) return 3;
+      return 4;
+    }
+    if (value < 1) return 1;
+    if (value > 4) return 4;
+    return value;
   };
   if (input && typeof input === 'object') {
     Object.entries(input).forEach(([key, value]) => {
@@ -52,7 +64,7 @@ function normalizeRatings(input) {
         return;
       }
       const parsed = Number(value);
-      ratings[key] = Number.isFinite(parsed) ? parsed : null;
+      ratings[key] = mapScore(parsed);
     });
   }
   return ratings;
@@ -72,25 +84,37 @@ function mapCategoryKey(name = '') {
 function entryPoints(entry, config) {
   const weights = {
     communication: 0.1,
-    quality: 0.4,
-    delivery: 0.2,
-    price: 0.1,
-    quantity: 0.1,
+    quality: 0.3,
+    delivery: 0.15,
+    price: 0.15,
+    quantity: 0.2,
     backorders: 0.1,
   };
-  const ratings = normalizeRatings(entry?.ratings);
-  const points = Object.entries(weights).map(([key, weight]) => {
+  const ratings = normalizeRatings(entry?.ratings, entry?.ratingSchemaVersion || 2);
+  const communicationNa = entry?.communicationNa === true;
+  let total = 0;
+  let weightTotal = 0;
+  for (const [key, weight] of Object.entries(weights)) {
     const value = ratings[key];
-    return Number.isFinite(value) ? value * weight : null;
-  });
-  if (points.some((value) => value == null)) return null;
-  return Number(points.reduce((sum, value) => sum + value, 0).toFixed(2));
+    if (key === 'communication' && communicationNa && value == null) {
+      continue;
+    }
+    if (!Number.isFinite(value)) return null;
+    total += value * weight;
+    weightTotal += weight;
+  }
+  if (!weightTotal) return null;
+  return Number((total / weightTotal).toFixed(2));
 }
 
-function computeStatus(ratings = {}) {
-  const values = Object.values(normalizeRatings(ratings)).filter((value) => Number.isFinite(value));
+function computeStatus(ratings = {}, communicationNa = false, ratingSchemaVersion = 2) {
+  const normalized = normalizeRatings(ratings, ratingSchemaVersion);
+  const values = Object.entries(normalized).filter(([key, value]) => {
+    if (key === 'communication' && communicationNa && value == null) return true;
+    return Number.isFinite(value);
+  });
   if (values.length === 0) return 'OFFEN';
-  if (values.length === 6) return 'ABGESCHLOSSEN';
+  if (values.length === Object.keys(normalized).length) return 'ABGESCHLOSSEN';
   return 'IN_BEARBEITUNG';
 }
 
@@ -168,14 +192,19 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
-      const ratings = normalizeRatings(body.ratings);
-      const computedGrade = entryPoints({ ratings }, {});
+      const ratingSchemaVersion = Number(body?.ratingSchemaVersion || 2);
+      const communicationNa = body?.communicationNa === true;
+      const ratings = normalizeRatings(body.ratings, ratingSchemaVersion);
+      const computedScore = entryPoints({ ratings, communicationNa, ratingSchemaVersion }, {});
       const payload = {
         ...applyReferenceFields(body),
         ratings,
-        computedGrade,
-        computedAt: computedGrade != null ? Date.now() : null,
-        status: computeStatus(ratings),
+        communicationNa,
+        ratingSchemaVersion: ratingSchemaVersion >= 2 ? 2 : 1,
+        computedGrade: computedScore,
+        computedScore,
+        computedAt: computedScore != null ? Date.now() : null,
+        status: computeStatus(ratings, communicationNa, ratingSchemaVersion),
         createdAt: body?.createdAt || Date.now(),
         createdBy: actor.email,
         updatedBy: actor.email,
@@ -215,14 +244,19 @@ export default async function handler(req, res) {
         ...body,
       };
       const withReference = applyReferenceFields(draft);
-      const nextRatings = normalizeRatings(draft.ratings ?? current.ratings);
-      const computedGrade = entryPoints({ ratings: nextRatings }, {});
+      const ratingSchemaVersion = Number(draft?.ratingSchemaVersion || current.ratingSchemaVersion || 2);
+      const communicationNa = draft?.communicationNa === true;
+      const nextRatings = normalizeRatings(draft.ratings ?? current.ratings, ratingSchemaVersion);
+      const computedScore = entryPoints({ ratings: nextRatings, communicationNa, ratingSchemaVersion }, {});
       const merged = {
         ...withReference,
         ratings: nextRatings,
-        computedGrade,
-        computedAt: computedGrade != null ? Date.now() : null,
-        status: computeStatus(nextRatings),
+        communicationNa,
+        ratingSchemaVersion: ratingSchemaVersion >= 2 ? 2 : 1,
+        computedGrade: computedScore,
+        computedScore,
+        computedAt: computedScore != null ? Date.now() : null,
+        status: computeStatus(nextRatings, communicationNa, ratingSchemaVersion),
         updatedBy: actor.email,
         updatedAt: Date.now(),
         history: [...(current.history || []), historyEntry],
