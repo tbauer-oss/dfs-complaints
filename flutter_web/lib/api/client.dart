@@ -18,6 +18,7 @@ import '../models/capa_report.dart';
 import '../models/change_management.dart';
 import '../models/portal_user.dart';
 import '../models/fmea.dart';
+import '../models/supplier_evaluation.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -2061,6 +2062,288 @@ class ApiClient {
 
   Future<String> adminFmeaCsv(String id) async {
     final path = Uri(path: '/api/admin/fmea-export', queryParameters: {'id': id, 'format': 'csv'}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.body;
+  }
+
+  Future<List<Supplier>> adminSuppliers() async {
+    final r = await http.get(_u('/api/admin/suppliers'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => Supplier.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<Supplier> adminCreateSupplier(Supplier supplier) async {
+    final r = await http.post(
+      _u('/api/admin/suppliers'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(supplier.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['supplier'] is Map ? decoded['supplier'] as Map : decoded;
+    if (map is Map) return Supplier.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Lieferanten-Antwort');
+  }
+
+  Future<Supplier> adminUpdateSupplier(Supplier supplier, {String? changeReason}) async {
+    final payload = supplier.toJson();
+    if (changeReason != null && changeReason.trim().isNotEmpty) payload['changeReason'] = changeReason.trim();
+    final path = Uri(path: '/api/admin/suppliers', queryParameters: {'id': supplier.id}).toString();
+    final r = await http.patch(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['supplier'] is Map ? decoded['supplier'] as Map : decoded;
+    if (map is Map) return Supplier.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Lieferanten-Antwort');
+  }
+
+  Future<void> adminDeleteSupplier(String id) async {
+    final path = Uri(path: '/api/admin/suppliers', queryParameters: {'id': id}).toString();
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<SupplierPerformanceEntry>> adminSupplierPerformance({String? supplierId}) async {
+    final path = Uri(path: '/api/admin/supplier-performance', queryParameters: supplierId != null ? {'supplierId': supplierId} : {}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => SupplierPerformanceEntry.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<SupplierPerformanceEntry> adminCreateSupplierPerformance(SupplierPerformanceEntry entry) async {
+    final r = await http.post(
+      _u('/api/admin/supplier-performance'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(entry.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['entry'] is Map ? decoded['entry'] as Map : decoded;
+    if (map is Map) return SupplierPerformanceEntry.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Performance-Antwort');
+  }
+
+  Future<SupplierPerformanceEntry> adminUpdateSupplierPerformance(SupplierPerformanceEntry entry, {String? changeReason}) async {
+    final payload = entry.toJson();
+    if (changeReason != null && changeReason.trim().isNotEmpty) payload['changeReason'] = changeReason.trim();
+    final path = Uri(path: '/api/admin/supplier-performance', queryParameters: {'id': entry.id}).toString();
+    final r = await http.patch(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['entry'] is Map ? decoded['entry'] as Map : decoded;
+    if (map is Map) return SupplierPerformanceEntry.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Performance-Antwort');
+  }
+
+  Future<void> adminDeleteSupplierPerformance(String id, {String? cancelReason}) async {
+    final path = Uri(path: '/api/admin/supplier-performance', queryParameters: {'id': id}).toString();
+    final r = await http.delete(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: cancelReason != null ? jsonEncode({'cancelReason': cancelReason}) : null,
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<SupplierAnnualEvaluation>> adminSupplierEvaluations({String? supplierId}) async {
+    final path = Uri(path: '/api/admin/supplier-evaluations', queryParameters: supplierId != null ? {'supplierId': supplierId} : {}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => SupplierAnnualEvaluation.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<SupplierAnnualEvaluation> adminCreateSupplierEvaluation(SupplierAnnualEvaluation evaluation) async {
+    final r = await http.post(
+      _u('/api/admin/supplier-evaluations'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(evaluation.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['evaluation'] is Map ? decoded['evaluation'] as Map : decoded;
+    if (map is Map) return SupplierAnnualEvaluation.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Bewertungs-Antwort');
+  }
+
+  Future<SupplierAnnualEvaluation> adminUpdateSupplierEvaluation(SupplierAnnualEvaluation evaluation, {String? changeReason}) async {
+    final payload = evaluation.toJson();
+    if (changeReason != null && changeReason.trim().isNotEmpty) payload['changeReason'] = changeReason.trim();
+    final path = Uri(path: '/api/admin/supplier-evaluations', queryParameters: {'id': evaluation.id}).toString();
+    final r = await http.patch(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['evaluation'] is Map ? decoded['evaluation'] as Map : decoded;
+    if (map is Map) return SupplierAnnualEvaluation.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Bewertungs-Antwort');
+  }
+
+  Future<void> adminDeleteSupplierEvaluation(String id, {String? cancelReason}) async {
+    final path = Uri(path: '/api/admin/supplier-evaluations', queryParameters: {'id': id}).toString();
+    final r = await http.delete(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: cancelReason != null ? jsonEncode({'cancelReason': cancelReason}) : null,
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<SupplierEscalation>> adminSupplierEscalations({String? supplierId}) async {
+    final path = Uri(path: '/api/admin/supplier-escalations', queryParameters: supplierId != null ? {'supplierId': supplierId} : {}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => SupplierEscalation.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<SupplierEscalation> adminCreateSupplierEscalation(SupplierEscalation escalation) async {
+    final r = await http.post(
+      _u('/api/admin/supplier-escalations'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(escalation.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['escalation'] is Map ? decoded['escalation'] as Map : decoded;
+    if (map is Map) return SupplierEscalation.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Eskalations-Antwort');
+  }
+
+  Future<SupplierEscalation> adminUpdateSupplierEscalation(SupplierEscalation escalation, {String? changeReason}) async {
+    final payload = escalation.toJson();
+    if (changeReason != null && changeReason.trim().isNotEmpty) payload['changeReason'] = changeReason.trim();
+    final path = Uri(path: '/api/admin/supplier-escalations', queryParameters: {'id': escalation.id}).toString();
+    final r = await http.patch(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['escalation'] is Map ? decoded['escalation'] as Map : decoded;
+    if (map is Map) return SupplierEscalation.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Eskalations-Antwort');
+  }
+
+  Future<void> adminDeleteSupplierEscalation(String id) async {
+    final path = Uri(path: '/api/admin/supplier-escalations', queryParameters: {'id': id}).toString();
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<SupplierEvaluationConfig> adminSupplierEvalConfig() async {
+    final r = await http.get(_u('/api/admin/supplier-config'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['config'] is Map ? decoded['config'] as Map : decoded;
+    if (map is Map) return SupplierEvaluationConfig.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Konfigurations-Antwort');
+  }
+
+  Future<SupplierEvaluationConfig> adminUpdateSupplierEvalConfig(SupplierEvaluationConfig config) async {
+    final r = await http.patch(
+      _u('/api/admin/supplier-config'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(config.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['config'] is Map ? decoded['config'] as Map : decoded;
+    if (map is Map) return SupplierEvaluationConfig.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Konfigurations-Antwort');
+  }
+
+  Future<Uint8List> adminSupplierReportPdf({String? supplierId}) async {
+    final path = Uri(
+      path: '/api/admin/supplier-reports',
+      queryParameters: {'format': 'pdf', if (supplierId != null) 'supplierId': supplierId},
+    ).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.bodyBytes;
+  }
+
+  Future<String> adminSupplierReportCsv() async {
+    final path = Uri(path: '/api/admin/supplier-reports', queryParameters: {'format': 'csv'}).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
