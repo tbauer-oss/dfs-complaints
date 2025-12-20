@@ -13,42 +13,42 @@ class DashboardOnboardingTexts {
     'open': DashboardOnboardingText(
       title: 'Offene Reklamationen',
       body:
-          'Hier sehen Sie alle noch ungeklärten Fälle, die eine Entscheidung oder Maßnahme brauchen. Nutzen Sie diese Kachel für die tägliche Priorisierung und Bearbeitung. Ergebnis ist ein aktualisierter Status inklusive Entscheidungen und nächsten Schritten.',
+          'Hier sehen Sie alle aktuell offenen Reklamationen, die noch geprüft, bewertet oder entschieden werden müssen. Diese Ansicht ist der zentrale Einstieg für die operative Reklamationsbearbeitung und hilft, keine offenen Fälle zu übersehen. Typischerweise starten Sie hier Ihre tägliche Bearbeitung und Priorisierung.',
     ),
     'all': DashboardOnboardingText(
       title: 'Alle Reklamationen',
       body:
-          'Diese Übersicht bündelt alle Tickets – inklusive abgeschlossener Vorgänge. Ideal für Recherchen, Audits und historische Vergleiche. Das Ergebnis ist eine vollständige Trefferliste mit Filter- und Suchoptionen.',
+          'Diese Übersicht enthält sämtliche Reklamationen – unabhängig vom Status. Sie eignet sich für gezielte Suchen, Filterungen und Rückverfolgung einzelner Fälle über den gesamten Lebenszyklus hinweg. Ideal für Nachfragen, Audits oder historische Auswertungen.',
     ),
     'complaintList': DashboardOnboardingText(
-      title: 'Reklamationsliste',
+      title: 'Reklamationsliste & Export',
       body:
-          'Die tabellarische Gesamtübersicht ist für Auswertungen und Exporte gedacht. Nutzen Sie sie, wenn Sie Listen für Reporting oder Weitergabe benötigen. Ergebnis ist eine exportfähige Übersicht aller relevanten Reklamationen.',
+          'In dieser Ansicht können Reklamationsdaten strukturiert ausgewertet und exportiert werden. Sie dient insbesondere zur Weiterverarbeitung, Dokumentation oder Übergabe an externe Stellen. Typisch ist die Nutzung für Managementberichte oder regulatorische Nachweise.',
     ),
     'capaReports': DashboardOnboardingText(
       title: 'CAPA / 8D-Reports',
       body:
-          'Hier steuern Sie Korrektur- und Vorbeugemaßnahmen zu Reklamationen. Verwenden Sie die Kachel, wenn eine formalisierte Ursachenanalyse nötig ist. Ergebnis ist ein dokumentierter Maßnahmenplan mit Nachweisen.',
+          'Hier werden CAPAs und 8D-Reports strukturiert erstellt, bearbeitet und dokumentiert. Der Fokus liegt auf Ursachenanalyse, Maßnahmenplanung und Wirksamkeitsprüfung. Dieser Bereich unterstützt die normkonforme Abarbeitung von Abweichungen und Reklamationen.',
     ),
     'capaDashboard': DashboardOnboardingText(
       title: 'CAPA-Dashboard',
       body:
-          'Das Dashboard zeigt offene CAPAs, Fälligkeiten und kritische Bereiche auf einen Blick. Nutzen Sie es zur täglichen Steuerung und Eskalation. Ergebnis ist ein klarer Überblick über Prioritäten und Risiken.',
+          'Das CAPA-Dashboard zeigt den aktuellen Status aller Korrektur- und Vorbeugemaßnahmen. Es hilft, überfällige oder kritische CAPAs frühzeitig zu erkennen und deren Wirksamkeit zu überwachen. Ein zentrales Werkzeug für kontinuierliche Verbesserung.',
     ),
     'fmea': DashboardOnboardingText(
       title: 'FMEA',
       body:
-          'In der FMEA bewerten Sie Risiken strukturiert nach MDR/TD. Nutzen Sie diese Kachel bei neuen Produkt- oder Prozessrisiken. Ergebnis ist eine nachvollziehbare Risikobewertung inklusive Maßnahmen.',
+          'In der FMEA werden Risiken systematisch identifiziert, bewertet und mit Maßnahmen verknüpft. Dieser Bereich unterstützt das präventive Risikomanagement gemäß MDR und ISO 14971. Typisch ist die Nutzung bei Produktänderungen, neuen Erkenntnissen oder Audits.',
     ),
     'prrc': DashboardOnboardingText(
       title: 'PRRC-Einstufungen',
       body:
-          'Hier erfolgt die regulatorische Bewertung von Reklamationen durch die PRRC. Nutzen Sie die Funktion, wenn eine formale Einstufung erforderlich ist. Ergebnis ist eine dokumentierte PRRC-Entscheidung pro Fall.',
+          'In diesem Bereich erfolgt die regulatorische Bewertung von Reklamationen aus PRRC-Sicht. Hier wird beurteilt, ob ein sicherheitsrelevanter oder meldepflichtiger Sachverhalt vorliegt. Die Entscheidungen bilden die Grundlage für weitere Maßnahmen wie Meldungen, Sperren oder interne Abstimmungen.',
     ),
     'stats': DashboardOnboardingText(
       title: 'Statistik & KPIs',
       body:
-          'Diese Kachel führt zu Kennzahlen und Trendanalysen. Sie unterstützt Management-Reviews und Monatsberichte. Ergebnis sind visuelle KPIs zur Entscheidungsunterstützung.',
+          'Hier erhalten Sie einen Überblick über Kennzahlen, Trends und Auffälligkeiten im Reklamationswesen. Die Auswertungen unterstützen datenbasierte Entscheidungen und zeigen frühzeitig systematische Probleme auf. Diese Ansicht ist besonders relevant für Management, Reviews und Audits.',
     ),
     'pending': DashboardOnboardingText(
       title: 'Anträge / Pending',
@@ -98,12 +98,12 @@ class DashboardOnboardingTexts {
     'audits': DashboardOnboardingText(
       title: 'Interne Audits',
       body:
-          'In diesem Bereich planen und dokumentieren Sie interne Audits. Nutzen Sie die Kachel für Auditzyklen und Maßnahmenverfolgung. Ergebnis ist eine nachvollziehbare Audit-Historie.',
+          'Hier planen, dokumentieren und verfolgen Sie interne Audits. Der Bereich unterstützt die Auditvorbereitung, Maßnahmenverfolgung und Nachweisführung. Ein zentrales Werkzeug für das Qualitätsmanagementsystem.',
     ),
     'push': DashboardOnboardingText(
       title: 'Push-Mitteilungen',
       body:
-          'Hier versenden Sie Push-Benachrichtigungen an Nutzergruppen. Nutzen Sie die Kachel für wichtige Hinweise oder kurzfristige Updates. Ergebnis ist eine direkte, sichtbare Kommunikation im Portal.',
+          'Hier erstellen und versenden Sie Push-Nachrichten an Kunden oder Nutzergruppen. Der Bereich dient der gezielten Kommunikation von Informationen, Updates oder Hinweisen. Push-Mitteilungen sind ein zentrales Kommunikationsinstrument innerhalb von DFS Connect+.',
     ),
     'internalChat': DashboardOnboardingText(
       title: 'Interne Nachrichten',
@@ -111,34 +111,34 @@ class DashboardOnboardingTexts {
           'Der interne Chat unterstützt die Zusammenarbeit zwischen Teams. Nutzen Sie ihn für schnelle Abstimmungen zu Fällen oder Aufgaben. Ergebnis ist eine dokumentierte Kommunikation im Kontext der Arbeit.',
     ),
     'catalogs': DashboardOnboardingText(
-      title: 'Kataloge',
+      title: 'Kataloge & Stammdaten',
       body:
-          'Hier verwalten Sie Kataloglinks, Sprachen und Zugriffe. Nutzen Sie die Kachel, wenn Kataloge aktualisiert oder ergänzt werden müssen. Ergebnis sind aktuelle Kataloge im Portal.',
+          'Dieser Bereich dient der Pflege zentraler Kataloge und Stammdaten, wie Kategorien, Sprachen oder systemweite Listen. Die hier gepflegten Daten werden in vielen Modulen verwendet. Änderungen sollten daher bewusst und kontrolliert erfolgen.',
     ),
     'portalUsers': DashboardOnboardingText(
       title: 'User-Datenbank',
       body:
-          'Die User-Datenbank enthält alle Portal-Mitarbeiter und Rollen. Nutzen Sie die Kachel für Berechtigungen und Nutzerpflege. Ergebnis sind korrekt gepflegte Rollen und Zugriffe.',
+          'In der User-Datenbank verwalten Sie interne Benutzer, Rollen und Berechtigungen. Sie steuern hier, wer Zugriff auf welche Funktionen und Daten hat. Änderungen wirken sich direkt auf Sichtbarkeit und Berechtigungen im System aus.',
     ),
     'appMeta': DashboardOnboardingText(
-      title: 'App-Version',
+      title: 'App-Version & Releases',
       body:
-          'Hier verwalten Sie Versions- und Release-Informationen der App. Nutzen Sie die Kachel, wenn Release-Hinweise oder Versionsdaten aktualisiert werden. Ergebnis ist eine konsistente Release-Dokumentation.',
+          'Hier finden Sie Informationen zur aktuellen App-Version, Builds und Release-Hinweisen. Der Bereich unterstützt Transparenz über Änderungen und neue Funktionen. Besonders relevant für Tests, Rollouts und Support.',
     ),
     'testMode': DashboardOnboardingText(
       title: 'Testmodus & Routing',
       body:
-          'Dieser Bereich steuert Testeinstellungen und Versandoptionen. Nutzen Sie ihn für QA-Checks oder kontrollierte Testläufe. Ergebnis ist ein sauber konfigurierter Testbetrieb ohne Einfluss auf Live-Daten.',
+          'In diesem Bereich konfigurieren Sie Testmodi, Routing-Logiken und Filter für E-Mails oder Push-Nachrichten. Er wird genutzt, um neue Funktionen sicher zu testen, ohne reale Kunden zu beeinflussen. Ein wichtiges Werkzeug für kontrollierte Änderungen.',
     ),
     'systemHealth': DashboardOnboardingText(
       title: 'Systemstatus',
       body:
-          'Hier prüfen Sie die Systemgesundheit und wichtige Konfigurationen. Nutzen Sie die Kachel bei Störungen oder regelmäßigen Checks. Ergebnis ist ein schneller Überblick über Stabilität und Zustand.',
+          'Der Systemstatus zeigt den aktuellen Zustand zentraler Systemkomponenten. Er dient der schnellen Einschätzung von Verfügbarkeit, Fehlern oder Störungen. Typisch ist die Nutzung bei Supportfällen oder technischen Prüfungen.',
     ),
     'activity': DashboardOnboardingText(
       title: 'Aktivitätsübersicht',
       body:
-          'Die Aktivitätsübersicht zeigt Logins, Ticketbewegungen und Push-Aktivitäten. Nutzen Sie sie für Audits oder Nachvollziehbarkeit. Ergebnis ist ein transparentes Aktivitätsprotokoll.',
+          'Diese Übersicht zeigt relevante Systemaktivitäten wie Logins, Tickets oder Push-Vorgänge. Sie unterstützt Nachvollziehbarkeit und Transparenz im Systembetrieb. Besonders hilfreich bei Analysen oder Rückfragen.',
     ),
   };
 
