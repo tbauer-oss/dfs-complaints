@@ -1256,6 +1256,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final hasRemoteConfig = stored != null;
     var addedDefaults = false;
     final rawData = stored;
+    final hasChangeManagementInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('changeManagement'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1279,7 +1281,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       // wenn noch kein Rollen-Layout aus dem Backend vorliegt. Damit bleiben
       // explizit ausgeblendete Kacheln erhalten, sobald eine gespeicherte
       // Auswahl existiert.
-      if (shouldMergeDefaults) {
+      if (shouldMergeDefaults || (!hasChangeManagementInStored && defaults.contains('changeManagement'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
