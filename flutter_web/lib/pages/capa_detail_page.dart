@@ -52,6 +52,7 @@ class CapaDetailPage extends StatefulWidget {
   final Map<String, String>? complaintPrefill;
   final String? complaintId;
   final String? complaintLabel;
+  final String? changeId;
 
   const CapaDetailPage({
     super.key,
@@ -61,6 +62,7 @@ class CapaDetailPage extends StatefulWidget {
     this.complaintPrefill,
     this.complaintId,
     this.complaintLabel,
+    this.changeId,
   });
 
   @override
@@ -92,6 +94,7 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
     _report = widget.initialReport ??
         CapaReport(
           complaintId: widget.complaintId ?? '',
+          changeId: widget.changeId ?? '',
           sections: CapaSections(
             product: widget.complaintPrefill?['product'] ?? '',
             batch: widget.complaintPrefill?['batch'] ?? '',
@@ -336,6 +339,13 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                   _infoChip(
                     label: 'Reklamation',
                     value: _report.complaintId,
+                    icon: Icons.link,
+                    color: cs.secondary,
+                  ),
+                if (_report.changeId.isNotEmpty)
+                  _infoChip(
+                    label: 'Change',
+                    value: _report.changeId,
                     icon: Icons.link,
                     color: cs.secondary,
                   ),
