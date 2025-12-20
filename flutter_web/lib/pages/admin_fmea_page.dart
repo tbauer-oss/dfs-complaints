@@ -28,6 +28,18 @@ class ChangeContext {
   });
 }
 
+class ChangeContext {
+  final String changeId;
+  final String title;
+  final String justification;
+
+  const ChangeContext({
+    required this.changeId,
+    required this.title,
+    required this.justification,
+  });
+}
+
 class AdminFmeaPage extends StatefulWidget {
   final ApiClient api;
   final bool canEdit;
