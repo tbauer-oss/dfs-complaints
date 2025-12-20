@@ -56,6 +56,7 @@ import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
+import 'change_management_page.dart';
 
 String _formatError(Object error) {
   final message = AppErrorMapper.map(error);
@@ -108,6 +109,7 @@ enum AdminView {
   capaReports,
   capaDashboard,
   fmea,
+  changeManagement,
   prrc,
   audits,
   pending,
@@ -190,6 +192,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'changeManagement',
     'prrc',
     'internalChat',
     'stats',
@@ -220,6 +223,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'changeManagement',
     'prrc',
     'internalChat',
     'stats',
@@ -263,6 +267,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'changeManagement',
     'prrc',
     'internalChat',
     'stats',
@@ -274,6 +279,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'capaReports',
     'prrc',
+    'changeManagement',
     'internalChat',
     'stats',
     'audits',
@@ -1199,6 +1205,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   Map<String, dynamic> _capaDashboard = const {};
   bool _capaDashboardLoading = false;
   String? _capaDashboardErr;
+  Map<String, dynamic> _changeSummary = const {};
+  bool _changeSummaryLoading = false;
+  String? _changeSummaryErr;
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -1247,6 +1256,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final hasRemoteConfig = stored != null;
     var addedDefaults = false;
     final rawData = stored;
+    final hasChangeManagementInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('changeManagement'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1270,7 +1281,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       // wenn noch kein Rollen-Layout aus dem Backend vorliegt. Damit bleiben
       // explizit ausgeblendete Kacheln erhalten, sobald eine gespeicherte
       // Auswahl existiert.
-      if (shouldMergeDefaults) {
+      if (shouldMergeDefaults || (!hasChangeManagementInStored && defaults.contains('changeManagement'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
@@ -1684,6 +1695,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _refreshAllComplaints();
     _refreshOpen();
     _refreshCapaDashboard();
+    _refreshChangeSummary();
     _refreshCapaReports();
     _refreshReps();
     _loadCatalogConfigAdmin();
@@ -2299,6 +2311,25 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } finally {
       if (!mounted) return;
       setState(() => _capaDashboardLoading = false);
+    }
+  }
+
+  Future<void> _refreshChangeSummary() async {
+    if (!_hasTileAccess('changeManagement')) return;
+    setState(() {
+      _changeSummaryLoading = true;
+      _changeSummaryErr = null;
+    });
+    try {
+      final data = await widget.api.adminChangeSummary();
+      if (!mounted) return;
+      setState(() => _changeSummary = data);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _changeSummaryErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _changeSummaryLoading = false);
     }
   }
 
@@ -5673,6 +5704,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaReports    => 'CAPA / 8D-Reports',
       AdminView.capaDashboard  => 'CAPA-Dashboard',
       AdminView.fmea           => 'FMEA',
+      AdminView.changeManagement => 'Change Management',
       AdminView.prrc           => 'PRRC-Einstufungen',
       AdminView.audits         => 'Audits',
       AdminView.pending        => 'Pending (Freigabe ausstehend)',
@@ -6783,6 +6815,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'capaDashboard';
       case AdminView.fmea:
         return 'fmea';
+      case AdminView.changeManagement:
+        return 'changeManagement';
       case AdminView.prrc:
         return 'prrc';
       case AdminView.audits:
@@ -6849,6 +6883,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaReports,
       AdminView.capaDashboard,
       AdminView.fmea,
+      AdminView.changeManagement,
       AdminView.prrc,
       AdminView.pending,
       AdminView.users,
@@ -6926,6 +6961,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             label: 'FMEA',
             icon: Icons.analytics_outlined,
             view: AdminView.fmea,
+          ),
+          _AdminNavItem(
+            label: 'Change Management',
+            icon: Icons.swap_horiz_outlined,
+            view: AdminView.changeManagement,
           ),
           _AdminNavItem(
             label: 'PRRC-Einstufungen',
@@ -7126,6 +7166,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.capaReports;
         case 'capaDashboard':
           return AdminView.capaDashboard;
+        case 'fmea':
+          return AdminView.fmea;
+        case 'changeManagement':
+          return AdminView.changeManagement;
         case 'prrc':
           return AdminView.prrc;
         case 'audits':
@@ -7180,8 +7224,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Quality',
-        subtitle: 'FMEA, CAPA / 8D-Reports verwalten',
-        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'audits'],
+        subtitle: 'FMEA, CAPA / 8D-Reports und Change Control',
+        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'changeManagement', 'audits'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Customer Management',
@@ -7230,6 +7274,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('capaReports');
     _ensureMenuTilePresent('capaDashboard');
     _ensureMenuTilePresent('fmea');
+    _ensureMenuTilePresent('changeManagement');
     _ensureMenuTilePresent('audits');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
@@ -7253,6 +7298,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
       }
 
@@ -7268,6 +7314,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
       }
 
@@ -8940,6 +8987,30 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'changeManagement':
+        final open = (_changeSummary['open'] is num) ? (_changeSummary['open'] as num).toInt() : null;
+        final closed = _changeSummary['closed'] ?? '—';
+        final escalated = _changeSummary['escalated'] ?? '—';
+        final subtitle = _changeSummaryErr != null
+            ? 'Fehler beim Laden'
+            : _changeSummaryLoading
+                ? 'Lade Kennzahlen...'
+                : 'Abgeschlossen: $closed · Eskalationen: $escalated';
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Changes',
+          subtitle: subtitle,
+          icon: Icons.swap_horiz_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          count: open,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.changeManagement),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'prrc':
         return _buildDashboardTile(
           tileId: tileId,
@@ -9948,6 +10019,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return AdminFmeaPage(
           api: widget.api,
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
+        );
+      case AdminView.changeManagement:
+        return ChangeManagementOverviewPage(
+          api: widget.api,
+          canWrite: _canWriteTile('changeManagement'),
         );
       case AdminView.audits:
         return AdminAuditsPage(
