@@ -48,19 +48,18 @@ class TeamsActionsRow extends StatelessWidget {
   Future<void> _openTeamsLink(
     BuildContext context, {
     required TeamsDeepLink link,
-    TeamsDeepLink? fallback,
   }) async {
     await _copyContext(context);
     final launchedPrimary = await _launchTeamsUri(link.primary);
     if (launchedPrimary) return;
-    final fallbackLink = fallback ?? link;
-    final launchedFallback = await _launchTeamsUri(
-      fallbackLink.fallback,
-      mode: LaunchMode.platformDefault,
-    );
-    if (context.mounted && launchedFallback) {
+    await _launchTeamsUri(link.fallback);
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Teams konnte nicht geöffnet werden – Web-Version wird verwendet.')),
+        const SnackBar(
+          content: Text(
+            'Teams konnte nicht direkt geöffnet werden – Web-Version geöffnet. Kontext wurde kopiert.',
+          ),
+        ),
       );
     }
   }
@@ -72,13 +71,13 @@ class TeamsActionsRow extends StatelessWidget {
     }
 
     final chatLink = TeamsLinkBuilder.buildChatLink(
-      userEmail,
+      [userEmail],
       message: TeamsLinkBuilder.buildContextMessage(
         label: contextLabel,
         url: contextUrl,
       ),
     );
-    final videoLink = TeamsLinkBuilder.buildVideoCallLink(userEmail);
+    final videoLink = TeamsLinkBuilder.buildVideoCallLink([userEmail]);
     final meetingLink = TeamsLinkBuilder.buildMeetingLink(
       participants: [userEmail],
       topic: contextLabel,
@@ -137,22 +136,14 @@ class TeamsActionsRow extends StatelessWidget {
             child: buildButton(
               icon: Icons.videocam_outlined,
               label: 'Video-Call',
-              onPressed: () => _openTeamsLink(
-                context,
-                link: videoLink,
-                fallback: chatLink,
-              ),
+              onPressed: () => _openTeamsLink(context, link: videoLink),
             ),
           )
         else
           buildButton(
             icon: Icons.videocam_outlined,
             label: 'Video-Call',
-            onPressed: () => _openTeamsLink(
-              context,
-              link: videoLink,
-              fallback: chatLink,
-            ),
+            onPressed: () => _openTeamsLink(context, link: videoLink),
           ),
         if (showMeeting && showLabels)
           Tooltip(
