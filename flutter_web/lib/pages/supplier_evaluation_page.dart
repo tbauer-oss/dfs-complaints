@@ -58,14 +58,20 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   String _category = '';
   String _country = '';
   bool _critical = false;
+  String _correspondenceLanguage = 'DE';
+  bool _showDeletedEntries = false;
+  String? _annualSupplierId;
+  int _annualYear = DateTime.now().year;
 
   final _dateFmt = DateFormat('dd.MM.yyyy');
   static const String _addLookupValue = '__add__';
-  static const List<Map<String, String>> _performanceCategories = [
-    {'key': 'quality', 'label': 'Qualität'},
-    {'key': 'delivery', 'label': 'Termintreue'},
-    {'key': 'documentation', 'label': 'Dokumentation'},
-    {'key': 'service', 'label': 'Service'},
+  static const List<Map<String, dynamic>> _performanceCategories = [
+    {'key': 'communication', 'label': 'Kommunikation', 'weight': 0.1},
+    {'key': 'quality', 'label': 'Produktqualität', 'weight': 0.4},
+    {'key': 'delivery', 'label': 'Einhaltung der Lieferfrist', 'weight': 0.2},
+    {'key': 'price', 'label': 'Preis korrekt', 'weight': 0.1},
+    {'key': 'quantity', 'label': 'Richtige Mengen/Produkte', 'weight': 0.1},
+    {'key': 'backorders', 'label': 'Nachlieferungen', 'weight': 0.1},
   ];
 
   List<String> get _statusOptions =>
@@ -105,7 +111,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     try {
       final results = await Future.wait([
         widget.api.adminSuppliers(),
-        widget.api.adminSupplierPerformance(),
+        widget.api.adminSupplierPerformance(includeDeleted: _showDeletedEntries),
         widget.api.adminSupplierEvaluations(),
         widget.api.adminSupplierEscalations(),
         widget.api.adminSupplierEvalConfig(),
@@ -199,6 +205,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       _category = '';
       _country = '';
       _critical = false;
+      _correspondenceLanguage = 'DE';
       _emailTouched = false;
       _emailValidationRequested = false;
     });
@@ -223,8 +230,10 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       _category = supplier.category;
       _country = supplier.country;
       _critical = supplier.critical;
+      _correspondenceLanguage = supplier.correspondenceLanguage.isNotEmpty ? supplier.correspondenceLanguage : 'DE';
       _emailTouched = false;
       _emailValidationRequested = false;
+      _annualSupplierId = supplier.id;
     });
   }
 
@@ -321,11 +330,15 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       country: _country.trim(),
       category: _category.trim(),
       critical: _critical,
+      correspondenceLanguage: _correspondenceLanguage,
       status: _status.trim(),
       notes: _notesCtrl.text.trim(),
       blockedReason: _status == 'gesperrt' ? _blockedReasonCtrl.text.trim() : '',
       blockedAt: blockedAt,
       blockedBy: existing?.blockedBy ?? '',
+      archivedAt: existing?.archivedAt,
+      archivedBy: existing?.archivedBy ?? '',
+      archivedReason: existing?.archivedReason ?? '',
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       createdBy: existing?.createdBy ?? '',
@@ -343,6 +356,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
           ..._suppliers.where((s) => s.id != saved.id),
         ];
         _selectedSupplierId = saved.id;
+        _annualSupplierId = saved.id;
         _formDirty = false;
       });
       _showSnack('Lieferant gespeichert.');
@@ -360,7 +374,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     if (!widget.canWrite) return;
     var isDeleting = false;
     String? dialogError;
-    final result = await showDialog<String>(
+    final result = await showDialog<Object?>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
@@ -373,6 +387,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Dieser Vorgang kann nicht rückgängig gemacht werden.'),
+                  const SizedBox(height: 8),
+                  const Text('Falls bereits Bewertungen/Eskalationen existieren, wird der Lieferant archiviert.'),
                   if (dialogError != null) ...[
                     const SizedBox(height: 12),
                     Text(dialogError!, style: const TextStyle(color: Colors.redAccent)),
@@ -389,13 +405,9 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       ? null
                       : () {
                           setDialogState(() => isDeleting = true);
-                          widget.api.adminDeleteSupplier(supplier.id).then((_) {
-                            Navigator.pop(context, 'deleted');
+                          widget.api.adminDeleteSupplier(supplier.id).then((archivedSupplier) {
+                            Navigator.pop(context, archivedSupplier ?? 'deleted');
                           }).catchError((err) {
-                            if (err is ApiError && (err.status == 409 || err.status == 403)) {
-                              Navigator.pop(context, 'blocked');
-                              return;
-                            }
                             final mapped = AppErrorMapper.map(err);
                             setDialogState(() {
                               dialogError = mapped.message.isEmpty
@@ -415,6 +427,16 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         );
       },
     );
+    if (result is Supplier) {
+      setState(() {
+        _suppliers = [result, ..._suppliers.where((s) => s.id != result.id)];
+        if (_selectedSupplierId == result.id) {
+          _selectSupplier(result);
+        }
+      });
+      _showSnack('Lieferant archiviert (verknüpfte Daten vorhanden).');
+      return;
+    }
     if (result == 'deleted') {
       setState(() {
         _suppliers = _suppliers.where((s) => s.id != supplier.id).toList();
@@ -427,76 +449,6 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         }
       });
       _showSnack('Lieferant gelöscht.');
-    } else if (result == 'blocked') {
-      // Delete Constraint Handling: verständliche Meldung und Sperr-Alternative.
-      await _offerBlockInstead(supplier);
-    }
-  }
-
-  Future<void> _offerBlockInstead(Supplier supplier) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Lieferant kann nicht gelöscht werden'),
-          content: const Text(
-            'Lieferant kann nicht gelöscht werden, da bereits Bewertungen/Eskalationen existieren.',
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('OK')),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Stattdessen sperren'),
-            ),
-          ],
-        );
-      },
-    );
-    if (result != true) return;
-    await _blockSupplier(supplier);
-  }
-
-  Future<void> _blockSupplier(Supplier supplier) async {
-    final reasonCtrl = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Lieferant sperren'),
-          content: TextField(
-            controller: reasonCtrl,
-            decoration: const InputDecoration(labelText: 'Sperrgrund *'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
-            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sperren')),
-          ],
-        );
-      },
-    );
-    if (confirmed != true) return;
-    if (reasonCtrl.text.trim().isEmpty) {
-      _showSnack('Bitte einen Sperrgrund angeben.');
-      return;
-    }
-    try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final updated = await widget.api.adminUpdateSupplier(
-        supplier.copyWith(
-          status: 'gesperrt',
-          blockedReason: reasonCtrl.text.trim(),
-          blockedAt: now,
-          updatedAt: now,
-        ),
-      );
-      setState(() {
-        _suppliers = [updated, ..._suppliers.where((s) => s.id != updated.id)];
-        _selectSupplier(updated);
-      });
-      _showSnack('Lieferant gesperrt.');
-    } catch (err) {
-      final mapped = AppErrorMapper.map(err);
-      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
     }
   }
 
@@ -554,11 +506,25 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   Map<String, int?> _defaultRatings() {
     return {
-      for (final category in _performanceCategories) category['key']!: null,
+      for (final category in _performanceCategories) category['key'] as String: null,
     };
   }
 
   int _ratedCount(Map<String, int?> ratings) => ratings.values.where((value) => value != null).length;
+
+  double? _computeEntryGrade(Map<String, int?> ratings) {
+    final weighted = _performanceCategories.map((category) {
+      final key = category['key'] as String;
+      final weight = category['weight'] as double;
+      final value = ratings[key];
+      return value == null ? null : value * weight;
+    }).toList();
+    if (weighted.any((value) => value == null)) return null;
+    final total = weighted.fold<double>(0, (sum, value) => sum + (value ?? 0));
+    return double.parse(total.toStringAsFixed(2));
+  }
+
+  String _formatGrade(double? grade) => grade == null ? '—' : grade.toStringAsFixed(2);
 
   String _computePerformanceStatus(Map<String, int?> ratings) {
     final count = _ratedCount(ratings);
@@ -573,6 +539,23 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         return Colors.green;
       case 'IN_BEARBEITUNG':
         return Colors.orange;
+      case 'GELÖSCHT':
+        return Colors.redAccent;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _classificationColor(String classification) {
+    switch (classification) {
+      case 'A':
+        return Colors.green;
+      case 'B':
+        return Colors.lightGreen;
+      case 'C':
+        return Colors.orange;
+      case 'D':
+        return Colors.redAccent;
       default:
         return Colors.grey;
     }
@@ -617,6 +600,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
           builder: (context, setModalState) {
             final status = _computePerformanceStatus(ratings);
             final progressText = '${_ratedCount(ratings)}/${_performanceCategories.length} bewertet';
+            final gradePreview = _computeEntryGrade(ratings);
             return AlertDialog(
               title: Text(isEditing ? 'Performance-Fall bearbeiten' : 'Performance-Fall erfassen'),
               content: SingleChildScrollView(
@@ -646,6 +630,13 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       'Sie können Einträge jederzeit nachträglich ergänzen oder korrigieren. Sobald alle Kategorien bewertet sind, wird der Fall automatisch abgeschlossen.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (gradePreview != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Vorschau Gesamtwertung: ${_formatGrade(gradePreview)}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: supplierId,
@@ -763,13 +754,13 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                             Text('Bewertung (alle Kategorien)', style: Theme.of(context).textTheme.titleSmall),
                             const SizedBox(height: 12),
                             ..._performanceCategories.map((category) {
-                              final key = category['key']!;
+                              final key = category['key'] as String;
                               final selected = ratings[key];
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Row(
                                   children: [
-                                    Expanded(child: Text(category['label']!)),
+                                    Expanded(child: Text(category['label'] as String)),
                                     Wrap(
                                       spacing: 6,
                                       children: [
@@ -780,7 +771,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                                             onSelected: (_) => setModalState(() => ratings[key] = value),
                                           ),
                                         ChoiceChip(
-                                          label: const Text('∅'),
+                                          label: const Text('noch offen'),
                                           selected: selected == null,
                                           onSelected: (_) => setModalState(() => ratings[key] = null),
                                         ),
@@ -800,6 +791,14 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       onChanged: (value) => setModalState(() => includeInAnnual = value),
                       title: const Text('In Jahresbewertung berücksichtigen'),
                     ),
+                    if (_computePerformanceStatus(ratings) != 'ABGESCHLOSSEN')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16, bottom: 4),
+                        child: Text(
+                          'Der Eintrag wird erst berücksichtigt, wenn alle Kriterien bewertet sind.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -844,6 +843,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       includeInAnnual: includeInAnnual,
       status: _computePerformanceStatus(ratings),
       cancelReason: entry?.cancelReason ?? '',
+      computedGrade: _computeEntryGrade(ratings),
+      computedAt: DateTime.now().millisecondsSinceEpoch,
+      deletedAt: entry?.deletedAt,
+      deletedBy: entry?.deletedBy ?? '',
+      deletedReason: entry?.deletedReason ?? '',
       createdAt: entry?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       createdBy: entry?.createdBy ?? '',
@@ -869,22 +873,68 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }
   }
 
+  Future<void> _reloadPerformanceEntries({bool includeDeleted = false}) async {
+    try {
+      final refreshed = await widget.api.adminSupplierPerformance(includeDeleted: includeDeleted);
+      setState(() => _entries = refreshed);
+    } catch (err) {
+      final mapped = AppErrorMapper.map(err);
+      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+    }
+  }
+
+  Future<void> _confirmDeletePerformanceEntry(SupplierPerformanceEntry entry) async {
+    if (!widget.canWrite) return;
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Eintrag wirklich löschen?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${_supplierName(entry.supplierId)} • ${_formatReference(entry)}'),
+              const SizedBox(height: 8),
+              Text(entry.description),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonCtrl,
+                decoration: const InputDecoration(labelText: 'Löschbegründung *'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen')),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    if (reasonCtrl.text.trim().isEmpty) {
+      _showSnack('Bitte eine Löschbegründung angeben.');
+      return;
+    }
+    try {
+      await widget.api.adminDeleteSupplierPerformance(entry.id, deleteReason: reasonCtrl.text.trim());
+      await _reloadPerformanceEntries(includeDeleted: _showDeletedEntries);
+      _showSnack('Eintrag gelöscht.');
+    } catch (err) {
+      final mapped = AppErrorMapper.map(err);
+      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+    }
+  }
+
   Future<void> _createAnnualEvaluation() async {
     if (_suppliers.isEmpty) {
       _showSnack('Bitte zuerst einen Lieferanten anlegen.');
       return;
     }
-    String supplierId = _suppliers.first.id;
-    final yearCtrl = TextEditingController(text: DateTime.now().year.toString());
-    DateTime periodFrom = DateTime(DateTime.now().year - 1, 1, 1);
-    DateTime periodTo = DateTime(DateTime.now().year - 1, 12, 31);
-    String decision = 'weiterhin zugelassen';
-    final reasonCtrl = TextEditingController();
-    final commentEkCtrl = TextEditingController();
-    final commentQmCtrl = TextEditingController();
+    String supplierId = _annualSupplierId ?? _suppliers.first.id;
+    final yearCtrl = TextEditingController(text: _annualYear.toString());
     String status = 'draft';
-    final approvedByCtrl = TextEditingController();
-    final reviewedByCtrl = TextEditingController();
 
     final result = await showDialog<bool>(
       context: context,
@@ -903,54 +953,6 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                   onChanged: (value) => supplierId = value ?? supplierId,
                 ),
                 TextField(controller: yearCtrl, decoration: const InputDecoration(labelText: 'Bewertungsjahr')),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Zeitraum von: ${_dateFmt.format(periodFrom)}'),
-                  trailing: const Icon(Icons.date_range_outlined),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: periodFrom,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      periodFrom = picked;
-                      (context as Element).markNeedsBuild();
-                    }
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Zeitraum bis: ${_dateFmt.format(periodTo)}'),
-                  trailing: const Icon(Icons.date_range_outlined),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: periodTo,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      periodTo = picked;
-                      (context as Element).markNeedsBuild();
-                    }
-                  },
-                ),
-                DropdownButtonFormField<String>(
-                  value: decision,
-                  decoration: const InputDecoration(labelText: 'Entscheidung'),
-                  items: const [
-                    DropdownMenuItem(value: 'weiterhin zugelassen', child: Text('weiterhin zugelassen')),
-                    DropdownMenuItem(value: 'zugelassen mit Auflagen', child: Text('zugelassen mit Auflagen')),
-                    DropdownMenuItem(value: 'in Beobachtung', child: Text('in Beobachtung')),
-                    DropdownMenuItem(value: 'sperren / re-qualifikation', child: Text('sperren / Re-Qualifikation erforderlich')),
-                  ],
-                  onChanged: (value) => decision = value ?? decision,
-                ),
-                TextField(controller: reasonCtrl, decoration: const InputDecoration(labelText: 'Begründung')),
-                TextField(controller: commentEkCtrl, decoration: const InputDecoration(labelText: 'Kommentar EK')),
-                TextField(controller: commentQmCtrl, decoration: const InputDecoration(labelText: 'Kommentar QM')),
                 DropdownButtonFormField<String>(
                   value: status,
                   decoration: const InputDecoration(labelText: 'Status'),
@@ -960,8 +962,6 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                   ],
                   onChanged: (value) => status = value ?? status,
                 ),
-                TextField(controller: reviewedByCtrl, decoration: const InputDecoration(labelText: 'geprüft von')),
-                TextField(controller: approvedByCtrl, decoration: const InputDecoration(labelText: 'freigegeben von')),
               ],
             ),
           ),
@@ -974,28 +974,37 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     );
 
     if (result != true) return;
-    if (decision.toLowerCase().contains('sperr') && reasonCtrl.text.trim().isEmpty) {
-      _showSnack('Bitte eine Begründung zur Sperrung angeben.');
+    final evalYear = int.tryParse(yearCtrl.text.trim()) ?? DateTime.now().year;
+    final duplicate = _evaluations.any(
+      (evaluation) =>
+          evaluation.supplierId == supplierId &&
+          evaluation.evalYear == evalYear &&
+          evaluation.archivedAt == null,
+    );
+    if (duplicate) {
+      _showSnack('Für dieses Jahr existiert bereits eine Bewertung. Bitte bereinigen oder aktualisieren.');
       return;
     }
-    if (status == 'final' && approvedByCtrl.text.trim().isEmpty) {
-      _showSnack('Bitte die Freigabe dokumentieren.');
-      return;
-    }
+    final summary = _computeAnnualSummary(_entriesForAnnual(supplierId, evalYear));
+    final decision = (summary['decision'] as String?)?.isNotEmpty == true
+        ? summary['decision'] as String
+        : 'weiterhin zugelassen';
+    final periodFrom = DateTime(evalYear, 1, 1).millisecondsSinceEpoch;
+    final periodTo = DateTime(evalYear, 12, 31).millisecondsSinceEpoch;
 
     try {
       final created = await widget.api.adminCreateSupplierEvaluation(
         SupplierAnnualEvaluation(
           id: '',
-          evalYear: int.tryParse(yearCtrl.text.trim()) ?? DateTime.now().year,
-          periodFrom: periodFrom.millisecondsSinceEpoch,
-          periodTo: periodTo.millisecondsSinceEpoch,
+          evalYear: evalYear,
+          periodFrom: periodFrom,
+          periodTo: periodTo,
           supplierId: supplierId,
           aggregates: const {},
-          commentEk: commentEkCtrl.text.trim(),
-          commentQm: commentQmCtrl.text.trim(),
+          commentEk: '',
+          commentQm: '',
           decision: decision,
-          decisionReason: reasonCtrl.text.trim(),
+          decisionReason: '',
           status: status,
           configVersion: _config?.version ?? 1,
           configSnapshot: const {},
@@ -1003,8 +1012,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
           updatedAt: DateTime.now().millisecondsSinceEpoch,
           createdBy: '',
           updatedBy: '',
-          reviewedBy: reviewedByCtrl.text.trim(),
-          approvedBy: approvedByCtrl.text.trim(),
+          reviewedBy: '',
+          approvedBy: '',
+          archivedAt: null,
+          archivedBy: '',
+          archivedReason: '',
           history: const [],
         ),
       );
@@ -1142,7 +1154,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   Future<void> _downloadReportPdf() async {
     try {
-      final bytes = await widget.api.adminSupplierReportPdf();
+      final bytes = await widget.api.adminSupplierReportPdf(type: 'summary');
       _downloadBytes(bytes, 'lieferantenbewertung.pdf', 'application/pdf');
     } catch (err) {
       final mapped = AppErrorMapper.map(err);
@@ -1160,12 +1172,156 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }
   }
 
+  Future<void> _downloadAnnualPdf({required String type}) async {
+    final supplierId = _annualSupplierId ?? _selectedSupplierId;
+    if (supplierId == null) {
+      _showSnack('Bitte zuerst einen Lieferanten auswählen.');
+      return;
+    }
+    try {
+      final bytes = await widget.api.adminSupplierReportPdf(
+        supplierId: supplierId,
+        year: _annualYear,
+        type: type,
+      );
+      final filename = type == 'letter'
+          ? 'lieferantenbrief_${_annualYear}.pdf'
+          : 'lieferantenbewertung_${_annualYear}.pdf';
+      _downloadBytes(bytes, filename, 'application/pdf');
+    } catch (err) {
+      final mapped = AppErrorMapper.map(err);
+      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+    }
+  }
+
+  Future<void> _openEvaluationCleanupDialog(String supplierId, int year) async {
+    final duplicates = _evaluations.where((e) => e.supplierId == supplierId && e.evalYear == year && e.archivedAt == null).toList();
+    if (duplicates.length <= 1) return;
+    String? primaryId = duplicates.first.id;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Entwürfe bereinigen'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Bitte Hauptentwurf auswählen. Alle anderen werden archiviert.'),
+                  const SizedBox(height: 12),
+                  ...duplicates.map(
+                    (entry) => RadioListTile<String>(
+                      title: Text('Entwurf ${entry.id} (${entry.status})'),
+                      value: entry.id,
+                      groupValue: primaryId,
+                      onChanged: (value) => setDialogState(() => primaryId = value),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+                ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Archivieren')),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true || primaryId == null) return;
+    try {
+      final updates = duplicates.where((entry) => entry.id != primaryId).map((entry) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        return widget.api.adminUpdateSupplierEvaluation(
+          entry.copyWith(
+            archivedAt: now,
+            archivedBy: 'ui',
+            archivedReason: 'Zusammengeführt',
+            updatedAt: now,
+          ),
+        );
+      });
+      await Future.wait(updates);
+      await _loadAll();
+      _showSnack('Entwürfe archiviert.');
+    } catch (err) {
+      final mapped = AppErrorMapper.map(err);
+      _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+    }
+  }
+
   void _downloadBytes(Uint8List bytes, String filename, String mime) {
     final blob = html.Blob([bytes], mime);
     final url = html.Url.createObjectUrlFromBlob(blob);
     final anchor = html.AnchorElement(href: url)..download = filename;
     anchor.click();
     html.Url.revokeObjectUrl(url);
+  }
+
+  List<SupplierPerformanceEntry> _entriesForAnnual(String supplierId, int year) {
+    return _entries.where((entry) {
+      if (entry.supplierId != supplierId) return false;
+      if (entry.deletedAt != null) return false;
+      final entryYear = DateTime.fromMillisecondsSinceEpoch(entry.date).year;
+      return entryYear == year;
+    }).toList();
+  }
+
+  Map<String, dynamic> _computeAnnualSummary(List<SupplierPerformanceEntry> entries) {
+    final included = entries.where(
+      (entry) => entry.includeInAnnual && _computePerformanceStatus(entry.ratings) == 'ABGESCHLOSSEN',
+    );
+    final grades = included.map((entry) => _computeEntryGrade(entry.ratings)).whereType<double>().toList();
+    final average = grades.isEmpty ? null : grades.reduce((a, b) => a + b) / grades.length;
+    String classification;
+    if (average == null) {
+      classification = '';
+    } else if (average <= 1.5) {
+      classification = 'A';
+    } else if (average <= 2.0) {
+      classification = 'B';
+    } else if (average <= 2.5) {
+      classification = 'C';
+    } else {
+      classification = 'D';
+    }
+    String decision;
+    if (classification == 'A' || classification == 'B') {
+      decision = 'weiterhin zugelassen';
+    } else if (classification == 'C') {
+      decision = 'in Beobachtung';
+    } else if (classification == 'D') {
+      decision = 'gesperrt / nicht zugelassen';
+    } else {
+      decision = '';
+    }
+    final criterionAverages = _performanceCategories.map((category) {
+      final key = category['key'] as String;
+      final label = category['label'] as String;
+      final values = included.map((entry) => entry.ratings[key]).whereType<int>().toList();
+      final avg = values.isEmpty ? null : values.reduce((a, b) => a + b) / values.length;
+      return {
+        'key': key,
+        'label': label,
+        'average': avg == null ? null : double.parse(avg.toStringAsFixed(2)),
+      };
+    }).toList();
+    final topDrivers = [...criterionAverages]
+      ..removeWhere((item) => item['average'] == null)
+      ..sort((a, b) => (b['average'] as double).compareTo(a['average'] as double));
+    final worstDrivers = topDrivers.take(2).toList();
+    debugPrint(
+      '[supplier-evaluation] annual summary recomputed: included=${included.length}, avg=${average?.toStringAsFixed(2) ?? '—'}',
+    );
+    return {
+      'includedEntries': included.toList(),
+      'average': average == null ? null : double.parse(average.toStringAsFixed(2)),
+      'classification': classification,
+      'decision': decision,
+      'criterionAverages': criterionAverages,
+      'topDrivers': worstDrivers,
+    };
   }
 
   Widget _buildSectionCard({required String title, required String description, required Widget child}) {
@@ -1403,6 +1559,21 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  value: _correspondenceLanguage,
+                  decoration: const InputDecoration(labelText: 'Korrespondenzsprache'),
+                  items: const [
+                    DropdownMenuItem(value: 'DE', child: Text('Deutsch')),
+                    DropdownMenuItem(value: 'EN', child: Text('Englisch')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _correspondenceLanguage = value ?? 'DE';
+                      _formDirty = true;
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
                   value: _category.isEmpty ? null : _category,
                   decoration: const InputDecoration(labelText: 'Kategorie / Warengruppe'),
                   items: [
@@ -1610,9 +1781,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   Widget _buildPerformanceTab() {
     final filteredBySupplier =
         _supplierFilter == null ? _entries : _entries.where((e) => e.supplierId == _supplierFilter).toList();
+    final filteredByDeleted =
+        _showDeletedEntries ? filteredBySupplier : filteredBySupplier.where((e) => e.deletedAt == null).toList();
     final entries = _performanceStatusFilter == null
-        ? filteredBySupplier
-        : filteredBySupplier.where((e) => _computePerformanceStatus(e.ratings) == _performanceStatusFilter).toList();
+        ? filteredByDeleted
+        : filteredByDeleted.where((e) => _computePerformanceStatus(e.ratings) == _performanceStatusFilter).toList();
     return ListView(
       children: [
         Padding(
@@ -1645,6 +1818,20 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ),
               ),
               const SizedBox(width: 12),
+              Row(
+                children: [
+                  Switch.adaptive(
+                    value: _showDeletedEntries,
+                    onChanged: (value) async {
+                      setState(() => _showDeletedEntries = value);
+                      await _reloadPerformanceEntries(includeDeleted: value);
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  const Text('Gelöschte anzeigen'),
+                ],
+              ),
+              const SizedBox(width: 12),
               if (widget.canWrite)
                 ElevatedButton.icon(
                   onPressed: () => _openPerformanceEntryDialog(),
@@ -1660,8 +1847,9 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
             child: Text('Keine Performance-Einträge vorhanden.'),
           ),
         ...entries.map((entry) {
-          final status = _computePerformanceStatus(entry.ratings);
+          final status = entry.deletedAt != null ? 'GELÖSCHT' : _computePerformanceStatus(entry.ratings);
           final progress = '${_ratedCount(entry.ratings)}/${_performanceCategories.length} bewertet';
+          final grade = _computeEntryGrade(entry.ratings);
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             shape: RoundedRectangleBorder(
@@ -1672,7 +1860,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: widget.canWrite ? () => _openPerformanceEntryDialog(entry: entry) : null,
+              onTap: widget.canWrite && entry.deletedAt == null ? () => _openPerformanceEntryDialog(entry: entry) : null,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -1712,6 +1900,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                             labelStyle: const TextStyle(color: Colors.white),
                           ),
                           Text(progress, style: Theme.of(context).textTheme.bodySmall),
+                          Text('Note: ${_formatGrade(grade)}', style: Theme.of(context).textTheme.bodySmall),
                         ],
                       ),
                     ),
@@ -1727,6 +1916,12 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                               icon: const Icon(Icons.edit_outlined),
                               label: const Text('Bearbeiten'),
                             ),
+                          if (widget.canWrite && entry.deletedAt == null)
+                            TextButton.icon(
+                              onPressed: () => _confirmDeletePerformanceEntry(entry),
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              label: const Text('Löschen'),
+                            ),
                         ],
                       ),
                     ),
@@ -1741,33 +1936,259 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   }
 
   Widget _buildEvaluationTab() {
+    if (_suppliers.isEmpty) {
+      return const Center(child: Text('Bitte zuerst einen Lieferanten anlegen.'));
+    }
+    final supplierId = _annualSupplierId ?? _selectedSupplierId ?? _suppliers.first.id;
+    final supplier = _suppliers.firstWhere((s) => s.id == supplierId, orElse: () => _suppliers.first);
+    final entriesForSupplier = _entries.where((entry) => entry.supplierId == supplierId && entry.deletedAt == null).toList();
+    final years = entriesForSupplier
+        .map((entry) => DateTime.fromMillisecondsSinceEpoch(entry.date).year)
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    if (years.isEmpty) {
+      years.add(DateTime.now().year);
+    }
+    final selectedYear = years.contains(_annualYear) ? _annualYear : years.first;
+    if (selectedYear != _annualYear) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _annualYear = selectedYear);
+      });
+    }
+    final annualEntries = _entriesForAnnual(supplierId, selectedYear);
+    final summary = _computeAnnualSummary(annualEntries);
+    final included = summary['includedEntries'] as List<SupplierPerformanceEntry>;
+    final avg = summary['average'] as double?;
+    final classification = summary['classification'] as String;
+    final decision = summary['decision'] as String;
+    final criterionAverages = summary['criterionAverages'] as List<dynamic>;
+    final topDrivers = summary['topDrivers'] as List<dynamic>;
+    final duplicates = _evaluations.where((e) => e.supplierId == supplierId && e.evalYear == selectedYear && e.archivedAt == null).toList();
+    final evalsForSelection = _evaluations.where((e) => e.supplierId == supplierId && e.evalYear == selectedYear).toList();
+
     return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        if (widget.canWrite)
-          Padding(
+        Card(
+          elevation: 1.5,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
             padding: const EdgeInsets.all(16),
-            child: ElevatedButton.icon(
-              onPressed: _createAnnualEvaluation,
-              icon: const Icon(Icons.fact_check_outlined),
-              label: const Text('Jahresbewertung starten'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Jahresbewertung', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: supplierId,
+                        decoration: const InputDecoration(labelText: 'Lieferant'),
+                        items: _suppliers
+                            .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+                            .toList(),
+                        onChanged: (value) => setState(() => _annualSupplierId = value ?? supplierId),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 140,
+                      child: DropdownButtonFormField<int>(
+                        value: selectedYear,
+                        decoration: const InputDecoration(labelText: 'Jahr'),
+                        items: years.map((year) => DropdownMenuItem(value: year, child: Text(year.toString()))).toList(),
+                        onChanged: (value) => setState(() => _annualYear = value ?? selectedYear),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    Text('Lieferant: ${supplier.name}'),
+                    Text('Nr.: ${supplier.supplierNumber.isNotEmpty ? supplier.supplierNumber : '—'}'),
+                    Text('Kritisch: ${supplier.critical ? 'Ja' : 'Nein'}'),
+                    Text('Sprache: ${supplier.correspondenceLanguage}'),
+                  ],
+                ),
+                if (widget.canWrite) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _createAnnualEvaluation,
+                        icon: const Icon(Icons.fact_check_outlined),
+                        label: const Text('Jahresbewertung starten'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _downloadAnnualPdf(type: 'internal'),
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('PDF Report (intern)'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _downloadAnnualPdf(type: 'letter'),
+                        icon: const Icon(Icons.mail_outline),
+                        label: const Text('PDF Brief an Lieferant'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _downloadReportCsv,
+                        icon: const Icon(Icons.table_chart_outlined),
+                        label: const Text('Export CSV'),
+                      ),
+                      if (duplicates.length > 1)
+                        TextButton.icon(
+                          onPressed: () => _openEvaluationCleanupDialog(supplierId, selectedYear),
+                          icon: const Icon(Icons.merge_type_outlined),
+                          label: const Text('Entwürfe bereinigen'),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ),
-        if (_evaluations.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text('Keine Jahresbewertungen vorhanden.'),
-          ),
-        ..._evaluations.map((e) {
-          final score = e.aggregates['totalScore']?.toString() ?? '—';
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: ListTile(
-              title: Text('${_supplierName(e.supplierId)} • ${e.evalYear}'),
-              subtitle: Text('${e.decision} • Score ${score}'),
-              trailing: Text(e.status),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Gesamtbewertung', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    Text('Einträge berücksichtigt: ${included.length}'),
+                    Text('Ø Note: ${_formatGrade(avg)}'),
+                    Chip(
+                      label: Text(classification.isEmpty ? '—' : classification),
+                      backgroundColor: _classificationColor(classification),
+                      labelStyle: const TextStyle(color: Colors.white),
+                    ),
+                    Text('Entscheidung: ${decision.isNotEmpty ? decision : '—'}'),
+                  ],
+                ),
+                if (classification == 'D')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Hinweis: Eskalation erforderlich (Status gesperrt).',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.redAccent),
+                    ),
+                  ),
+              ],
             ),
-          );
-        }),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Treiber & Kriterien', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                ...criterionAverages.map((item) {
+                  final isDriver = topDrivers.any((driver) => driver['key'] == item['key']);
+                  return ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(item['label'] as String),
+                    trailing: Text(
+                      item['average'] == null ? '—' : (item['average'] as double).toStringAsFixed(2),
+                      style: TextStyle(fontWeight: isDriver ? FontWeight.bold : FontWeight.normal),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Nachweise (Evidence)', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                if (annualEntries.isEmpty)
+                  const Text('Keine Einträge für dieses Jahr vorhanden.'),
+                if (annualEntries.isNotEmpty)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Datum')),
+                        DataColumn(label: Text('Bezug')),
+                        DataColumn(label: Text('Nummer')),
+                        DataColumn(label: Text('Kurzbeschreibung')),
+                        DataColumn(label: Text('Note')),
+                        DataColumn(label: Text('Jahresbewertung')),
+                        DataColumn(label: Text('Status')),
+                      ],
+                      rows: annualEntries.map((entry) {
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(entry.date)))),
+                            DataCell(Text(entry.referenceType)),
+                            DataCell(Text(entry.referenceNumber)),
+                            DataCell(Text(entry.description)),
+                            DataCell(Text(_formatGrade(_computeEntryGrade(entry.ratings)))),
+                            DataCell(Text(entry.includeInAnnual ? 'Ja' : 'Nein')),
+                            DataCell(Text(_computePerformanceStatus(entry.ratings))),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Vorhandene Jahresbewertungen', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                if (evalsForSelection.isEmpty)
+                  const Text('Keine gespeicherten Jahresbewertungen für dieses Jahr.'),
+                if (evalsForSelection.isNotEmpty)
+                  ...evalsForSelection.map((evaluation) {
+                    final archived = evaluation.archivedAt != null;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Bewertung ${evaluation.id} • ${evaluation.status}'),
+                      subtitle: Text(archived ? 'Archiviert' : 'Aktiv'),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
