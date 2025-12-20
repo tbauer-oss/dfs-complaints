@@ -388,6 +388,25 @@ class _AvatarChatService extends ChatService {
   }
 }
 
+class _OnboardingTileEntry {
+  _OnboardingTileEntry({required this.key});
+
+  final GlobalKey key;
+  String? title;
+  String? description;
+  String? semanticLabel;
+  String? tooltipText;
+  int? order;
+  String? tileType;
+}
+
+class _OnboardingTileSnapshot {
+  _OnboardingTileSnapshot({required this.rect, required this.entry});
+
+  final Rect rect;
+  final _OnboardingTileEntry entry;
+}
+
 class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   static const int _repReminderDefaultDelayDays = 4;
   static const String _customerContactSeenKey = 'dfs_admin_seen_customer_contact_v1';
@@ -401,11 +420,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   final GlobalKey _onboardingSearchBarKey = GlobalKey();
   final GlobalKey _onboardingNavKey = GlobalKey();
   final GlobalKey _onboardingDrawerKey = GlobalKey();
-  final Map<String, GlobalKey> _onboardingTileKeys = {
-    'complaintList': GlobalKey(),
-    'prrc': GlobalKey(),
-    'news': GlobalKey(),
-  };
+  final Map<String, _OnboardingTileEntry> _onboardingTiles = {};
   bool _onboardingVisible = false;
   int _onboardingIndex = 0;
   List<OnboardingTourStep> _onboardingSteps = const [];
@@ -782,45 +797,86 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     return 'local';
   }
 
+  Widget _registerOnboardingTile({
+    required String tileId,
+    required Widget child,
+    String? onboardingTitle,
+    String? onboardingDescription,
+    String? semanticLabel,
+    String? tooltipText,
+    int? onboardingOrder,
+    String? tileType,
+  }) {
+    final entry = _onboardingTiles.putIfAbsent(tileId, () => _OnboardingTileEntry(key: GlobalKey()));
+    entry
+      ..title = onboardingTitle ?? entry.title
+      ..description = onboardingDescription ?? entry.description
+      ..semanticLabel = semanticLabel ?? entry.semanticLabel
+      ..tooltipText = tooltipText ?? entry.tooltipText
+      ..order = onboardingOrder ?? entry.order
+      ..tileType = tileType ?? entry.tileType;
+    return KeyedSubtree(key: entry.key, child: child);
+  }
+
+  String _resolveOnboardingTitle(_OnboardingTileEntry entry) {
+    for (final candidate in [entry.title, entry.semanticLabel, entry.tooltipText]) {
+      final value = candidate?.trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return 'Kachel';
+  }
+
+  String _resolveOnboardingDescription(_OnboardingTileEntry entry, String title) {
+    for (final candidate in [entry.description, entry.tooltipText, entry.semanticLabel]) {
+      final value = candidate?.trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return _fallbackOnboardingDescription(entry.tileType, title);
+  }
+
+  String _fallbackOnboardingDescription(String? tileType, String title) {
+    switch (tileType) {
+      case 'kpi':
+        return 'Diese KPI zeigt den aktuellen Wert für "$title" und hilft dir, Trends schnell zu erkennen.';
+      case 'status':
+        return 'Diese Status-Kachel fasst den aktuellen Stand zu "$title" zusammen.';
+      case 'content':
+        return 'Diese Kachel informiert über "$title" und liefert relevante Inhalte.';
+      case 'module':
+      default:
+        return 'Diese Kachel führt dich in den Bereich "$title" und bündelt die wichtigsten Aktionen.';
+    }
+  }
+
   List<OnboardingTourStep> _buildOnboardingSteps() {
-    return [
-      OnboardingTourStep(
-        title: 'Dashboard-Übersicht',
-        description: 'Hier findest du KPIs, Statuskarten und die wichtigsten Bereiche auf einen Blick.',
-        targetKeys: [_onboardingDashboardKey],
-      ),
-      OnboardingTourStep(
-        title: 'Navigation',
-        description: 'Die Sidebar zeigt alle Module. Du kannst sie einklappen oder die Reihenfolge anpassen.',
-        targetKeys: [_onboardingNavKey, _onboardingDrawerKey],
-      ),
-      OnboardingTourStep(
-        title: 'Globale Suche',
-        description: 'Schneller Zugriff auf Inhalte, Downloads und Nutzer – bei Bedarf ein- oder ausblenden.',
-        targetKeys: [_onboardingSearchBarKey, _onboardingSearchToggleKey],
-      ),
-      OnboardingTourStep(
-        title: 'Reklamationen',
-        description: 'Alle offenen Fälle, Filter und Exporte erreichst du in den Reklamationsmodulen.',
-        targetKeys: [
-          _onboardingTileKeys['complaintList']!,
-        ],
-      ),
-      OnboardingTourStep(
-        title: 'PRRC & Qualität',
-        description: 'Regulatorische Bewertungen, CAPA und FMEA sind in den Qualitätsmodulen gebündelt.',
-        targetKeys: [
-          _onboardingTileKeys['prrc']!,
-        ],
-      ),
-      OnboardingTourStep(
-        title: 'Inhalte & Kommunikation',
-        description: 'News, FAQ und Wissen gepflegt halten – hier steuerst du Inhalte und Updates.',
-        targetKeys: [
-          _onboardingTileKeys['news']!,
-        ],
-      ),
-    ];
+    final entries = <_OnboardingTileSnapshot>[];
+    for (final entry in _onboardingTiles.values) {
+      final rect = _rectForKey(entry.key);
+      if (rect == null) continue;
+      entries.add(_OnboardingTileSnapshot(rect: rect, entry: entry));
+    }
+    if (entries.isEmpty) return const [];
+    entries.sort((a, b) {
+      final aOrder = a.entry.order;
+      final bOrder = b.entry.order;
+      if (aOrder != null || bOrder != null) {
+        return (aOrder ?? 1 << 30).compareTo(bOrder ?? 1 << 30);
+      }
+      final topCompare = a.rect.top.compareTo(b.rect.top);
+      if (topCompare != 0) return topCompare;
+      return a.rect.left.compareTo(b.rect.left);
+    });
+    return entries
+        .map((item) {
+          final title = _resolveOnboardingTitle(item.entry);
+          final description = _resolveOnboardingDescription(item.entry, title);
+          return OnboardingTourStep(
+            title: title,
+            description: description,
+            targetKeys: [item.entry.key],
+          );
+        })
+        .toList(growable: false);
   }
 
   Rect? _rectForKey(GlobalKey key) {
@@ -898,6 +954,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           total: _onboardingSteps.length,
           onNext: _onboardingNext,
           onBack: _onboardingBack,
+          onSkipStep: _onboardingSkipStep,
           onSkip: () => _finishOnboarding(markSeen: true),
         );
       },
@@ -941,6 +998,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
     setState(() => _onboardingIndex = next);
     _onboardingOverlayEntry?.markNeedsBuild();
+  }
+
+  void _onboardingSkipStep() {
+    _onboardingNext();
   }
 
   void _onboardingBack() {
@@ -8645,6 +8706,53 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _persistMenuLayout();
   }
 
+  Widget _buildDashboardTile({
+    required String tileId,
+    required String label,
+    String? subtitle,
+    required IconData icon,
+    required Color colorA,
+    required Color colorB,
+    int? count,
+    required bool compact,
+    required VoidCallback onTap,
+    bool registerOnboarding = true,
+    String? actionLabel,
+    IconData? actionIcon,
+    VoidCallback? onActionTap,
+    String? onboardingTitle,
+    String? onboardingDescription,
+    String? semanticLabel,
+    String? tooltipText,
+    int? onboardingOrder,
+    String tileType = 'module',
+  }) {
+    final tile = AdminTilePro(
+      label: label,
+      subtitle: subtitle,
+      icon: icon,
+      colorA: colorA,
+      colorB: colorB,
+      count: count,
+      compact: compact,
+      onTap: onTap,
+      actionLabel: actionLabel,
+      actionIcon: actionIcon,
+      onActionTap: onActionTap,
+    );
+    if (!registerOnboarding) return tile;
+    return _registerOnboardingTile(
+      tileId: tileId,
+      child: tile,
+      onboardingTitle: onboardingTitle ?? label,
+      onboardingDescription: onboardingDescription ?? subtitle,
+      semanticLabel: semanticLabel,
+      tooltipText: tooltipText,
+      onboardingOrder: onboardingOrder,
+      tileType: tileType,
+    );
+  }
+
   Widget _buildMenuTile(
     String tileId,
     bool compact, {
@@ -8656,9 +8764,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final resolvedActionLabel =
         onActionTap == null ? null : (actionLabel ?? 'Kachel einblenden');
     final resolvedActionIcon = onActionTap == null ? null : (actionIcon ?? Icons.unarchive_outlined);
+    final registerOnboarding = !isPreview;
     switch (tileId) {
       case 'open':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Offene Reklamationen',
           subtitle: 'Bearbeiten & Entscheiden',
           icon: Icons.assignment_late_outlined,
@@ -8667,12 +8777,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           count: _openComplaints.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.open),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'all':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Alle Reklamationen',
           subtitle: 'Suche & Filter',
           icon: Icons.dashboard_customize_outlined,
@@ -8681,12 +8793,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           count: _allComplaints.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.all),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'complaintList':
-        final tile = AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Reklamationsliste',
           subtitle: 'Übersicht & Export',
           icon: Icons.table_view_outlined,
@@ -8694,14 +8808,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => _handleNavigation(AdminView.complaintList),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
-        final key = _onboardingTileKeys['complaintList'];
-        return key == null ? tile : KeyedSubtree(key: key, child: tile);
       case 'capaReports':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'CAPA / 8D-Reports',
           subtitle: 'Corrective & Preventive Actions',
           icon: Icons.fact_check_outlined,
@@ -8709,6 +8823,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.greenB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.capaReports),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
@@ -8724,7 +8839,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             : _capaDashboardLoading
                 ? 'Lade Kennzahlen...'
                 : 'Überfällig: $overdue · < 7 Tage: $dueSoon';
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'CAPA-Dashboard',
           subtitle: subtitle,
           icon: Icons.dashboard_customize_outlined,
@@ -8733,12 +8849,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           count: total,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.capaDashboard),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'fmea':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'FMEA',
           subtitle: 'Risiken je MDR-TD verwalten',
           icon: Icons.analytics_outlined,
@@ -8746,12 +8864,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.amberB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.fmea),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'prrc':
-        final tile = AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'PRRC-Einstufungen',
           subtitle: 'Regulatorische Bewertung',
           icon: Icons.medical_information_outlined,
@@ -8759,17 +8879,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.pinkB,
           compact: compact,
           count: _allComplaints.length,
-          onTap: isPreview
-              ? () {}
-              : () => _openPrrcScreen(),
+          onTap: isPreview ? () {} : () => _openPrrcScreen(),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
-        final key = _onboardingTileKeys['prrc'];
-        return key == null ? tile : KeyedSubtree(key: key, child: tile);
       case 'stats':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Statistik & KPIs',
           subtitle: 'Übersicht & Trends',
           icon: Icons.query_stats_outlined,
@@ -8783,12 +8901,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     MaterialPageRoute(builder: (_) => AdminStatsPage(api: widget.api)),
                   );
                 },
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'pending':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Anträge / Pending',
           subtitle: 'Registrierungen prüfen',
           icon: Icons.verified_user_outlined,
@@ -8797,12 +8917,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           count: _pending.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pending),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'users':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Kundendatenbank',
           subtitle: 'Firmen & Kontakte',
           icon: Icons.group_outlined,
@@ -8811,12 +8933,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           count: _users.length,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.users),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'createCustomer':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Neuen Kunden anlegen',
           subtitle: 'Account direkt erstellen',
           icon: Icons.person_add_alt_1_outlined,
@@ -8824,12 +8948,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.tealB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.createCustomer),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'reps':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Vertreterverwaltung',
           subtitle: 'Zuordnen & Regionen',
           icon: Icons.badge_outlined,
@@ -8842,12 +8968,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   setState(() => _view = AdminView.reps);
                   if (_reps.isEmpty) _refreshReps();
                 },
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'news':
-        final tile = AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Neuigkeiten & Infoscreen',
           subtitle: 'DFS Connect+ & Kundenticker',
           icon: Icons.campaign_outlined,
@@ -8863,14 +8991,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   setState(() => _view = AdminView.news);
                   if (_activeNewsEntries.isEmpty) _refreshNews();
                 },
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
-        final key = _onboardingTileKeys['news'];
-        return key == null ? tile : KeyedSubtree(key: key, child: tile);
       case 'downloads':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Downloads',
           subtitle: 'Dokumente für Vertreter',
           icon: Icons.download_outlined,
@@ -8878,12 +9006,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.indigoB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.downloads),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'faq':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Wissensdatenbank (FAQ)',
           subtitle: 'Artikel & Kategorien verwalten',
           icon: Icons.library_books_outlined,
@@ -8892,12 +9022,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           count: _faqEntries.length,
           onTap: isPreview ? () {} : () => _handleNavigation(AdminView.faq),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'wiki':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Vertreter-Wiki',
           subtitle: 'Kundenwissen & Produktinfos',
           icon: Icons.menu_book_rounded,
@@ -8905,12 +9037,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.tealB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.wiki),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'products':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Artikelliste',
           subtitle: 'Produktdaten filtern & pflegen',
           icon: Icons.inventory_2_outlined,
@@ -8919,12 +9053,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           count: _products.length,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.products),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'audits':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Interne Audits',
           subtitle: 'Planen, Maßnahmen, Nachverfolgung',
           icon: Icons.assignment_turned_in_outlined,
@@ -8932,12 +9068,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.tealB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.audits),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'push':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Push-Mitteilungen',
           subtitle: 'Broadcast an alle Kunden',
           icon: Icons.notifications_active_outlined,
@@ -8946,12 +9084,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           count: _pushResult?.totalTokens,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pushBroadcast),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'internalChat':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Interne Nachrichten',
           subtitle: 'Chat für DFS Connect+',
           icon: Icons.forum_outlined,
@@ -8959,12 +9099,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.indigoB,
           compact: compact,
           onTap: isPreview ? () {} : _openInternalChat,
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'catalogs':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Kataloge',
           subtitle: 'Links & Sprachen',
           icon: Icons.menu_book_outlined,
@@ -8972,12 +9114,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.catalogs),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'portalUsers':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'User-Datenbank',
           subtitle: 'Mitarbeiter & User verwalten',
           icon: Icons.admin_panel_settings_outlined,
@@ -8993,12 +9137,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                     _refreshPortalUsers();
                   }
                 },
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'appMeta':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'App-Version',
           subtitle: 'Version, Build, Release-Hinweise',
           icon: Icons.app_settings_alt_outlined,
@@ -9006,12 +9152,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => _editAppMeta(context),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'testMode':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Testmodus & Routing',
           subtitle: 'Testmails, Push-Filter und Sicherungen',
           icon: Icons.science_outlined,
@@ -9019,12 +9167,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.blueB,
           compact: compact,
           onTap: isPreview ? () {} : () => _editTestMode(context),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'systemHealth':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Systemstatus',
           subtitle: 'Health & Konfiguration',
           icon: Icons.health_and_safety_outlined,
@@ -9037,12 +9187,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   setState(() => _view = AdminView.systemHealth);
                   _loadSystemHealth(force: true);
                 },
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
       case 'activity':
-        return AdminTilePro(
+        return _buildDashboardTile(
+          tileId: tileId,
           label: 'Aktivitätsübersicht',
           subtitle: 'Login, Tickets, Push',
           icon: Icons.query_stats_outlined,
@@ -9050,6 +9202,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.tealB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.activity),
+          registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,

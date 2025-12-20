@@ -21,6 +21,7 @@ class OnboardingTourOverlay extends StatelessWidget {
   final int total;
   final VoidCallback onNext;
   final VoidCallback onBack;
+  final VoidCallback onSkipStep;
   final VoidCallback onSkip;
 
   const OnboardingTourOverlay({
@@ -31,6 +32,7 @@ class OnboardingTourOverlay extends StatelessWidget {
     required this.total,
     required this.onNext,
     required this.onBack,
+    required this.onSkipStep,
     required this.onSkip,
   });
 
@@ -141,6 +143,11 @@ class OnboardingTourOverlay extends StatelessWidget {
                             child: const Text('Zurück'),
                           ),
                           const Spacer(),
+                          TextButton(
+                            onPressed: onSkipStep,
+                            child: const Text('Überspringen'),
+                          ),
+                          const SizedBox(width: 8),
                           TextButton(
                             onPressed: onSkip,
                             child: const Text('Tour beenden'),
