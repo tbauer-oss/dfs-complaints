@@ -35,6 +35,17 @@ function hexToRgb(hex) {
   return rgb(r / 255, g / 255, b / 255);
 }
 
+function parseBool(value, fallback) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
 function wrapText(text, font, fontSize, maxWidth) {
   const lines = [];
   const paragraphs = String(text ?? '').split('\n');
@@ -836,13 +847,17 @@ function mergeLayoutConfig(base, override) {
   return merged;
 }
 
-async function renderPdfFromHtml(html) {
+async function renderPdfFromHtml(html, { headless } = {}) {
   const executablePath =
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.CHROME_PATH || (await chromium.executablePath());
+  const resolvedHeadless = parseBool(headless, true);
+  if (process.env.DEBUG_PDF === '1') {
+    console.log('[supplier-reports] launch options', { headless: resolvedHeadless, headlessType: typeof resolvedHeadless });
+  }
   const browser = await playwrightChromium.launch({
     args: chromium.args,
     executablePath,
-    headless: chromium.headless,
+    headless: resolvedHeadless,
   });
   try {
     const page = await browser.newPage({ viewport: { width: 1200, height: 1800 } });
@@ -1007,7 +1022,7 @@ function drawPdfTable(layout, {
   layout.moveDown(8);
 }
 
-async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview }) {
+async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview, headless }) {
   const suppliers = await supplierAll();
   const supplierLookup = new Map(suppliers.map((s) => [s.id, s]));
   const entries = await supplierPerformanceAll({ supplierId });
@@ -1205,7 +1220,7 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
     preview_note: previewNote,
   });
 
-  const pdfBytes = await renderPdfFromHtml(html);
+  const pdfBytes = await renderPdfFromHtml(html, { headless });
   return Buffer.from(pdfBytes);
 }
 
@@ -1455,6 +1470,10 @@ export default async function handler(req, res) {
         return bad(res, 'Bitte ein Bewertungsjahr angeben.', 400);
       }
       let pdf;
+      const headless = parseBool(
+        req.query?.headless,
+        parseBool(process.env.PLAYWRIGHT_HEADLESS, parseBool(process.env.PUPPETEER_HEADLESS, true))
+      );
       if (reportType === 'letter') {
         const layoutInput = body?.layout || body?.layoutConfig || null;
         const layoutConfig = layoutInput && typeof layoutInput === 'object' ? layoutInput : null;
@@ -1464,6 +1483,7 @@ export default async function handler(req, res) {
           actor: actorName,
           layoutConfig,
           preview,
+          headless,
         });
       } else if (reportType === 'report' || reportType === 'internal') {
         pdf = await buildSupplierReport({ supplierId, year, actor: actorName });
