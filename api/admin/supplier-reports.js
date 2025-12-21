@@ -6,7 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument as PdfDocument, StandardFonts, rgb } from 'pdf-lib';
 import chromium from '@sparticuz/chromium';
-import { chromium as playwrightChromium } from 'playwright-core';
+import puppeteer from 'puppeteer-core';
 import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
@@ -44,6 +44,10 @@ function parseBool(value, fallback) {
     if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
   }
   return fallback;
+}
+
+function parsePreview(value) {
+  return ['true', '1', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
 }
 
 function wrapText(text, font, fontSize, maxWidth) {
@@ -847,22 +851,39 @@ function mergeLayoutConfig(base, override) {
   return merged;
 }
 
-async function renderPdfFromHtml(html, { headless } = {}) {
-  const executablePath =
-    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.CHROME_PATH || (await chromium.executablePath());
-  const resolvedHeadless = parseBool(headless, true);
+async function renderPdfFromHtml(
+  html,
+  {
+    pdfFormat = 'A4',
+    margin = { top: '18mm', right: '18mm', bottom: '18mm', left: '18mm' },
+    printBackground = true,
+    landscape = false,
+    preferCSSPageSize = true,
+    headless,
+  } = {}
+) {
+  const executablePath = await chromium.executablePath();
+  const resolvedHeadless = typeof headless === 'boolean' ? headless : chromium.headless;
   if (process.env.DEBUG_PDF === '1') {
     console.log('[supplier-reports] launch options', { headless: resolvedHeadless, headlessType: typeof resolvedHeadless });
   }
-  const browser = await playwrightChromium.launch({
+  const browser = await puppeteer.launch({
     args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
     executablePath,
     headless: resolvedHeadless,
   });
   try {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 1800 } });
-    await page.setContent(html, { waitUntil: 'networkidle' });
-    return await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: ['load', 'domcontentloaded', 'networkidle0'] });
+    await page.emulateMediaType('screen');
+    return await page.pdf({
+      format: pdfFormat,
+      printBackground,
+      landscape,
+      preferCSSPageSize,
+      margin,
+    });
   } finally {
     await browser.close();
   }
@@ -1459,7 +1480,7 @@ export default async function handler(req, res) {
       const yearParam = req.query?.year;
       const year = yearParam ? Number(yearParam) : null;
       const actorName = actor?.email || '';
-      const preview = req.query?.preview === 'true' || body?.preview === true;
+      const preview = parsePreview(req.query?.preview ?? body?.preview);
       if (yearParam && !Number.isFinite(year)) {
         return bad(res, 'Bitte ein gültiges Bewertungsjahr angeben.', 400);
       }
@@ -1470,10 +1491,7 @@ export default async function handler(req, res) {
         return bad(res, 'Bitte ein Bewertungsjahr angeben.', 400);
       }
       let pdf;
-      const headless = parseBool(
-        req.query?.headless,
-        parseBool(process.env.PLAYWRIGHT_HEADLESS, parseBool(process.env.PUPPETEER_HEADLESS, true))
-      );
+      const headless = parseBool(req.query?.headless, parseBool(process.env.PUPPETEER_HEADLESS, true));
       if (reportType === 'letter') {
         const layoutInput = body?.layout || body?.layoutConfig || null;
         const layoutConfig = layoutInput && typeof layoutInput === 'object' ? layoutInput : null;
@@ -1495,9 +1513,10 @@ export default async function handler(req, res) {
       console.info('[supplier-reports] pdf generated', { type: reportType, supplierId, year });
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/pdf');
+      const disposition = preview ? 'inline' : 'attachment';
       res.setHeader(
         'Content-Disposition',
-        `inline; filename="Supplier_${supplierId || 'summary'}_${year || 'report'}_${reportType}.pdf"`
+        `${disposition}; filename="supplier_${reportType}_${year || 'report'}.pdf"`
       );
       res.end(pdf);
       return;
