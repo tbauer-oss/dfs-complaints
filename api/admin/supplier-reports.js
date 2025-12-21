@@ -4,9 +4,8 @@ export const config = { runtime: 'nodejs' };
 import PDFDocument from 'pdfkit';
 import fs from 'fs/promises';
 import path from 'path';
-import { PDFDocument as PdfDocument, StandardFonts, rgb } from 'pdf-lib';
-import chromium from '@sparticuz/chromium';
-import puppeteer from 'puppeteer-core';
+import { fileURLToPath } from 'url';
+import { PDFDocument as PdfDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
@@ -18,13 +17,13 @@ import {
 } from '../_lib/store.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
-const LETTERHEAD_PATH = path.join(process.cwd(), 'api', '_assets', 'dfs_letterhead.png');
-const LETTER_TEMPLATE_PATHS = {
-  DE: path.join(process.cwd(), 'api', 'templates', 'supplier_letter_de.html'),
-  EN: path.join(process.cwd(), 'api', 'templates', 'supplier_letter_en.html'),
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const LETTERHEAD_PATH = path.join(__dirname, '../_assets/dfs_letterhead.png');
 const PAGE_SIZE = { width: 595.28, height: 841.89 };
 const PAGE_MARGIN = { left: 52, right: 52, top: 150, bottom: 70 };
+
+const mmToPt = (mm) => mm * 2.83464567;
 
 function hexToRgb(hex) {
   const normalized = hex.replace('#', '');
@@ -33,6 +32,10 @@ function hexToRgb(hex) {
   const g = (value >> 8) & 255;
   const b = value & 255;
   return rgb(r / 255, g / 255, b / 255);
+}
+
+function topToPdfY(top, pageHeight) {
+  return pageHeight - top;
 }
 
 function wrapText(text, font, fontSize, maxWidth) {
@@ -58,6 +61,39 @@ function wrapText(text, font, fontSize, maxWidth) {
     if (index < paragraphs.length - 1) lines.push('');
   });
   return lines;
+}
+
+function drawWrappedText(
+  page,
+  {
+    text,
+    x,
+    top,
+    maxWidth,
+    font,
+    size,
+    color = rgb(0, 0, 0),
+    lineHeight = size * 1.3,
+  }
+) {
+  const lines = wrapText(text, font, size, maxWidth);
+  const pageHeight = page.getHeight();
+  let cursorTop = top;
+  lines.forEach((line) => {
+    if (!line) {
+      cursorTop += lineHeight;
+      return;
+    }
+    page.drawText(line, {
+      x,
+      y: topToPdfY(cursorTop + size, pageHeight),
+      size,
+      font,
+      color,
+    });
+    cursorTop += lineHeight;
+  });
+  return cursorTop;
 }
 
 function addLetterheadPage(pdfDoc, backgroundImage) {
@@ -606,184 +642,6 @@ function formatWeighted(value, weight) {
   return Number((value * weight).toFixed(2));
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function renderTemplate(template, data) {
-  let rendered = template;
-  Object.entries(data).forEach(([key, value]) => {
-    const token = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-    rendered = rendered.replace(token, value);
-  });
-  return rendered;
-}
-
-function buildLayoutCss(layout) {
-  const page = layout.page || {};
-  const header = layout.header || {};
-  const recipient = layout.recipientBlock || {};
-  const dateBlock = layout.dateBlock || {};
-  const titleBlock = layout.titleBlock || {};
-  const cssVars = `
-    :root {
-      --page-margin-top: ${page.marginTopMm}mm;
-      --page-margin-right: ${page.marginRightMm}mm;
-      --page-margin-bottom: ${page.marginBottomMm}mm;
-      --page-margin-left: ${page.marginLeftMm}mm;
-      --logo-width: ${header.logoWidthMm}mm;
-      --header-top: ${header.headerTopMm}mm;
-      --recipient-top: ${recipient.topMm}mm;
-      --recipient-left: ${recipient.leftMm}mm;
-      --date-top: ${dateBlock.topMm}mm;
-      --date-right: ${dateBlock.rightMm}mm;
-      --title-top: ${titleBlock.topMm}mm;
-      --body-start: ${layout.bodyStartMm}mm;
-    }
-  `;
-
-  const baseCss = `
-    @page { size: A4; margin: 0; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Inter", "Segoe UI", Arial, sans-serif;
-      color: #1f2933;
-      background: #ffffff;
-    }
-    .page {
-      position: relative;
-      width: 210mm;
-      min-height: 297mm;
-      padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left);
-    }
-    .letterhead {
-      position: absolute;
-      top: var(--header-top);
-      left: var(--page-margin-left);
-    }
-    .letterhead img {
-      width: var(--logo-width);
-      height: auto;
-    }
-    .recipient-block {
-      position: absolute;
-      top: var(--recipient-top);
-      left: var(--recipient-left);
-      font-size: 10.5pt;
-      line-height: 1.3;
-    }
-    .recipient-block .supplier-name {
-      font-weight: 600;
-      margin-bottom: 2mm;
-    }
-    .date-block {
-      position: absolute;
-      top: var(--date-top);
-      right: var(--date-right);
-      font-size: 10pt;
-      color: #4b5563;
-    }
-    .title-block {
-      position: absolute;
-      top: var(--title-top);
-      left: var(--page-margin-left);
-      right: var(--page-margin-right);
-      font-size: 14pt;
-      font-weight: 700;
-    }
-    .content {
-      margin-top: var(--body-start);
-      font-size: 10.5pt;
-      line-height: 1.5;
-    }
-    h2 {
-      margin: 6mm 0 2mm;
-      font-size: 12pt;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 2mm;
-      font-size: 9.5pt;
-    }
-    th, td {
-      border: 1px solid #e5e7eb;
-      padding: 2.5mm 2mm;
-      text-align: left;
-    }
-    th {
-      background: #f8fafc;
-      font-weight: 600;
-    }
-    tr.total-row td {
-      font-weight: 600;
-      background: #f1f5f9;
-    }
-    .status-line {
-      margin: 4mm 0;
-      padding: 3mm 3.5mm;
-      border-radius: 4mm;
-      font-weight: 600;
-    }
-    .status-line.status-a,
-    .status-line.status-b {
-      background: #e6f9f0;
-      color: #0f5132;
-    }
-    .status-line.status-c {
-      background: #fff4d6;
-      color: #8a5b00;
-    }
-    .status-line.status-d,
-    .status-line.status-e,
-    .status-line.status-f {
-      background: #fdecea;
-      color: #842029;
-    }
-    .measures ul {
-      margin: 2mm 0 0;
-      padding-left: 5mm;
-    }
-    .signature {
-      margin-top: 8mm;
-      font-size: 10pt;
-    }
-    .signature .name {
-      font-weight: 600;
-    }
-    .preview-watermark {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 72pt;
-      color: rgba(120, 120, 120, 0.15);
-      font-weight: 700;
-      transform: rotate(-20deg);
-      pointer-events: none;
-      z-index: 1;
-    }
-    .preview-note {
-      margin-top: 6mm;
-      font-size: 9.5pt;
-      color: #9a3412;
-      background: #fff7ed;
-      padding: 3mm;
-      border-radius: 3mm;
-      border: 1px dashed #fdba74;
-    }
-  `;
-
-  return `${cssVars}\n${baseCss}`;
-}
-
 function mergeLayoutConfig(base, override) {
   if (!override || typeof override !== 'object') return base;
   const toNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
@@ -834,48 +692,6 @@ function mergeLayoutConfig(base, override) {
   };
   merged.bodyStartMm = toNumber(merged.bodyStartMm, base.bodyStartMm);
   return merged;
-}
-
-async function renderPdfFromHtml(
-  html,
-  {
-    pdfFormat = 'A4',
-    margin = { top: '18mm', right: '18mm', bottom: '18mm', left: '18mm' },
-    printBackground = true,
-    landscape = false,
-    preferCSSPageSize = true,
-  } = {}
-) {
-  const executablePath = await chromium.executablePath();
-
-  console.log('[supplier-reports] chromium executablePath:', executablePath);
-  console.log('[supplier-reports] chromium headless:', chromium.headless, 'type:', typeof chromium.headless);
-  console.log('[supplier-reports] chromium args:', chromium.args?.length);
-
-  const browser = await puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath,
-    headless: true,
-  });
-
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: ['domcontentloaded', 'load', 'networkidle0'] });
-    await page.emulateMediaType('screen');
-
-    const pdf = await page.pdf({
-      format: pdfFormat,
-      printBackground,
-      landscape,
-      preferCSSPageSize,
-      margin,
-    });
-
-    return pdf;
-  } finally {
-    await browser.close();
-  }
 }
 
 class SupplierReportError extends Error {
@@ -1096,9 +912,7 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
 
   const storedLayout = await supplierReportLetterLayoutGet();
   const layout = mergeLayoutConfig(storedLayout, layoutConfig);
-  const templatePath = LETTER_TEMPLATE_PATHS[language];
-  const template = await fs.readFile(templatePath, 'utf-8');
-  const letterheadBase64 = (await fs.readFile(LETTERHEAD_PATH)).toString('base64');
+  const letterheadBytes = await fs.readFile(LETTERHEAD_PATH);
 
   const subject = language === 'EN'
     ? `Supplier Evaluation ${year || new Date().getFullYear()} – Result & Status`
@@ -1125,27 +939,6 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
     weighted: aggregates.averageGrade.toFixed(2),
   };
 
-  const tableRowsHtml = [
-    ...criteriaRows.map(
-      (row) => `
-        <tr>
-          <td>${escapeHtml(row.label)}</td>
-          <td>${escapeHtml(row.grade)}</td>
-          <td>${escapeHtml(row.weight)}</td>
-          <td>${escapeHtml(row.weighted)}</td>
-        </tr>
-      `
-    ),
-    `
-      <tr class="total-row">
-        <td>${escapeHtml(overallRow.label)}</td>
-        <td>${escapeHtml(overallRow.grade)}</td>
-        <td>${escapeHtml(overallRow.weight)}</td>
-        <td>${escapeHtml(overallRow.weighted)}</td>
-      </tr>
-    `,
-  ].join('');
-
   const measuresLines = [];
   if (measures.length) {
     measuresLines.push(
@@ -1155,7 +948,7 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
         }${measure.due ? ` (${language === 'EN' ? 'Due' : 'Fällig'}: ${measure.due})` : ''}${
           measure.status ? ` • ${measure.status}` : ''
         }`;
-        return escapeHtml(line);
+        return line;
       })
     );
   }
@@ -1187,8 +980,6 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
     }
   }
 
-  const measuresText = `<ul>${measuresLines.map((line) => `<li>${line}</li>`).join('')}</ul>`;
-
   const addressParts = [
     supplier.address,
     supplier.country,
@@ -1198,39 +989,326 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const supplierAddressLines = addressParts.map((line) => `<div>${escapeHtml(line)}</div>`).join('');
+  const pdfDoc = await PdfDocument.create();
+  const backgroundImage = await pdfDoc.embedPng(letterheadBytes);
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const signatureBlock = `
-    <div class="name">Tobias Bauer</div>
-    <div>PRRC • Head of Quality Management (QMB/BdoL)</div>
-  `;
+  const pageWidth = PAGE_SIZE.width;
+  const pageHeight = PAGE_SIZE.height;
+  const marginLeft = mmToPt(layout.page.marginLeftMm);
+  const marginRight = mmToPt(layout.page.marginRightMm);
+  const marginTop = mmToPt(layout.page.marginTopMm);
+  const marginBottom = mmToPt(layout.page.marginBottomMm);
+  const recipientTop = mmToPt(layout.recipientBlock.topMm);
+  const recipientLeft = mmToPt(layout.recipientBlock.leftMm);
+  const dateTop = mmToPt(layout.dateBlock.topMm);
+  const dateRight = mmToPt(layout.dateBlock.rightMm);
+  const subjectTop = mmToPt(layout.titleBlock.topMm);
+  const bodyStart = mmToPt(layout.bodyStartMm);
 
-  const previewWatermark = preview ? '<div class="preview-watermark">VORSCHAU</div>' : '';
-  const previewNote = preview
-    ? language === 'EN'
-      ? '<div class="preview-note">PREVIEW: Layout is controlled via configuration (changes are not persisted).</div>'
-      : '<div class="preview-note">VORSCHAU: Layout wird über Konfiguration gesteuert (Änderungen ohne Speicherung).</div>'
-    : '';
+  const createPage = (withLetterhead) => {
+    const page = pdfDoc.addPage([PAGE_SIZE.width, PAGE_SIZE.height]);
+    if (withLetterhead) {
+      page.drawImage(backgroundImage, {
+        x: 0,
+        y: 0,
+        width: PAGE_SIZE.width,
+        height: PAGE_SIZE.height,
+      });
+    }
+    return page;
+  };
 
-  const html = renderTemplate(template, {
-    layout_css: buildLayoutCss(layout),
-    letterhead_base64: `data:image/png;base64,${letterheadBase64}`,
-    supplier_name: escapeHtml(supplier.name || supplierId),
-    supplier_address_lines: supplierAddressLines,
-    date: escapeHtml(language === 'EN' ? `Date: ${formatDate(Date.now(), locale)}` : `Datum: ${formatDate(Date.now(), locale)}`),
-    year: escapeHtml(year || new Date().getFullYear()),
-    status_text: escapeHtml(statusLine),
-    status_class: escapeHtml(classification.toLowerCase()),
-    intro_text: escapeHtml(introText).replace(/\n/g, '<br>'),
-    table_rows_html: tableRowsHtml,
-    measures_text: measuresText,
-    signature_block: signatureBlock,
-    subject: escapeHtml(subject),
-    preview_watermark: previewWatermark,
-    preview_note: previewNote,
+  let page = createPage(true);
+  let cursorTop = bodyStart;
+
+  const ensureSpace = (height) => {
+    if (cursorTop + height > pageHeight - marginBottom) {
+      page = createPage(false);
+      cursorTop = marginTop;
+    }
+  };
+
+  const drawRightAlignedText = (text, xRight, top, size, font, color = rgb(0, 0, 0)) => {
+    const width = font.widthOfTextAtSize(text, size);
+    page.drawText(text, {
+      x: xRight - width,
+      y: topToPdfY(top + size, pageHeight),
+      size,
+      font,
+      color,
+    });
+  };
+
+  const drawBulletList = (items, { x, top, maxWidth, font, size, lineHeight }) => {
+    const bullet = '• ';
+    const bulletWidth = font.widthOfTextAtSize(bullet, size);
+    cursorTop = top;
+    items.forEach((item) => {
+      const lines = wrapText(item, font, size, maxWidth - bulletWidth);
+      const safeLines = lines.length ? lines : [''];
+      safeLines.forEach((line, index) => {
+        ensureSpace(lineHeight);
+        if (index === 0) {
+          page.drawText(bullet, {
+            x,
+            y: topToPdfY(cursorTop + size, pageHeight),
+            size,
+            font,
+          });
+          page.drawText(line, {
+            x: x + bulletWidth,
+            y: topToPdfY(cursorTop + size, pageHeight),
+            size,
+            font,
+          });
+        } else {
+          page.drawText(line, {
+            x: x + bulletWidth,
+            y: topToPdfY(cursorTop + size, pageHeight),
+            size,
+            font,
+          });
+        }
+        cursorTop += lineHeight;
+      });
+    });
+    return cursorTop;
+  };
+
+  const drawTable = ({ headers, rows, columnWidths, fontSize }) => {
+    const lineHeight = fontSize * 1.3;
+    const padding = 4;
+    const tableX = marginLeft;
+    const headerFill = hexToRgb('#f4f6fa');
+    const borderColor = hexToRgb('#d0d0d0');
+
+    const drawRow = (cells, font, isHeader, isTotal) => {
+      const normalized = cells.map((cell, index) => {
+        const cellText = cell == null ? '' : String(cell);
+        const maxWidth = columnWidths[index] - padding * 2;
+        const lines = wrapText(cellText, font, fontSize, maxWidth);
+        return lines.length ? lines : [''];
+      });
+      const rowLines = Math.max(...normalized.map((lines) => lines.length));
+      const rowHeight = rowLines * lineHeight + padding * 2;
+      ensureSpace(rowHeight);
+
+      if (cursorTop + rowHeight > pageHeight - marginBottom) {
+        page = createPage(false);
+        cursorTop = marginTop;
+      }
+
+      const yTop = cursorTop;
+      const yBottom = yTop + rowHeight;
+
+      if (isHeader) {
+        page.drawRectangle({
+          x: tableX,
+          y: topToPdfY(yBottom, pageHeight),
+          width: columnWidths.reduce((sum, width) => sum + width, 0),
+          height: rowHeight,
+          color: headerFill,
+        });
+      }
+
+      let x = tableX;
+      normalized.forEach((lines, index) => {
+        page.drawRectangle({
+          x,
+          y: topToPdfY(yBottom, pageHeight),
+          width: columnWidths[index],
+          height: rowHeight,
+          borderColor,
+          borderWidth: 1,
+        });
+        lines.forEach((line, lineIndex) => {
+          if (!line) return;
+          page.drawText(line, {
+            x: x + padding,
+            y: topToPdfY(yTop + padding + fontSize + lineIndex * lineHeight, pageHeight),
+            size: fontSize,
+            font,
+          });
+        });
+        x += columnWidths[index];
+      });
+
+      cursorTop += rowHeight;
+      if (isTotal) cursorTop += 6;
+    };
+
+    const drawHeader = () => {
+      drawRow(headers, fontBold, true, false);
+    };
+
+    drawHeader();
+    rows.forEach((row, index) => {
+      if (cursorTop + lineHeight * 2 > pageHeight - marginBottom) {
+        page = createPage(false);
+        cursorTop = marginTop;
+        drawHeader();
+      }
+      const isTotal = index === rows.length - 1;
+      drawRow(row, isTotal ? fontBold : fontRegular, false, isTotal);
+    });
+  };
+
+  const recipientLines = [supplier.name || supplierId, ...addressParts];
+  let recipientTopCursor = recipientTop;
+  recipientLines.forEach((line, index) => {
+    const font = index === 0 ? fontBold : fontRegular;
+    const size = 10.5;
+    page.drawText(line, {
+      x: recipientLeft,
+      y: topToPdfY(recipientTopCursor + size, pageHeight),
+      size,
+      font,
+    });
+    recipientTopCursor += size * 1.3;
   });
 
-  const pdfBytes = await renderPdfFromHtml(html);
+  const dateLabel = language === 'EN' ? `Date: ${formatDate(Date.now(), locale)}` : `Datum: ${formatDate(Date.now(), locale)}`;
+  drawRightAlignedText(dateLabel, pageWidth - dateRight, dateTop, 10, fontRegular, rgb(0.35, 0.35, 0.35));
+
+  page.drawText(subject, {
+    x: marginLeft,
+    y: topToPdfY(subjectTop + 13, pageHeight),
+    size: 13,
+    font: fontBold,
+  });
+
+  if (preview) {
+    page.drawText('VORSCHAU', {
+      x: pageWidth / 4,
+      y: pageHeight / 2,
+      size: 72,
+      font: fontBold,
+      color: rgb(0.75, 0.75, 0.75),
+      rotate: degrees(-20),
+      opacity: 0.2,
+    });
+  }
+
+  ensureSpace(0);
+
+  cursorTop = drawWrappedText(page, {
+    text: introText,
+    x: marginLeft,
+    top: cursorTop,
+    maxWidth: pageWidth - marginLeft - marginRight,
+    font: fontRegular,
+    size: 10.5,
+    lineHeight: 14,
+  });
+  cursorTop += 6;
+
+  cursorTop = drawWrappedText(page, {
+    text: statusLine,
+    x: marginLeft,
+    top: cursorTop,
+    maxWidth: pageWidth - marginLeft - marginRight,
+    font: fontBold,
+    size: 10.5,
+    lineHeight: 14,
+  });
+  cursorTop += 10;
+
+  const tableTitle = language === 'EN' ? 'Evaluation results' : 'Bewertungsergebnisse';
+  cursorTop = drawWrappedText(page, {
+    text: tableTitle,
+    x: marginLeft,
+    top: cursorTop,
+    maxWidth: pageWidth - marginLeft - marginRight,
+    font: fontBold,
+    size: 11,
+    lineHeight: 14,
+  });
+  cursorTop += 4;
+
+  const tableRows = [
+    ...criteriaRows.map((row) => [row.label, row.grade, row.weight, row.weighted]),
+    [overallRow.label, overallRow.grade, overallRow.weight, overallRow.weighted],
+  ];
+
+  const tableWidth = pageWidth - marginLeft - marginRight;
+  const columnWidths = [
+    tableWidth * 0.48,
+    tableWidth * 0.14,
+    tableWidth * 0.14,
+    tableWidth * 0.24,
+  ];
+
+  drawTable({
+    headers: [
+      language === 'EN' ? 'Criterion' : 'Kriterium',
+      language === 'EN' ? 'Grade' : 'Note',
+      language === 'EN' ? 'Weight' : 'Gewicht',
+      language === 'EN' ? 'Weighted score' : 'Gewichtete Note',
+    ],
+    rows: tableRows,
+    columnWidths,
+    fontSize: 9,
+  });
+
+  const measuresTitle = language === 'EN' ? 'Measures / next steps' : 'Maßnahmen / nächste Schritte';
+  ensureSpace(18);
+  cursorTop = drawWrappedText(page, {
+    text: measuresTitle,
+    x: marginLeft,
+    top: cursorTop,
+    maxWidth: pageWidth - marginLeft - marginRight,
+    font: fontBold,
+    size: 11,
+    lineHeight: 14,
+  });
+  cursorTop += 4;
+
+  cursorTop = drawBulletList(measuresLines, {
+    x: marginLeft,
+    top: cursorTop,
+    maxWidth: pageWidth - marginLeft - marginRight,
+    font: fontRegular,
+    size: 10,
+    lineHeight: 13,
+  });
+
+  cursorTop += 10;
+  const closingText = language === 'EN'
+    ? 'Thank you for your collaboration.'
+    : 'Vielen Dank für die Zusammenarbeit.';
+  cursorTop = drawWrappedText(page, {
+    text: closingText,
+    x: marginLeft,
+    top: cursorTop,
+    maxWidth: pageWidth - marginLeft - marginRight,
+    font: fontRegular,
+    size: 10.5,
+    lineHeight: 14,
+  });
+  cursorTop += 12;
+
+  const signatureLines = [
+    'Tobias Bauer',
+    'PRRC • Head of Quality Management (QMB/BdoL)',
+    actor ? `${language === 'EN' ? 'Generated by' : 'Erstellt durch'} ${actor}` : null,
+  ].filter(Boolean);
+
+  signatureLines.forEach((line, index) => {
+    const font = index === 0 ? fontBold : fontRegular;
+    const size = 10;
+    ensureSpace(size * 1.4);
+    page.drawText(line, {
+      x: marginLeft,
+      y: topToPdfY(cursorTop + size, pageHeight),
+      size,
+      font,
+    });
+    cursorTop += size * 1.4;
+  });
+
+  const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
 }
 
