@@ -283,18 +283,6 @@ class ApiClient {
   DateTime? _faqLoadedAt;
   static const Duration _faqCacheTtl = Duration(minutes: 1);
 
-  bool get _portalHasAdminPrivileges {
-    final profile = portalProfile ?? const {};
-    final role = profile['role']?.toString().toLowerCase() ?? '';
-    final isAdminFlag = profile['isAdmin'] == true ||
-        profile['admin'] == true ||
-        profile['superuser'] == true;
-    return role == 'admin' ||
-        role == 'superuser' ||
-        role.contains('admin') ||
-        isAdminFlag;
-  }
-
   void _invalidateNewsCache() {
     _newsCache = null;
     _newsLoadedAt = null;
@@ -314,22 +302,28 @@ class ApiClient {
   Map<String, dynamic>? get appMeta => _appMeta;
   String get appVersion => _appMeta?['version']?.toString() ?? '';
 
-  Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra}) {
+  Map<String, String> _adminHeaders({bool auth = false, Map<String, String>? extra, String? path}) {
     final h = _headers(auth: false, extra: extra);
+    String? authSource;
     if (auth) {
-      if (portalToken != null &&
-          portalToken!.isNotEmpty &&
-          _portalHasAdminPrivileges) {
+      if (portalToken != null && portalToken!.isNotEmpty) {
         h['Authorization'] = 'Bearer $portalToken';
+        authSource = 'portal';
       } else if (adminSecret != null && adminSecret!.isNotEmpty) {
         h['X-Admin-Secret'] = adminSecret!; // Legacy Fallback
+        authSource = 'admin-secret';
       } else if (repToken != null && repToken!.isNotEmpty) {
         h['Authorization'] = 'Bearer $repToken';
-      } else if (portalToken != null && portalToken!.isNotEmpty) {
-        // Wenn wir eine DFS-Portal-Session haben, sollte sie Admin-Aufrufe übernehmen
-        h['Authorization'] = 'Bearer $portalToken';
+        authSource = 'rep';
       } else if (token != null && token!.isNotEmpty) {
         h['Authorization'] = 'Bearer $token';
+        authSource = 'customer';
+      }
+    }
+    if (kDebugMode && path != null) {
+      final lower = path.toLowerCase();
+      if (lower.startsWith('/api/admin') || lower.startsWith('/api/chat')) {
+        debugPrint('API auth [$path]: ${authSource ?? 'none'}');
       }
     }
     return h;
@@ -478,6 +472,7 @@ class ApiClient {
 
   /// Auth-Header für DFS-Portal-Aufrufe (inkl. JWT / Admin-Secret Fallback).
   Map<String, String> portalHeaders() => _adminHeaders(auth: true);
+  Map<String, String> portalHeadersFor(String path) => _adminHeaders(auth: true, path: path);
 
   void assertSuccess(http.Response response) {
     if (_ok2xx(response.statusCode)) return;
@@ -1605,7 +1600,8 @@ class ApiClient {
   }
 
   Future<List<RepDownloadItem>> adminDownloads() async {
-    final r = await http.get(_u('/api/admin/downloads'), headers: _adminHeaders(auth: true));
+    const path = '/api/admin/downloads';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -1622,7 +1618,8 @@ class ApiClient {
   }
 
   Future<List<CustomerNewsEntry>> adminFetchCustomerNewsEntries() async {
-    final r = await http.get(_u('/api/admin/news'), headers: _adminHeaders(auth: true));
+    const path = '/api/admin/news';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -1639,7 +1636,8 @@ class ApiClient {
   }
 
   Future<List<CustomerNewsEntry>> adminFetchPortalNewsEntries() async {
-    final r = await http.get(_u('/api/portal/admin/news'), headers: _adminHeaders(auth: true));
+    const path = '/api/portal/admin/news';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -1761,7 +1759,8 @@ class ApiClient {
   }
 
   Future<List<CapaReport>> adminCapas() async {
-    final r = await http.get(_u('/api/admin/capas'), headers: _adminHeaders(auth: true));
+    const path = '/api/admin/capas';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -2996,7 +2995,7 @@ class ApiClient {
         .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
     final url = query.isEmpty ? '/api/wiki/admin/articles' : '/api/wiki/admin/articles?$query';
-    final r = await http.get(_u(url), headers: _adminHeaders(auth: true));
+    final r = await http.get(_u(url), headers: _adminHeaders(auth: true, path: url));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }

@@ -17,14 +17,20 @@ export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { write: false });
-  if (!actor) return;
-
-  if (req.method !== 'GET') return methodNotAllowed(res);
-
-  const { client, counters } = createTrackedRedis();
-
   try {
+    const actor = await requirePortalAccess(req, res, { write: false, tile: 'internalChat' });
+    if (!actor) return;
+
+    if (req.method !== 'GET') return methodNotAllowed(res);
+
+    if (!actor.email || typeof actor.email !== 'string') {
+      return bad(res, 'unauthorized', 401);
+    }
+
+    const permissions = Array.isArray(actor.permissions) ? actor.permissions : [];
+    actor.permissions = permissions;
+
+    const { client, counters } = createTrackedRedis();
     const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 

@@ -718,7 +718,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshChatUnread() async {
-    if (_portalUserId.isEmpty) return;
+    if (_portalUserId.isEmpty || !_hasPerm('chat.read')) return;
     try {
       final convs = await _chatService.fetchConversations();
       final resolved = _applyChatAvatarMap(convs);
@@ -1391,6 +1391,34 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   bool _hasTileAccess(String tileId) => _allowedTilesForActor().contains(tileId);
 
+  bool _hasPerm(String perm) {
+    final key = perm.trim().toLowerCase();
+    switch (key) {
+      case 'complaints.read.open':
+        return _hasTileAccess('open');
+      case 'complaints.read.all':
+        return _hasTileAccess('all') || _hasTileAccess('complaintList');
+      case 'complaints.read.list':
+        return _hasTileAccess('complaintList');
+      case 'capas.read':
+        return _hasTileAccess('capaReports');
+      case 'chat.read':
+        return _hasTileAccess('internalChat');
+      default:
+        return false;
+    }
+  }
+
+  Widget _noPermissionPanel({String message = 'Keine Berechtigung'}) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Text(
+        message,
+        style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+    );
+  }
+
   Set<String> _allowedTilesForActor() {
     final allowed = <String>{};
     final base = _visibleTilesForRole(_portalRole);
@@ -1755,19 +1783,29 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     });
 
     _refreshAll();
-    _refreshAllComplaints();
-    _refreshOpen();
+    if (_hasPerm('complaints.read.all')) {
+      _refreshAllComplaints();
+    }
+    if (_hasPerm('complaints.read.open')) {
+      _refreshOpen();
+    }
     _refreshCapaDashboard();
     _refreshChangeSummary();
-    _refreshCapaReports();
+    if (_hasPerm('capas.read')) {
+      _refreshCapaReports();
+    }
     _refreshReps();
     _loadCatalogConfigAdmin();
     _loadProducts();
     _refreshFaq();
     _loadPortalFeed();
-    _refreshChatUnread();
-    _chatUnreadTimer =
-        Timer.periodic(const Duration(seconds: 20), (_) => _refreshChatUnread());
+    if (_hasPerm('chat.read')) {
+      _refreshChatUnread();
+      _chatUnreadTimer =
+          Timer.periodic(const Duration(seconds: 20), (_) => _refreshChatUnread());
+    } else {
+      _chatHasUnread = false;
+    }
     _portalFeedPulseTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
       if (mounted) setState(() => _portalFeedPulse++);
     });
@@ -2337,6 +2375,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshOpen() async {
+    if (!_hasPerm('complaints.read.open')) return;
     setState(() {
       _err = null;
       _loadOpen = true;
@@ -2397,6 +2436,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshCapaReports() async {
+    if (!_hasPerm('capas.read')) return;
     setState(() {
       _capaReportsLoading = true;
       _capaReportsErr = null;
@@ -2416,6 +2456,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshAllComplaints() async {
+    if (!_hasPerm('complaints.read.all')) return;
     setState(() {
       _err = null;
       _complaintListErr = null;
@@ -5859,8 +5900,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 ],
               ),
             ),
-            floatingActionButton:
-                InternalChatFab(onTap: _openInternalChat, hasUnread: _chatHasUnread),
+            floatingActionButton: _hasPerm('chat.read')
+                ? InternalChatFab(onTap: _openInternalChat, hasUnread: _chatHasUnread)
+                : null,
             floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
             bottomNavigationBar: LegalFooter(api: widget.api),
           );
@@ -5870,6 +5912,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Future<void> _openInternalChat({String? conversationId}) async {
+    if (!_hasPerm('chat.read')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Keine Berechtigung')),
+        );
+      }
+      return;
+    }
     await _ensureChatAvatarMap();
     // Hinweis: Für Flutter Web mit aktivem Service Worker kann ein Hard Refresh nötig sein,
     // damit neue UI-Anpassungen direkt sichtbar werden.
@@ -6447,8 +6497,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       key: _onboardingSearchBarKey,
                       child: GlobalSearchBar(
                         api: widget.api,
-                        chatService: _chatService,
-                        currentUserId: _portalChatId,
+                        chatService: _hasPerm('chat.read') ? _chatService : null,
+                        currentUserId: _hasPerm('chat.read') ? _portalChatId : null,
                         onNavigate: _handleGlobalSearchNavigate,
                       ),
                     )
@@ -6464,7 +6514,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final shouldRefreshFaq = view == AdminView.faq &&
         !_faqLoading &&
         (_faqCategories.isEmpty || _faqEntries.isEmpty);
-    final shouldRefreshComplaints = view == AdminView.complaintList && !_loadAllComplaints;
+    final shouldRefreshComplaints = view == AdminView.complaintList &&
+        !_loadAllComplaints &&
+        _hasPerm('complaints.read.list');
     if (view == AdminView.supplierEvaluation) {
       _supplierEvaluationFocusId = null;
     }
@@ -10133,8 +10185,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   Widget _buildView() {
     switch (_view) {
       case AdminView.all:
+        if (!_hasPerm('complaints.read.all')) return _noPermissionPanel();
         return _buildAllComplaintsPanel();
       case AdminView.complaintList:
+        if (!_hasPerm('complaints.read.list')) return _noPermissionPanel();
         return ComplaintListPage(
           api: widget.api,
           complaints: _complaintListItems(),
@@ -10149,6 +10203,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           prrcReadOnly: !_portalIsPrrc,
         );
       case AdminView.capaReports:
+        if (!_hasPerm('capas.read')) return _noPermissionPanel();
         return CapaOverviewPage(
           api: widget.api,
           canWrite: _canWriteTile('capaReports'),
@@ -10183,6 +10238,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       case AdminView.users:
         return _buildUsersPanel();
       case AdminView.open:
+        if (!_hasPerm('complaints.read.open')) return _noPermissionPanel();
         return _buildOpenPanel();
       case AdminView.menu:
         return const SizedBox.shrink();
@@ -23894,19 +23950,31 @@ class AdminApi {
     _portalToken = portalHeader;
     _secret = secretHeader;
 
-    // Falls ein Admin-Secret vorhanden ist, setze es ohne das (möglicherweise
-    // abgelaufene) Portal-JWT zu senden. Einige Browser behalten alte Portal-
-    // Sessions länger im LocalStorage; würde dann ein ungültiges JWT im
-    // Authorization-Header landen, schlägt der Request trotz gültigem
-    // Admin-Secret mit 401 fehl. Ohne Authorization-Header greifen Admin-
-    // Secrets zuverlässig als Fallback.
-    final usePortalHeader = portalHeader.isNotEmpty && secretHeader.isEmpty;
-
     return {
       'Content-Type': 'application/json; charset=utf-8',
-      if (usePortalHeader) 'Authorization': 'Bearer $portalHeader',
+      if (portalHeader.isNotEmpty) 'Authorization': 'Bearer $portalHeader',
       if (secretHeader.isNotEmpty) 'X-Admin-Secret': secretHeader,
     };
+  }
+
+  void _logAuthChoice(String path) {
+    if (!kDebugMode) return;
+    final lower = path.toLowerCase();
+    if (!lower.startsWith('/api/admin') && !lower.startsWith('/api/chat')) return;
+    final storedPortal = (html.window.localStorage['dfs_portal_token'] ?? '').trim();
+    final storedSecret = (html.window.localStorage['dfs_admin'] ?? '').trim();
+    final portalHeader = storedPortal.isNotEmpty ? storedPortal : _portalToken.trim();
+    final secretHeader = storedSecret.isNotEmpty ? storedSecret : _secret.trim();
+    final hasPortal = portalHeader.isNotEmpty;
+    final hasSecret = secretHeader.isNotEmpty;
+    final label = hasPortal && hasSecret
+        ? 'portal+admin-secret'
+        : hasPortal
+            ? 'portal'
+            : hasSecret
+                ? 'admin-secret'
+                : 'none';
+    debugPrint('API auth [$path]: $label');
   }
 
   Uri _u(String path, [Map<String, String>? q]) {
@@ -23922,6 +23990,7 @@ class AdminApi {
     Object? body,
   }) async {
     try {
+      _logAuthChoice(path);
       final res = await html.HttpRequest.request(
         _u(path, q).toString(),
         method: method,
@@ -23956,6 +24025,7 @@ class AdminApi {
   }) async {
     final payload = body is String ? body : (body == null ? null : jsonEncode(body));
     try {
+      _logAuthChoice(path);
       final req = html.HttpRequest();
       req
         ..open(method, _u(path, q).toString())
@@ -23999,6 +24069,7 @@ class AdminApi {
     Map<String, String>? q,
   }) async {
     try {
+      _logAuthChoice(path);
       final res = await html.HttpRequest.request(
         _u(path, q).toString(),
         method: method,

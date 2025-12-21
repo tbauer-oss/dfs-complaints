@@ -32,8 +32,9 @@ class ChatService {
   }
 
   Future<List<PortalUserSummary>> _loadStaffUsers() async {
-    final uri = api.buildUri('/api/admin/users', query: {'scope': 'staff', 'includeInactive': 'true'});
-    final response = await http.get(uri, headers: api.portalHeaders());
+    const path = '/api/admin/users';
+    final uri = api.buildUri(path, query: {'scope': 'staff', 'includeInactive': 'true'});
+    final response = await http.get(uri, headers: api.portalHeadersFor(path));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final list = jsonBody['users'] as List<dynamic>? ?? const [];
@@ -46,8 +47,9 @@ class ChatService {
   }
 
   Future<List<ChatConversationSummary>> fetchConversations() async {
-    final uri = api.buildUri('/api/chat/v1/conversations', query: {'limit': '50'});
-    final response = await http.get(uri, headers: api.portalHeaders());
+    const path = '/api/chat/v1/conversations';
+    final uri = api.buildUri(path, query: {'limit': '50'});
+    final response = await http.get(uri, headers: api.portalHeadersFor(path));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final list = jsonBody['conversations'] as List<dynamic>? ?? const [];
@@ -62,11 +64,12 @@ class ChatService {
     String participantDisplayName,
     {String? currentUserId, String? currentUserDisplayName}
   ) async {
-    final uri = api.buildUri('/api/chat/v1/dm');
+    const path = '/api/chat/v1/dm';
+    final uri = api.buildUri(path);
     final payload = {
       'peerEmail': participantEmail,
     };
-    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    final response = await http.post(uri, headers: api.portalHeadersFor(path), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final convId = (jsonBody['convId'] ?? jsonBody['conversationId'] ?? '').toString();
@@ -117,14 +120,15 @@ class ChatService {
     String? initialMessage,
     String? groupIcon,
   }) async {
-    final uri = api.buildUri('/api/chat/v1/groups');
+    const path = '/api/chat/v1/groups';
+    final uri = api.buildUri(path);
     final payload = {
       'title': title,
       'memberUids': memberUids,
       if (initialMessage != null && initialMessage.trim().isNotEmpty) 'initialMessage': initialMessage,
       if (groupIcon != null) 'meta': {'groupIcon': groupIcon},
     };
-    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    final response = await http.post(uri, headers: api.portalHeadersFor(path), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final data = jsonBody['conversation'] as Map<String, dynamic>;
@@ -132,8 +136,9 @@ class ChatService {
   }
 
   Future<List<ChatUserSummary>> searchUsers(String query) async {
-    final uri = api.buildUri('/api/chat/v1/users', query: {'query': query, 'limit': '50'});
-    final response = await http.get(uri, headers: api.portalHeaders());
+    const path = '/api/chat/v1/users';
+    final uri = api.buildUri(path, query: {'query': query, 'limit': '50'});
+    final response = await http.get(uri, headers: api.portalHeadersFor(path));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final list = jsonBody['users'] as List<dynamic>? ?? const [];
@@ -149,8 +154,9 @@ class ChatService {
     final query = <String, dynamic>{'limit': '$limit'};
     if (afterTs != null) query['afterTs'] = '$afterTs';
     if (beforeTs != null) query['beforeTs'] = '$beforeTs';
-    final uri = api.buildUri('/api/chat/v1/conversations/$convId/messages', query: query);
-    final response = await http.get(uri, headers: api.portalHeaders());
+    final path = '/api/chat/v1/conversations/$convId/messages';
+    final uri = api.buildUri(path, query: query);
+    final response = await http.get(uri, headers: api.portalHeadersFor(path));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     final messages = (jsonBody['messages'] as List<dynamic>? ?? const [])
@@ -165,37 +171,41 @@ class ChatService {
   }
 
   Future<ChatMessage> sendMessage(String convId, String body, {String? msgId}) async {
-    final uri = api.buildUri('/api/chat/v1/conversations/$convId/messages');
+    final path = '/api/chat/v1/conversations/$convId/messages';
+    final uri = api.buildUri(path);
     final payload = {
       'body': body,
       if (msgId != null) 'msgId': msgId,
     };
-    final response = await http.post(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    final response = await http.post(uri, headers: api.portalHeadersFor(path), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
   }
 
   Future<ChatMessage> updateMessage(String messageId, String body) async {
-    final uri = api.buildUri('/api/chat/v1/messages/$messageId');
+    final path = '/api/chat/v1/messages/$messageId';
+    final uri = api.buildUri(path);
     final payload = {'body': body};
-    final response = await http.patch(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    final response = await http.patch(uri, headers: api.portalHeadersFor(path), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
   }
 
   Future<ChatMessage> deleteMessage(String messageId) async {
-    final uri = api.buildUri('/api/chat/v1/messages/$messageId');
-    final response = await http.delete(uri, headers: api.portalHeaders());
+    final path = '/api/chat/v1/messages/$messageId';
+    final uri = api.buildUri(path);
+    final response = await http.delete(uri, headers: api.portalHeadersFor(path));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     return ChatMessage.fromJson(jsonBody['message'] as Map<String, dynamic>);
   }
 
   Future<void> deleteConversation(String convId) async {
-    final uri = api.buildUri('/api/chat/v1/conversations/$convId');
-    final response = await http.delete(uri, headers: api.portalHeaders());
+    final path = '/api/chat/v1/conversations/$convId';
+    final uri = api.buildUri(path);
+    final response = await http.delete(uri, headers: api.portalHeadersFor(path));
     if (response.statusCode == 204) return;
     api.assertSuccess(response);
   }
@@ -204,9 +214,10 @@ class ChatService {
     String convId,
     String? groupIcon,
   ) async {
-    final uri = api.buildUri('/api/chat/v1/conversations/$convId/meta');
+    final path = '/api/chat/v1/conversations/$convId/meta';
+    final uri = api.buildUri(path);
     final payload = {'groupIcon': groupIcon};
-    final response = await http.patch(uri, headers: api.portalHeaders(), body: jsonEncode(payload));
+    final response = await http.patch(uri, headers: api.portalHeadersFor(path), body: jsonEncode(payload));
     api.assertSuccess(response);
     final jsonBody = jsonDecode(response.body) as Map<String, dynamic>;
     if (jsonBody['meta'] is Map<String, dynamic>) {
