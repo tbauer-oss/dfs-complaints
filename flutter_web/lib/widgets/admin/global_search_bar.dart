@@ -70,8 +70,6 @@ class _GlobalSearchBarState extends State<GlobalSearchBar> {
   List<String> _categoryOptions = const [];
   List<PortalUserSummary> _senderOptions = const [];
 
-  late final ChatService _chatService = widget.chatService ?? ChatService(widget.api);
-
   final Map<String, List<String>> _synonyms = const {
     'reklamation': ['complaint', 'beanstandung'],
     'vertreter': ['sales', 'repräsentant'],
@@ -116,21 +114,25 @@ class _GlobalSearchBarState extends State<GlobalSearchBar> {
     if (_dataLoaded || _loading) return;
     setState(() => _loading = true);
     try {
+      final chatFuture = widget.chatService?.fetchConversations();
       final results = await Future.wait([
         widget.api.adminFetchWikiArticles(),
         widget.api.adminDownloads(),
         widget.api.fetchPortalUsers(),
         widget.api.adminFetchCustomerNewsEntries(),
         widget.api.adminFetchPortalNewsEntries(),
-        _chatService.fetchConversations(),
+        if (chatFuture != null) chatFuture,
       ]);
 
-      final wikiArticles = results[0] as List<WikiArticle>;
-      final downloads = results[1] as List<RepDownloadItem>;
-      final users = results[2] as List<PortalUserSummary>;
-      final customerNews = results[3] as List<CustomerNewsEntry>;
-      final portalNews = results[4] as List<CustomerNewsEntry>;
-      final conversations = results[5] as List<ChatConversationSummary>;
+      var idx = 0;
+      final wikiArticles = results[idx++] as List<WikiArticle>;
+      final downloads = results[idx++] as List<RepDownloadItem>;
+      final users = results[idx++] as List<PortalUserSummary>;
+      final customerNews = results[idx++] as List<CustomerNewsEntry>;
+      final portalNews = results[idx++] as List<CustomerNewsEntry>;
+      final conversations = chatFuture != null
+          ? results[idx++] as List<ChatConversationSummary>
+          : const <ChatConversationSummary>[];
 
       final output = <GlobalSearchResult>[];
 
