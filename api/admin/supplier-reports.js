@@ -6,8 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument as PdfDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
-import { ok, bad, readJsonBody } from '../_lib/http.js';
-import { applyCors } from '../_lib/cors.js';
+import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
   supplierEvaluationAll,
@@ -16,7 +15,6 @@ import {
   supplierPerformanceAll,
   supplierReportLetterLayoutGet,
 } from '../_lib/store.js';
-import { layoutPayloadSize, MAX_LAYOUT_BYTES, validateSupplierReportLayout } from '../_lib/supplierReportLayout.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
 const __filename = fileURLToPath(import.meta.url);
@@ -1526,7 +1524,8 @@ async function buildSupplierReport({ supplierId, year, actor }) {
 }
 
 export default async function handler(req, res) {
-  if (applyCors(req, res, { allowCredentials: Boolean(req?.headers?.cookie) })) return;
+  if (handlePreflight(req, res)) return;
+  setCors(req, res);
 
   const wantsWrite = ['POST'].includes(req.method);
   const actor = await requirePortalAccess(req, res, { tile: SUPPLIER_TILE, write: wantsWrite });
@@ -1543,12 +1542,8 @@ export default async function handler(req, res) {
       return;
     }
     if (format === 'pdf') {
-      const body = req.method === 'POST' ? await readJsonBody(req, { limitBytes: MAX_LAYOUT_BYTES }) : {};
+      const body = req.method === 'POST' ? readJson(req) || {} : {};
       const reportType = req.query?.type || 'report';
-      const hasBody = body && typeof body === 'object' && Object.keys(body).length > 0;
-      if (req.method === 'POST' && hasBody && reportType !== 'letter') {
-        return bad(res, 'Ungültige Layout-Daten.', 400);
-      }
       const yearParam = req.query?.year;
       const year = yearParam ? Number(yearParam) : null;
       const actorName = actor?.email || '';
@@ -1564,17 +1559,8 @@ export default async function handler(req, res) {
       }
       let pdf;
       if (reportType === 'letter') {
-        let layoutConfig = null;
-        if (req.method === 'POST' && hasBody) {
-          if (layoutPayloadSize(body) > MAX_LAYOUT_BYTES) {
-            return bad(res, 'Layout-Daten sind zu groß.', 413);
-          }
-          const validationError = validateSupplierReportLayout(body);
-          if (validationError) {
-            return bad(res, validationError, 400);
-          }
-          layoutConfig = body;
-        }
+        const layoutInput = body?.layout || body?.layoutConfig || null;
+        const layoutConfig = layoutInput && typeof layoutInput === 'object' ? layoutInput : null;
         pdf = await buildSupplierLetter({
           supplierId,
           year,
@@ -1601,7 +1587,7 @@ export default async function handler(req, res) {
       return;
     }
     if (req.method === 'POST') {
-      const body = await readJsonBody(req, { limitBytes: MAX_LAYOUT_BYTES });
+      const body = readJson(req) || {};
       if (body?.format === 'csv') {
         const csv = await buildCsvReport();
         return ok(res, { ok: true, csv });
@@ -1609,12 +1595,6 @@ export default async function handler(req, res) {
     }
     return bad(res, 'Bitte ein gültiges Exportformat angeben.', 400);
   } catch (err) {
-    if (err?.statusCode === 413) {
-      return bad(res, 'Layout-Daten sind zu groß.', 413);
-    }
-    if (err?.statusCode === 400) {
-      return bad(res, 'Ungültiges JSON.', 400);
-    }
     if (err instanceof SupplierReportError) {
       return bad(res, err.message, err.status);
     }

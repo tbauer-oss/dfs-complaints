@@ -1,5 +1,5 @@
 // api/rep/update.js
-import { setCors } from '../_lib/http.js';
+import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { loadRepById, upsertRep } from '../_lib/repsStore.js';
 

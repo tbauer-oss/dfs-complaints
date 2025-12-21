@@ -6,7 +6,7 @@ const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// --- Fallback-CORS (falls _lib/http.js nicht ladbar) ---
+// --- Fallback-CORS (falls _lib/cors.js nicht ladbar) ---
 function setCorsFallback(
   req,
   res,
@@ -32,7 +32,7 @@ function setCorsFallback(
 
 async function ensureCors(req, res, allowHeaders) {
   try {
-    const mod = await import(new URL('../../_lib/http.js', import.meta.url));
+    const mod = await import(new URL('../../_lib/cors.js', import.meta.url));
     if (typeof mod.setCors === 'function') {
       mod.setCors(req, res, allowHeaders);
       return;

@@ -1,5 +1,5 @@
 // api/rep/contact.js
-import { setCors } from '../_lib/http.js';
+import { setCors } from '../_lib/cors.js';
 import { send, tpl } from '../_lib/mail.js'; // Pfad wie bei deinen anderen Routen
 import { mailConfigOk, resolveMailConfig } from '../_lib/mail-config.js';
 
