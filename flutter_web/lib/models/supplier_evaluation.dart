@@ -166,6 +166,99 @@ class Supplier {
   }
 }
 
+class ApprovedSupplierCounts {
+  final int perfCasesIncluded;
+  final int complaints;
+  final int capas;
+  final int escalations;
+
+  const ApprovedSupplierCounts({
+    required this.perfCasesIncluded,
+    required this.complaints,
+    required this.capas,
+    required this.escalations,
+  });
+
+  factory ApprovedSupplierCounts.fromJson(Map<String, dynamic> json) => ApprovedSupplierCounts(
+        perfCasesIncluded: (json['perfCasesIncluded'] ?? 0) as int,
+        complaints: (json['complaints'] ?? 0) as int,
+        capas: (json['capas'] ?? 0) as int,
+        escalations: (json['escalations'] ?? 0) as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'perfCasesIncluded': perfCasesIncluded,
+        'complaints': complaints,
+        'capas': capas,
+        'escalations': escalations,
+      };
+}
+
+class ApprovedSupplier {
+  final String supplierId;
+  final String name;
+  final String supplierNo;
+  final bool isCritical;
+  final String correspondenceLanguage;
+  final String? statusClass;
+  final String decisionText;
+  final double? score;
+  final double? scoreTrend;
+  final int? evaluationYearUsed;
+  final String evaluationState;
+  final String? lastFinalizedAt;
+  final String? nextDueDate;
+  final ApprovedSupplierCounts counts;
+  final Map<String, dynamic> lastChange;
+  final String adminNote;
+  final String reviewedBy;
+  final int? reviewedAt;
+
+  const ApprovedSupplier({
+    required this.supplierId,
+    required this.name,
+    required this.supplierNo,
+    required this.isCritical,
+    required this.correspondenceLanguage,
+    required this.statusClass,
+    required this.decisionText,
+    required this.score,
+    required this.scoreTrend,
+    required this.evaluationYearUsed,
+    required this.evaluationState,
+    required this.lastFinalizedAt,
+    required this.nextDueDate,
+    required this.counts,
+    required this.lastChange,
+    required this.adminNote,
+    required this.reviewedBy,
+    required this.reviewedAt,
+  });
+
+  factory ApprovedSupplier.fromJson(Map<String, dynamic> json) => ApprovedSupplier(
+        supplierId: (json['supplierId'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+        supplierNo: (json['supplierNo'] ?? '').toString(),
+        isCritical: json['isCritical'] == true,
+        correspondenceLanguage: (json['correspondenceLanguage'] ?? 'DE').toString(),
+        statusClass: json['statusClass'] == null ? null : (json['statusClass'] ?? '').toString(),
+        decisionText: (json['decisionText'] ?? '').toString(),
+        score: json['score'] is num ? (json['score'] as num).toDouble() : null,
+        scoreTrend: json['scoreTrend'] is num ? (json['scoreTrend'] as num).toDouble() : null,
+        evaluationYearUsed: json['evaluationYearUsed'] is num ? (json['evaluationYearUsed'] as num).toInt() : null,
+        evaluationState: (json['evaluationState'] ?? 'none').toString(),
+        lastFinalizedAt: json['lastFinalizedAt'] == null ? null : json['lastFinalizedAt'].toString(),
+        nextDueDate: json['nextDueDate'] == null ? null : json['nextDueDate'].toString(),
+        counts: json['counts'] is Map
+            ? ApprovedSupplierCounts.fromJson((json['counts'] as Map).cast<String, dynamic>())
+            : const ApprovedSupplierCounts(perfCasesIncluded: 0, complaints: 0, capas: 0, escalations: 0),
+        lastChange: (json['lastChange'] as Map?)?.cast<String, dynamic>() ?? const {},
+        adminNote: (json['adminNote'] ?? '').toString(),
+        reviewedBy: (json['reviewedBy'] ?? '').toString(),
+        reviewedAt: json['reviewedAt'] is num ? (json['reviewedAt'] as num).toInt() : null,
+      );
+}
+
 class SupplierLookups {
   final List<String> categories;
   final List<String> countries;

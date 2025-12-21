@@ -13,12 +13,14 @@ class SupplierEvaluationPage extends StatefulWidget {
   final bool canWrite;
   final bool isQm;
   final bool canManageLookups;
+  final String? initialSupplierId;
   const SupplierEvaluationPage({
     super.key,
     required this.api,
     required this.canWrite,
     required this.isQm,
     required this.canManageLookups,
+    this.initialSupplierId,
   });
 
   @override
@@ -281,6 +283,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialSupplierId != null && widget.initialSupplierId!.isNotEmpty) {
+      _supplierFilter = widget.initialSupplierId;
+      _selectedSupplierId = widget.initialSupplierId;
+      _annualSupplierId = widget.initialSupplierId;
+    }
     _emailFocusNode.addListener(() {
       if (!_emailFocusNode.hasFocus && !_emailTouched) {
         setState(() => _emailTouched = true);
