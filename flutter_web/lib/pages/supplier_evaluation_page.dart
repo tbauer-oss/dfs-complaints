@@ -67,89 +67,207 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   final _scoreFmt = NumberFormat('0.00', 'de_DE');
   static const String _addLookupValue = '__add__';
   static const List<Map<String, dynamic>> _performanceCategories = [
-    {'key': 'communication', 'label': 'Zusammenarbeit / Kommunikation', 'weight': 0.10, 'allowNa': true},
-    {'key': 'quality', 'label': 'Produktqualität', 'weight': 0.30, 'allowNa': false},
-    {'key': 'delivery', 'label': 'Einhaltung der Lieferfrist', 'weight': 0.15, 'allowNa': false},
-    {'key': 'price', 'label': 'Preis (Rechnung korrekt vs. AB/Angebot)', 'weight': 0.15, 'allowNa': false},
-    {'key': 'quantity', 'label': 'Fehllieferungen / Falschlieferungen', 'weight': 0.20, 'allowNa': false},
-    {'key': 'backorders', 'label': 'Nachlieferungen', 'weight': 0.10, 'allowNa': false},
-  ];
-  static const List<String> _ratingScaleLines = [
-    'Note 1 = sehr gut / keine Abweichungen',
-    'Note 2 = gut / geringe Abweichungen',
-    'Note 3 = befriedigend / gelegentliche Abweichungen',
-    'Note 4 = ausreichend / wiederkehrende Abweichungen, spürbarer Aufwand',
-    'Note 5 = mangelhaft / häufige Abweichungen, deutlicher Aufwand/Eskalation',
-    'Note 6 = ungenügend / schwerwiegend, sofortige Maßnahmen erforderlich',
-  ];
-  static const List<Map<String, dynamic>> _ratingExplanation = [
     {
-      'title': 'Zusammenarbeit / Kommunikation (Gewichtung 10 %)',
-      'lines': [
-        '1: Reagiert zeitnah und zuverlässig ohne Erinnerung (oder N/A bei keiner Anfrage)',
-        '2: Reaktion erst nach einmaliger Nachfrage',
-        '3: Mehrmalige Nachfragen erforderlich, Verzögerungen beeinträchtigen Abläufe',
-        '4: Häufig verspätete/unklare Rückmeldungen, merkliche Prozessstörungen',
-        '5: Kommunikation regelmäßig unzureichend, Eskalation intern erforderlich',
-        '6: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
-      ],
+      'key': 'communication',
+      'labelDe': 'Zusammenarbeit / Kommunikation',
+      'labelEn': 'Collaboration / communication',
+      'weight': 0.10,
+      'allowNa': true,
     },
     {
-      'title': 'Produktqualität (Gewichtung 30 %)',
-      'lines': [
-        '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum',
-        '2: Vereinzelte, geringfügige Beanstandungen ohne systematische Ursache',
-        '3: Wiederkehrende geringere Beanstandungen / moderate Abweichungen mit Nacharbeit',
-        '4: Wiederkehrende relevante Abweichungen, erheblicher Prüf-/Nacharbeitsaufwand',
-        '5: Häufige Qualitätsmängel, formale Eskalation erforderlich',
-        '6: Schwerwiegende/häufige Qualitätsmängel, CAPA zwingend erforderlich',
-      ],
+      'key': 'quality',
+      'labelDe': 'Produktqualität',
+      'labelEn': 'Product quality',
+      'weight': 0.30,
+      'allowNa': true,
     },
     {
-      'title': 'Einhaltung der Lieferfrist (Gewichtung 15 %)',
-      'lines': [
-        '1: Liefertermine werden zuverlässig eingehalten',
-        '2: Gelegentliche Verzögerungen mit frühzeitiger Information',
-        '3: Wiederholte Verzögerungen, begrenzte Auswirkungen auf Planung',
-        '4: Wiederholte Verzögerungen mit deutlichen Auswirkungen auf interne Planung',
-        '5: Regelmäßige Lieferverzüge, Maßnahmen/Eskalation erforderlich',
-        '6: Erhebliche oder dauerhafte Lieferverzüge ohne angemessene Kommunikation',
-      ],
+      'key': 'delivery',
+      'labelDe': 'Einhaltung der Lieferfrist',
+      'labelEn': 'On-time delivery',
+      'weight': 0.15,
+      'allowNa': true,
     },
     {
-      'title': 'Preis (Rechnung korrekt vs. AB/Angebot) (Gewichtung 15 %)',
-      'lines': [
-        '1: Rechnungen stets korrekt und vertragskonform',
-        '2: Einzelne formale Fehler ohne finanzielle Auswirkung',
-        '3: Gelegentliche Abweichungen, Korrekturaufwand gering',
-        '4: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
-        '5: Häufige Abweichungen, finanzielle/operative Klärung nötig',
-        '6: Schwerwiegende oder wiederholte Abrechnungsfehler, Eskalation erforderlich',
-      ],
+      'key': 'price',
+      'labelDe': 'Preis / Rechnungsstellung korrekt (vs. Auftragsbestätigung/Angebot)',
+      'labelEn': 'Price / invoice correctness (vs. order confirmation/offer)',
+      'weight': 0.15,
+      'allowNa': true,
     },
     {
-      'title': 'Fehllieferungen / Falschlieferungen (Gewichtung 20 %)',
-      'lines': [
-        '1: Lieferungen vollständig und korrekt',
-        '2: Vereinzelte Abweichungen ohne relevante Auswirkungen',
-        '3: Gelegentliche Mengen-/Artikelfehler mit Korrekturaufwand',
-        '4: Wiederkehrende Mengen- oder Artikelfehler, Prozessaufwand deutlich',
-        '5: Häufige Falschlieferungen / gravierende Abweichungen, Eskalation nötig',
-        '6: Regelmäßig gravierende Falschlieferungen, Versorgung/Produktion gefährdet',
-      ],
+      'key': 'quantity',
+      'labelDe': 'Richtige Mengen / richtige Produkte (Fehl-/Falschlieferungen)',
+      'labelEn': 'Correct quantity / products (wrong/short deliveries)',
+      'weight': 0.20,
+      'allowNa': true,
     },
     {
-      'title': 'Nachlieferungen (Gewichtung 10 %)',
-      'lines': [
-        '1: Bestellungen werden vollständig geliefert',
-        '2: Gelegentliche Teillieferungen ohne Beeinträchtigung',
-        '3: Wiederkehrende Teillieferungen mit moderatem Planungsaufwand',
-        '4: Regelmäßige Nachlieferungen mit spürbarem Planungsaufwand',
-        '5: Häufige oder umfangreiche Nachlieferungen, Eskalation erforderlich',
-        '6: Sehr häufige/umfangreiche Nachlieferungen, erhebliche Beeinträchtigung',
-      ],
+      'key': 'backorders',
+      'labelDe': 'Nachlieferungen (Teillieferungen / Backorders)',
+      'labelEn': 'Backorders (partial deliveries)',
+      'weight': 0.10,
+      'allowNa': true,
     },
   ];
+  static const String _auditNoteDe =
+      'Die Lieferantenbewertung ist Bestandteil des Lieferantenmanagements nach DIN EN ISO 13485 (Beschaffung und Lieferantensteuerung). Ziel ist eine nachvollziehbare, objektivierte und wiederholbare Beurteilung anhand definierter Kriterien. Die Notenvergabe erfolgt anhand der unten beschriebenen Stufenbeschreibung und dient als dokumentierter Nachweis der Überwachung sowie als Grundlage für Eskalationen und Maßnahmen.';
+  static const String _auditNoteEn =
+      'Supplier performance evaluation is part of supplier control according to ISO 13485 (purchasing and supplier management). The purpose is a traceable, objective and repeatable assessment using defined criteria. The grading scale below provides documented evidence of monitoring and supports escalation and corrective actions where needed.';
+  static const List<Map<String, String>> _ratingScale = [
+    {
+      'grade': '1',
+      'de': 'Sehr gut: Anforderungen werden vollständig und dauerhaft erfüllt, keine Abweichungen.',
+      'en': 'Excellent: Requirements fully and consistently met; no deviations.',
+    },
+    {
+      'grade': '2',
+      'de': 'Gut: Anforderungen werden überwiegend erfüllt, nur geringe/vereinzelte Abweichungen ohne relevante Auswirkung.',
+      'en': 'Good: Requirements mostly met; minor/isolated deviations without relevant impact.',
+    },
+    {
+      'grade': '3',
+      'de': 'Befriedigend: Erkennbare Abweichungen; Aufwand zur Steuerung/Korrektur vorhanden, Liefer-/Prozessabläufe teilweise beeinträchtigt.',
+      'en': 'Satisfactory: Noticeable deviations; corrective steering effort required; partial impact on operations.',
+    },
+    {
+      'grade': '4',
+      'de': 'Ausreichend: Wiederkehrende oder relevante Abweichungen; erhöhte Steuerung erforderlich; Risiko für Termine/Qualität/Compliance erkennbar.',
+      'en': 'Adequate: Recurrent or relevant deviations; increased control needed; risk to delivery/quality/compliance.',
+    },
+    {
+      'grade': '5',
+      'de': 'Mangelhaft: Häufige oder schwerwiegende Abweichungen; Lieferfähigkeit/Qualität/Compliance unzuverlässig; Maßnahmen/Eskalation zwingend.',
+      'en': 'Poor: Frequent or severe deviations; unreliable performance; escalation/actions mandatory.',
+    },
+    {
+      'grade': '6',
+      'de': 'Ungenügend: Anforderungen werden nicht erfüllt; gravierende Abweichungen oder fehlende Kooperation; Lieferant kritisch, Sperrung/Abkündigung prüfen.',
+      'en': 'Unsatisfactory: Requirements not met; severe deviations or lack of cooperation; supplier critical, blocking/discontinuation to be considered.',
+    },
+  ];
+  static const Map<String, Map<String, dynamic>> _criterionDefinitions = {
+    'communication': {
+      'titleDe': 'Zusammenarbeit / Kommunikation',
+      'titleEn': 'Collaboration / communication',
+      'linesDe': [
+        '1: Reagiert proaktiv, zeitnah und vollständig; keine Erinnerung erforderlich (oder N/A falls keine Anfrage nötig war).',
+        '2: Reagiert zeitnah, gelegentlich 1 Nachfrage; Kommunikation ausreichend klar.',
+        '3: Reagiert verzögert; wiederholt Nachfragen nötig; Abstimmungen verursachen Mehraufwand.',
+        '4: Häufige Verzögerungen; unklare/inkonsistente Antworten; Abläufe beeinträchtigt.',
+        '5: Sehr schlechte Erreichbarkeit; Rückmeldungen spät oder unvollständig; Eskalation erforderlich.',
+        '6: Keine bzw. verweigerte Kommunikation trotz mehrfacher Kontaktversuche.',
+      ],
+      'linesEn': [
+        '1: Responds proactively, promptly, and completely; no reminder required (or N/A if no inquiry was needed).',
+        '2: Responds promptly, occasional single follow-up; communication sufficiently clear.',
+        '3: Responds with delays; repeated follow-ups needed; coordination causes extra effort.',
+        '4: Frequent delays; unclear/inconsistent answers; workflows impacted.',
+        '5: Very poor availability; responses late or incomplete; escalation required.',
+        '6: No or refused communication despite repeated contact attempts.',
+      ],
+    },
+    'quality': {
+      'titleDe': 'Produktqualität',
+      'titleEn': 'Product quality',
+      'linesDe': [
+        '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum.',
+        '2: Vereinzelte geringfügige Beanstandungen ohne systematische Ursache, gut beherrscht.',
+        '3: Wiederkehrende Beanstandungen oder relevante Abweichungen; Nacharbeit/Sortierung erforderlich.',
+        '4: Häufige Abweichungen; deutliche Auswirkungen auf Produktion/Wareneingang; Ursachenklärung notwendig.',
+        '5: Schwerwiegende Mängel oder hohe Fehlerquote; Lieferant verursacht erhebliche Störungen; Maßnahmen zwingend.',
+        '6: Kritische/inakzeptable Qualität; Lieferungen nicht verwendbar; Sperrung/Abkündigung prüfen.',
+      ],
+      'linesEn': [
+        '1: No quality-related complaints in the assessment period.',
+        '2: Isolated minor complaints without systematic cause, well controlled.',
+        '3: Recurring complaints or relevant deviations; rework/sorting required.',
+        '4: Frequent deviations; clear impact on production/goods receipt; root cause analysis needed.',
+        '5: Severe defects or high error rate; supplier causes major disruptions; actions mandatory.',
+        '6: Critical/unacceptable quality; deliveries unusable; consider blocking/discontinuation.',
+      ],
+    },
+    'delivery': {
+      'titleDe': 'Einhaltung der Lieferfrist',
+      'titleEn': 'On-time delivery',
+      'linesDe': [
+        '1: Termine werden zuverlässig eingehalten.',
+        '2: Seltene Verzögerungen; frühzeitige Information; geringe Auswirkung.',
+        '3: Wiederholte Verzögerungen; spürbare Auswirkungen auf Planung/Produktion.',
+        '4: Häufige Verzögerungen; Information verspätet; Termintreue unzuverlässig.',
+        '5: Regelmäßige erhebliche Lieferverzüge; Eskalation/Alternativen erforderlich.',
+        '6: Liefertermine werden systematisch nicht eingehalten; Versorgungssicherheit nicht gegeben.',
+      ],
+      'linesEn': [
+        '1: Dates are reliably met.',
+        '2: Rare delays; early information; minor impact.',
+        '3: Repeated delays; noticeable impact on planning/production.',
+        '4: Frequent delays; late information; reliability is poor.',
+        '5: Regular significant delays; escalation/alternatives required.',
+        '6: Delivery dates are systematically not met; supply security not ensured.',
+      ],
+    },
+    'price': {
+      'titleDe': 'Preis / Rechnungsstellung korrekt',
+      'titleEn': 'Price / invoice correctness',
+      'linesDe': [
+        '1: Rechnungen stets korrekt und vertragskonform (Preis, Menge, Konditionen, Referenzen).',
+        '2: Einzelne formale Fehler ohne finanzielle Auswirkung; schnell korrigiert.',
+        '3: Wiederkehrende Fehler; Korrekturaufwand/Abstimmung notwendig.',
+        '4: Häufige Preis-/Positionsabweichungen; verzögerte Korrekturen; Risiko für falsche Zahlungen.',
+        '5: Schwerwiegende/regelmäßige Abrechnungsfehler; Eskalation erforderlich.',
+        '6: Preis-/Rechnungsstellung nicht vertragskonform; Korrektur verweigert oder nicht nachvollziehbar.',
+      ],
+      'linesEn': [
+        '1: Invoices always correct and contract-compliant (price, quantity, terms, references).',
+        '2: Isolated formal errors without financial impact; corrected quickly.',
+        '3: Recurring errors; correction/coordination effort required.',
+        '4: Frequent price/line deviations; delayed corrections; risk of incorrect payments.',
+        '5: Severe/regular billing errors; escalation required.',
+        '6: Price/invoicing not contract-compliant; correction refused or not traceable.',
+      ],
+    },
+    'quantity': {
+      'titleDe': 'Richtige Mengen / richtige Produkte',
+      'titleEn': 'Correct quantity / products',
+      'linesDe': [
+        '1: Lieferungen vollständig und korrekt (Artikel, Menge, Identifikation).',
+        '2: Vereinzelte Abweichungen ohne relevante Auswirkung; unkomplizierte Korrektur.',
+        '3: Wiederkehrende Mengen-/Artikelfehler; Mehraufwand im Wareneingang/Produktion.',
+        '4: Häufige Fehl-/Falschlieferungen; deutliche Prozessstörungen.',
+        '5: Schwerwiegende Fehl-/Falschlieferungen; Lieferzuverlässigkeit kritisch; Maßnahmen zwingend.',
+        '6: Systematische Falschlieferungen/Identifikationsfehler; Versorgung und Rückverfolgbarkeit gefährdet.',
+      ],
+      'linesEn': [
+        '1: Deliveries complete and correct (items, quantities, identification).',
+        '2: Isolated deviations without relevant impact; easy correction.',
+        '3: Recurring quantity/item errors; extra effort in goods receipt/production.',
+        '4: Frequent missing/wrong deliveries; significant process disruptions.',
+        '5: Severe missing/wrong deliveries; reliability critical; actions mandatory.',
+        '6: Systematic wrong deliveries/identification errors; supply and traceability at risk.',
+      ],
+    },
+    'backorders': {
+      'titleDe': 'Nachlieferungen (Teillieferungen / Backorders)',
+      'titleEn': 'Backorders / partial deliveries',
+      'linesDe': [
+        '1: Bestellungen werden vollständig geliefert; keine Nachlieferungen erforderlich.',
+        '2: Gelegentliche Teillieferungen ohne Beeinträchtigung; transparent kommuniziert.',
+        '3: Regelmäßige Nachlieferungen; Planungsaufwand entsteht.',
+        '4: Häufige Teillieferungen; Planung und Verfügbarkeit beeinträchtigt.',
+        '5: Umfangreiche/regelmäßige Nachlieferungen; Eskalation/Alternativen erforderlich.',
+        '6: Systematisch unvollständige Lieferungen; Versorgungssicherheit nicht gegeben.',
+      ],
+      'linesEn': [
+        '1: Orders delivered in full; no backorders required.',
+        '2: Occasional partial deliveries without impact; transparently communicated.',
+        '3: Regular backorders; planning effort arises.',
+        '4: Frequent partial deliveries; planning and availability impacted.',
+        '5: Extensive/regular backorders; escalation/alternatives required.',
+        '6: Systematically incomplete deliveries; supply security not ensured.',
+      ],
+    },
+  };
 
   List<String> get _statusOptions =>
       _supplierLookups.statuses.isNotEmpty ? _supplierLookups.statuses : const ['zugelassen', 'in bewertung', 'gesperrt'];
@@ -587,18 +705,29 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     };
   }
 
-  int _ratedCount(Map<String, int?> ratings, {bool communicationNa = false}) {
-    var count = ratings.values.where((value) => value != null).length;
-    if (communicationNa && ratings['communication'] == null) {
-      count += 1;
+  Map<String, bool> _defaultRatingsNa() {
+    return {
+      for (final category in _performanceCategories) category['key'] as String: false,
+    };
+  }
+
+  int _ratedCount(Map<String, int?> ratings, {Map<String, bool>? ratingsNa}) {
+    int count = 0;
+    for (final category in _performanceCategories) {
+      final key = category['key'] as String;
+      if (ratingsNa?[key] == true) {
+        count += 1;
+        continue;
+      }
+      if (ratings[key] != null) count += 1;
     }
     return count;
   }
 
-  bool _isPerformanceComplete(Map<String, int?> ratings, {bool communicationNa = false}) {
+  bool _isPerformanceComplete(Map<String, int?> ratings, {Map<String, bool>? ratingsNa}) {
     for (final category in _performanceCategories) {
       final key = category['key'] as String;
-      if (key == 'communication' && communicationNa) {
+      if (ratingsNa?[key] == true) {
         continue;
       }
       if (ratings[key] == null) return false;
@@ -606,13 +735,13 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     return true;
   }
 
-  double? _computeEntryScore(Map<String, int?> ratings, {bool communicationNa = false}) {
+  double? _computeEntryScore(Map<String, int?> ratings, {Map<String, bool>? ratingsNa}) {
     double total = 0;
     double weightTotal = 0;
     for (final category in _performanceCategories) {
       final key = category['key'] as String;
       final weight = category['weight'] as double;
-      if (key == 'communication' && communicationNa && ratings[key] == null) {
+      if (ratingsNa?[key] == true) {
         continue;
       }
       final value = ratings[key];
@@ -626,10 +755,10 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   String _formatScore(double? grade) => grade == null ? '—' : _scoreFmt.format(grade);
 
-  String _computePerformanceStatus(Map<String, int?> ratings, {bool communicationNa = false}) {
-    final count = _ratedCount(ratings, communicationNa: communicationNa);
+  String _computePerformanceStatus(Map<String, int?> ratings, {Map<String, bool>? ratingsNa}) {
+    final count = _ratedCount(ratings, ratingsNa: ratingsNa);
     if (count == 0) return 'OFFEN';
-    if (_isPerformanceComplete(ratings, communicationNa: communicationNa)) return 'ABGESCHLOSSEN';
+    if (_isPerformanceComplete(ratings, ratingsNa: ratingsNa)) return 'ABGESCHLOSSEN';
     return 'IN_BEARBEITUNG';
   }
 
@@ -744,31 +873,151 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   String _referencePlaceholder(String type) => type == 'BESTELLUNG' ? 'z. B. PO-4711' : 'z. B. LS-2025-12345';
 
-  List<Widget> _buildRatingExplanationWidgets() {
-    final textTheme = Theme.of(context).textTheme;
-    return [
-      Text('Noten: 1=sehr gut … 6=ungenügend. Niedriger ist besser.', style: textTheme.bodySmall),
-      const SizedBox(height: 8),
-      ..._ratingScaleLines.map((line) => Text(line, style: textTheme.bodySmall)),
-      const SizedBox(height: 12),
-      ..._ratingExplanation.map((item) {
-        final lines = (item['lines'] as List<dynamic>).cast<String>();
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item['title'] as String, style: textTheme.titleSmall),
-              const SizedBox(height: 4),
-              ...lines.map((line) => Text(line, style: textTheme.bodySmall)),
-            ],
-          ),
-        );
-      }),
-    ];
+  bool get _isEnglish => _correspondenceLanguage == 'EN';
+
+  String _t(String de, String en) => _isEnglish ? en : de;
+
+  String _categoryLabel(Map<String, dynamic> category) =>
+      _isEnglish ? category['labelEn'] as String : category['labelDe'] as String;
+
+  String _ratingScaleTooltip() => _t(
+        'Notensystem 1–6: 1=Sehr gut, 2=Gut, 3=Befriedigend, 4=Ausreichend, 5=Mangelhaft, 6=Ungenügend.',
+        'Rating scale 1–6: 1=Excellent, 2=Good, 3=Satisfactory, 4=Adequate, 5=Poor, 6=Unsatisfactory.',
+      );
+
+  List<Map<String, String>> _splitGradeLines(List<String> lines) {
+    return lines.map((line) {
+      final parts = line.split(':');
+      if (parts.length < 2) {
+        return {'grade': '', 'text': line.trim()};
+      }
+      return {
+        'grade': parts.first.trim(),
+        'text': parts.sublist(1).join(':').trim(),
+      };
+    }).toList();
   }
 
-  Future<void> _showRatingExplanation() async {
+  Widget _buildRatingScaleTable() {
+    final textTheme = Theme.of(context).textTheme;
+    final rows = _ratingScale
+        .map(
+          (row) => TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(row['grade']!, style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(_isEnglish ? row['en']! : row['de']!, style: textTheme.bodySmall),
+              ),
+            ],
+          ),
+        )
+        .toList();
+    return Table(
+      columnWidths: const {
+        0: FixedColumnWidth(28),
+        1: FlexColumnWidth(),
+      },
+      children: [
+        TableRow(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(_t('Note', 'Grade'), style: textTheme.labelSmall),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(_t('Bedeutung', 'Meaning'), style: textTheme.labelSmall),
+            ),
+          ],
+        ),
+        ...rows,
+      ],
+    );
+  }
+
+  Widget _buildCriterionDefinitionTable(String key) {
+    final definition = _criterionDefinitions[key] ?? {};
+    final lines = (_isEnglish ? definition['linesEn'] : definition['linesDe']) as List<dynamic>? ?? const [];
+    final rows = _splitGradeLines(lines.cast<String>());
+    final textTheme = Theme.of(context).textTheme;
+    return Table(
+      columnWidths: const {
+        0: FixedColumnWidth(28),
+        1: FlexColumnWidth(),
+      },
+      children: [
+        TableRow(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(_t('Note', 'Grade'), style: textTheme.labelSmall),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(_t('Beschreibung', 'Description'), style: textTheme.labelSmall),
+            ),
+          ],
+        ),
+        ...rows.map(
+          (row) => TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(row['grade'] ?? '', style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(row['text'] ?? '', style: textTheme.bodySmall),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRatingSystemHelpEntry() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_t('Bewertungssystem', 'Rating system'), style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(
+                  _t(
+                    'Audit-Hinweis: ISO 13485-konforme Lieferantenbewertung mit dokumentierter Nachvollziehbarkeit.',
+                    'Audit note: ISO 13485-aligned supplier evaluation with documented traceability.',
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: _showRatingSystemModal,
+            child: Text(_t('Details', 'Details')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showRatingSystemModal() async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -781,9 +1030,39 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
             child: ListView(
               shrinkWrap: true,
               children: [
-                Text('Wie wird bewertet?', style: Theme.of(context).textTheme.titleMedium),
+                Text(_t('Notensystem 1–6', 'Rating scale 1–6'), style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                ..._buildRatingExplanationWidgets(),
+                Text(_t('Audit-Hinweis', 'Audit note'), style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(_t(_auditNoteDe, _auditNoteEn), style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 12),
+                _buildRatingScaleTable(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showCriterionExplanation(String key) async {
+    if (!mounted) return;
+    final definition = _criterionDefinitions[key] ?? {};
+    final title = _isEnglish ? definition['titleEn'] : definition['titleDe'];
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Text(title?.toString() ?? '', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                _buildCriterionDefinitionTable(key),
               ],
             ),
           ),
@@ -819,23 +1098,25 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     String referenceType = entry?.referenceType.isNotEmpty == true ? entry!.referenceType : 'LIEFERSCHEIN';
     bool includeInAnnual = entry?.includeInAnnual ?? true;
     final ratings = Map<String, int?>.from(entry?.ratings ?? _defaultRatings());
-    bool communicationNa = entry?.communicationNa ?? false;
+    final ratingsNa = Map<String, bool>.from(entry?.ratingsNa ?? _defaultRatingsNa());
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final status = _computePerformanceStatus(ratings, communicationNa: communicationNa);
+            final status = _computePerformanceStatus(ratings, ratingsNa: ratingsNa);
             final progressText =
-                '${_ratedCount(ratings, communicationNa: communicationNa)}/${_performanceCategories.length} bewertet';
-            final gradePreview = _computeEntryScore(ratings, communicationNa: communicationNa);
+                '${_ratedCount(ratings, ratingsNa: ratingsNa)}/${_performanceCategories.length} bewertet';
+            final gradePreview = _computeEntryScore(ratings, ratingsNa: ratingsNa);
             return AlertDialog(
               title: Text(isEditing ? 'Performance-Fall bearbeiten' : 'Performance-Fall erfassen'),
               content: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildRatingSystemHelpEntry(),
+                    const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -874,7 +1155,18 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       items: _suppliers
                           .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
                           .toList(),
-                      onChanged: (value) => setModalState(() => supplierId = value ?? supplierId),
+                      onChanged: (value) {
+                        final nextId = value ?? supplierId;
+                        final nextSupplier = _suppliers.firstWhere(
+                          (s) => s.id == nextId,
+                          orElse: () => _suppliers.first,
+                        );
+                        setModalState(() => supplierId = nextId);
+                        setState(() {
+                          _correspondenceLanguage =
+                              nextSupplier.correspondenceLanguage.isNotEmpty ? nextSupplier.correspondenceLanguage : _correspondenceLanguage;
+                        });
+                      },
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -983,12 +1275,18 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                           children: [
                             Row(
                               children: [
-                                Text('Bewertung (alle Kriterien)', style: Theme.of(context).textTheme.titleSmall),
+                                Tooltip(
+                                  message: _ratingScaleTooltip(),
+                                  child: Text(
+                                    _t('Bewertung (alle Kriterien)', 'Rating (all criteria)'),
+                                    style: Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                ),
                                 const SizedBox(width: 6),
                                 IconButton(
                                   icon: const Icon(Icons.info_outline, size: 18),
-                                  tooltip: 'Wie wird bewertet?',
-                                  onPressed: _showRatingExplanation,
+                                  tooltip: _t('Notensystem 1–6', 'Rating scale 1–6'),
+                                  onPressed: _showRatingSystemModal,
                                 ),
                               ],
                             ),
@@ -997,11 +1295,23 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                               final key = category['key'] as String;
                               final selected = ratings[key];
                               final allowNa = category['allowNa'] == true;
+                              final isNa = ratingsNa[key] == true;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Row(
                                   children: [
-                                    Expanded(child: Text(category['label'] as String)),
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: Text(_categoryLabel(category))),
+                                          IconButton(
+                                            icon: const Icon(Icons.help_outline, size: 18),
+                                            tooltip: _t('Notendefinitionen', 'Grade definitions'),
+                                            onPressed: () => _showCriterionExplanation(key),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                     Wrap(
                                       spacing: 6,
                                       children: [
@@ -1009,30 +1319,28 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                                           ChoiceChip(
                                             label: Text(value.toString()),
                                             selected: selected == value,
-                                            onSelected: (_) => setModalState(() {
-                                              ratings[key] = value;
-                                              if (key == 'communication') {
-                                                communicationNa = false;
-                                              }
-                                            }),
+                                            onSelected: isNa
+                                                ? null
+                                                : (_) => setModalState(() {
+                                                      ratings[key] = value;
+                                                      ratingsNa[key] = false;
+                                                    }),
                                           ),
                                         if (allowNa)
                                           ChoiceChip(
                                             label: const Text('N/A'),
-                                            selected: communicationNa && selected == null,
+                                            selected: isNa,
                                             onSelected: (_) => setModalState(() {
-                                              communicationNa = true;
+                                              ratingsNa[key] = true;
                                               ratings[key] = null;
                                             }),
                                           ),
                                         ChoiceChip(
-                                          label: const Text('zurücksetzen'),
-                                          selected: selected == null && (!allowNa || !communicationNa),
+                                          label: Text(_t('zurücksetzen', 'reset')),
+                                          selected: selected == null && !isNa,
                                           onSelected: (_) => setModalState(() {
                                             ratings[key] = null;
-                                            if (key == 'communication') {
-                                              communicationNa = false;
-                                            }
+                                            ratingsNa[key] = false;
                                           }),
                                         ),
                                       ],
@@ -1041,6 +1349,13 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                                 ),
                               );
                             }),
+                            Text(
+                              _t(
+                                'Bewerten Sie jede Kategorie anhand der Stufenbeschreibung. Wenn eine Kategorie im Zeitraum nicht anwendbar war, wählen Sie \'N/A\' (ohne Einfluss auf den Durchschnitt).',
+                                'Rate each category using the grade descriptions. If a category was not applicable during the period, choose \'N/A\' (excluded from average).',
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ],
                         ),
                       ),
@@ -1051,7 +1366,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                       onChanged: (value) => setModalState(() => includeInAnnual = value),
                       title: const Text('In Jahresbewertung berücksichtigen'),
                     ),
-                    if (_computePerformanceStatus(ratings, communicationNa: communicationNa) != 'ABGESCHLOSSEN')
+                    if (_computePerformanceStatus(ratings, ratingsNa: ratingsNa) != 'ABGESCHLOSSEN')
                       Padding(
                         padding: const EdgeInsets.only(left: 16, bottom: 4),
                         child: Text(
@@ -1067,7 +1382,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                   TextButton(
                     onPressed: () => setModalState(() {
                       ratings.updateAll((key, value) => null);
-                      communicationNa = false;
+                      ratingsNa.updateAll((key, value) => false);
                     }),
                     child: const Text('Bewertungen zurücksetzen'),
                   ),
@@ -1100,14 +1415,15 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       referenceType: referenceType,
       referenceNumber: referenceNumber,
       ratings: ratings,
-      communicationNa: communicationNa,
+      ratingsNa: ratingsNa,
+      communicationNa: ratingsNa['communication'] == true,
       ratingSchemaVersion: 3,
       attachments: entry?.attachments ?? const [],
       includeInAnnual: includeInAnnual,
-      status: _computePerformanceStatus(ratings, communicationNa: communicationNa),
+      status: _computePerformanceStatus(ratings, ratingsNa: ratingsNa),
       cancelReason: entry?.cancelReason ?? '',
-      computedGrade: _computeEntryScore(ratings, communicationNa: communicationNa),
-      computedScore: _computeEntryScore(ratings, communicationNa: communicationNa),
+      computedGrade: _computeEntryScore(ratings, ratingsNa: ratingsNa),
+      computedScore: _computeEntryScore(ratings, ratingsNa: ratingsNa),
       computedAt: DateTime.now().millisecondsSinceEpoch,
       deletedAt: entry?.deletedAt,
       deletedBy: entry?.deletedBy ?? '',
@@ -1536,10 +1852,10 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     final included = entries.where(
       (entry) =>
           entry.includeInAnnual &&
-          _computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa) == 'ABGESCHLOSSEN',
+          _computePerformanceStatus(entry.ratings, ratingsNa: entry.ratingsNa) == 'ABGESCHLOSSEN',
     );
     final grades = included
-        .map((entry) => _computeEntryScore(entry.ratings, communicationNa: entry.communicationNa))
+        .map((entry) => _computeEntryScore(entry.ratings, ratingsNa: entry.ratingsNa))
         .whereType<double>()
         .toList();
     final average = grades.isEmpty ? null : grades.reduce((a, b) => a + b) / grades.length;
@@ -1571,9 +1887,9 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }
     final criterionAverages = _performanceCategories.map((category) {
       final key = category['key'] as String;
-      final label = category['label'] as String;
+      final label = _categoryLabel(category);
       final values = included
-          .where((entry) => !(key == 'communication' && entry.communicationNa))
+          .where((entry) => entry.ratingsNa[key] != true)
           .map((entry) => entry.ratings[key])
           .whereType<int>()
           .toList();
@@ -1595,8 +1911,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }
     final includedList = included.toList();
     final openEntries = entries.where((entry) {
-      final complete =
-          _computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa) == 'ABGESCHLOSSEN';
+      final complete = _computePerformanceStatus(entry.ratings, ratingsNa: entry.ratingsNa) == 'ABGESCHLOSSEN';
       return !entry.includeInAnnual || !complete;
     }).toList();
     return {
@@ -2139,7 +2454,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         ? filteredByDeleted
         : filteredByDeleted
             .where(
-              (e) => _computePerformanceStatus(e.ratings, communicationNa: e.communicationNa) == _performanceStatusFilter,
+              (e) => _computePerformanceStatus(e.ratings, ratingsNa: e.ratingsNa) == _performanceStatusFilter,
             )
             .toList();
     return ListView(
@@ -2205,10 +2520,10 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         ...entries.map((entry) {
           final status = entry.deletedAt != null
               ? 'GELÖSCHT'
-              : _computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa);
+              : _computePerformanceStatus(entry.ratings, ratingsNa: entry.ratingsNa);
           final progress =
-              '${_ratedCount(entry.ratings, communicationNa: entry.communicationNa)}/${_performanceCategories.length} bewertet';
-          final grade = _computeEntryScore(entry.ratings, communicationNa: entry.communicationNa);
+              '${_ratedCount(entry.ratings, ratingsNa: entry.ratingsNa)}/${_performanceCategories.length} bewertet';
+          final grade = _computeEntryScore(entry.ratings, ratingsNa: entry.ratingsNa);
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             shape: RoundedRectangleBorder(
@@ -2338,6 +2653,15 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       padding: const EdgeInsets.all(16),
       children: [
         Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: _buildRatingSystemHelpEntry(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
           elevation: 1.5,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
@@ -2356,7 +2680,18 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                         items: _suppliers
                             .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
                             .toList(),
-                        onChanged: (value) => setState(() => _annualSupplierId = value ?? supplierId),
+                        onChanged: (value) {
+                          final nextId = value ?? supplierId;
+                          final nextSupplier = _suppliers.firstWhere(
+                            (s) => s.id == nextId,
+                            orElse: () => supplier,
+                          );
+                          setState(() {
+                            _annualSupplierId = nextId;
+                            _correspondenceLanguage =
+                                nextSupplier.correspondenceLanguage.isNotEmpty ? nextSupplier.correspondenceLanguage : _correspondenceLanguage;
+                          });
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2419,26 +2754,6 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ],
               ],
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: ExpansionTile(
-            title: const Text('Bewertungssystem & Kriterien erklärt'),
-            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            children: [
-              SizedBox(
-                height: 320,
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _buildRatingExplanationWidgets(),
-                  ),
-                ),
-              ),
-            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -2531,22 +2846,22 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                         DataColumn(label: Text('Nummer')),
                         DataColumn(label: Text('Kurzbeschreibung')),
                         DataColumn(label: Text('Score')),
-                        DataColumn(label: Text('Kommunikation N/A')),
+                        DataColumn(label: Text('N/A Kriterien')),
                         DataColumn(label: Text('Jahresbewertung')),
                         DataColumn(label: Text('Status')),
                       ],
                       rows: annualEntries.map((entry) {
+                        final naCount = entry.ratingsNa.values.where((value) => value).length;
                         return DataRow(
                           cells: [
                             DataCell(Text(_dateFmt.format(DateTime.fromMillisecondsSinceEpoch(entry.date)))),
                             DataCell(Text(entry.referenceType)),
                             DataCell(Text(entry.referenceNumber)),
                             DataCell(Text(entry.description)),
-                            DataCell(Text(_formatScore(
-                                _computeEntryScore(entry.ratings, communicationNa: entry.communicationNa)))),
-                            DataCell(Text(entry.communicationNa ? 'Ja' : 'Nein')),
+                            DataCell(Text(_formatScore(_computeEntryScore(entry.ratings, ratingsNa: entry.ratingsNa)))),
+                            DataCell(Text(naCount.toString())),
                             DataCell(Text(entry.includeInAnnual ? 'Ja' : 'Nein')),
-                            DataCell(Text(_computePerformanceStatus(entry.ratings, communicationNa: entry.communicationNa))),
+                            DataCell(Text(_computePerformanceStatus(entry.ratings, ratingsNa: entry.ratingsNa))),
                           ],
                         );
                       }).toList(),
