@@ -5494,6 +5494,15 @@ function defaultSupplierReportLetterLayout() {
     dateBlock: { topMm: 45, rightMm: 20 },
     titleBlock: { topMm: 85 },
     bodyStartMm: 95,
+    signature: {
+      enabled: true,
+      startY: 230,
+      compact: true,
+      showName: true,
+      showTitle: true,
+      showEmail: true,
+      showLegalFooter: true,
+    },
     updatedAt: Date.now(),
     updatedBy: '',
     history: [],
@@ -5544,11 +5553,13 @@ function normalizeSupplierReportLetterLayout(config = {}) {
   const base = config && typeof config === 'object' ? { ...config } : {};
   const defaults = defaultSupplierReportLetterLayout();
   const toNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
+  const toBoolean = (value, fallback) => (typeof value === 'boolean' ? value : fallback);
   const page = base.page && typeof base.page === 'object' ? base.page : {};
   const header = base.header && typeof base.header === 'object' ? base.header : {};
   const recipientBlock = base.recipientBlock && typeof base.recipientBlock === 'object' ? base.recipientBlock : {};
   const dateBlock = base.dateBlock && typeof base.dateBlock === 'object' ? base.dateBlock : {};
   const titleBlock = base.titleBlock && typeof base.titleBlock === 'object' ? base.titleBlock : {};
+  const signature = base.signature && typeof base.signature === 'object' ? base.signature : {};
   const merged = {
     ...defaults,
     ...base,
@@ -5574,6 +5585,15 @@ function normalizeSupplierReportLetterLayout(config = {}) {
       topMm: toNumber(titleBlock.topMm, defaults.titleBlock.topMm),
     },
     bodyStartMm: toNumber(base.bodyStartMm, defaults.bodyStartMm),
+    signature: {
+      enabled: toBoolean(signature.enabled, defaults.signature.enabled),
+      startY: toNumber(signature.startY, defaults.signature.startY),
+      compact: toBoolean(signature.compact, defaults.signature.compact),
+      showName: toBoolean(signature.showName, defaults.signature.showName),
+      showTitle: toBoolean(signature.showTitle, defaults.signature.showTitle),
+      showEmail: toBoolean(signature.showEmail, defaults.signature.showEmail),
+      showLegalFooter: toBoolean(signature.showLegalFooter, defaults.signature.showLegalFooter),
+    },
   };
   merged.id = defaults.id;
   merged.version = Number(merged.version || defaults.version);

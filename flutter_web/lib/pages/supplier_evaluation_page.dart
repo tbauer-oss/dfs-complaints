@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -44,6 +45,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   bool _emailValidationRequested = false;
   bool _layoutSaving = false;
   bool _layoutPreviewing = false;
+  Timer? _layoutPreviewTimer;
 
   final _supplierFormKey = GlobalKey<FormState>();
   final _emailFieldKey = GlobalKey();
@@ -289,6 +291,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   @override
   void dispose() {
+    _layoutPreviewTimer?.cancel();
     _nameCtrl.dispose();
     _numberCtrl.dispose();
     _addressCtrl.dispose();
@@ -391,6 +394,64 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   void _updateLayoutDraft(SupplierLetterLayoutConfig updated) {
     setState(() => _letterLayoutDraft = updated);
+    _scheduleLayoutPreview(updated);
+  }
+
+  void _scheduleLayoutPreview(SupplierLetterLayoutConfig layout) {
+    _layoutPreviewTimer?.cancel();
+    _layoutPreviewTimer = Timer(const Duration(milliseconds: 500), () {
+      _triggerLayoutPreview(layout);
+    });
+  }
+
+  Future<void> _triggerLayoutPreview(SupplierLetterLayoutConfig layout) async {
+    if (_layoutPreviewing) return;
+    final supplierId = _annualSupplierId ?? _selectedSupplierId ?? (_suppliers.isNotEmpty ? _suppliers.first.id : null);
+    if (supplierId == null) return;
+    setState(() => _layoutPreviewing = true);
+    try {
+      await widget.api.adminSupplierReportPdf(
+        supplierId: supplierId,
+        year: _annualYear,
+        type: 'letter',
+        preview: true,
+        layoutConfig: layout,
+      );
+    } catch (_) {
+      // Silent: auto preview should not interrupt layout edits.
+    } finally {
+      if (mounted) setState(() => _layoutPreviewing = false);
+    }
+  }
+
+  bool _signatureWouldOverflow(SupplierLetterLayoutConfig layout) {
+    if (!layout.signature.enabled) return false;
+    final pageHeightMm = 297.0;
+    final marginBottom = layout.page['marginBottomMm'] ?? 18;
+    final startY = layout.signature.startY;
+    final signatureHeightMm = _estimateSignatureHeightMm(layout.signature);
+    return startY + signatureHeightMm > (pageHeightMm - marginBottom);
+  }
+
+  double _estimateSignatureHeightMm(SupplierLetterSignatureConfig signature) {
+    double ptToMm(double pt) => pt * 0.352777778;
+    final compact = signature.compact;
+    final textSize = compact ? 8.5 : 10.0;
+    final lineHeight = textSize * 1.35;
+    final showLegalFooter = signature.showLegalFooter;
+    var lines = 0;
+    if (signature.showName) lines += 1;
+    if (signature.showTitle) lines += 1;
+    if (showLegalFooter && signature.showEmail) lines += 1;
+    var height = lines * lineHeight;
+    if (showLegalFooter) {
+      final footerSize = compact ? 6.5 : 7.5;
+      final footerLineHeight = footerSize * 1.2;
+      final footerSpacing = compact ? 4.0 : 6.0;
+      final footerRows = compact ? 3 : 2;
+      height += footerSpacing + footerRows * footerLineHeight;
+    }
+    return ptToMm(height);
   }
 
   double _roundToStep(double value, double step) {
@@ -3378,6 +3439,78 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
               max: 160,
               onChanged: (val) => _updateLayoutDraft(layout.copyWith(bodyStartMm: val)),
             ),
+            const SizedBox(height: 12),
+            Text('Signatur & Fußzeile', style: Theme.of(context).textTheme.titleSmall),
+            if (_signatureWouldOverflow(layout) && !layout.signature.compact)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: const Text(
+                  '⚠ Inhalt würde auf Seite 2 laufen – kompakte Signatur empfohlen',
+                  style: TextStyle(color: Colors.orange),
+                ),
+              ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Signatur anzeigen'),
+              value: layout.signature.enabled,
+              onChanged: (val) =>
+                  _updateLayoutDraft(layout.copyWith(signature: layout.signature.copyWith(enabled: val))),
+            ),
+            if (layout.signature.enabled) ...[
+              _buildLayoutSlider(
+                label: 'Position Signatur (mm von oben)',
+                value: layout.signature.startY,
+                min: 160,
+                max: 270,
+                onChanged: (val) =>
+                    _updateLayoutDraft(layout.copyWith(signature: layout.signature.copyWith(startY: val))),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Kompakte Signatur (eine Seite erzwingen)'),
+                value: layout.signature.compact,
+                onChanged: (val) =>
+                    _updateLayoutDraft(layout.copyWith(signature: layout.signature.copyWith(compact: val))),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Name anzeigen'),
+                value: layout.signature.showName,
+                onChanged: (val) => _updateLayoutDraft(
+                  layout.copyWith(signature: layout.signature.copyWith(showName: val ?? true)),
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Funktion anzeigen'),
+                value: layout.signature.showTitle,
+                onChanged: (val) => _updateLayoutDraft(
+                  layout.copyWith(signature: layout.signature.copyWith(showTitle: val ?? true)),
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('E-Mail anzeigen'),
+                value: layout.signature.showEmail,
+                onChanged: (val) => _updateLayoutDraft(
+                  layout.copyWith(signature: layout.signature.copyWith(showEmail: val ?? true)),
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Rechtliche Fußzeile anzeigen (IBAN, HRB, VAT, Logos)'),
+                value: layout.signature.showLegalFooter,
+                onChanged: (val) => _updateLayoutDraft(
+                  layout.copyWith(signature: layout.signature.copyWith(showLegalFooter: val ?? true)),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 12,
