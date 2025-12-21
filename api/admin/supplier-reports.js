@@ -35,21 +35,6 @@ function hexToRgb(hex) {
   return rgb(r / 255, g / 255, b / 255);
 }
 
-function parseBool(value, fallback) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
-    if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
-  }
-  return fallback;
-}
-
-function parsePreview(value) {
-  return ['true', '1', 'yes', 'on'].includes(String(value ?? '').toLowerCase());
-}
-
 function wrapText(text, font, fontSize, maxWidth) {
   const lines = [];
   const paragraphs = String(text ?? '').split('\n');
@@ -859,31 +844,35 @@ async function renderPdfFromHtml(
     printBackground = true,
     landscape = false,
     preferCSSPageSize = true,
-    headless,
   } = {}
 ) {
   const executablePath = await chromium.executablePath();
-  const resolvedHeadless = typeof headless === 'boolean' ? headless : chromium.headless;
-  if (process.env.DEBUG_PDF === '1') {
-    console.log('[supplier-reports] launch options', { headless: resolvedHeadless, headlessType: typeof resolvedHeadless });
-  }
+
+  console.log('[supplier-reports] chromium executablePath:', executablePath);
+  console.log('[supplier-reports] chromium headless:', chromium.headless, 'type:', typeof chromium.headless);
+  console.log('[supplier-reports] chromium args:', chromium.args?.length);
+
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
     executablePath,
-    headless: resolvedHeadless,
+    headless: true,
   });
+
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: ['load', 'domcontentloaded', 'networkidle0'] });
+    await page.setContent(html, { waitUntil: ['domcontentloaded', 'load', 'networkidle0'] });
     await page.emulateMediaType('screen');
-    return await page.pdf({
+
+    const pdf = await page.pdf({
       format: pdfFormat,
       printBackground,
       landscape,
       preferCSSPageSize,
       margin,
     });
+
+    return pdf;
   } finally {
     await browser.close();
   }
@@ -1043,7 +1032,7 @@ function drawPdfTable(layout, {
   layout.moveDown(8);
 }
 
-async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview, headless }) {
+async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview }) {
   const suppliers = await supplierAll();
   const supplierLookup = new Map(suppliers.map((s) => [s.id, s]));
   const entries = await supplierPerformanceAll({ supplierId });
@@ -1241,7 +1230,7 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
     preview_note: previewNote,
   });
 
-  const pdfBytes = await renderPdfFromHtml(html, { headless });
+  const pdfBytes = await renderPdfFromHtml(html);
   return Buffer.from(pdfBytes);
 }
 
@@ -1480,7 +1469,7 @@ export default async function handler(req, res) {
       const yearParam = req.query?.year;
       const year = yearParam ? Number(yearParam) : null;
       const actorName = actor?.email || '';
-      const preview = parsePreview(req.query?.preview ?? body?.preview);
+      const preview = String(req.query?.preview).toLowerCase() === 'true';
       if (yearParam && !Number.isFinite(year)) {
         return bad(res, 'Bitte ein gültiges Bewertungsjahr angeben.', 400);
       }
@@ -1491,7 +1480,6 @@ export default async function handler(req, res) {
         return bad(res, 'Bitte ein Bewertungsjahr angeben.', 400);
       }
       let pdf;
-      const headless = parseBool(req.query?.headless, parseBool(process.env.PUPPETEER_HEADLESS, true));
       if (reportType === 'letter') {
         const layoutInput = body?.layout || body?.layoutConfig || null;
         const layoutConfig = layoutInput && typeof layoutInput === 'object' ? layoutInput : null;
@@ -1501,7 +1489,6 @@ export default async function handler(req, res) {
           actor: actorName,
           layoutConfig,
           preview,
-          headless,
         });
       } else if (reportType === 'report' || reportType === 'internal') {
         pdf = await buildSupplierReport({ supplierId, year, actor: actorName });
