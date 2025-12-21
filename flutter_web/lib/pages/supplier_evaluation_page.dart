@@ -664,6 +664,82 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }
   }
 
+  Map<String, dynamic> _currentStatusSummary(String supplierId) {
+    final year = DateTime.now().year;
+    final annualEntries = _entriesForAnnual(supplierId, year);
+    final summary = _computeAnnualSummary(annualEntries, log: false);
+    final includedCount = summary['includedCount'] as int? ?? 0;
+    final average = summary['average'] as double?;
+    if (includedCount == 0 || average == null) {
+      return {
+        'status': '—',
+        'average': null,
+        'includedCount': 0,
+        'year': year,
+        'hasData': false,
+      };
+    }
+    String status;
+    if (average <= 1.80) {
+      status = 'A';
+    } else if (average <= 2.60) {
+      status = 'B';
+    } else if (average <= 3.40) {
+      status = 'C';
+    } else {
+      status = 'D';
+    }
+    return {
+      'status': status,
+      'average': average,
+      'includedCount': includedCount,
+      'year': year,
+      'hasData': true,
+    };
+  }
+
+  String _currentStatusLabel(String status) {
+    switch (status) {
+      case 'A':
+        return 'A – sehr gut (zugelassen)';
+      case 'B':
+        return 'B – gut (zugelassen)';
+      case 'C':
+        return 'C – befriedigend (zugelassen)';
+      case 'D':
+        return 'D – kritisch (Beobachtung/Eskalation)';
+      default:
+        return '—';
+    }
+  }
+
+  Widget _buildCurrentStatusBadge(String status) {
+    final color = status == '—' ? Colors.grey : _classificationColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(status == '—' ? 0.15 : 0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  void _jumpToAnnualDetails(String supplierId) {
+    setState(() => _annualSupplierId = supplierId);
+    final controller = DefaultTabController.of(context);
+    if (controller != null) {
+      controller.animateTo(2);
+    }
+  }
+
   String _referenceLabel(String type) => type == 'BESTELLUNG' ? 'Bestellnummer' : 'Lieferscheinnummer';
 
   String _referencePlaceholder(String type) => type == 'BESTELLUNG' ? 'z. B. PO-4711' : 'z. B. LS-2025-12345';
@@ -1456,7 +1532,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     }).toList();
   }
 
-  Map<String, dynamic> _computeAnnualSummary(List<SupplierPerformanceEntry> entries) {
+  Map<String, dynamic> _computeAnnualSummary(List<SupplierPerformanceEntry> entries, {bool log = true}) {
     final included = entries.where(
       (entry) =>
           entry.includeInAnnual &&
@@ -1512,9 +1588,11 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       ..removeWhere((item) => item['average'] == null)
       ..sort((a, b) => (b['average'] as double).compareTo(a['average'] as double));
     final worstDrivers = topDrivers.take(2).toList();
-    debugPrint(
-      '[supplier-evaluation] annual summary recomputed: included=${included.length}, avg=${average?.toStringAsFixed(2) ?? '—'}',
-    );
+    if (log) {
+      debugPrint(
+        '[supplier-evaluation] annual summary recomputed: included=${included.length}, avg=${average?.toStringAsFixed(2) ?? '—'}',
+      );
+    }
     final includedList = included.toList();
     final openEntries = entries.where((entry) {
       final complete =
@@ -1557,6 +1635,13 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
 
   Widget _buildSupplierListTile(Supplier supplier) {
     final isSelected = supplier.id == _selectedSupplierId;
+    final statusSummary = _currentStatusSummary(supplier.id);
+    final status = statusSummary['status'] as String;
+    final average = statusSummary['average'] as double?;
+    final year = statusSummary['year'] as int;
+    final hasData = statusSummary['hasData'] as bool;
+    final statusSubtext =
+        hasData ? 'Ø ${_formatScore(average)} ($year)' : 'Noch keine Bewertung vorhanden';
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       elevation: isSelected ? 2 : 0.5,
@@ -1564,7 +1649,20 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       child: ListTile(
         selected: isSelected,
         onTap: () => _selectSupplier(supplier),
-        title: Text(supplier.name),
+        title: Row(
+          children: [
+            Expanded(child: Text(supplier.name)),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _buildCurrentStatusBadge(status),
+                const SizedBox(height: 4),
+                Text(statusSubtext, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ],
+        ),
         subtitle: Text(
           '${supplier.status} • ${supplier.category.isEmpty ? 'ohne Kategorie' : supplier.category}',
         ),
@@ -1679,6 +1777,50 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 ),
             ],
           ),
+          if (isEditing && selected != null && selected.id.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Builder(
+              builder: (context) {
+                final statusSummary = _currentStatusSummary(selected.id);
+                final status = statusSummary['status'] as String;
+                final average = statusSummary['average'] as double?;
+                final includedCount = statusSummary['includedCount'] as int;
+                final year = statusSummary['year'] as int;
+                final hasData = statusSummary['hasData'] as bool;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _buildCurrentStatusBadge(status),
+                        Text(
+                          hasData ? _currentStatusLabel(status) : 'Status: —',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        Text('Ø Score: ${_formatScore(average)} ($year)'),
+                        Text('$includedCount Fälle berücksichtigt'),
+                        TextButton(
+                          onPressed: () => _jumpToAnnualDetails(selected.id),
+                          child: const Text('Details'),
+                        ),
+                      ],
+                    ),
+                    if (!hasData)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Noch keine Bewertung vorhanden',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           _buildSectionCard(
             title: 'Stammdaten',
