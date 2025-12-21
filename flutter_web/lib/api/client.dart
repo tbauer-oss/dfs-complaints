@@ -2408,6 +2408,15 @@ class ApiClient {
         'dateRightMm': layout.dateBlock['rightMm'],
         'subjectTopMm': layout.titleBlock['topMm'],
         'bodyTopMm': layout.bodyStartMm,
+        'signature': {
+          'enabled': layout.signature.enabled,
+          'startY': layout.signature.startY,
+          'compact': layout.signature.compact,
+          'showName': layout.signature.showName,
+          'showTitle': layout.signature.showTitle,
+          'showEmail': layout.signature.showEmail,
+          'showLegalFooter': layout.signature.showLegalFooter,
+        },
       },
     };
     final encodedPayload = jsonEncode(payload);
@@ -2447,7 +2456,18 @@ class ApiClient {
         ? await http.post(
             _u(path),
             headers: _adminHeaders(auth: true),
-            body: jsonEncode(<String, dynamic>{}),
+            body: jsonEncode(<String, dynamic>{
+              if (layoutConfig != null)
+                'layout': {
+                  'page': layoutConfig.page,
+                  'header': layoutConfig.header,
+                  'recipientBlock': layoutConfig.recipientBlock,
+                  'dateBlock': layoutConfig.dateBlock,
+                  'titleBlock': layoutConfig.titleBlock,
+                  'bodyStartMm': layoutConfig.bodyStartMm,
+                  'signature': layoutConfig.signature.toJson(),
+                },
+            }),
           )
         : await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {

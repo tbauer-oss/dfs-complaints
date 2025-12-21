@@ -25,6 +25,15 @@ const BLOCK_KEYS = [
   'subjectTopMm',
   'bodyTopMm',
 ];
+const SIGNATURE_KEYS = [
+  'enabled',
+  'startY',
+  'compact',
+  'showName',
+  'showTitle',
+  'showEmail',
+  'showLegalFooter',
+];
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -97,6 +106,7 @@ function normalizeLayoutInput(input) {
   const recipientBlock = {};
   const dateBlock = {};
   const titleBlock = {};
+  const signature = {};
 
   pickNumericFields(input.page, PAGE_KEYS, page, errors);
 
@@ -105,6 +115,32 @@ function normalizeLayoutInput(input) {
       errors.push('Ungültiges Layout-Format.');
     } else {
       for (const key of Object.keys(input.blocks)) {
+        if (key === 'signature') {
+          const raw = input.blocks.signature;
+          if (!isPlainObject(raw)) {
+            errors.push('Ungültiges Layout-Format.');
+            break;
+          }
+          for (const sigKey of Object.keys(raw)) {
+            if (!SIGNATURE_KEYS.includes(sigKey)) {
+              errors.push('Ungültiges Layout-Format.');
+              break;
+            }
+            const value = raw[sigKey];
+            if (sigKey === 'startY') {
+              if (!isFiniteNumber(value)) {
+                errors.push('Ungültige Layout-Werte.');
+                break;
+              }
+            } else if (typeof value !== 'boolean') {
+              errors.push('Ungültige Layout-Werte.');
+              break;
+            }
+            signature[sigKey] = value;
+          }
+          if (errors.length) break;
+          continue;
+        }
         if (!BLOCK_KEYS.includes(key)) {
           errors.push('Ungültiges Layout-Format.');
           break;
@@ -148,6 +184,7 @@ function normalizeLayoutInput(input) {
   if (Object.keys(recipientBlock).length) layout.recipientBlock = recipientBlock;
   if (Object.keys(dateBlock).length) layout.dateBlock = dateBlock;
   if (Object.keys(titleBlock).length) layout.titleBlock = titleBlock;
+  if (Object.keys(signature).length) layout.signature = signature;
 
   if (errors.length) {
     return { ok: false, error: errors[0] };
