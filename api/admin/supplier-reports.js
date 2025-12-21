@@ -2,7 +2,9 @@
 export const config = { runtime: 'nodejs' };
 
 import PDFDocument from 'pdfkit';
+import fs from 'fs/promises';
 import path from 'path';
+import puppeteer from 'puppeteer';
 import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
@@ -423,6 +425,80 @@ function formatDate(dateValue, locale = 'de-DE') {
   return new Date(dateValue).toLocaleDateString(locale);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildSupplierReference(supplierId, year) {
+  const text = String(supplierId || '').toUpperCase();
+  const hash = [...text].reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const sequence = String(hash % 1000).padStart(3, '0');
+  const refYear = year || new Date().getFullYear();
+  return `SUP-EVAL-${refYear}-${sequence}`;
+}
+
+function statusClassFor(classification) {
+  if (classification === 'A' || classification === 'B') return classification;
+  if (classification === 'C') return 'C';
+  if (classification === 'D' || classification === 'E' || classification === 'F') return 'D';
+  return '';
+}
+
+function statusColorFor(statusClass) {
+  if (statusClass === 'A' || statusClass === 'B') return '#2e7d32';
+  if (statusClass === 'C') return '#f9a825';
+  if (statusClass === 'D') return '#c62828';
+  return '#455a64';
+}
+
+function statusTextFor(statusClass, language) {
+  if (statusClass === 'A' || statusClass === 'B') {
+    return language === 'EN'
+      ? 'Your company remains listed as an approved supplier at DFS-DIAMON.'
+      : 'Ihr Unternehmen ist weiterhin als zugelassener Lieferant bei DFS-DIAMON gelistet.';
+  }
+  if (statusClass === 'C') {
+    return language === 'EN'
+      ? 'Your company is currently under observation. Improvement measures are required.'
+      : 'Ihr Unternehmen wird aktuell unter Beobachtung geführt. Verbesserungsmaßnahmen sind erforderlich.';
+  }
+  if (statusClass === 'D') {
+    return language === 'EN'
+      ? 'Based on the evaluation, further cooperation is currently not possible.'
+      : 'Aufgrund der Bewertung ist derzeit keine weitere Zusammenarbeit möglich.';
+  }
+  return '';
+}
+
+function ratingDescriptions(language) {
+  const lines = language === 'EN' ? RATING_SCALE.EN : RATING_SCALE.DE;
+  const descriptions = new Map();
+  lines.forEach((line) => {
+    const match = line.match(/^(\d)\s*=\s*([^:]+):\s*(.+)$/);
+    if (match) {
+      descriptions.set(Number(match[1]), `${match[2].trim()}: ${match[3].trim()}`);
+    }
+  });
+  return descriptions;
+}
+
+function formatWeighted(value, weight) {
+  if (!Number.isFinite(value)) return '—';
+  return Number((value * weight).toFixed(2));
+}
+
+class SupplierReportError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function drawHeader(doc, title) {
   doc.fontSize(16).fillColor('#000').text(title, { align: 'left' });
   doc.moveDown(0.4);
@@ -503,29 +579,11 @@ async function buildInternalPdf({ supplierId, year, actor }) {
   });
 }
 
-function addLetterHead(doc) {
-  const logoPath = path.join(process.cwd(), 'api', '_assets', 'dfs-logo.png');
-  try {
-    doc.image(logoPath, 420, 40, { width: 120 });
-  } catch (err) {
-    doc.rect(420, 40, 120, 40).stroke('#999');
-    doc.fontSize(8).fillColor('#999').text('TODO Logo', 430, 55);
-  }
-  doc.fontSize(9).fillColor('#333');
-  doc.text('DFS DIAMON GmbH', 360, 100);
-  doc.text('Max-Planck-Straße 11', 360, 112);
-  doc.text('70771 Leinfelden-Echterdingen', 360, 124);
-  doc.text('Tel. +49 711 902 010-0', 360, 136);
-  doc.text('info@dfs-diamon.de', 360, 148);
-  doc.text('www.dfs-diamon.de', 360, 160);
-
-  doc.moveTo(48, 180).lineTo(547, 180).strokeColor('#999').stroke();
-}
-
 async function buildSupplierLetter({ supplierId, year, actor }) {
   const suppliers = await supplierAll();
   const supplierLookup = new Map(suppliers.map((s) => [s.id, s]));
   const entries = await supplierPerformanceAll({ supplierId });
+  const escalations = await supplierEscalationAll({ supplierId });
   const filtered = entries.filter((entry) => {
     if (!entry.includeInAnnual || entry.status !== 'ABGESCHLOSSEN' || entry.deletedAt) return false;
     if (Number.isFinite(year)) {
@@ -534,119 +592,325 @@ async function buildSupplierLetter({ supplierId, year, actor }) {
     }
     return true;
   });
+  if (!filtered.length) {
+    throw new SupplierReportError('Es liegen keine bewertbaren Einträge für den Lieferanten vor.');
+  }
   const aggregates = buildAggregates(filtered);
+  if (!Number.isFinite(aggregates.averageGrade)) {
+    throw new SupplierReportError('Gesamtnote konnte nicht berechnet werden.');
+  }
   const supplier = supplierLookup.get(supplierId) || {};
   const language = supplier.correspondenceLanguage === 'EN' ? 'EN' : 'DE';
-
-  const doc = new PDFDocument({ size: 'A4', margin: 48 });
-  const chunks = [];
-  doc.on('data', (d) => chunks.push(d));
-
-  addLetterHead(doc);
-
-  doc.fontSize(10).fillColor('#333');
-  doc.text('Our ref: DFS-QM-LE', 48, 195);
-  doc.text('From: Tobias Bauer (PRRC)', 48, 210);
-  doc.text(`Date: ${formatDate(Date.now(), language === 'EN' ? 'en-US' : 'de-DE')}`, 48, 225);
-
-  doc.fontSize(11).fillColor('#000');
-  doc.text(supplier.name || supplierId, 48, 250);
-  if (supplier.address) {
-    doc.fontSize(10).fillColor('#333').text(supplier.address, 48, 265);
-  }
-
-  doc.moveDown(8);
-  doc.fontSize(12).fillColor('#000').text(
-    language === 'EN'
-      ? `Supplier Evaluation ${year || ''} – Status`
-      : `Lieferantenbewertung ${year || ''} – Status`
-  );
-  doc.moveDown();
-
-  const decision = aggregates.decision || decisionFor(aggregates.classification);
-  const escalationNote =
-    aggregates.classification === 'E' || aggregates.classification === 'F'
-      ? language === 'EN'
-          ? '\nPlease note: escalation is required for this status.'
-          : '\nHinweis: Für diesen Status ist eine Eskalation erforderlich.'
-      : '';
-  const avgScore = aggregates.averageGrade ?? '—';
-  const bodyTextDe = `Sehr geehrte Damen und Herren,
-
-im Rahmen unserer Lieferantenbewertung für das Jahr ${year || ''} haben wir die Leistung Ihres Unternehmens bewertet. Der Ø-Score beträgt ${avgScore}. Das Ergebnis lautet: ${decision}. Die Bewertung basiert auf sechs Kriterien und einer Notenskala von 1 (sehr gut) bis 6 (ungenügend). Niedriger ist besser.
-
-Bitte entnehmen Sie die wesentlichen Kennzahlen der untenstehenden Zusammenfassung. Bei Rückfragen stehen wir gerne zur Verfügung.
-${escalationNote}`;
-  const bodyTextEn = `Dear Supplier,
-
-as part of our supplier evaluation for ${year || ''}, we assessed your overall performance. The average score is ${avgScore}. The result is: ${decision}. The evaluation is based on six criteria and a rating scale from 1 (very good) to 6 (unsatisfactory). Lower is better.
-
-Please find the key figures in the summary below. If you have questions, feel free to contact us.
-${escalationNote}`;
-  doc.fontSize(11).fillColor('#333').text(language === 'EN' ? bodyTextEn : bodyTextDe, {
-    align: 'left',
+  const locale = language === 'EN' ? 'en-US' : 'de-DE';
+  const statusClass = statusClassFor(aggregates.classification);
+  const statusColor = statusColorFor(statusClass);
+  const reference = buildSupplierReference(supplierId, year);
+  const descriptions = ratingDescriptions(language);
+  const now = Date.now();
+  const periodDates = filtered.map((entry) => entry.date).filter(Boolean).sort();
+  const periodFrom = periodDates[0] ? formatDate(periodDates[0], locale) : null;
+  const periodTo = periodDates.length ? formatDate(periodDates[periodDates.length - 1], locale) : null;
+  const periodLabel = Number.isFinite(year)
+    ? language === 'EN'
+        ? `Calendar year ${year}`
+        : `Kalenderjahr ${year}`
+    : periodFrom && periodTo
+        ? language === 'EN'
+            ? `${periodFrom} – ${periodTo}`
+            : `${periodFrom} – ${periodTo}`
+        : language === 'EN'
+            ? 'Evaluation period'
+            : 'Bewertungszeitraum';
+  const criteriaRows = aggregates.criterionAverages.map((criterion) => {
+    const grade = Number.isFinite(criterion.average) ? Number(criterion.average.toFixed(2)) : null;
+    const description = grade ? descriptions.get(Math.max(1, Math.min(6, Math.round(grade)))) : null;
+    return {
+      label: language === 'EN' ? criterion.labelEn : criterion.labelDe,
+      grade,
+      weight: Math.round(criterion.weight * 100),
+      weighted: formatWeighted(grade, criterion.weight),
+      description,
+    };
   });
-
-  doc.moveDown();
-  const criteriaLines = aggregates.criterionAverages || [];
-  const baseLines = 4;
-  const boxHeight = 22 + (baseLines + criteriaLines.length + 1) * 12;
-  doc.rect(48, doc.y, 500, boxHeight).stroke('#ccc');
-  let boxTop = doc.y + 8;
-  doc
-    .fontSize(10)
-    .fillColor('#000')
-    .text(`${language === 'EN' ? 'Average score' : 'Ø-Score'}: ${aggregates.averageGrade ?? '—'}`, 60, boxTop);
-  boxTop += 14;
-  doc.text(`${language === 'EN' ? 'Classification' : 'Klassifikation'}: ${aggregates.classification || '—'}`, 60, boxTop);
-  boxTop += 14;
-  doc.text(`${language === 'EN' ? 'Decision' : 'Entscheidung'}: ${decision || '—'}`, 60, boxTop);
-  boxTop += 18;
-  doc.text(language === 'EN' ? 'Criterion averages:' : 'Durchschnitt je Kriterium:', 60, boxTop);
-  boxTop += 12;
-  criteriaLines.forEach((criterion) => {
-    const label = language === 'EN' ? criterion.labelEn : criterion.labelDe;
-    doc.text(`${label}: ${criterion.average ?? '—'}`, 72, boxTop);
-    boxTop += 12;
+  const activeEscalations = escalations.filter((esc) => {
+    const status = (esc.status || '').toLowerCase();
+    return status && !['geschlossen', 'abgeschlossen', 'closed', 'done'].includes(status);
   });
-  doc.moveDown(6);
+  const measures = activeEscalations.map((esc) => ({
+    title: esc.trigger || esc.reason || esc.actions || '',
+    details: [esc.reason, esc.actions, esc.owner ? `${language === 'EN' ? 'Owner' : 'Verantwortlich'}: ${esc.owner}` : null]
+      .filter(Boolean)
+      .join(' • '),
+    due: esc.dueDate ? formatDate(esc.dueDate, locale) : null,
+    status: esc.status || '',
+  }));
+  const footerMeta = language === 'EN'
+    ? `Generated on ${new Date(now).toLocaleString(locale)} by ${escapeHtml(actor || 'System')} • Supplier ID: ${escapeHtml(
+        supplierId
+      )}`
+    : `Erzeugt am ${new Date(now).toLocaleString(locale)} durch ${escapeHtml(actor || 'System')} • Lieferanten-ID: ${escapeHtml(
+        supplierId
+      )}`;
 
-  drawRatingSystem(doc, language);
-  drawCriteriaOverview(doc, language);
-  drawCriteriaDefinitions(doc, language);
+  const logoPath = path.join(process.cwd(), 'api', '_assets', 'dfs-logo.png');
+  const logoBuffer = await fs.readFile(logoPath);
+  const logoBase64 = logoBuffer.toString('base64');
+  const dfsBlue = '#7aa7d8';
+  const fromLine = language === 'EN' ? 'DFS – Quality Management' : 'DFS – Quality Management';
+  const headerTemplate = `
+    <div style="font-family: Arial, sans-serif; font-size: 9px; color: ${dfsBlue}; width: 100%; padding: 24px 40px 0 40px; box-sizing: border-box;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div style="line-height: 1.4;">
+          DFS – DIAMON GmbH<br />
+          Ländenstraße 1<br />
+          D-93339 Riedenburg
+        </div>
+        <div style="text-align: right; line-height: 1.4;">
+          <div><img src="data:image/png;base64,${logoBase64}" style="width: 110px;" /></div>
+          DFS – DIAMON GmbH<br />
+          Ländenstraße 1<br />
+          D-93339 Riedenburg<br /><br />
+          Telefon: +49 (0) 94 42 | 91 89-0<br />
+          Telefax: +49 (0) 94 42 | 91 89-37<br />
+          info@dfs-diamon.de<br />
+          www.dfs-diamon.de
+        </div>
+      </div>
+      <div style="border-bottom: 2px solid ${dfsBlue}; margin-top: 12px;"></div>
+      <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 9px;">
+        <div>Our ref: ${escapeHtml(reference)}</div>
+        <div>From: ${escapeHtml(fromLine)}</div>
+        <div>Date: ${escapeHtml(formatDate(now, locale))}</div>
+        <div>Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
+      </div>
+    </div>
+  `;
+  const footerTemplate = `
+    <div style="font-family: Arial, sans-serif; font-size: 8px; color: #6d6d6d; width: 100%; padding: 0 40px 18px 40px; box-sizing: border-box;">
+      <div style="border-top: 1px solid ${dfsBlue}; padding-top: 6px;">
+        Managing Director: Dr. Stefan Brand • Amtsgericht Regensburg HRB 2966 • USt-IdNr.: DE 128580122<br />
+        Bankverbindung: HypoVereinsbank München • IBAN DE68 7002 0270 0062 8465 33 • BIC HYVEDEMMXXX
+      </div>
+    </div>
+  `;
 
-  doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Evidence' : 'Nachweise (Evidence)');
-  if (!aggregates.evidence.length) {
-    doc.fontSize(9).fillColor('#555').text(language === 'EN' ? 'No entries available.' : 'Keine Einträge vorhanden.');
-  } else {
-    aggregates.evidence.forEach((entry) => {
-      const naCount = Object.values(entry.ratingsNa || {}).filter(Boolean).length;
-      doc
-        .fontSize(9)
-        .fillColor('#333')
-        .text(
-          `${formatDate(entry.date, language === 'EN' ? 'en-US' : 'de-DE')} • ${
-            entry.referenceType || (language === 'EN' ? 'Reference' : 'Bezug')
-          } ${entry.referenceNumber || ''} • ${entry.description} • Score ${entry.grade ?? '—'} • ${
-            language === 'EN' ? 'N/A criteria' : 'N/A Kriterien'
-          }: ${naCount}`
-        );
+  const criteriaTable = criteriaRows
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(row.label)}</td>
+          <td>${row.grade ?? '—'}</td>
+          <td>${row.weight}%</td>
+          <td>${row.weighted ?? '—'}</td>
+        </tr>
+        <tr class="criteria-detail">
+          <td colspan="4">${row.description ? escapeHtml(row.description) : language === 'EN' ? 'N/A' : 'k. A.'}</td>
+        </tr>
+      `
+    )
+    .join('');
+
+  const measuresBlock = measures.length
+    ? `
+      <ul>
+        ${measures
+          .map(
+            (measure) => `
+            <li>
+              <strong>${escapeHtml(measure.title || (language === 'EN' ? 'Measure' : 'Maßnahme'))}</strong>
+              ${measure.details ? ` – ${escapeHtml(measure.details)}` : ''}
+              ${measure.due ? ` (${language === 'EN' ? 'Due' : 'Fällig'}: ${escapeHtml(measure.due)})` : ''}
+              ${measure.status ? ` • ${escapeHtml(measure.status)}` : ''}
+            </li>
+          `
+          )
+          .join('')}
+      </ul>
+    `
+    : `<p>${language === 'EN' ? 'No actions are currently required.' : 'Derzeit sind keine Maßnahmen erforderlich.'}</p>`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="${language === 'EN' ? 'en' : 'de'}">
+      <head>
+        <meta charset="UTF-8" />
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            color: #1f1f1f;
+            font-size: 11px;
+            margin: 0;
+            padding: 0;
+          }
+          .page {
+            padding: 0 40px 40px 40px;
+          }
+          h1, h2, h3 {
+            color: #1a1a1a;
+            margin: 18px 0 6px;
+          }
+          h1 {
+            font-size: 16px;
+          }
+          h2 {
+            font-size: 13px;
+          }
+          h3 {
+            font-size: 12px;
+          }
+          p {
+            margin: 6px 0;
+            line-height: 1.5;
+          }
+          .address-block {
+            margin-top: 0;
+            margin-bottom: 12px;
+          }
+          .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 10px;
+          }
+          .summary-card {
+            border: 1px solid #d8d8d8;
+            padding: 10px;
+            border-radius: 4px;
+          }
+          .status-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: ${statusColor};
+            color: #fff;
+            font-weight: bold;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+          }
+          th, td {
+            border: 1px solid #dcdcdc;
+            padding: 6px;
+            text-align: left;
+          }
+          th {
+            background: #f5f7fb;
+          }
+          .criteria-detail td {
+            font-size: 9px;
+            color: #4f4f4f;
+            background: #fafafa;
+          }
+          .signature {
+            margin-top: 24px;
+          }
+          .meta {
+            margin-top: 12px;
+            font-size: 9px;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="address-block">
+            <strong>${escapeHtml(supplier.name || supplierId)}</strong><br />
+            ${supplier.address ? `${escapeHtml(supplier.address).replace(/\n/g, '<br />')}` : ''}
+          </div>
+
+          <h1>${language === 'EN' ? 'Supplier Evaluation Report' : 'Lieferantenbewertung – PDF-Report'}</h1>
+          <p>${language === 'EN' ? 'Supplier evaluation – official communication' : 'Offizielle Lieferanteninformation'}</p>
+
+          <h2>${language === 'EN' ? 'Cover letter' : 'Anschreiben'}</h2>
+          <p>
+            ${
+              language === 'EN'
+                ? `Dear Sir or Madam,<br /><br />
+                As part of our quality management system according to DIN EN ISO 13485, we regularly evaluate our suppliers.<br />
+                Based on the performance data recorded during the evaluation period, we hereby inform you about the current status of your supplier evaluation.<br />
+                The assessment is based on objective criteria such as product quality, delivery reliability, communication, and order fulfillment.<br />
+                Please find the detailed results in the following overview.`
+                : `Sehr geehrte Damen und Herren,<br /><br />
+                im Rahmen unseres Qualitätsmanagementsystems gemäß DIN EN ISO 13485 führen wir regelmäßig eine Bewertung unserer Lieferanten durch.<br />
+                Nach Auswertung der im Bewertungszeitraum erfassten Leistungsdaten teilen wir Ihnen hiermit den aktuellen Status Ihrer Lieferantenbewertung mit.<br />
+                Diese Bewertung basiert auf objektiven Kriterien wie Produktqualität, Liefertreue, Kommunikation sowie der Abwicklung von Bestellungen und Lieferungen.<br />
+                Die detaillierten Ergebnisse entnehmen Sie bitte der nachfolgenden Übersicht.`
+            }
+          </p>
+
+          <h2>${language === 'EN' ? 'Overall evaluation' : 'Gesamtbewertung'}</h2>
+          <div class="summary-grid">
+            <div class="summary-card">
+              <strong>${language === 'EN' ? 'Evaluation period' : 'Bewertungszeitraum'}</strong>
+              <p>${escapeHtml(periodLabel)}</p>
+              <strong>${language === 'EN' ? 'Average grade' : 'Gesamtnote'}</strong>
+              <p>${aggregates.averageGrade.toFixed(2)}</p>
+            </div>
+            <div class="summary-card">
+              <strong>${language === 'EN' ? 'Status class' : 'Statusklasse'}</strong>
+              <p><span class="status-pill">${escapeHtml(statusClass)}</span></p>
+              <strong>${language === 'EN' ? 'Decision' : 'Entscheidung'}</strong>
+              <p>${escapeHtml(decisionFor(aggregates.classification) || '')}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>${language === 'EN' ? 'Criterion' : 'Kriterium'}</th>
+                <th>${language === 'EN' ? 'Grade' : 'Note'}</th>
+                <th>${language === 'EN' ? 'Weighting' : 'Gewichtung'}</th>
+                <th>${language === 'EN' ? 'Weighted contribution' : 'Bewertung'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${criteriaTable}
+            </tbody>
+          </table>
+
+          <h2>${language === 'EN' ? 'Current supplier status' : 'Aktueller Lieferantenstatus'}</h2>
+          <p>${escapeHtml(statusTextFor(statusClass, language))}</p>
+
+          <h2>${language === 'EN' ? 'Measures / notes' : 'Maßnahmen / Hinweise'}</h2>
+          ${measuresBlock}
+
+          <div class="signature">
+            <p>${language === 'EN' ? 'Best regards' : 'Mit freundlichen Grüßen'}</p>
+            <p>
+              Tobias Bauer<br />
+              Head of Quality Management (QMB/BdoL)<br />
+              Person Responsible for Regulatory Compliance (PRRC)
+            </p>
+          </div>
+
+          <div class="meta">
+            ${footerMeta}
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const browser = await puppeteer.launch({
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate,
+      footerTemplate,
+      margin: { top: '220px', bottom: '90px', left: '40px', right: '40px' },
     });
+    return pdf;
+  } finally {
+    await browser.close();
   }
-
-  doc.fontSize(11).fillColor('#333').text(
-    language === 'EN'
-      ? 'Best regards,\n\nTobias Bauer (PRRC)'
-      : 'Mit freundlichen Grüßen,\n\nTobias Bauer (PRRC)'
-  );
-
-  doc.moveDown();
-  doc.fontSize(8).fillColor('#777').text(`Generated by ${actor || 'System'} on ${new Date().toLocaleString()}`);
-
-  doc.end();
-  return await new Promise((resolve) => {
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-  });
 }
 
 export default async function handler(req, res) {
@@ -699,6 +963,9 @@ export default async function handler(req, res) {
     }
     return bad(res, 'Bitte ein gültiges Exportformat angeben.', 400);
   } catch (err) {
+    if (err instanceof SupplierReportError) {
+      return bad(res, err.message, err.status);
+    }
     console.error('[admin/supplier-reports] failed', err);
     return bad(res, 'Export konnte nicht erstellt werden.', 500);
   }

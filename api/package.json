@@ -12,6 +12,7 @@
     "@upstash/redis": "^1.28.3",
     "uuid": "^9.0.1",
     "firebase-admin": "^12.0.0",
-    "pdfkit": "^0.16.0"
+    "pdfkit": "^0.16.0",
+    "puppeteer": "^24.8.2"
   }
 }
