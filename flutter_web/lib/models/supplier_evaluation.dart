@@ -737,3 +737,108 @@ class SupplierEvaluationConfig {
         'history': history,
       };
 }
+
+class SupplierLetterLayoutConfig {
+  final String id;
+  final int version;
+  final Map<String, double> page;
+  final Map<String, double> header;
+  final Map<String, double> recipientBlock;
+  final Map<String, double> dateBlock;
+  final Map<String, double> titleBlock;
+  final double bodyStartMm;
+  final int updatedAt;
+  final String updatedBy;
+  final List<dynamic> history;
+
+  const SupplierLetterLayoutConfig({
+    required this.id,
+    required this.version,
+    required this.page,
+    required this.header,
+    required this.recipientBlock,
+    required this.dateBlock,
+    required this.titleBlock,
+    required this.bodyStartMm,
+    required this.updatedAt,
+    required this.updatedBy,
+    required this.history,
+  });
+
+  factory SupplierLetterLayoutConfig.defaults() => const SupplierLetterLayoutConfig(
+        id: 'letter-default',
+        version: 1,
+        page: {'marginTopMm': 18, 'marginRightMm': 18, 'marginBottomMm': 18, 'marginLeftMm': 18},
+        header: {'logoWidthMm': 35, 'headerTopMm': 10},
+        recipientBlock: {'topMm': 45, 'leftMm': 20},
+        dateBlock: {'topMm': 45, 'rightMm': 20},
+        titleBlock: {'topMm': 85},
+        bodyStartMm: 95,
+        updatedAt: 0,
+        updatedBy: '',
+        history: [],
+      );
+
+  factory SupplierLetterLayoutConfig.fromJson(Map<String, dynamic> json) {
+    double toDouble(dynamic value, double fallback) => value is num ? value.toDouble() : fallback;
+    Map<String, double> toMap(Map? raw, Map<String, double> fallback) {
+      final map = <String, double>{};
+      fallback.forEach((key, value) {
+        map[key] = toDouble(raw?[key], value);
+      });
+      return map;
+    }
+
+    final defaults = SupplierLetterLayoutConfig.defaults();
+    return SupplierLetterLayoutConfig(
+      id: (json['id'] ?? defaults.id).toString(),
+      version: (json['version'] ?? defaults.version) as int,
+      page: toMap(json['page'] as Map?, defaults.page),
+      header: toMap(json['header'] as Map?, defaults.header),
+      recipientBlock: toMap(json['recipientBlock'] as Map?, defaults.recipientBlock),
+      dateBlock: toMap(json['dateBlock'] as Map?, defaults.dateBlock),
+      titleBlock: toMap(json['titleBlock'] as Map?, defaults.titleBlock),
+      bodyStartMm: toDouble(json['bodyStartMm'], defaults.bodyStartMm),
+      updatedAt: (json['updatedAt'] ?? 0) as int,
+      updatedBy: (json['updatedBy'] ?? '').toString(),
+      history: (json['history'] as List?) ?? const [],
+    );
+  }
+
+  SupplierLetterLayoutConfig copyWith({
+    Map<String, double>? page,
+    Map<String, double>? header,
+    Map<String, double>? recipientBlock,
+    Map<String, double>? dateBlock,
+    Map<String, double>? titleBlock,
+    double? bodyStartMm,
+  }) {
+    return SupplierLetterLayoutConfig(
+      id: id,
+      version: version,
+      page: page ?? this.page,
+      header: header ?? this.header,
+      recipientBlock: recipientBlock ?? this.recipientBlock,
+      dateBlock: dateBlock ?? this.dateBlock,
+      titleBlock: titleBlock ?? this.titleBlock,
+      bodyStartMm: bodyStartMm ?? this.bodyStartMm,
+      updatedAt: updatedAt,
+      updatedBy: updatedBy,
+      history: history,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'version': version,
+        'page': page,
+        'header': header,
+        'recipientBlock': recipientBlock,
+        'dateBlock': dateBlock,
+        'titleBlock': titleBlock,
+        'bodyStartMm': bodyStartMm,
+        'updatedAt': updatedAt,
+        'updatedBy': updatedBy,
+        'history': history,
+      };
+}

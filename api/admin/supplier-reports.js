@@ -5,6 +5,8 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument as PdfDocument, StandardFonts, rgb } from 'pdf-lib';
+import chromium from '@sparticuz/chromium';
+import { chromium as playwrightChromium } from 'playwright-core';
 import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
@@ -12,10 +14,15 @@ import {
   supplierEscalationAll,
   supplierAll,
   supplierPerformanceAll,
+  supplierReportLetterLayoutGet,
 } from '../_lib/store.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
 const LETTERHEAD_PATH = path.join(process.cwd(), 'api', '_assets', 'dfs_letterhead.png');
+const LETTER_TEMPLATE_PATHS = {
+  DE: path.join(process.cwd(), 'api', 'templates', 'supplier_letter_de.html'),
+  EN: path.join(process.cwd(), 'api', 'templates', 'supplier_letter_en.html'),
+};
 const PAGE_SIZE = { width: 595.28, height: 841.89 };
 const PAGE_MARGIN = { left: 52, right: 52, top: 150, bottom: 70 };
 
@@ -599,6 +606,253 @@ function formatWeighted(value, weight) {
   return Number((value * weight).toFixed(2));
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderTemplate(template, data) {
+  let rendered = template;
+  Object.entries(data).forEach(([key, value]) => {
+    const token = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+    rendered = rendered.replace(token, value);
+  });
+  return rendered;
+}
+
+function buildLayoutCss(layout) {
+  const page = layout.page || {};
+  const header = layout.header || {};
+  const recipient = layout.recipientBlock || {};
+  const dateBlock = layout.dateBlock || {};
+  const titleBlock = layout.titleBlock || {};
+  const cssVars = `
+    :root {
+      --page-margin-top: ${page.marginTopMm}mm;
+      --page-margin-right: ${page.marginRightMm}mm;
+      --page-margin-bottom: ${page.marginBottomMm}mm;
+      --page-margin-left: ${page.marginLeftMm}mm;
+      --logo-width: ${header.logoWidthMm}mm;
+      --header-top: ${header.headerTopMm}mm;
+      --recipient-top: ${recipient.topMm}mm;
+      --recipient-left: ${recipient.leftMm}mm;
+      --date-top: ${dateBlock.topMm}mm;
+      --date-right: ${dateBlock.rightMm}mm;
+      --title-top: ${titleBlock.topMm}mm;
+      --body-start: ${layout.bodyStartMm}mm;
+    }
+  `;
+
+  const baseCss = `
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", Arial, sans-serif;
+      color: #1f2933;
+      background: #ffffff;
+    }
+    .page {
+      position: relative;
+      width: 210mm;
+      min-height: 297mm;
+      padding: var(--page-margin-top) var(--page-margin-right) var(--page-margin-bottom) var(--page-margin-left);
+    }
+    .letterhead {
+      position: absolute;
+      top: var(--header-top);
+      left: var(--page-margin-left);
+    }
+    .letterhead img {
+      width: var(--logo-width);
+      height: auto;
+    }
+    .recipient-block {
+      position: absolute;
+      top: var(--recipient-top);
+      left: var(--recipient-left);
+      font-size: 10.5pt;
+      line-height: 1.3;
+    }
+    .recipient-block .supplier-name {
+      font-weight: 600;
+      margin-bottom: 2mm;
+    }
+    .date-block {
+      position: absolute;
+      top: var(--date-top);
+      right: var(--date-right);
+      font-size: 10pt;
+      color: #4b5563;
+    }
+    .title-block {
+      position: absolute;
+      top: var(--title-top);
+      left: var(--page-margin-left);
+      right: var(--page-margin-right);
+      font-size: 14pt;
+      font-weight: 700;
+    }
+    .content {
+      margin-top: var(--body-start);
+      font-size: 10.5pt;
+      line-height: 1.5;
+    }
+    h2 {
+      margin: 6mm 0 2mm;
+      font-size: 12pt;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2mm;
+      font-size: 9.5pt;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 2.5mm 2mm;
+      text-align: left;
+    }
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+    }
+    tr.total-row td {
+      font-weight: 600;
+      background: #f1f5f9;
+    }
+    .status-line {
+      margin: 4mm 0;
+      padding: 3mm 3.5mm;
+      border-radius: 4mm;
+      font-weight: 600;
+    }
+    .status-line.status-a,
+    .status-line.status-b {
+      background: #e6f9f0;
+      color: #0f5132;
+    }
+    .status-line.status-c {
+      background: #fff4d6;
+      color: #8a5b00;
+    }
+    .status-line.status-d,
+    .status-line.status-e,
+    .status-line.status-f {
+      background: #fdecea;
+      color: #842029;
+    }
+    .measures ul {
+      margin: 2mm 0 0;
+      padding-left: 5mm;
+    }
+    .signature {
+      margin-top: 8mm;
+      font-size: 10pt;
+    }
+    .signature .name {
+      font-weight: 600;
+    }
+    .preview-watermark {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 72pt;
+      color: rgba(120, 120, 120, 0.15);
+      font-weight: 700;
+      transform: rotate(-20deg);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .preview-note {
+      margin-top: 6mm;
+      font-size: 9.5pt;
+      color: #9a3412;
+      background: #fff7ed;
+      padding: 3mm;
+      border-radius: 3mm;
+      border: 1px dashed #fdba74;
+    }
+  `;
+
+  return `${cssVars}\n${baseCss}`;
+}
+
+function mergeLayoutConfig(base, override) {
+  if (!override || typeof override !== 'object') return base;
+  const toNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
+  const merged = {
+    ...base,
+    ...override,
+    page: {
+      ...base.page,
+      ...(override.page || {}),
+    },
+    header: {
+      ...base.header,
+      ...(override.header || {}),
+    },
+    recipientBlock: {
+      ...base.recipientBlock,
+      ...(override.recipientBlock || {}),
+    },
+    dateBlock: {
+      ...base.dateBlock,
+      ...(override.dateBlock || {}),
+    },
+    titleBlock: {
+      ...base.titleBlock,
+      ...(override.titleBlock || {}),
+    },
+  };
+  merged.page = {
+    marginTopMm: toNumber(merged.page?.marginTopMm, base.page.marginTopMm),
+    marginRightMm: toNumber(merged.page?.marginRightMm, base.page.marginRightMm),
+    marginBottomMm: toNumber(merged.page?.marginBottomMm, base.page.marginBottomMm),
+    marginLeftMm: toNumber(merged.page?.marginLeftMm, base.page.marginLeftMm),
+  };
+  merged.header = {
+    logoWidthMm: toNumber(merged.header?.logoWidthMm, base.header.logoWidthMm),
+    headerTopMm: toNumber(merged.header?.headerTopMm, base.header.headerTopMm),
+  };
+  merged.recipientBlock = {
+    topMm: toNumber(merged.recipientBlock?.topMm, base.recipientBlock.topMm),
+    leftMm: toNumber(merged.recipientBlock?.leftMm, base.recipientBlock.leftMm),
+  };
+  merged.dateBlock = {
+    topMm: toNumber(merged.dateBlock?.topMm, base.dateBlock.topMm),
+    rightMm: toNumber(merged.dateBlock?.rightMm, base.dateBlock.rightMm),
+  };
+  merged.titleBlock = {
+    topMm: toNumber(merged.titleBlock?.topMm, base.titleBlock.topMm),
+  };
+  merged.bodyStartMm = toNumber(merged.bodyStartMm, base.bodyStartMm);
+  return merged;
+}
+
+async function renderPdfFromHtml(html) {
+  const executablePath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.CHROME_PATH || (await chromium.executablePath());
+  const browser = await playwrightChromium.launch({
+    args: chromium.args,
+    executablePath,
+    headless: chromium.headless,
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 1800 } });
+    await page.setContent(html, { waitUntil: 'networkidle' });
+    return await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true });
+  } finally {
+    await browser.close();
+  }
+}
+
 class SupplierReportError extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -753,7 +1007,7 @@ function drawPdfTable(layout, {
   layout.moveDown(8);
 }
 
-async function buildSupplierLetter({ supplierId, year, actor }) {
+async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview }) {
   const suppliers = await supplierAll();
   const supplierLookup = new Map(suppliers.map((s) => [s.id, s]));
   const entries = await supplierPerformanceAll({ supplierId });
@@ -815,193 +1069,143 @@ async function buildSupplierLetter({ supplierId, year, actor }) {
     status: esc.status || '',
   }));
 
-  const pdfDoc = await PdfDocument.create();
-  const backgroundImage = await pdfDoc.embedPng(await fs.readFile(LETTERHEAD_PATH));
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const layout = createPdfLayout(pdfDoc, backgroundImage);
-  const page = layout.getPage();
+  const storedLayout = await supplierReportLetterLayoutGet();
+  const layout = mergeLayoutConfig(storedLayout, layoutConfig);
+  const templatePath = LETTER_TEMPLATE_PATHS[language];
+  const template = await fs.readFile(templatePath, 'utf-8');
+  const letterheadBase64 = (await fs.readFile(LETTERHEAD_PATH)).toString('base64');
 
-  const addressLines = [
-    supplier.name || supplierId,
-    supplier.address,
-    supplier.country,
-  ].filter(Boolean);
-
-  layout.setCursorY(PAGE_SIZE.height - 190);
-  layout.drawLines({
-    lines: [addressLines[0] || supplierId],
-    x: PAGE_MARGIN.left,
-    font: fontBold,
-    fontSize: 11,
-    lineHeight: 14,
-  });
-  if (addressLines.length > 1) {
-    layout.drawLines({
-      lines: addressLines.slice(1),
-      x: PAGE_MARGIN.left,
-      font: fontRegular,
-      fontSize: 10,
-      lineHeight: 13,
-    });
-  }
-
-  page.drawText(
-    language === 'EN' ? `Date: ${formatDate(Date.now(), locale)}` : `Datum: ${formatDate(Date.now(), locale)}`,
-    {
-      x: PAGE_SIZE.width - 220,
-      y: PAGE_SIZE.height - 170,
-      size: 10,
-      font: fontRegular,
-      color: rgb(0, 0, 0),
-    }
-  );
-
-  layout.setCursorY(PAGE_SIZE.height - 260);
   const subject = language === 'EN'
     ? `Supplier Evaluation ${year || new Date().getFullYear()} – Result & Status`
     : `Lieferantenbewertung ${year || new Date().getFullYear()} – Ergebnis & Status`;
-  layout.drawTextBlock({
-    text: subject,
-    x: PAGE_MARGIN.left,
-    font: fontBold,
-    fontSize: 12,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 6,
-  });
 
-  const intro = language === 'EN'
-    ? `Dear Sir or Madam,\n\nAs part of our quality management system according to DIN EN ISO 13485, we evaluate our suppliers on a regular basis. This letter summarizes your evaluation for ${periodLabel}. The overall score is ${aggregates.averageGrade.toFixed(
+  const introText = language === 'EN'
+    ? `Dear Sir or Madam,\n\nAs part of our quality management system according to ISO 13485, we evaluate our suppliers on a regular basis. This letter summarizes your evaluation for ${periodLabel}. Your overall score is ${aggregates.averageGrade.toFixed(
         2
-      )} (status class ${aggregates.classification}).`
-    : `Sehr geehrte Damen und Herren,\n\nim Rahmen unseres Qualitätsmanagementsystems gemäß DIN EN ISO 13485 bewerten wir unsere Lieferanten regelmäßig. Dieses Schreiben fasst Ihre Bewertung für ${periodLabel} zusammen. Die Gesamtnote liegt bei ${aggregates.averageGrade.toFixed(
+      )} (status class ${aggregates.classification}). The assessment is based on documented evidence and weighted criteria.`
+    : `Sehr geehrte Damen und Herren,\n\nim Rahmen unseres Qualitätsmanagementsystems gemäß ISO 13485 bewerten wir unsere Lieferanten regelmäßig. Dieses Schreiben fasst Ihre Bewertung für ${periodLabel} zusammen. Die Gesamtnote beträgt ${aggregates.averageGrade.toFixed(
         2
-      )} (Statusklasse ${aggregates.classification}).`;
+      )} (Statusklasse ${aggregates.classification}). Die Bewertung basiert auf dokumentierten Nachweisen und gewichteten Kriterien.`;
 
-  layout.drawTextBlock({
-    text: intro,
-    x: PAGE_MARGIN.left,
-    font: fontRegular,
-    fontSize: 10,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 6,
-  });
-
+  const classification = aggregates.classification || '';
+  const statusDecision = statusDecisionText(classification, language);
   const statusLine = language === 'EN'
-    ? `Status: ${statusDecisionText(aggregates.classification, 'EN')} – ${statusTextFor(statusClass, 'EN')}`
-    : `Status: ${statusDecisionText(aggregates.classification, 'DE')} – ${statusTextFor(statusClass, 'DE')}`;
+    ? `Status: ${statusDecision} (class ${classification}) – ${statusTextFor(statusClass, 'EN')}`
+    : `Status: ${statusDecision} (Statusklasse ${classification}) – ${statusTextFor(statusClass, 'DE')}`;
 
-  layout.drawTextBlock({
-    text: statusLine,
-    x: PAGE_MARGIN.left,
-    font: fontBold,
-    fontSize: 10,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 8,
-  });
+  const overallRow = {
+    label: language === 'EN' ? 'Overall score' : 'Gesamtnote',
+    grade: aggregates.averageGrade.toFixed(2),
+    weight: '100%',
+    weighted: aggregates.averageGrade.toFixed(2),
+  };
 
-  layout.drawTextBlock({
-    text: language === 'EN' ? 'Criteria summary' : 'Kriterienübersicht',
-    x: PAGE_MARGIN.left,
-    font: fontBold,
-    fontSize: 11,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 4,
-  });
+  const tableRowsHtml = [
+    ...criteriaRows.map(
+      (row) => `
+        <tr>
+          <td>${escapeHtml(row.label)}</td>
+          <td>${escapeHtml(row.grade)}</td>
+          <td>${escapeHtml(row.weight)}</td>
+          <td>${escapeHtml(row.weighted)}</td>
+        </tr>
+      `
+    ),
+    `
+      <tr class="total-row">
+        <td>${escapeHtml(overallRow.label)}</td>
+        <td>${escapeHtml(overallRow.grade)}</td>
+        <td>${escapeHtml(overallRow.weight)}</td>
+        <td>${escapeHtml(overallRow.weighted)}</td>
+      </tr>
+    `,
+  ].join('');
 
-  drawPdfTable(layout, {
-    headers: [
-      language === 'EN' ? 'Criterion' : 'Kriterium',
-      language === 'EN' ? 'Grade' : 'Note',
-      language === 'EN' ? 'Weighting' : 'Gewichtung',
-      language === 'EN' ? 'Weighted' : 'Bewertung',
-    ],
-    rows: criteriaRows.map((row) => [row.label, row.grade, row.weight, row.weighted]),
-    columnWidths: [260, 60, 80, 80],
-    fontRegular,
-    fontBold,
-    fontSize: 9,
-  });
-
-  layout.drawTextBlock({
-    text: language === 'EN' ? 'Measures / notes' : 'Maßnahmen / Hinweise',
-    x: PAGE_MARGIN.left,
-    font: fontBold,
-    fontSize: 11,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 4,
-  });
-
+  const measuresLines = [];
   if (measures.length) {
-    measures.forEach((measure) => {
-      const line = `${measure.title || (language === 'EN' ? 'Measure' : 'Maßnahme')}${
-        measure.details ? ` – ${measure.details}` : ''
-      }${measure.due ? ` (${language === 'EN' ? 'Due' : 'Fällig'}: ${measure.due})` : ''}${
-        measure.status ? ` • ${measure.status}` : ''
-      }`;
-      layout.drawTextBlock({
-        text: `• ${line}`,
-        x: PAGE_MARGIN.left + 10,
-        font: fontRegular,
-        fontSize: 9,
-        maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right - 10,
-        marginBottom: 2,
-      });
-    });
-  } else {
-    layout.drawTextBlock({
-      text: language === 'EN' ? 'No actions are currently required.' : 'Derzeit sind keine Maßnahmen erforderlich.',
-      x: PAGE_MARGIN.left,
-      font: fontRegular,
-      fontSize: 9,
-      maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-      marginBottom: 6,
-    });
+    measuresLines.push(
+      ...measures.map((measure) => {
+        const line = `${measure.title || (language === 'EN' ? 'Measure' : 'Maßnahme')}${
+          measure.details ? ` – ${measure.details}` : ''
+        }${measure.due ? ` (${language === 'EN' ? 'Due' : 'Fällig'}: ${measure.due})` : ''}${
+          measure.status ? ` • ${measure.status}` : ''
+        }`;
+        return escapeHtml(line);
+      })
+    );
   }
 
-  const conclusion = language === 'EN'
-    ? 'Please contact us if you require clarification or would like to discuss improvement measures.'
-    : 'Bitte kontaktieren Sie uns, falls Sie Rückfragen haben oder Verbesserungsmaßnahmen abstimmen möchten.';
+  if (!measuresLines.length) {
+    if (['D', 'E', 'F'].includes(classification)) {
+      measuresLines.push(
+        language === 'EN'
+          ? 'Please provide a corrective action plan and mitigation timeline. Continued approval depends on effective remediation.'
+          : 'Bitte legen Sie einen Maßnahmenplan mit Korrektur- und Präventionsmaßnahmen sowie Zeitplan vor. Die weitere Zulassung hängt von der wirksamen Umsetzung ab.'
+      );
+      measuresLines.push(
+        language === 'EN'
+          ? 'Coordinate corrective actions with DFS-DIAMON quality management.'
+          : 'Stimmen Sie die Korrekturmaßnahmen mit dem Qualitätsmanagement von DFS-DIAMON ab.'
+      );
+    } else if (classification === 'C') {
+      measuresLines.push(
+        language === 'EN'
+          ? 'Improvement measures are required; please align actions and timelines with our quality management.'
+          : 'Verbesserungsmaßnahmen sind erforderlich; bitte stimmen Sie Maßnahmen und Zeitplan mit unserem Qualitätsmanagement ab.'
+      );
+    } else {
+      measuresLines.push(
+        language === 'EN'
+          ? 'No corrective actions are currently required. Please continue to maintain the proven performance level.'
+          : 'Derzeit sind keine Korrekturmaßnahmen erforderlich. Bitte sichern Sie das bestätigte Leistungsniveau weiterhin ab.'
+      );
+    }
+  }
 
-  layout.drawTextBlock({
-    text: conclusion,
-    x: PAGE_MARGIN.left,
-    font: fontRegular,
-    fontSize: 10,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 10,
+  const measuresText = `<ul>${measuresLines.map((line) => `<li>${line}</li>`).join('')}</ul>`;
+
+  const addressParts = [
+    supplier.address,
+    supplier.country,
+  ]
+    .filter(Boolean)
+    .flatMap((line) => String(line).split('\n'))
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const supplierAddressLines = addressParts.map((line) => `<div>${escapeHtml(line)}</div>`).join('');
+
+  const signatureBlock = `
+    <div class="name">Tobias Bauer</div>
+    <div>PRRC • Head of Quality Management (QMB/BdoL)</div>
+  `;
+
+  const previewWatermark = preview ? '<div class="preview-watermark">VORSCHAU</div>' : '';
+  const previewNote = preview
+    ? language === 'EN'
+      ? '<div class="preview-note">PREVIEW: Layout is controlled via configuration (changes are not persisted).</div>'
+      : '<div class="preview-note">VORSCHAU: Layout wird über Konfiguration gesteuert (Änderungen ohne Speicherung).</div>'
+    : '';
+
+  const html = renderTemplate(template, {
+    layout_css: buildLayoutCss(layout),
+    letterhead_base64: `data:image/png;base64,${letterheadBase64}`,
+    supplier_name: escapeHtml(supplier.name || supplierId),
+    supplier_address_lines: supplierAddressLines,
+    date: escapeHtml(language === 'EN' ? `Date: ${formatDate(Date.now(), locale)}` : `Datum: ${formatDate(Date.now(), locale)}`),
+    year: escapeHtml(year || new Date().getFullYear()),
+    status_text: escapeHtml(statusLine),
+    status_class: escapeHtml(classification.toLowerCase()),
+    intro_text: escapeHtml(introText).replace(/\n/g, '<br>'),
+    table_rows_html: tableRowsHtml,
+    measures_text: measuresText,
+    signature_block: signatureBlock,
+    subject: escapeHtml(subject),
+    preview_watermark: previewWatermark,
+    preview_note: previewNote,
   });
 
-  layout.drawTextBlock({
-    text: language === 'EN' ? 'Best regards' : 'Mit freundlichen Grüßen',
-    x: PAGE_MARGIN.left,
-    font: fontRegular,
-    fontSize: 10,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 4,
-  });
-
-  layout.drawTextBlock({
-    text: 'Tobias Bauer (PRRC)\nHead of Quality Management (QMB/BdoL)',
-    x: PAGE_MARGIN.left,
-    font: fontRegular,
-    fontSize: 10,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-    marginBottom: 8,
-  });
-
-  layout.drawTextBlock({
-    text:
-      language === 'EN'
-        ? `Generated on ${new Date().toLocaleString(locale)} by ${actor || 'System'}`
-        : `Erzeugt am ${new Date().toLocaleString(locale)} durch ${actor || 'System'}`,
-    x: PAGE_MARGIN.left,
-    font: fontRegular,
-    fontSize: 8,
-    maxWidth: PAGE_SIZE.width - PAGE_MARGIN.left - PAGE_MARGIN.right,
-  });
-
-  const pdfBytes = await pdfDoc.save();
+  const pdfBytes = await renderPdfFromHtml(html);
   return Buffer.from(pdfBytes);
 }
 
@@ -1235,10 +1439,12 @@ export default async function handler(req, res) {
       return;
     }
     if (format === 'pdf') {
+      const body = req.method === 'POST' ? readJson(req) || {} : {};
       const reportType = req.query?.type || 'report';
       const yearParam = req.query?.year;
       const year = yearParam ? Number(yearParam) : null;
       const actorName = actor?.email || '';
+      const preview = req.query?.preview === 'true' || body?.preview === true;
       if (yearParam && !Number.isFinite(year)) {
         return bad(res, 'Bitte ein gültiges Bewertungsjahr angeben.', 400);
       }
@@ -1250,7 +1456,15 @@ export default async function handler(req, res) {
       }
       let pdf;
       if (reportType === 'letter') {
-        pdf = await buildSupplierLetter({ supplierId, year, actor: actorName });
+        const layoutInput = body?.layout || body?.layoutConfig || null;
+        const layoutConfig = layoutInput && typeof layoutInput === 'object' ? layoutInput : null;
+        pdf = await buildSupplierLetter({
+          supplierId,
+          year,
+          actor: actorName,
+          layoutConfig,
+          preview,
+        });
       } else if (reportType === 'report' || reportType === 'internal') {
         pdf = await buildSupplierReport({ supplierId, year, actor: actorName });
       } else if (reportType === 'summary') {
