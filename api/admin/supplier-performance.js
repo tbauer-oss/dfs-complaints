@@ -105,6 +105,27 @@ function mapCategoryKey(name = '') {
   return 'communication';
 }
 
+function normalizeRatingsNa(ratingsNa = {}, communicationNa = false) {
+  const normalized = {
+    communication: false,
+    quality: false,
+    delivery: false,
+    price: false,
+    quantity: false,
+    backorders: false,
+  };
+  if (ratingsNa && typeof ratingsNa === 'object') {
+    Object.entries(ratingsNa).forEach(([key, value]) => {
+      if (!(key in normalized)) return;
+      normalized[key] = value === true;
+    });
+  }
+  if (communicationNa === true) {
+    normalized.communication = true;
+  }
+  return normalized;
+}
+
 function entryPoints(entry, config) {
   const weights = {
     communication: 0.1,
@@ -115,12 +136,12 @@ function entryPoints(entry, config) {
     backorders: 0.1,
   };
   const ratings = normalizeRatings(entry?.ratings, entry?.ratingSchemaVersion || 3);
-  const communicationNa = entry?.communicationNa === true;
+  const ratingsNa = normalizeRatingsNa(entry?.ratingsNa, entry?.communicationNa === true);
   let total = 0;
   let weightTotal = 0;
   for (const [key, weight] of Object.entries(weights)) {
     const value = ratings[key];
-    if (key === 'communication' && communicationNa && value == null) {
+    if (ratingsNa?.[key] === true) {
       continue;
     }
     if (!Number.isFinite(value)) return null;
@@ -131,10 +152,10 @@ function entryPoints(entry, config) {
   return Number((total / weightTotal).toFixed(2));
 }
 
-function computeStatus(ratings = {}, communicationNa = false, ratingSchemaVersion = 3) {
+function computeStatus(ratings = {}, ratingsNa = {}, ratingSchemaVersion = 3) {
   const normalized = normalizeRatings(ratings, ratingSchemaVersion);
   const values = Object.entries(normalized).filter(([key, value]) => {
-    if (key === 'communication' && communicationNa && value == null) return true;
+    if (ratingsNa?.[key] === true) return true;
     return Number.isFinite(value);
   });
   if (values.length === 0) return 'OFFEN';
@@ -217,18 +238,19 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = readJson(req) || {};
       const ratingSchemaVersion = Number(body?.ratingSchemaVersion || 3);
-      const communicationNa = body?.communicationNa === true;
+      const ratingsNa = normalizeRatingsNa(body?.ratingsNa, body?.communicationNa === true);
       const ratings = normalizeRatings(body.ratings, ratingSchemaVersion);
-      const computedScore = entryPoints({ ratings, communicationNa, ratingSchemaVersion }, {});
+      const computedScore = entryPoints({ ratings, ratingsNa, ratingSchemaVersion }, {});
       const payload = {
         ...applyReferenceFields(body),
         ratings,
-        communicationNa,
+        ratingsNa,
+        communicationNa: ratingsNa.communication,
         ratingSchemaVersion: ratingSchemaVersion >= 3 ? 3 : ratingSchemaVersion >= 2 ? 2 : 1,
         computedGrade: computedScore,
         computedScore,
         computedAt: computedScore != null ? Date.now() : null,
-        status: computeStatus(ratings, communicationNa, ratingSchemaVersion),
+        status: computeStatus(ratings, ratingsNa, ratingSchemaVersion),
         createdAt: body?.createdAt || Date.now(),
         createdBy: actor.email,
         updatedBy: actor.email,
@@ -269,18 +291,19 @@ export default async function handler(req, res) {
       };
       const withReference = applyReferenceFields(draft);
       const ratingSchemaVersion = Number(draft?.ratingSchemaVersion || current.ratingSchemaVersion || 3);
-      const communicationNa = draft?.communicationNa === true;
+      const ratingsNa = normalizeRatingsNa(draft?.ratingsNa, draft?.communicationNa === true);
       const nextRatings = normalizeRatings(draft.ratings ?? current.ratings, ratingSchemaVersion);
-      const computedScore = entryPoints({ ratings: nextRatings, communicationNa, ratingSchemaVersion }, {});
+      const computedScore = entryPoints({ ratings: nextRatings, ratingsNa, ratingSchemaVersion }, {});
       const merged = {
         ...withReference,
         ratings: nextRatings,
-        communicationNa,
+        ratingsNa,
+        communicationNa: ratingsNa.communication,
         ratingSchemaVersion: ratingSchemaVersion >= 3 ? 3 : ratingSchemaVersion >= 2 ? 2 : 1,
         computedGrade: computedScore,
         computedScore,
         computedAt: computedScore != null ? Date.now() : null,
-        status: computeStatus(nextRatings, communicationNa, ratingSchemaVersion),
+        status: computeStatus(nextRatings, ratingsNa, ratingSchemaVersion),
         updatedBy: actor.email,
         updatedAt: Date.now(),
         history: [...(current.history || []), historyEntry],

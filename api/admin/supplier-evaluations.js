@@ -26,19 +26,27 @@ const PERFORMANCE_CRITERIA = [
   { key: 'communication', label: 'Zusammenarbeit / Kommunikation', weight: 0.1 },
   { key: 'quality', label: 'Produktqualität', weight: 0.3 },
   { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.15 },
-  { key: 'price', label: 'Preis (Rechnung korrekt vs. AB/Angebot)', weight: 0.15 },
-  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen', weight: 0.2 },
-  { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
+  {
+    key: 'price',
+    label: 'Preis / Rechnungsstellung korrekt (vs. Auftragsbestätigung/Angebot)',
+    weight: 0.15,
+  },
+  {
+    key: 'quantity',
+    label: 'Richtige Mengen / richtige Produkte (Fehl-/Falschlieferungen)',
+    weight: 0.2,
+  },
+  { key: 'backorders', label: 'Nachlieferungen (Teillieferungen / Backorders)', weight: 0.1 },
 ];
 
 function entryGrade(entry) {
   const ratings = entry?.ratings || {};
-  const communicationNa = entry?.communicationNa === true;
+  const ratingsNa = entry?.ratingsNa || {};
   let total = 0;
   let weightTotal = 0;
   for (const { key, weight } of PERFORMANCE_CRITERIA) {
     const value = ratings[key];
-    if (key === 'communication' && communicationNa && value == null) {
+    if (ratingsNa?.[key] === true) {
       continue;
     }
     if (!Number.isFinite(value)) return null;
@@ -68,9 +76,9 @@ function decisionFor(classification) {
 
 function isEntryComplete(entry) {
   const ratings = entry?.ratings || {};
-  const communicationNa = entry?.communicationNa === true;
+  const ratingsNa = entry?.ratingsNa || {};
   for (const { key } of PERFORMANCE_CRITERIA) {
-    if (key === 'communication' && communicationNa && ratings[key] == null) continue;
+    if (ratingsNa?.[key] === true) continue;
     if (!Number.isFinite(ratings[key])) return false;
   }
   return true;
@@ -92,9 +100,7 @@ function computeAggregates(entries, allEntries = entries) {
 
   const criterionAverages = PERFORMANCE_CRITERIA.map((criterion) => {
     const values = gradedEntries
-      .filter(
-        (item) => !(criterion.key === 'communication' && item.entry?.communicationNa === true)
-      )
+      .filter((item) => item.entry?.ratingsNa?.[criterion.key] !== true)
       .map((item) => item.entry?.ratings?.[criterion.key])
       .filter((value) => Number.isFinite(value));
     const avg = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
@@ -120,7 +126,7 @@ function computeAggregates(entries, allEntries = entries) {
     includeInAnnual: entry.includeInAnnual,
     status: entry.status,
     grade: entry.computedScore ?? entry.computedGrade ?? entryGrade(entry),
-    communicationNa: entry.communicationNa === true,
+    ratingsNa: entry.ratingsNa || {},
   }));
 
   const deletedEntries = allEntries.filter((entry) => entry.deletedAt).length;

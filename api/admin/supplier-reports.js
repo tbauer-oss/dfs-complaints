@@ -97,22 +97,47 @@ async function buildSummaryPdf() {
 }
 
 const PERFORMANCE_CRITERIA = [
-  { key: 'communication', label: 'Zusammenarbeit / Kommunikation', weight: 0.1 },
-  { key: 'quality', label: 'Produktqualität', weight: 0.3 },
-  { key: 'delivery', label: 'Einhaltung der Lieferfrist', weight: 0.15 },
-  { key: 'price', label: 'Preis (Rechnung korrekt vs. AB/Angebot)', weight: 0.15 },
-  { key: 'quantity', label: 'Fehllieferungen / Falschlieferungen', weight: 0.2 },
-  { key: 'backorders', label: 'Nachlieferungen', weight: 0.1 },
+  {
+    key: 'communication',
+    labelDe: 'Zusammenarbeit / Kommunikation',
+    labelEn: 'Collaboration / communication',
+    weight: 0.1,
+  },
+  { key: 'quality', labelDe: 'Produktqualität', labelEn: 'Product quality', weight: 0.3 },
+  {
+    key: 'delivery',
+    labelDe: 'Einhaltung der Lieferfrist',
+    labelEn: 'On-time delivery',
+    weight: 0.15,
+  },
+  {
+    key: 'price',
+    labelDe: 'Preis / Rechnungsstellung korrekt (vs. Auftragsbestätigung/Angebot)',
+    labelEn: 'Price / invoice correctness (vs. order confirmation/offer)',
+    weight: 0.15,
+  },
+  {
+    key: 'quantity',
+    labelDe: 'Richtige Mengen / richtige Produkte (Fehl-/Falschlieferungen)',
+    labelEn: 'Correct quantity / products (wrong/short deliveries)',
+    weight: 0.2,
+  },
+  {
+    key: 'backorders',
+    labelDe: 'Nachlieferungen (Teillieferungen / Backorders)',
+    labelEn: 'Backorders (partial deliveries)',
+    weight: 0.1,
+  },
 ];
 
 function entryGrade(entry) {
   const ratings = entry?.ratings || {};
-  const communicationNa = entry?.communicationNa === true;
+  const ratingsNa = entry?.ratingsNa || {};
   let total = 0;
   let weightTotal = 0;
   for (const { key, weight } of PERFORMANCE_CRITERIA) {
     const value = ratings[key];
-    if (key === 'communication' && communicationNa && value == null) {
+    if (ratingsNa?.[key] === true) {
       continue;
     }
     if (!Number.isFinite(value)) return null;
@@ -140,22 +165,27 @@ function decisionFor(classification) {
   return '';
 }
 
+const AUDIT_NOTE = {
+  DE: 'Die Lieferantenbewertung ist Bestandteil des Lieferantenmanagements nach DIN EN ISO 13485 (Beschaffung und Lieferantensteuerung). Ziel ist eine nachvollziehbare, objektivierte und wiederholbare Beurteilung anhand definierter Kriterien. Die Notenvergabe erfolgt anhand der unten beschriebenen Stufenbeschreibung und dient als dokumentierter Nachweis der Überwachung sowie als Grundlage für Eskalationen und Maßnahmen.',
+  EN: 'Supplier performance evaluation is part of supplier control according to ISO 13485 (purchasing and supplier management). The purpose is a traceable, objective and repeatable assessment using defined criteria. The grading scale below provides documented evidence of monitoring and supports escalation and corrective actions where needed.',
+};
+
 const RATING_SCALE = {
   DE: [
-    'Note 1 = sehr gut / keine Abweichungen',
-    'Note 2 = gut / geringe Abweichungen',
-    'Note 3 = befriedigend / gelegentliche Abweichungen',
-    'Note 4 = ausreichend / wiederkehrende Abweichungen, spürbarer Aufwand',
-    'Note 5 = mangelhaft / häufige Abweichungen, deutlicher Aufwand/Eskalation',
-    'Note 6 = ungenügend / schwerwiegend, sofortige Maßnahmen erforderlich',
+    '1 = Sehr gut: Anforderungen werden vollständig und dauerhaft erfüllt, keine Abweichungen.',
+    '2 = Gut: Anforderungen werden überwiegend erfüllt, nur geringe/vereinzelte Abweichungen ohne relevante Auswirkung.',
+    '3 = Befriedigend: Erkennbare Abweichungen; Aufwand zur Steuerung/Korrektur vorhanden, Liefer-/Prozessabläufe teilweise beeinträchtigt.',
+    '4 = Ausreichend: Wiederkehrende oder relevante Abweichungen; erhöhte Steuerung erforderlich; Risiko für Termine/Qualität/Compliance erkennbar.',
+    '5 = Mangelhaft: Häufige oder schwerwiegende Abweichungen; Lieferfähigkeit/Qualität/Compliance unzuverlässig; Maßnahmen/Eskalation zwingend.',
+    '6 = Ungenügend: Anforderungen werden nicht erfüllt; gravierende Abweichungen oder fehlende Kooperation; Lieferant kritisch, Sperrung/Abkündigung prüfen.',
   ],
   EN: [
-    'Grade 1 = very good / no deviations',
-    'Grade 2 = good / minor deviations',
-    'Grade 3 = satisfactory / occasional deviations',
-    'Grade 4 = sufficient / recurring deviations, noticeable effort',
-    'Grade 5 = deficient / frequent deviations, clear effort/escalation',
-    'Grade 6 = unsatisfactory / severe, immediate measures required',
+    '1 = Excellent: Requirements fully and consistently met; no deviations.',
+    '2 = Good: Requirements mostly met; minor/isolated deviations without relevant impact.',
+    '3 = Satisfactory: Noticeable deviations; corrective steering effort required; partial impact on operations.',
+    '4 = Adequate: Recurrent or relevant deviations; increased control needed; risk to delivery/quality/compliance.',
+    '5 = Poor: Frequent or severe deviations; unreliable performance; escalation/actions mandatory.',
+    '6 = Unsatisfactory: Requirements not met; severe deviations or lack of cooperation; supplier critical, blocking/discontinuation to be considered.',
   ],
 };
 
@@ -164,135 +194,135 @@ const RATING_EXPLANATION = {
     {
       title: 'Zusammenarbeit / Kommunikation (Gewichtung 10 %)',
       lines: [
-        '1: Reagiert zeitnah und zuverlässig ohne Erinnerung (oder N/A bei keiner Anfrage)',
-        '2: Reaktion erst nach einmaliger Nachfrage',
-        '3: Mehrmalige Nachfragen erforderlich, Verzögerungen beeinträchtigen Abläufe',
-        '4: Häufig verspätete/unklare Rückmeldungen, merkliche Prozessstörungen',
-        '5: Kommunikation regelmäßig unzureichend, Eskalation intern erforderlich',
-        '6: Keine oder unzureichende Rückmeldungen trotz mehrfacher Kontaktversuche',
+        '1: Reagiert proaktiv, zeitnah und vollständig; keine Erinnerung erforderlich (oder N/A falls keine Anfrage nötig war).',
+        '2: Reagiert zeitnah, gelegentlich 1 Nachfrage; Kommunikation ausreichend klar.',
+        '3: Reagiert verzögert; wiederholt Nachfragen nötig; Abstimmungen verursachen Mehraufwand.',
+        '4: Häufige Verzögerungen; unklare/inkonsistente Antworten; Abläufe beeinträchtigt.',
+        '5: Sehr schlechte Erreichbarkeit; Rückmeldungen spät oder unvollständig; Eskalation erforderlich.',
+        '6: Keine bzw. verweigerte Kommunikation trotz mehrfacher Kontaktversuche.',
       ],
     },
     {
       title: 'Produktqualität (Gewichtung 30 %)',
       lines: [
-        '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum',
-        '2: Vereinzelte, geringfügige Beanstandungen ohne systematische Ursache',
-        '3: Wiederkehrende geringere Beanstandungen / moderate Abweichungen mit Nacharbeit',
-        '4: Wiederkehrende relevante Abweichungen, erheblicher Prüf-/Nacharbeitsaufwand',
-        '5: Häufige Qualitätsmängel, formale Eskalation erforderlich',
-        '6: Schwerwiegende/häufige Qualitätsmängel, CAPA zwingend erforderlich',
+        '1: Keine qualitätsrelevanten Beanstandungen im Bewertungszeitraum.',
+        '2: Vereinzelte geringfügige Beanstandungen ohne systematische Ursache, gut beherrscht.',
+        '3: Wiederkehrende Beanstandungen oder relevante Abweichungen; Nacharbeit/Sortierung erforderlich.',
+        '4: Häufige Abweichungen; deutliche Auswirkungen auf Produktion/Wareneingang; Ursachenklärung notwendig.',
+        '5: Schwerwiegende Mängel oder hohe Fehlerquote; Lieferant verursacht erhebliche Störungen; Maßnahmen zwingend.',
+        '6: Kritische/inakzeptable Qualität; Lieferungen nicht verwendbar; Sperrung/Abkündigung prüfen.',
       ],
     },
     {
       title: 'Einhaltung der Lieferfrist (Gewichtung 15 %)',
       lines: [
-        '1: Liefertermine werden zuverlässig eingehalten',
-        '2: Gelegentliche Verzögerungen mit frühzeitiger Information',
-        '3: Wiederholte Verzögerungen, begrenzte Auswirkungen auf Planung',
-        '4: Wiederholte Verzögerungen mit deutlichen Auswirkungen auf interne Planung',
-        '5: Regelmäßige Lieferverzüge, Maßnahmen/Eskalation erforderlich',
-        '6: Erhebliche oder dauerhafte Lieferverzüge ohne angemessene Kommunikation',
+        '1: Termine werden zuverlässig eingehalten.',
+        '2: Seltene Verzögerungen; frühzeitige Information; geringe Auswirkung.',
+        '3: Wiederholte Verzögerungen; spürbare Auswirkungen auf Planung/Produktion.',
+        '4: Häufige Verzögerungen; Information verspätet; Termintreue unzuverlässig.',
+        '5: Regelmäßige erhebliche Lieferverzüge; Eskalation/Alternativen erforderlich.',
+        '6: Liefertermine werden systematisch nicht eingehalten; Versorgungssicherheit nicht gegeben.',
       ],
     },
     {
-      title: 'Preis (Rechnung korrekt vs. AB/Angebot) (Gewichtung 15 %)',
+      title: 'Preis / Rechnungsstellung korrekt (Gewichtung 15 %)',
       lines: [
-        '1: Rechnungen stets korrekt und vertragskonform',
-        '2: Einzelne formale Fehler ohne finanzielle Auswirkung',
-        '3: Gelegentliche Abweichungen, Korrekturaufwand gering',
-        '4: Wiederkehrende Rechnungsfehler mit Korrekturaufwand',
-        '5: Häufige Abweichungen, finanzielle/operative Klärung nötig',
-        '6: Schwerwiegende oder wiederholte Abrechnungsfehler, Eskalation erforderlich',
+        '1: Rechnungen stets korrekt und vertragskonform (Preis, Menge, Konditionen, Referenzen).',
+        '2: Einzelne formale Fehler ohne finanzielle Auswirkung; schnell korrigiert.',
+        '3: Wiederkehrende Fehler; Korrekturaufwand/Abstimmung notwendig.',
+        '4: Häufige Preis-/Positionsabweichungen; verzögerte Korrekturen; Risiko für falsche Zahlungen.',
+        '5: Schwerwiegende/regelmäßige Abrechnungsfehler; Eskalation erforderlich.',
+        '6: Preis-/Rechnungsstellung nicht vertragskonform; Korrektur verweigert oder nicht nachvollziehbar.',
       ],
     },
     {
-      title: 'Fehllieferungen / Falschlieferungen (Gewichtung 20 %)',
+      title: 'Richtige Mengen / richtige Produkte (Gewichtung 20 %)',
       lines: [
-        '1: Lieferungen vollständig und korrekt',
-        '2: Vereinzelte Abweichungen ohne relevante Auswirkungen',
-        '3: Gelegentliche Mengen-/Artikelfehler mit Korrekturaufwand',
-        '4: Wiederkehrende Mengen- oder Artikelfehler, Prozessaufwand deutlich',
-        '5: Häufige Falschlieferungen / gravierende Abweichungen, Eskalation nötig',
-        '6: Regelmäßig gravierende Falschlieferungen, Versorgung/Produktion gefährdet',
+        '1: Lieferungen vollständig und korrekt (Artikel, Menge, Identifikation).',
+        '2: Vereinzelte Abweichungen ohne relevante Auswirkung; unkomplizierte Korrektur.',
+        '3: Wiederkehrende Mengen-/Artikelfehler; Mehraufwand im Wareneingang/Produktion.',
+        '4: Häufige Fehl-/Falschlieferungen; deutliche Prozessstörungen.',
+        '5: Schwerwiegende Fehl-/Falschlieferungen; Lieferzuverlässigkeit kritisch; Maßnahmen zwingend.',
+        '6: Systematische Falschlieferungen/Identifikationsfehler; Versorgung und Rückverfolgbarkeit gefährdet.',
       ],
     },
     {
-      title: 'Nachlieferungen (Gewichtung 10 %)',
+      title: 'Nachlieferungen (Teillieferungen / Backorders) (Gewichtung 10 %)',
       lines: [
-        '1: Bestellungen werden vollständig geliefert',
-        '2: Gelegentliche Teillieferungen ohne Beeinträchtigung',
-        '3: Wiederkehrende Teillieferungen mit moderatem Planungsaufwand',
-        '4: Regelmäßige Nachlieferungen mit spürbarem Planungsaufwand',
-        '5: Häufige oder umfangreiche Nachlieferungen, Eskalation erforderlich',
-        '6: Sehr häufige/umfangreiche Nachlieferungen, erhebliche Beeinträchtigung',
+        '1: Bestellungen werden vollständig geliefert; keine Nachlieferungen erforderlich.',
+        '2: Gelegentliche Teillieferungen ohne Beeinträchtigung; transparent kommuniziert.',
+        '3: Regelmäßige Nachlieferungen; Planungsaufwand entsteht.',
+        '4: Häufige Teillieferungen; Planung und Verfügbarkeit beeinträchtigt.',
+        '5: Umfangreiche/regelmäßige Nachlieferungen; Eskalation/Alternativen erforderlich.',
+        '6: Systematisch unvollständige Lieferungen; Versorgungssicherheit nicht gegeben.',
       ],
     },
   ],
   EN: [
     {
-      title: 'Collaboration / Communication (Weighting 10%)',
+      title: 'Collaboration / communication (Weighting 10%)',
       lines: [
-        '1: Responds promptly and reliably without reminder (or N/A if no request occurred)',
-        '2: Response only after a single follow-up',
-        '3: Multiple follow-ups required; delays affect workflows',
-        '4: Frequent late/unclear responses, noticeable process disruptions',
-        '5: Communication regularly insufficient; internal escalation required',
-        '6: No or insufficient responses despite repeated contact attempts',
+        '1: Responds proactively, promptly, and completely; no reminder required (or N/A if no inquiry was needed).',
+        '2: Responds promptly, occasional single follow-up; communication sufficiently clear.',
+        '3: Responds with delays; repeated follow-ups needed; coordination causes extra effort.',
+        '4: Frequent delays; unclear/inconsistent answers; workflows impacted.',
+        '5: Very poor availability; responses late or incomplete; escalation required.',
+        '6: No or refused communication despite repeated contact attempts.',
       ],
     },
     {
       title: 'Product quality (Weighting 30%)',
       lines: [
-        '1: No quality-related complaints in the assessment period',
-        '2: Isolated, minor complaints without systematic cause',
-        '3: Recurring minor complaints / moderate deviations with rework',
-        '4: Recurring relevant deviations with significant inspection/rework effort',
-        '5: Frequent quality defects; formal escalation required',
-        '6: Severe/frequent quality defects; CAPA mandatory',
+        '1: No quality-related complaints in the assessment period.',
+        '2: Isolated minor complaints without systematic cause, well controlled.',
+        '3: Recurring complaints or relevant deviations; rework/sorting required.',
+        '4: Frequent deviations; clear impact on production/goods receipt; root cause analysis needed.',
+        '5: Severe defects or high error rate; supplier causes major disruptions; actions mandatory.',
+        '6: Critical/unacceptable quality; deliveries unusable; consider blocking/discontinuation.',
       ],
     },
     {
-      title: 'Delivery reliability (Weighting 15%)',
+      title: 'On-time delivery (Weighting 15%)',
       lines: [
-        '1: Delivery dates are reliably met',
-        '2: Occasional delays with early notification',
-        '3: Repeated delays with limited impact on planning',
-        '4: Repeated delays with clear impact on internal planning',
-        '5: Regular delivery delays; measures/escalation required',
-        '6: Significant or ongoing delays without adequate communication',
+        '1: Dates are reliably met.',
+        '2: Rare delays; early information; minor impact.',
+        '3: Repeated delays; noticeable impact on planning/production.',
+        '4: Frequent delays; late information; reliability is poor.',
+        '5: Regular significant delays; escalation/alternatives required.',
+        '6: Delivery dates are systematically not met; supply security not ensured.',
       ],
     },
     {
-      title: 'Price (invoice vs. order/offer) (Weighting 15%)',
+      title: 'Price / invoice correctness (Weighting 15%)',
       lines: [
-        '1: Invoices always correct and contract-compliant',
-        '2: Isolated formal errors without financial impact',
-        '3: Occasional deviations; low correction effort',
-        '4: Recurring billing errors with correction effort',
-        '5: Frequent deviations; financial/operational clarification needed',
-        '6: Severe or repeated billing errors; escalation required',
+        '1: Invoices always correct and contract-compliant (price, quantity, terms, references).',
+        '2: Isolated formal errors without financial impact; corrected quickly.',
+        '3: Recurring errors; correction/coordination effort required.',
+        '4: Frequent price/line deviations; delayed corrections; risk of incorrect payments.',
+        '5: Severe/regular billing errors; escalation required.',
+        '6: Price/invoicing not contract-compliant; correction refused or not traceable.',
       ],
     },
     {
-      title: 'Wrong deliveries (Weighting 20%)',
+      title: 'Correct quantity / products (Weighting 20%)',
       lines: [
-        '1: Deliveries complete and correct',
-        '2: Isolated deviations without relevant impact',
-        '3: Occasional quantity/item errors with correction effort',
-        '4: Recurring quantity or item errors; clear process effort',
-        '5: Frequent wrong deliveries/major deviations; escalation required',
-        '6: Regular severe wrong deliveries; supply/production at risk',
+        '1: Deliveries complete and correct (items, quantities, identification).',
+        '2: Isolated deviations without relevant impact; easy correction.',
+        '3: Recurring quantity/item errors; extra effort in goods receipt/production.',
+        '4: Frequent missing/wrong deliveries; significant process disruptions.',
+        '5: Severe missing/wrong deliveries; reliability critical; actions mandatory.',
+        '6: Systematic wrong deliveries/identification errors; supply and traceability at risk.',
       ],
     },
     {
-      title: 'Backorders (Weighting 10%)',
+      title: 'Backorders / partial deliveries (Weighting 10%)',
       lines: [
-        '1: Orders delivered in full',
-        '2: Occasional partial deliveries without impact',
-        '3: Recurring partial deliveries with moderate planning effort',
-        '4: Regular backorders with noticeable planning effort',
-        '5: Frequent or extensive backorders; escalation required',
-        '6: Very frequent/extensive backorders; significant impact',
+        '1: Orders delivered in full; no backorders required.',
+        '2: Occasional partial deliveries without impact; transparently communicated.',
+        '3: Regular backorders; planning effort arises.',
+        '4: Frequent partial deliveries; planning and availability impacted.',
+        '5: Extensive/regular backorders; escalation/alternatives required.',
+        '6: Systematically incomplete deliveries; supply security not ensured.',
       ],
     },
   ],
@@ -301,10 +331,11 @@ const RATING_EXPLANATION = {
 function drawCriteriaOverview(doc, language) {
   doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Criteria & weights' : 'Bewertungskriterien & Gewichte');
   PERFORMANCE_CRITERIA.forEach((criterion) => {
+    const label = language === 'EN' ? criterion.labelEn : criterion.labelDe;
     doc
       .fontSize(9)
       .fillColor('#333')
-      .text(`• ${criterion.label} (${Math.round(criterion.weight * 100)}%)`);
+      .text(`• ${label} (${Math.round(criterion.weight * 100)}%)`);
   });
   doc.moveDown(0.5);
 }
@@ -312,9 +343,12 @@ function drawCriteriaOverview(doc, language) {
 function drawRatingSystem(doc, language) {
   const scale = language === 'EN' ? RATING_SCALE.EN : RATING_SCALE.DE;
   doc.fontSize(11).fillColor('#000').text(language === 'EN' ? 'Rating system' : 'Bewertungssystem');
+  doc.fontSize(9).fillColor('#333').text(language === 'EN' ? 'Audit note' : 'Audit-Hinweis');
+  doc.fontSize(8).fillColor('#555').text(language === 'EN' ? AUDIT_NOTE.EN : AUDIT_NOTE.DE);
+  doc.moveDown(0.3);
   doc.fontSize(9).fillColor('#333').text(
     language === 'EN'
-      ? 'Grades: 1 = very good … 6 = unsatisfactory. Lower is better.'
+      ? 'Grades: 1 = excellent … 6 = unsatisfactory. Lower is better.'
       : 'Noten: 1=sehr gut … 6=ungenügend. Niedriger ist besser.'
   );
   scale.forEach((line) => {
@@ -350,7 +384,7 @@ function buildAggregates(entries) {
   const decision = decisionFor(classification);
   const criterionAverages = PERFORMANCE_CRITERIA.map((criterion) => {
     const values = graded
-      .filter((item) => !(criterion.key === 'communication' && item.entry?.communicationNa === true))
+      .filter((item) => item.entry?.ratingsNa?.[criterion.key] !== true)
       .map((item) => item.entry?.ratings?.[criterion.key])
       .filter((value) => Number.isFinite(value));
     const avgValue = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
@@ -379,7 +413,7 @@ function buildAggregates(entries) {
       description: entry.description,
       status: entry.status,
       grade: entry.computedScore ?? entry.computedGrade ?? entryGrade(entry),
-      communicationNa: entry.communicationNa === true,
+      ratingsNa: entry.ratingsNa || {},
     })),
   };
 }
@@ -440,7 +474,7 @@ async function buildInternalPdf({ supplierId, year, actor }) {
 
   doc.fontSize(11).fillColor('#000').text('Kriterien (Durchschnitt)');
   aggregates.criterionAverages.forEach((criterion) => {
-    doc.fontSize(10).fillColor('#333').text(`${criterion.label}: ${criterion.average ?? '—'}`);
+    doc.fontSize(10).fillColor('#333').text(`${criterion.labelDe}: ${criterion.average ?? '—'}`);
   });
   doc.moveDown();
 
@@ -449,13 +483,14 @@ async function buildInternalPdf({ supplierId, year, actor }) {
     doc.fontSize(10).fillColor('#555').text('Keine Einträge vorhanden.');
   } else {
     aggregates.evidence.forEach((entry) => {
+      const naCount = Object.values(entry.ratingsNa || {}).filter(Boolean).length;
       doc
         .fontSize(9)
         .fillColor('#333')
         .text(
           `${formatDate(entry.date)} • ${entry.referenceType || 'Bezug'} ${entry.referenceNumber || ''} • ${
             entry.description
-          } • Score ${entry.grade ?? '—'} • Kommunikation N/A: ${entry.communicationNa ? 'Ja' : 'Nein'}`
+          } • Score ${entry.grade ?? '—'} • N/A Kriterien: ${naCount}`
         );
     });
   }
@@ -570,7 +605,8 @@ ${escalationNote}`;
   doc.text(language === 'EN' ? 'Criterion averages:' : 'Durchschnitt je Kriterium:', 60, boxTop);
   boxTop += 12;
   criteriaLines.forEach((criterion) => {
-    doc.text(`${criterion.label}: ${criterion.average ?? '—'}`, 72, boxTop);
+    const label = language === 'EN' ? criterion.labelEn : criterion.labelDe;
+    doc.text(`${label}: ${criterion.average ?? '—'}`, 72, boxTop);
     boxTop += 12;
   });
   doc.moveDown(6);
@@ -584,6 +620,7 @@ ${escalationNote}`;
     doc.fontSize(9).fillColor('#555').text(language === 'EN' ? 'No entries available.' : 'Keine Einträge vorhanden.');
   } else {
     aggregates.evidence.forEach((entry) => {
+      const naCount = Object.values(entry.ratingsNa || {}).filter(Boolean).length;
       doc
         .fontSize(9)
         .fillColor('#333')
@@ -591,8 +628,8 @@ ${escalationNote}`;
           `${formatDate(entry.date, language === 'EN' ? 'en-US' : 'de-DE')} • ${
             entry.referenceType || (language === 'EN' ? 'Reference' : 'Bezug')
           } ${entry.referenceNumber || ''} • ${entry.description} • Score ${entry.grade ?? '—'} • ${
-            language === 'EN' ? 'Communication N/A' : 'Kommunikation N/A'
-          }: ${entry.communicationNa ? (language === 'EN' ? 'Yes' : 'Ja') : language === 'EN' ? 'No' : 'Nein'}`
+            language === 'EN' ? 'N/A criteria' : 'N/A Kriterien'
+          }: ${naCount}`
         );
     });
   }

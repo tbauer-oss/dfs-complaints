@@ -220,6 +220,7 @@ class SupplierPerformanceEntry {
   final String referenceType;
   final String referenceNumber;
   final Map<String, int?> ratings;
+  final Map<String, bool> ratingsNa;
   final bool communicationNa;
   final int ratingSchemaVersion;
   final List<dynamic> attachments;
@@ -246,6 +247,7 @@ class SupplierPerformanceEntry {
     required this.referenceType,
     required this.referenceNumber,
     required this.ratings,
+    required this.ratingsNa,
     required this.communicationNa,
     required this.ratingSchemaVersion,
     required this.attachments,
@@ -354,7 +356,33 @@ class SupplierPerformanceEntry {
     return ratings;
   }
 
-  factory SupplierPerformanceEntry.fromJson(Map<String, dynamic> json) => SupplierPerformanceEntry(
+  static Map<String, bool> _normalizeRatingsNa(Map<String, dynamic> json, Map<String, int?> ratings) {
+    final ratingsNa = <String, bool>{
+      'communication': false,
+      'quality': false,
+      'delivery': false,
+      'price': false,
+      'quantity': false,
+      'backorders': false,
+    };
+    final rawRatingsNa = json['ratingsNa'];
+    if (rawRatingsNa is Map) {
+      rawRatingsNa.forEach((key, value) {
+        final normalizedKey = key.toString();
+        if (!ratingsNa.containsKey(normalizedKey)) return;
+        ratingsNa[normalizedKey] = value == true;
+      });
+    }
+    if (json['communicationNa'] == true && ratings['communication'] == null) {
+      ratingsNa['communication'] = true;
+    }
+    return ratingsNa;
+  }
+
+  factory SupplierPerformanceEntry.fromJson(Map<String, dynamic> json) {
+    final ratings = _normalizeRatings(json);
+    final ratingsNa = _normalizeRatingsNa(json, ratings);
+    return SupplierPerformanceEntry(
         id: (json['id'] ?? json['entryId'] ?? '').toString(),
         supplierId: (json['supplierId'] ?? '').toString(),
         date: (json['date'] ?? 0) as int,
@@ -365,8 +393,9 @@ class SupplierPerformanceEntry {
                 (json['reference'] is String ? json['reference'] : '') ??
                 '')
             .toString(),
-        ratings: _normalizeRatings(json),
-        communicationNa: json['communicationNa'] == true,
+        ratings: ratings,
+        ratingsNa: ratingsNa,
+        communicationNa: json['communicationNa'] == true || ratingsNa['communication'] == true,
         ratingSchemaVersion: _resolveRatingSchemaVersion(json),
         attachments: (json['attachments'] as List?) ?? const [],
         includeInAnnual: json['includeInAnnual'] != false,
@@ -386,6 +415,7 @@ class SupplierPerformanceEntry {
         updatedBy: (json['updatedBy'] ?? '').toString(),
         history: (json['history'] as List?) ?? const [],
       );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -395,6 +425,7 @@ class SupplierPerformanceEntry {
         'referenceType': referenceType,
         'referenceNumber': referenceNumber,
         'ratings': ratings.map((key, value) => MapEntry(key, value)),
+        'ratingsNa': ratingsNa.map((key, value) => MapEntry(key, value)),
         'communicationNa': communicationNa,
         'ratingSchemaVersion': ratingSchemaVersion,
         'attachments': attachments,

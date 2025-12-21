@@ -5234,7 +5234,28 @@ function normalizePerformanceRatings(ratings, legacyType, legacyRating, ratingSc
   return normalized;
 }
 
-function computeEntryGrade(ratings = {}, { communicationNa = false } = {}) {
+function normalizeRatingsNa(ratingsNa = {}, communicationNa = false) {
+  const normalized = {
+    communication: false,
+    quality: false,
+    delivery: false,
+    price: false,
+    quantity: false,
+    backorders: false,
+  };
+  if (ratingsNa && typeof ratingsNa === 'object') {
+    Object.entries(ratingsNa).forEach(([key, value]) => {
+      if (!(key in normalized)) return;
+      normalized[key] = value === true;
+    });
+  }
+  if (communicationNa === true) {
+    normalized.communication = true;
+  }
+  return normalized;
+}
+
+function computeEntryGrade(ratings = {}, { ratingsNa = {} } = {}) {
   const weights = {
     communication: 0.1,
     quality: 0.3,
@@ -5247,7 +5268,7 @@ function computeEntryGrade(ratings = {}, { communicationNa = false } = {}) {
   let weightTotal = 0;
   for (const [key, weight] of Object.entries(weights)) {
     const value = ratings?.[key];
-    if (key === 'communication' && communicationNa && value == null) {
+    if (ratingsNa?.[key] === true) {
       continue;
     }
     if (!Number.isFinite(value)) return null;
@@ -5258,12 +5279,12 @@ function computeEntryGrade(ratings = {}, { communicationNa = false } = {}) {
   return Number((total / weightTotal).toFixed(2));
 }
 
-function computePerformanceStatus(ratings, currentStatus, communicationNa = false) {
+function computePerformanceStatus(ratings, currentStatus, ratingsNa = {}) {
   const status = normalizeString(currentStatus || '');
   if (status.toLowerCase() === 'cancelled') return status;
   const keys = Object.keys(ratings || {});
   const values = Object.entries(ratings || {}).filter(([key, value]) => {
-    if (key === 'communication' && communicationNa && value == null) return true;
+    if (ratingsNa?.[key] === true) return true;
     return Number.isFinite(value);
   });
   if (values.length === 0) return 'OFFEN';
@@ -5290,9 +5311,11 @@ function normalizePerformanceRecord(record = {}) {
   base.ratingSchemaVersion = schemaVersion >= 3 ? 3 : schemaVersion >= 2 ? 2 : 1;
   base.communicationNa = base.communicationNa === true;
   base.ratings = normalizePerformanceRatings(base.ratings, base.type, base.rating, base.ratingSchemaVersion);
+  base.ratingsNa = normalizeRatingsNa(base.ratingsNa, base.communicationNa);
+  base.communicationNa = base.communicationNa || base.ratingsNa.communication;
   base.attachments = normalizeArray(base.attachments);
   base.includeInAnnual = base.includeInAnnual !== false;
-  base.status = computePerformanceStatus(base.ratings, base.status || 'OFFEN', base.communicationNa);
+  base.status = computePerformanceStatus(base.ratings, base.status || 'OFFEN', base.ratingsNa);
   base.cancelReason = normalizeString(base.cancelReason || '');
   base.deletedAt = normalizeDateValue(base.deletedAt) || null;
   base.deletedBy = normalizeString(base.deletedBy || '');
@@ -5301,12 +5324,12 @@ function normalizePerformanceRecord(record = {}) {
   const computedScore = Number.isFinite(Number(base.computedScore)) ? Number(base.computedScore) : null;
   const shouldRecompute = base.ratingSchemaVersion < 3;
   const computed = shouldRecompute
-    ? computeEntryGrade(base.ratings, { communicationNa: base.communicationNa })
+    ? computeEntryGrade(base.ratings, { ratingsNa: base.ratingsNa })
     : computedScore != null
         ? Number(computedScore.toFixed(2))
         : computedGrade != null
             ? Number(computedGrade.toFixed(2))
-            : computeEntryGrade(base.ratings, { communicationNa: base.communicationNa });
+            : computeEntryGrade(base.ratings, { ratingsNa: base.ratingsNa });
   base.computedScore = computed;
   base.computedGrade = computed;
   base.computedAt = normalizeDateValue(base.computedAt) || (computed != null ? now : null);
