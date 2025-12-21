@@ -2248,6 +2248,51 @@ class ApiClient {
     return const [];
   }
 
+  Future<List<ApprovedSupplier>> adminApprovedSuppliers({int? year}) async {
+    final path = Uri(
+      path: '/api/admin/approved-suppliers',
+      queryParameters: year != null ? {'year': year.toString()} : {},
+    ).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => ApprovedSupplier.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<ApprovedSupplier> adminRecomputeApprovedSupplier({
+    required String supplierId,
+    required int year,
+    String? adminNote,
+    bool reviewedByPurchasing = false,
+  }) async {
+    final payload = jsonEncode({
+      'supplierId': supplierId,
+      'year': year,
+      if (adminNote != null) 'adminNote': adminNote,
+      if (reviewedByPurchasing) 'reviewedByPurchasing': true,
+    });
+    final r = await http.post(
+      _u('/api/admin/approved-suppliers/recompute'),
+      headers: _adminHeaders(auth: true),
+      body: payload,
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final supplier = decoded is Map ? decoded['supplier'] : null;
+    if (supplier is Map) return ApprovedSupplier.fromJson(supplier.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Zulassungsliste-Antwort');
+  }
+
   Future<SupplierAnnualEvaluation> adminCreateSupplierEvaluation(SupplierAnnualEvaluation evaluation) async {
     final r = await http.post(
       _u('/api/admin/supplier-evaluations'),

@@ -126,6 +126,7 @@ const mem = {
   supplierEvalConfig: null,
   supplierReportLetterLayout: null,
   supplierLookups: null,
+  supplierApprovedSnapshots: new Map(),
 };
 
 export function normalizeTilePermission(value) {
@@ -5100,6 +5101,7 @@ const KEY_SUPPLIER_ESC = (id) => `${P}supplierEsc:${id}`;
 const KEY_SUPPLIER_EVAL_CONFIG = `${P}supplierEvalConfig:default`;
 const KEY_SUPPLIER_LOOKUPS = `${P}supplierLookups:default`;
 const KEY_SUPPLIER_REPORT_LETTER_LAYOUT = `${P}supplier_reports:letter_layout:v1`;
+const KEY_SUPPLIER_APPROVED_SNAPSHOT = (supplierId, year) => `${P}supplierApproved:${supplierId}:${year}`;
 
 function ensureSupplierStores() {
   if (!mem.suppliers) mem.suppliers = new Map();
@@ -5112,6 +5114,7 @@ function ensureSupplierStores() {
   if (!mem.supplierEscalations) mem.supplierEscalations = new Map();
   if (!mem.supplierEscalationIndex) mem.supplierEscalationIndex = new Set();
   if (!mem.supplierReportLetterLayout) mem.supplierReportLetterLayout = null;
+  if (!mem.supplierApprovedSnapshots) mem.supplierApprovedSnapshots = new Map();
 }
 
 function normalizeSupplierStatus(status) {
@@ -6074,4 +6077,42 @@ export async function supplierLookupsSave(input = {}, { updatedBy = '' } = {}) {
     await rset(KEY_SUPPLIER_LOOKUPS, merged, r);
   }
   return merged;
+}
+
+function normalizeApprovedSupplierSnapshot(record = {}) {
+  const base = { ...record };
+  const supplierId = normalizeString(base.supplierId || '');
+  const year = Number(base.year || base.evalYear || 0);
+  return {
+    supplierId,
+    year,
+    adminNote: normalizeString(base.adminNote || base.note || ''),
+    reviewedBy: normalizeString(base.reviewedBy || ''),
+    reviewedAt: Number(base.reviewedAt || 0) || null,
+    updatedAt: Number(base.updatedAt || Date.now()),
+    updatedBy: normalizeString(base.updatedBy || ''),
+  };
+}
+
+export async function supplierApprovedSnapshotGet({ supplierId, year } = {}) {
+  ensureSupplierStores();
+  const normalizedSupplierId = normalizeString(supplierId || '');
+  const normalizedYear = Number(year || 0);
+  if (!normalizedSupplierId || !normalizedYear) return null;
+  const key = KEY_SUPPLIER_APPROVED_SNAPSHOT(normalizedSupplierId, normalizedYear);
+  const r = getRedis();
+  const raw = r ? await rget(key, r) : mem.supplierApprovedSnapshots.get(key);
+  if (!raw) return null;
+  return normalizeApprovedSupplierSnapshot(raw);
+}
+
+export async function supplierApprovedSnapshotSave(record = {}) {
+  ensureSupplierStores();
+  const normalized = normalizeApprovedSupplierSnapshot(record);
+  if (!normalized.supplierId || !normalized.year) return null;
+  const key = KEY_SUPPLIER_APPROVED_SNAPSHOT(normalized.supplierId, normalized.year);
+  mem.supplierApprovedSnapshots.set(key, normalized);
+  const r = getRedis();
+  if (r) await rset(key, normalized, r);
+  return normalized;
 }

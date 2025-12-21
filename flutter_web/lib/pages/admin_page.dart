@@ -58,6 +58,7 @@ import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
 import 'change_management_page.dart';
 import 'supplier_evaluation_page.dart';
+import 'approved_suppliers_page.dart';
 
 String _formatError(Object error) {
   final message = AppErrorMapper.map(error);
@@ -128,6 +129,7 @@ enum AdminView {
   activity,
   createCustomer,
   pushBroadcast,
+  approvedSuppliers,
   supplierEvaluation,
   wikiCategories,
   wikiArticles,
@@ -217,6 +219,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiArticles',
     'portalUsers',
     'audits',
+    'approvedSuppliers',
     'supplierEvaluation',
   ],
   'user': [
@@ -275,6 +278,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'internalChat',
     'stats',
     'audits',
+    'approvedSuppliers',
     'supplierEvaluation',
   ],
   'admin': [
@@ -306,6 +310,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiCategories',
     'wikiArticles',
     'audits',
+    'approvedSuppliers',
     'supplierEvaluation',
   ],
   'ek': [
@@ -315,6 +320,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'internalChat',
     'stats',
     'audits',
+    'approvedSuppliers',
     'supplierEvaluation',
   ],
   'prrc': [
@@ -487,6 +493,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   bool _onboardingScrollInProgress = false;
   final ScrollController _menuScrollController = ScrollController();
   String _portalRole = '';
+  String? _supplierEvaluationFocusId;
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
   bool _portalIsPrrcAuthorized = false;
@@ -1363,7 +1370,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'capaDashboard' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'changeManagement' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
-    if (tileId == 'supplierEvaluation' &&
+    if ((tileId == 'supplierEvaluation' || tileId == 'approvedSuppliers') &&
         !_isSuperuser &&
         !_portalIsQm &&
         _portalRole != 'admin' &&
@@ -1397,6 +1404,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
     if (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser) {
       allowed.add('supplierEvaluation');
+      allowed.add('approvedSuppliers');
     }
 
     _portalTilePermissions.forEach((tile, perm) {
@@ -5777,6 +5785,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.createCustomer => 'Neuen Kunden anlegen',
       AdminView.activity       => 'Aktivitätsübersicht',
       AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
+      AdminView.approvedSuppliers => 'Zugelassene Lieferanten',
       AdminView.wikiCategories => 'Vertreter-Wiki Kategorien',
       AdminView.wikiArticles   => 'Vertreter-Wiki Artikel',
       AdminView.supplierEvaluation => 'Lieferantenbewertung',
@@ -6456,6 +6465,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         !_faqLoading &&
         (_faqCategories.isEmpty || _faqEntries.isEmpty);
     final shouldRefreshComplaints = view == AdminView.complaintList && !_loadAllComplaints;
+    if (view == AdminView.supplierEvaluation) {
+      _supplierEvaluationFocusId = null;
+    }
 
     if (_view != view) {
       setState(() => _view = view);
@@ -6909,6 +6921,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'createCustomer';
       case AdminView.pushBroadcast:
         return 'push';
+      case AdminView.approvedSuppliers:
+        return 'approvedSuppliers';
       case AdminView.wikiCategories:
         return 'wikiCategories';
       case AdminView.wikiArticles:
@@ -6931,6 +6945,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         AdminView.pending,
         AdminView.activity,
         AdminView.systemHealth,
+        AdminView.approvedSuppliers,
         AdminView.supplierEvaluation,
       };
     }
@@ -6960,13 +6975,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.pushBroadcast,
       AdminView.wikiCategories,
       AdminView.wikiArticles,
+      AdminView.approvedSuppliers,
       AdminView.supplierEvaluation,
     };
   }
 
   bool _isViewAllowed(AdminView view) {
     final allowed = _baseViewsForRole(_portalRole);
-    final isSupplierView = view == AdminView.supplierEvaluation;
+    final isSupplierView = view == AdminView.supplierEvaluation || view == AdminView.approvedSuppliers;
     if (!allowed.contains(view)) {
       if (!(isSupplierView && (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser))) {
         return false;
@@ -7125,6 +7141,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         title: 'Lieferantenmanagement',
         items: [
           _AdminNavItem(
+            label: 'Zugelassene Lieferanten',
+            icon: Icons.verified_user_outlined,
+            view: AdminView.approvedSuppliers,
+          ),
+          _AdminNavItem(
             label: 'Lieferantenbewertung',
             icon: Icons.verified_outlined,
             view: AdminView.supplierEvaluation,
@@ -7279,6 +7300,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.activity;
         case 'supplierEvaluation':
           return AdminView.supplierEvaluation;
+        case 'approvedSuppliers':
+          return AdminView.approvedSuppliers;
         default:
           return null;
       }
@@ -7303,6 +7326,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         title: 'Connect+ Quality',
         subtitle: 'FMEA, CAPA / 8D-Reports und Change Control',
         tileIds: ['capaDashboard', 'capaReports', 'fmea', 'changeManagement', 'audits'],
+      ),
+      const _AdminMenuSectionState(
+        title: 'Lieferantenmanagement',
+        subtitle: 'Zugelassene Lieferanten und Audit-Übersicht',
+        tileIds: ['approvedSuppliers'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Supplier Management',
@@ -7361,6 +7389,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
     _ensureMenuTilePresent('internalChat');
+    _ensureMenuTilePresent('approvedSuppliers');
     _ensureMenuTilePresent('supplierEvaluation');
   }
 
@@ -7383,6 +7412,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('fmea');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
+        _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
       }
 
@@ -7400,6 +7430,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('fmea');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
+        _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
       }
 
@@ -7693,6 +7724,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'Wiki-Kategorien';
       case 'wikiArticles':
         return 'Wiki-Artikel';
+      case 'approvedSuppliers':
+        return 'Zugelassene Lieferanten';
       default:
         return tileId;
     }
@@ -9300,6 +9333,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'approvedSuppliers':
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Zugelassene Lieferanten',
+          subtitle: 'Audit-Übersicht & Entscheidungen',
+          icon: Icons.verified_user_outlined,
+          colorA: AdminPalette.greenA,
+          colorB: AdminPalette.greenB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.approvedSuppliers),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'supplierEvaluation':
         return _buildDashboardTile(
           tileId: tileId,
@@ -10165,12 +10213,30 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return _buildCreateCustomerPanel();
       case AdminView.pushBroadcast:
         return _buildPushBroadcastPanel();
+      case AdminView.approvedSuppliers:
+        return ApprovedSuppliersPage(
+          api: widget.api,
+          canWrite: _canWriteTile('approvedSuppliers'),
+          onOpenSupplierEvaluation: () {
+            setState(() {
+              _supplierEvaluationFocusId = null;
+              _view = AdminView.supplierEvaluation;
+            });
+          },
+          onOpenSupplierEvaluationFor: (supplierId) {
+            setState(() {
+              _supplierEvaluationFocusId = supplierId;
+              _view = AdminView.supplierEvaluation;
+            });
+          },
+        );
       case AdminView.supplierEvaluation:
         return SupplierEvaluationPage(
           api: widget.api,
           canWrite: _canWriteTile('supplierEvaluation'),
           isQm: _portalIsQm || _isSuperuser || _portalRole == 'admin',
           canManageLookups: _portalIsQm || _isSuperuser || _portalRole == 'admin' || _portalRole == 'ek',
+          initialSupplierId: _supplierEvaluationFocusId,
         );
       case AdminView.wikiCategories:
         return AdminWikiCategoriesPage(
