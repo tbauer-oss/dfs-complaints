@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../api/client.dart';
 import '../models/supplier_evaluation.dart';
 import '../utils/app_error_mapper.dart';
+import '../widgets/suppliers/drag_scroll_view.dart';
 
 class ApprovedSuppliersPage extends StatefulWidget {
   final ApiClient api;
@@ -48,8 +49,9 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
   final _verticalBodyController = ScrollController();
   final _detailScrollController = ScrollController();
 
-  static const double _supplierWidth = 260;
-  static const double _supplierNoWidth = 140;
+  static const double _selectionWidth = 48;
+  static const double _supplierWidth = 280;
+  static const double _supplierNoWidth = 120;
   static const double _criticalWidth = 110;
   static const double _statusWidth = 200;
   static const double _scoreWidth = 120;
@@ -62,7 +64,7 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
   static const double _evidenceWidth = 260;
   static const double _actionsWidth = 140;
 
-  double get _tableMinWidth => _auditView ? 1880 : 1600;
+  double get _tableMinWidth => _auditView ? 1950 : 1668;
 
   @override
   void initState() {
@@ -205,7 +207,8 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
             'evidence',
             'actions',
           ];
-    return columns.indexOf(key).clamp(0, columns.length - 1);
+    final index = columns.indexOf(key).clamp(0, columns.length - 1);
+    return index + 1;
   }
 
   void _sortBy<T>(String key, Comparable<T> Function(ApprovedSupplier supplier) getField) {
@@ -447,6 +450,7 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
       child: Icon(Icons.help_outline, size: 16, color: theme.colorScheme.onSurfaceVariant),
     );
     final columns = <DataColumn>[
+      const DataColumn(label: SizedBox(width: _selectionWidth)),
       DataColumn(
         label: SizedBox(
           width: _supplierWidth,
@@ -533,6 +537,18 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
         selected: _selected?.supplierId == supplier.supplierId,
         onSelectChanged: (_) => _selectSupplier(supplier),
         cells: [
+          DataCell(
+            SizedBox(
+              width: _selectionWidth,
+              child: Align(
+                alignment: Alignment.center,
+                child: Checkbox(
+                  value: _selected?.supplierId == supplier.supplierId,
+                  onChanged: (_) => _selectSupplier(supplier),
+                ),
+              ),
+            ),
+          ),
           DataCell(_textCell(supplier.name, _supplierWidth, maxLines: 2)),
           DataCell(_textCell(supplier.supplierNo.isEmpty ? '—' : supplier.supplierNo, _supplierNoWidth)),
           DataCell(_rowCell(_criticalBadge(supplier, theme), _criticalWidth)),
@@ -660,6 +676,7 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
             columns: _buildColumns(theme),
             rows: const [],
             headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant),
+            showCheckboxColumn: false,
             dataRowMinHeight: 0,
             dataRowMaxHeight: 0,
             headingRowHeight: 48,
@@ -677,7 +694,9 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
       columns: _buildColumns(theme),
       rows: _buildRows(items, theme),
       headingRowHeight: 0,
-      dataRowMinHeight: 52,
+      showCheckboxColumn: false,
+      dataRowMinHeight: 48,
+      dataRowMaxHeight: 48,
       dividerThickness: 0.4,
       dataRowColor: MaterialStateProperty.resolveWith((states) {
         if (states.contains(MaterialState.selected)) {
@@ -1040,22 +1059,26 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
                                       children: [
                                         _buildDataTableHeader(theme),
                                         Expanded(
-                                          child: Scrollbar(
-                                            controller: _verticalBodyController,
-                                            thumbVisibility: true,
-                                            notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
-                                            child: SingleChildScrollView(
+                                          child: DragScrollView(
+                                            verticalController: _verticalBodyController,
+                                            horizontalController: _horizontalBodyController,
+                                            child: Scrollbar(
                                               controller: _verticalBodyController,
-                                              child: Scrollbar(
-                                                controller: _horizontalBodyController,
-                                                thumbVisibility: true,
-                                                notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
-                                                child: SingleChildScrollView(
+                                              thumbVisibility: true,
+                                              notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                                              child: SingleChildScrollView(
+                                                controller: _verticalBodyController,
+                                                child: Scrollbar(
                                                   controller: _horizontalBodyController,
-                                                  scrollDirection: Axis.horizontal,
-                                                  child: ConstrainedBox(
-                                                    constraints: BoxConstraints(minWidth: _tableMinWidth),
-                                                    child: _buildDataTableBody(items, theme),
+                                                  thumbVisibility: true,
+                                                  notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+                                                  child: SingleChildScrollView(
+                                                    controller: _horizontalBodyController,
+                                                    scrollDirection: Axis.horizontal,
+                                                    child: ConstrainedBox(
+                                                      constraints: BoxConstraints(minWidth: _tableMinWidth),
+                                                      child: _buildDataTableBody(items, theme),
+                                                    ),
                                                   ),
                                                 ),
                                               ),
