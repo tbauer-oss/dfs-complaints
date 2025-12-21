@@ -4,7 +4,8 @@ export const config = { runtime: 'nodejs' };
 import PDFDocument from 'pdfkit';
 import fs from 'fs/promises';
 import path from 'path';
-import puppeteer from 'puppeteer';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
@@ -15,6 +16,21 @@ import {
 } from '../_lib/store.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
+
+async function launchBrowser() {
+  if (process.env.VERCEL) {
+    return puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  }
+  return puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+}
 
 function toCsv(rows) {
   const escape = (value) => {
@@ -893,9 +909,7 @@ async function buildSupplierLetter({ supplierId, year, actor }) {
     </html>
   `;
 
-  const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
