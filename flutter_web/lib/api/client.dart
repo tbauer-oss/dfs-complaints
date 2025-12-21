@@ -2390,10 +2390,22 @@ class ApiClient {
 
   Future<SupplierLetterLayoutConfig> adminUpdateSupplierReportLayout(SupplierLetterLayoutConfig layout) async {
     final path = Uri(path: '/api/admin/supplier-report-layout', queryParameters: {'type': 'letter'}).toString();
+    final payload = {
+      'page': layout.page,
+      'header': layout.header,
+      'recipientBlock': layout.recipientBlock,
+      'dateBlock': layout.dateBlock,
+      'titleBlock': layout.titleBlock,
+      'bodyStartMm': layout.bodyStartMm,
+    };
+    final size = utf8.encode(jsonEncode(payload)).length;
+    if (size > 20000) {
+      throw ApiError(413, 'Layout-Konfiguration ist zu groß.');
+    }
     final r = await http.post(
       _u(path),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode(layout.toJson()),
+      body: jsonEncode(payload),
     );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2419,13 +2431,28 @@ class ApiClient {
       if (preview) 'preview': 'true',
     };
     final path = Uri(path: '/api/admin/supplier-reports', queryParameters: queryParameters).toString();
-    final r = preview || layoutConfig != null
-        ? await http.post(
-            _u(path),
-            headers: _adminHeaders(auth: true),
-            body: jsonEncode({'layout': layoutConfig?.toJson(), 'preview': preview}),
-          )
-        : await http.get(_u(path), headers: _adminHeaders(auth: true));
+    http.Response r;
+    if (layoutConfig != null) {
+      final payload = {
+        'page': layoutConfig.page,
+        'header': layoutConfig.header,
+        'recipientBlock': layoutConfig.recipientBlock,
+        'dateBlock': layoutConfig.dateBlock,
+        'titleBlock': layoutConfig.titleBlock,
+        'bodyStartMm': layoutConfig.bodyStartMm,
+      };
+      final size = utf8.encode(jsonEncode(payload)).length;
+      if (size > 20000) {
+        throw ApiError(413, 'Layout-Konfiguration ist zu groß.');
+      }
+      r = await http.post(
+        _u(path),
+        headers: _adminHeaders(auth: true),
+        body: jsonEncode(payload),
+      );
+    } else {
+      r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    }
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }

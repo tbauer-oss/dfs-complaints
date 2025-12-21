@@ -1,5 +1,5 @@
 // api/rep/contact-qm.js
-import { setCors } from '../_lib/cors.js';
+import { setCors } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { loadRepById } from '../_lib/repsStore.js';
 import { mailConfigOk, resolveMailConfig } from '../_lib/mail-config.js';

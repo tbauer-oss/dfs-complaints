@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 
-import { setCors } from '../_lib/cors.js';
+import { setCors } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
 import { userSave, userByEmail } from '../_lib/store.js';

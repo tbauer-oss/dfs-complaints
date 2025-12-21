@@ -1,7 +1,7 @@
 // api/customers/[id].js
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../_lib/cors.js';
+import { setCors } from '../_lib/http.js';
 import { readJson } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { userByEmail, userSave } from '../_lib/store.js';

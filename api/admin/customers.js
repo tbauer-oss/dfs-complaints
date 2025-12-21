@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 
-import { setCors } from '../_lib/cors.js';
+import { setCors } from '../_lib/http.js';
 import { userSave } from '../_lib/store.js';
 import { generateStrongPassword, isStrongPassword } from '../_lib/passwords.js';
 import { send, tpl } from '../_lib/mail.js';
