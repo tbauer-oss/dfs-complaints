@@ -7328,7 +7328,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         tileIds: ['capaDashboard', 'capaReports', 'fmea', 'changeManagement', 'audits'],
       ),
       const _AdminMenuSectionState(
-        title: 'Lieferantenmanagement',
+        title: 'Connect+ Supplier Management',
         subtitle: 'Zugelassene Lieferanten, Bewertung und Monitoring',
         tileIds: ['approvedSuppliers', 'supplierEvaluation'],
       ),
