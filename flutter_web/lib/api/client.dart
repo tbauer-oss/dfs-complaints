@@ -2390,10 +2390,34 @@ class ApiClient {
 
   Future<SupplierLetterLayoutConfig> adminUpdateSupplierReportLayout(SupplierLetterLayoutConfig layout) async {
     final path = Uri(path: '/api/admin/supplier-report-layout', queryParameters: {'type': 'letter'}).toString();
+    final payload = {
+      'version': layout.version,
+      'type': 'letter',
+      'page': {
+        'marginTopMm': layout.page['marginTopMm'],
+        'marginRightMm': layout.page['marginRightMm'],
+        'marginBottomMm': layout.page['marginBottomMm'],
+        'marginLeftMm': layout.page['marginLeftMm'],
+      },
+      'blocks': {
+        'logoWidthMm': layout.header['logoWidthMm'],
+        'headerTopMm': layout.header['headerTopMm'],
+        'recipientTopMm': layout.recipientBlock['topMm'],
+        'recipientLeftMm': layout.recipientBlock['leftMm'],
+        'dateTopMm': layout.dateBlock['topMm'],
+        'dateRightMm': layout.dateBlock['rightMm'],
+        'subjectTopMm': layout.titleBlock['topMm'],
+        'bodyTopMm': layout.bodyStartMm,
+      },
+    };
+    final encodedPayload = jsonEncode(payload);
+    if (encodedPayload.length > 100000) {
+      throw 'Layout payload too large — contains unexpected data';
+    }
     final r = await http.post(
       _u(path),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode(layout.toJson()),
+      body: encodedPayload,
     );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2419,11 +2443,11 @@ class ApiClient {
       if (preview) 'preview': 'true',
     };
     final path = Uri(path: '/api/admin/supplier-reports', queryParameters: queryParameters).toString();
-    final r = preview || layoutConfig != null
+    final r = preview
         ? await http.post(
             _u(path),
             headers: _adminHeaders(auth: true),
-            body: jsonEncode({'layout': layoutConfig?.toJson(), 'preview': preview}),
+            body: jsonEncode(<String, dynamic>{}),
           )
         : await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
