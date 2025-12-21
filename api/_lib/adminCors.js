@@ -1,8 +1,12 @@
 export function applyAdminCors(req, res) {
-  const origin = req?.headers?.origin || '';
-  const isProd = origin === 'https://dfs-complaints-web.vercel.app';
-  const isLocalhost = /^https?:\/\/localhost(?::\d+)?$/i.test(origin);
-  if (isProd || isLocalhost) {
+  const origin = req.headers.origin || '';
+  const allowed = [
+    'https://dfs-complaints-web.vercel.app',
+  ];
+  const isLocalhost =
+    origin.startsWith('http://localhost:') || origin.startsWith('https://localhost:');
+
+  if (allowed.includes(origin) || isLocalhost) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }

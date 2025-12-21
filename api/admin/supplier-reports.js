@@ -1,5 +1,10 @@
 // /api/admin/supplier-reports.js – Exporte Lieferantenbewertung
-export const config = { runtime: 'nodejs' };
+export const config = {
+  runtime: 'nodejs',
+  api: {
+    bodyParser: { sizeLimit: '2mb' },
+  },
+};
 
 import PDFDocument from 'pdfkit';
 import fs from 'fs/promises';
@@ -19,32 +24,8 @@ import {
 
 const SUPPLIER_TILE = 'supplierEvaluation';
 const MAX_REQUEST_BYTES = 25000;
-const ALLOWED_BODY_KEYS = new Set(['layoutOverride', 'locale', 'debug']);
-const TOP_LEVEL_KEYS = new Set([
-  'page',
-  'header',
-  'recipientBlock',
-  'dateBlock',
-  'titleBlock',
-  'bodyStartMm',
-  'blocks',
-]);
-const PAGE_KEYS = ['marginTopMm', 'marginRightMm', 'marginBottomMm', 'marginLeftMm'];
-const HEADER_KEYS = ['logoWidthMm', 'headerTopMm'];
-const RECIPIENT_KEYS = ['topMm', 'leftMm'];
-const DATE_KEYS = ['topMm', 'rightMm'];
-const TITLE_KEYS = ['topMm'];
-const BLOCK_KEYS = [
-  'recipientTopMm',
-  'recipientLeftMm',
-  'dateTopMm',
-  'dateRightMm',
-  'subjectTopMm',
-  'bodyTopMm',
-];
-
+const ALLOWED_BODY_KEYS = new Set(['locale', 'debug']);
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 const BASE64_PATTERN = /^[A-Za-z0-9+/=]+$/;
 
 function sendJson(res, statusCode, payload) {
@@ -64,7 +45,10 @@ function containsProhibitedContent(value, keyPath = '') {
   if (typeof value === 'string') {
     const loweredKey = keyPath.toLowerCase();
     if (loweredKey.includes('html')) return true;
+    if (loweredKey.includes('base64')) return true;
     if (/<\/?[a-z][\s\S]*>/i.test(value)) return true;
+    if (value.includes('data:image')) return true;
+    if (value.length > 2000) return true;
     if (value.length > 500 && BASE64_PATTERN.test(value)) return true;
     return false;
   }
@@ -92,121 +76,13 @@ function validateSupplierReportBody(body) {
   if (body.debug != null && typeof body.debug !== 'boolean') {
     return { ok: false, status: 400, error: 'Ungültiger Debug-Wert.' };
   }
-  let layoutOverride = null;
-  if (body.layoutOverride != null) {
-    const normalized = normalizeLayoutInput(body.layoutOverride);
-    if (!normalized.ok) {
-      return { ok: false, status: 400, error: normalized.error };
-    }
-    layoutOverride = normalized.layout;
-  }
   return {
     ok: true,
-    layoutOverride,
     locale: body.locale ? String(body.locale).toLowerCase() : null,
     debug: body.debug === true,
   };
 }
 
-function pickNumericFields(source, allowedKeys, target, errors) {
-  if (source == null) return;
-  if (!isPlainObject(source)) {
-    errors.push('Ungültiges Layout-Format.');
-    return;
-  }
-  for (const key of Object.keys(source)) {
-    if (!allowedKeys.includes(key)) {
-      errors.push('Ungültiges Layout-Format.');
-      return;
-    }
-    if (!isFiniteNumber(source[key])) {
-      errors.push('Ungültige Layout-Werte.');
-      return;
-    }
-    target[key] = source[key];
-  }
-}
-
-function normalizeLayoutInput(input) {
-  const errors = [];
-  if (!isPlainObject(input)) {
-    return { ok: false, error: 'Ungültiges Layout-Format.' };
-  }
-  for (const key of Object.keys(input)) {
-    if (!TOP_LEVEL_KEYS.has(key)) {
-      return { ok: false, error: 'Ungültiges Layout-Format.' };
-    }
-  }
-
-  const layout = {};
-  const page = {};
-  const header = {};
-  const recipientBlock = {};
-  const dateBlock = {};
-  const titleBlock = {};
-
-  pickNumericFields(input.page, PAGE_KEYS, page, errors);
-  pickNumericFields(input.header, HEADER_KEYS, header, errors);
-  pickNumericFields(input.recipientBlock, RECIPIENT_KEYS, recipientBlock, errors);
-  pickNumericFields(input.dateBlock, DATE_KEYS, dateBlock, errors);
-  pickNumericFields(input.titleBlock, TITLE_KEYS, titleBlock, errors);
-
-  if (input.blocks != null) {
-    if (!isPlainObject(input.blocks)) {
-      errors.push('Ungültiges Layout-Format.');
-    } else {
-      for (const key of Object.keys(input.blocks)) {
-        if (!BLOCK_KEYS.includes(key)) {
-          errors.push('Ungültiges Layout-Format.');
-          break;
-        }
-        if (!isFiniteNumber(input.blocks[key])) {
-          errors.push('Ungültige Layout-Werte.');
-          break;
-        }
-      }
-      if (!errors.length) {
-        if (!isFiniteNumber(recipientBlock.topMm) && isFiniteNumber(input.blocks.recipientTopMm)) {
-          recipientBlock.topMm = input.blocks.recipientTopMm;
-        }
-        if (!isFiniteNumber(recipientBlock.leftMm) && isFiniteNumber(input.blocks.recipientLeftMm)) {
-          recipientBlock.leftMm = input.blocks.recipientLeftMm;
-        }
-        if (!isFiniteNumber(dateBlock.topMm) && isFiniteNumber(input.blocks.dateTopMm)) {
-          dateBlock.topMm = input.blocks.dateTopMm;
-        }
-        if (!isFiniteNumber(dateBlock.rightMm) && isFiniteNumber(input.blocks.dateRightMm)) {
-          dateBlock.rightMm = input.blocks.dateRightMm;
-        }
-        if (!isFiniteNumber(titleBlock.topMm) && isFiniteNumber(input.blocks.subjectTopMm)) {
-          titleBlock.topMm = input.blocks.subjectTopMm;
-        }
-        if (!isFiniteNumber(layout.bodyStartMm) && isFiniteNumber(input.blocks.bodyTopMm)) {
-          layout.bodyStartMm = input.blocks.bodyTopMm;
-        }
-      }
-    }
-  }
-
-  if (Object.keys(page).length) layout.page = page;
-  if (Object.keys(header).length) layout.header = header;
-  if (Object.keys(recipientBlock).length) layout.recipientBlock = recipientBlock;
-  if (Object.keys(dateBlock).length) layout.dateBlock = dateBlock;
-  if (Object.keys(titleBlock).length) layout.titleBlock = titleBlock;
-
-  if (input.bodyStartMm != null) {
-    if (!isFiniteNumber(input.bodyStartMm)) {
-      errors.push('Ungültige Layout-Werte.');
-    } else {
-      layout.bodyStartMm = input.bodyStartMm;
-    }
-  }
-
-  if (errors.length) {
-    return { ok: false, error: errors[0] };
-  }
-  return { ok: true, layout };
-}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LETTERHEAD_PATH = path.join(__dirname, '../_assets/dfs_letterhead.png');
@@ -1746,9 +1622,21 @@ export default async function handler(req, res) {
         if (containsProhibitedContent(body)) {
           return sendError(
             res,
-            413,
-            'Do not send HTML/base64 to supplier-reports. Only send small JSON.'
+            400,
+            'Do not send HTML/images. Only send small JSON. Layout is saved via supplier-report-layout.'
           );
+        }
+        const previewOnly = String(req.query?.preview).toLowerCase() === 'true';
+        const allowedPreviewKeys = new Set(['locale']);
+        if (previewOnly) {
+          const keys = Object.keys(body || {});
+          if (keys.some((key) => !allowedPreviewKeys.has(key))) {
+            return sendError(
+              res,
+              400,
+              'Do not send HTML/images. Only send small JSON. Layout is saved via supplier-report-layout.'
+            );
+          }
         }
         const validated = validateSupplierReportBody(body);
         if (!validated.ok) {
@@ -1756,7 +1644,6 @@ export default async function handler(req, res) {
         }
         localeOverride = validated.locale;
         body = {
-          layoutOverride: validated.layoutOverride,
           debug: validated.debug,
         };
       }
@@ -1784,20 +1671,11 @@ export default async function handler(req, res) {
       }
       let pdf;
       if (reportType === 'letter') {
-        const layoutInput = body?.layoutOverride || null;
-        let layoutConfig = null;
-        if (layoutInput != null) {
-          const normalized = normalizeLayoutInput(layoutInput);
-          if (!normalized.ok) {
-            return sendError(res, 400, normalized.error);
-          }
-          layoutConfig = normalized.layout;
-        }
         pdf = await buildSupplierLetter({
           supplierId,
           year,
           actor: actorName,
-          layoutConfig,
+          layoutConfig: null,
           preview,
           localeOverride,
         });
@@ -1828,8 +1706,8 @@ export default async function handler(req, res) {
       if (containsProhibitedContent(body)) {
         return sendError(
           res,
-          413,
-          'Do not send HTML/base64 to supplier-reports. Only send small JSON.'
+          400,
+          'Do not send HTML/images. Only send small JSON. Layout is saved via supplier-report-layout.'
         );
       }
       if (body?.format === 'csv') {

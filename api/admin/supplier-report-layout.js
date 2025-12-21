@@ -1,5 +1,10 @@
 // /api/admin/supplier-report-layout.js – Layout-Konfiguration für Lieferantenbriefe
-export const config = { runtime: 'nodejs' };
+export const config = {
+  runtime: 'nodejs',
+  api: {
+    bodyParser: { sizeLimit: '2mb' },
+  },
+};
 
 import { applyAdminCors } from '../_lib/adminCors.js';
 import { readJson } from '../_lib/http.js';
@@ -7,22 +12,12 @@ import { requirePortalAccess } from './_guard.js';
 import { supplierReportLetterLayoutGet, supplierReportLetterLayoutSave } from '../_lib/store.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
-const MAX_LAYOUT_BYTES = 20000;
-const TOP_LEVEL_KEYS = new Set([
-  'page',
-  'header',
-  'recipientBlock',
-  'dateBlock',
-  'titleBlock',
-  'bodyStartMm',
-  'blocks',
-]);
+const MAX_LAYOUT_BYTES = 200 * 1024;
+const TOP_LEVEL_KEYS = new Set(['version', 'type', 'page', 'blocks']);
 const PAGE_KEYS = ['marginTopMm', 'marginRightMm', 'marginBottomMm', 'marginLeftMm'];
-const HEADER_KEYS = ['logoWidthMm', 'headerTopMm'];
-const RECIPIENT_KEYS = ['topMm', 'leftMm'];
-const DATE_KEYS = ['topMm', 'rightMm'];
-const TITLE_KEYS = ['topMm'];
 const BLOCK_KEYS = [
+  'logoWidthMm',
+  'headerTopMm',
   'recipientTopMm',
   'recipientLeftMm',
   'dateTopMm',
@@ -52,6 +47,7 @@ function containsProhibitedContent(value, keyPath = '') {
   if (typeof value === 'string') {
     const loweredKey = keyPath.toLowerCase();
     if (loweredKey.includes('html')) return true;
+    if (value.length > 500) return true;
     if (/<\/?[a-z][\s\S]*>/i.test(value)) return true;
     if (value.length > 500 && BASE64_PATTERN.test(value)) return true;
     return false;
@@ -103,10 +99,6 @@ function normalizeLayoutInput(input) {
   const titleBlock = {};
 
   pickNumericFields(input.page, PAGE_KEYS, page, errors);
-  pickNumericFields(input.header, HEADER_KEYS, header, errors);
-  pickNumericFields(input.recipientBlock, RECIPIENT_KEYS, recipientBlock, errors);
-  pickNumericFields(input.dateBlock, DATE_KEYS, dateBlock, errors);
-  pickNumericFields(input.titleBlock, TITLE_KEYS, titleBlock, errors);
 
   if (input.blocks != null) {
     if (!isPlainObject(input.blocks)) {
@@ -123,6 +115,12 @@ function normalizeLayoutInput(input) {
         }
       }
       if (!errors.length) {
+        if (!isFiniteNumber(header.logoWidthMm) && isFiniteNumber(input.blocks.logoWidthMm)) {
+          header.logoWidthMm = input.blocks.logoWidthMm;
+        }
+        if (!isFiniteNumber(header.headerTopMm) && isFiniteNumber(input.blocks.headerTopMm)) {
+          header.headerTopMm = input.blocks.headerTopMm;
+        }
         if (!isFiniteNumber(recipientBlock.topMm) && isFiniteNumber(input.blocks.recipientTopMm)) {
           recipientBlock.topMm = input.blocks.recipientTopMm;
         }
@@ -150,14 +148,6 @@ function normalizeLayoutInput(input) {
   if (Object.keys(recipientBlock).length) layout.recipientBlock = recipientBlock;
   if (Object.keys(dateBlock).length) layout.dateBlock = dateBlock;
   if (Object.keys(titleBlock).length) layout.titleBlock = titleBlock;
-
-  if (input.bodyStartMm != null) {
-    if (!isFiniteNumber(input.bodyStartMm)) {
-      errors.push('Ungültige Layout-Werte.');
-    } else {
-      layout.bodyStartMm = input.bodyStartMm;
-    }
-  }
 
   if (errors.length) {
     return { ok: false, error: errors[0] };
@@ -200,17 +190,24 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
+      const payloadSize = Buffer.byteLength(JSON.stringify(body), 'utf8');
+      if (payloadSize > 200 * 1024) {
+        return sendError(res, 413, 'payload too large', { limit: 200 * 1024 });
+      }
       if (containsProhibitedContent(body)) {
         return sendError(
           res,
-          413,
-          'Do not send HTML/base64 to supplier-reports. Only send small JSON.'
+          400,
+          'layout contains oversized string (do not send html/base64)'
         );
       }
-      const payload = body?.layout && typeof body.layout === 'object' ? body.layout : body;
+      const payload = body;
       const normalized = normalizeLayoutInput(payload);
       if (!normalized.ok) {
         return sendError(res, 400, normalized.error);
+      }
+      if (payload.type && payload.type !== layoutType) {
+        return sendError(res, 400, 'Ungültiger Layout-Typ.');
       }
       // Layouts must stay small: only numeric coordinates (no HTML/base64/logo payloads).
       const layoutKey = `supplierReportLayout:${layoutType}`;
