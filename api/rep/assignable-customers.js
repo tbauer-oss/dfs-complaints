@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../_lib/cors.js';
+import { setCors } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { redisScanAll, redisGet, redisMGet } from '../_lib/upstash.js';
 

@@ -1,10 +1,11 @@
 // Gemeinsamer Guard für DFS Portal Endpunkte (ehem. Adminbereich)
-import { bad, setCors, handlePreflight } from '../_lib/http.js';
+import { bad } from '../_lib/http.js';
+import { applyCors } from '../_lib/cors.js';
 import { canReadTile, canWrite, canWriteTile, portalUserFromRequest } from '../_lib/portalAuth.js';
 
 export async function requirePortalAccess(req, res, { write = false, tile, allowPrrc = false } = {}) {
   // ✅ CORS immer zuerst – auch für 401/403
-  if (handlePreflight(req, res)) return null;
+  if (applyCors(req, res, { allowCredentials: Boolean(req?.headers?.cookie) })) return null;
 
   const actor = await portalUserFromRequest(req);
   if (!actor) {

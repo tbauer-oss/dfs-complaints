@@ -1,7 +1,7 @@
 // /api/rep/complaints.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors } from '../_lib/cors.js';
+import { setCors } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { repCustomers } from '../_lib/repsStore.js';
 import { complaintsForRepEmails } from '../_lib/store.js'; // KORREKT
