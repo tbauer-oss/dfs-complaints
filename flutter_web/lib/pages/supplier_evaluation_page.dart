@@ -441,7 +441,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
     final showLegalFooter = signature.showLegalFooter;
     var lines = 0;
     if (signature.showName) lines += 1;
-    if (signature.showTitle) lines += 1;
+    if (signature.showRole) lines += 1;
     if (showLegalFooter && signature.showEmail) lines += 1;
     var height = lines * lineHeight;
     if (showLegalFooter) {
@@ -3478,9 +3478,40 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
                 onChanged: (val) =>
                     _updateLayoutDraft(layout.copyWith(signature: layout.signature.copyWith(compact: val))),
               ),
+              TextFormField(
+                key: ValueKey('sender-name-de-${layout.signature.senderName['de']}'),
+                initialValue: layout.signature.senderName['de'] ?? '',
+                decoration: const InputDecoration(labelText: 'Absendername (Deutsch)'),
+                onChanged: (val) => _updateLayoutDraft(
+                  layout.copyWith(
+                    signature: layout.signature.copyWith(
+                      senderName: {...layout.signature.senderName, 'de': val},
+                    ),
+                  ),
+                ),
+              ),
+              TextFormField(
+                key: ValueKey('sender-name-en-${layout.signature.senderName['en']}'),
+                initialValue: layout.signature.senderName['en'] ?? '',
+                decoration: const InputDecoration(labelText: 'Sender name (English)'),
+                onChanged: (val) => _updateLayoutDraft(
+                  layout.copyWith(
+                    signature: layout.signature.copyWith(
+                      senderName: {...layout.signature.senderName, 'en': val},
+                    ),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 4, bottom: 8),
+                child: Text(
+                  'This name is shown instead of a personal signature in supplier letters.',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Name anzeigen'),
+                title: const Text('Absendername anzeigen'),
                 value: layout.signature.showName,
                 onChanged: (val) => _updateLayoutDraft(
                   layout.copyWith(signature: layout.signature.copyWith(showName: val ?? true)),
@@ -3488,10 +3519,10 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
               ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Funktion anzeigen'),
-                value: layout.signature.showTitle,
+                title: const Text('Rolle anzeigen'),
+                value: layout.signature.showRole,
                 onChanged: (val) => _updateLayoutDraft(
-                  layout.copyWith(signature: layout.signature.copyWith(showTitle: val ?? true)),
+                  layout.copyWith(signature: layout.signature.copyWith(showRole: val ?? true)),
                 ),
               ),
               CheckboxListTile(

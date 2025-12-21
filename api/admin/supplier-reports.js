@@ -27,11 +27,12 @@ const MAX_REQUEST_BYTES = 25000;
 const ALLOWED_BODY_KEYS = new Set(['locale', 'debug', 'layout']);
 const LAYOUT_KEYS = new Set(['page', 'header', 'recipientBlock', 'dateBlock', 'titleBlock', 'bodyStartMm', 'signature']);
 const SIGNATURE_KEYS = new Set([
+  'senderName',
   'enabled',
   'startY',
   'compact',
   'showName',
-  'showTitle',
+  'showRole',
   'showEmail',
   'showLegalFooter',
 ]);
@@ -149,6 +150,16 @@ function normalizePreviewLayout(input) {
     const signature = {};
     for (const [key, value] of Object.entries(input.signature)) {
       if (!SIGNATURE_KEYS.has(key)) return null;
+      if (key === 'senderName') {
+        if (!isPlainObject(value)) return null;
+        const senderName = {};
+        for (const [lang, text] of Object.entries(value)) {
+          if (!['de', 'en'].includes(lang) || typeof text !== 'string') return null;
+          senderName[lang] = text;
+        }
+        signature[key] = senderName;
+        continue;
+      }
       if (key === 'startY') {
         const numeric = toNumber(value);
         if (numeric == null) return null;
@@ -794,6 +805,13 @@ function mergeLayoutConfig(base, override) {
   if (!override || typeof override !== 'object') return base;
   const toNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
   const toBoolean = (value, fallback) => (typeof value === 'boolean' ? value : fallback);
+  const toSenderName = (value, fallback) => {
+    if (!isPlainObject(value)) return fallback;
+    return {
+      de: typeof value.de === 'string' ? value.de : fallback.de,
+      en: typeof value.en === 'string' ? value.en : fallback.en,
+    };
+  };
   const merged = {
     ...base,
     ...override,
@@ -844,12 +862,18 @@ function mergeLayoutConfig(base, override) {
     topMm: toNumber(merged.titleBlock?.topMm, base.titleBlock.topMm),
   };
   merged.bodyStartMm = toNumber(merged.bodyStartMm, base.bodyStartMm);
+  const baseSenderName = isPlainObject(base.signature?.senderName) ? base.signature.senderName : { de: '', en: '' };
+  const signatureSenderName = toSenderName(merged.signature?.senderName, baseSenderName);
   merged.signature = {
+    senderName: signatureSenderName,
     enabled: toBoolean(merged.signature?.enabled, base.signature.enabled),
     startY: toNumber(merged.signature?.startY, base.signature.startY),
     compact: toBoolean(merged.signature?.compact, base.signature.compact),
     showName: toBoolean(merged.signature?.showName, base.signature.showName),
-    showTitle: toBoolean(merged.signature?.showTitle, base.signature.showTitle),
+    showRole: toBoolean(
+      merged.signature?.showRole,
+      toBoolean(merged.signature?.showTitle, base.signature.showRole)
+    ),
     showEmail: toBoolean(merged.signature?.showEmail, base.signature.showEmail),
     showLegalFooter: toBoolean(merged.signature?.showLegalFooter, base.signature.showLegalFooter),
   };
@@ -1454,13 +1478,17 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
 
   const signatureConfig = layout.signature || {};
   if (signatureConfig.enabled) {
-    const signatureName = 'Tobias Bauer';
-    const signatureTitle = 'PRRC • Head of Quality Management (QMB/BdoL)';
+    const senderNameConfig = signatureConfig.senderName || {};
+    const signatureName =
+      language === 'EN'
+        ? senderNameConfig.en || 'DFS-Diamon Supplier Management'
+        : senderNameConfig.de || 'DFS-Diamon Lieferantenmanagement';
+    const signatureRole = 'PRRC • Head of Quality Management (QMB/BdoL)';
     const signatureEmail = actor ? `E-Mail: ${actor}` : null;
     const showLegalFooter = signatureConfig.showLegalFooter !== false;
     const signatureLines = [];
     if (signatureConfig.showName !== false) signatureLines.push(signatureName);
-    if (signatureConfig.showTitle !== false) signatureLines.push(signatureTitle);
+    if (signatureConfig.showRole === true) signatureLines.push(signatureRole);
     if (showLegalFooter && signatureConfig.showEmail !== false && signatureEmail) signatureLines.push(signatureEmail);
 
     const legalFooterColumns = {

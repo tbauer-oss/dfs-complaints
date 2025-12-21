@@ -26,14 +26,16 @@ const BLOCK_KEYS = [
   'bodyTopMm',
 ];
 const SIGNATURE_KEYS = [
+  'senderName',
   'enabled',
   'startY',
   'compact',
   'showName',
-  'showTitle',
+  'showRole',
   'showEmail',
   'showLegalFooter',
 ];
+const SENDER_NAME_KEYS = ['de', 'en'];
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -127,6 +129,23 @@ function normalizeLayoutInput(input) {
               break;
             }
             const value = raw[sigKey];
+            if (sigKey === 'senderName') {
+              if (!isPlainObject(value)) {
+                errors.push('Ungültige Layout-Werte.');
+                break;
+              }
+              const senderName = {};
+              for (const [lang, text] of Object.entries(value)) {
+                if (!SENDER_NAME_KEYS.includes(lang) || typeof text !== 'string') {
+                  errors.push('Ungültige Layout-Werte.');
+                  break;
+                }
+                senderName[lang] = text;
+              }
+              if (errors.length) break;
+              signature[sigKey] = senderName;
+              continue;
+            }
             if (sigKey === 'startY') {
               if (!isFiniteNumber(value)) {
                 errors.push('Ungültige Layout-Werte.');

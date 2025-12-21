@@ -2413,9 +2413,10 @@ class ApiClient {
           'startY': layout.signature.startY,
           'compact': layout.signature.compact,
           'showName': layout.signature.showName,
-          'showTitle': layout.signature.showTitle,
+          'showRole': layout.signature.showRole,
           'showEmail': layout.signature.showEmail,
           'showLegalFooter': layout.signature.showLegalFooter,
+          'senderName': layout.signature.senderName,
         },
       },
     };

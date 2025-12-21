@@ -853,31 +853,37 @@ class SupplierLetterLayoutConfig {
 }
 
 class SupplierLetterSignatureConfig {
+  final Map<String, String> senderName;
   final bool enabled;
   final double startY;
   final bool compact;
   final bool showName;
-  final bool showTitle;
+  final bool showRole;
   final bool showEmail;
   final bool showLegalFooter;
 
   const SupplierLetterSignatureConfig({
+    required this.senderName,
     required this.enabled,
     required this.startY,
     required this.compact,
     required this.showName,
-    required this.showTitle,
+    required this.showRole,
     required this.showEmail,
     required this.showLegalFooter,
   });
 
   factory SupplierLetterSignatureConfig.defaults() => const SupplierLetterSignatureConfig(
+        senderName: {
+          'de': 'DFS-Diamon Lieferantenmanagement',
+          'en': 'DFS-Diamon Supplier Management',
+        },
         enabled: true,
         startY: 230,
         compact: true,
         showName: true,
-        showTitle: true,
-        showEmail: true,
+        showRole: false,
+        showEmail: false,
         showLegalFooter: true,
       );
 
@@ -885,43 +891,55 @@ class SupplierLetterSignatureConfig {
     final defaults = SupplierLetterSignatureConfig.defaults();
     double toDouble(dynamic value, double fallback) => value is num ? value.toDouble() : fallback;
     bool toBool(dynamic value, bool fallback) => value is bool ? value : fallback;
+    Map<String, String> toSenderName(Map? raw, Map<String, String> fallback) {
+      final map = <String, String>{};
+      fallback.forEach((key, value) {
+        final rawValue = raw?[key];
+        map[key] = rawValue is String && rawValue.isNotEmpty ? rawValue : value;
+      });
+      return map;
+    }
     return SupplierLetterSignatureConfig(
+      senderName: toSenderName(json['senderName'] as Map?, defaults.senderName),
       enabled: toBool(json['enabled'], defaults.enabled),
       startY: toDouble(json['startY'], defaults.startY),
       compact: toBool(json['compact'], defaults.compact),
       showName: toBool(json['showName'], defaults.showName),
-      showTitle: toBool(json['showTitle'], defaults.showTitle),
+      showRole: toBool(json['showRole'], defaults.showRole),
       showEmail: toBool(json['showEmail'], defaults.showEmail),
       showLegalFooter: toBool(json['showLegalFooter'], defaults.showLegalFooter),
     );
   }
 
   SupplierLetterSignatureConfig copyWith({
+    Map<String, String>? senderName,
     bool? enabled,
     double? startY,
     bool? compact,
     bool? showName,
-    bool? showTitle,
+    bool? showRole,
     bool? showEmail,
     bool? showLegalFooter,
   }) {
     return SupplierLetterSignatureConfig(
+      senderName: senderName ?? this.senderName,
       enabled: enabled ?? this.enabled,
       startY: startY ?? this.startY,
       compact: compact ?? this.compact,
       showName: showName ?? this.showName,
-      showTitle: showTitle ?? this.showTitle,
+      showRole: showRole ?? this.showRole,
       showEmail: showEmail ?? this.showEmail,
       showLegalFooter: showLegalFooter ?? this.showLegalFooter,
     );
   }
 
   Map<String, dynamic> toJson() => {
+        'senderName': senderName,
         'enabled': enabled,
         'startY': startY,
         'compact': compact,
         'showName': showName,
-        'showTitle': showTitle,
+        'showRole': showRole,
         'showEmail': showEmail,
         'showLegalFooter': showLegalFooter,
       };

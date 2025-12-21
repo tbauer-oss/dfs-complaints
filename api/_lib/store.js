@@ -5495,12 +5495,16 @@ function defaultSupplierReportLetterLayout() {
     titleBlock: { topMm: 85 },
     bodyStartMm: 95,
     signature: {
+      senderName: {
+        de: 'DFS-Diamon Lieferantenmanagement',
+        en: 'DFS-Diamon Supplier Management',
+      },
       enabled: true,
       startY: 230,
       compact: true,
       showName: true,
-      showTitle: true,
-      showEmail: true,
+      showRole: false,
+      showEmail: false,
       showLegalFooter: true,
     },
     updatedAt: Date.now(),
@@ -5560,6 +5564,7 @@ function normalizeSupplierReportLetterLayout(config = {}) {
   const dateBlock = base.dateBlock && typeof base.dateBlock === 'object' ? base.dateBlock : {};
   const titleBlock = base.titleBlock && typeof base.titleBlock === 'object' ? base.titleBlock : {};
   const signature = base.signature && typeof base.signature === 'object' ? base.signature : {};
+  const signatureSender = signature.senderName && typeof signature.senderName === 'object' ? signature.senderName : {};
   const merged = {
     ...defaults,
     ...base,
@@ -5586,11 +5591,18 @@ function normalizeSupplierReportLetterLayout(config = {}) {
     },
     bodyStartMm: toNumber(base.bodyStartMm, defaults.bodyStartMm),
     signature: {
+      senderName: {
+        de: normalizeString(signatureSender.de || defaults.signature.senderName.de),
+        en: normalizeString(signatureSender.en || defaults.signature.senderName.en),
+      },
       enabled: toBoolean(signature.enabled, defaults.signature.enabled),
       startY: toNumber(signature.startY, defaults.signature.startY),
       compact: toBoolean(signature.compact, defaults.signature.compact),
       showName: toBoolean(signature.showName, defaults.signature.showName),
-      showTitle: toBoolean(signature.showTitle, defaults.signature.showTitle),
+      showRole: toBoolean(
+        signature.showRole,
+        toBoolean(signature.showTitle, defaults.signature.showRole)
+      ),
       showEmail: toBoolean(signature.showEmail, defaults.signature.showEmail),
       showLegalFooter: toBoolean(signature.showLegalFooter, defaults.signature.showLegalFooter),
     },
