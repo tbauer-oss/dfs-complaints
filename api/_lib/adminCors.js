@@ -1,25 +1,16 @@
-const PROD_ORIGIN = 'https://dfs-complaints-web.vercel.app';
-const LOCALHOST_PATTERN = /^https?:\/\/localhost(?::\d+)?$/i;
-
-function resolveAdminOrigin(req) {
-  const origin = req?.headers?.origin || '';
-  if (origin === PROD_ORIGIN || LOCALHOST_PATTERN.test(origin)) return origin;
-  return PROD_ORIGIN;
-}
-
 export function applyAdminCors(req, res) {
-  const allowOrigin = resolveAdminOrigin(req);
-  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  res.setHeader('Vary', 'Origin');
+  const origin = req?.headers?.origin || '';
+  const isProd = origin === 'https://dfs-complaints-web.vercel.app';
+  const isLocalhost = /^https?:\/\/localhost(?::\d+)?$/i.test(origin);
+  if (isProd || isLocalhost) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
   if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
+    res.status(204).end();
     return true;
   }
   return false;

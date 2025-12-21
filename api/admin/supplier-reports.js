@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument as PdfDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { applyAdminCors } from '../_lib/adminCors.js';
-import { ok, bad, readJson } from '../_lib/http.js';
+import { readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import {
   supplierEvaluationAll,
@@ -18,7 +18,8 @@ import {
 } from '../_lib/store.js';
 
 const SUPPLIER_TILE = 'supplierEvaluation';
-const MAX_LAYOUT_BYTES = 20000;
+const MAX_REQUEST_BYTES = 25000;
+const ALLOWED_BODY_KEYS = new Set(['layoutOverride', 'locale', 'debug']);
 const TOP_LEVEL_KEYS = new Set([
   'page',
   'header',
@@ -27,11 +28,6 @@ const TOP_LEVEL_KEYS = new Set([
   'titleBlock',
   'bodyStartMm',
   'blocks',
-  'id',
-  'version',
-  'updatedAt',
-  'updatedBy',
-  'history',
 ]);
 const PAGE_KEYS = ['marginTopMm', 'marginRightMm', 'marginBottomMm', 'marginLeftMm'];
 const HEADER_KEYS = ['logoWidthMm', 'headerTopMm'];
@@ -49,6 +45,68 @@ const BLOCK_KEYS = [
 
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
+const BASE64_PATTERN = /^[A-Za-z0-9+/=]+$/;
+
+function sendJson(res, statusCode, payload) {
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  res.statusCode = statusCode;
+  res.end(JSON.stringify(payload ?? {}));
+}
+
+function sendError(res, statusCode, message, extra) {
+  const body = typeof extra === 'object' && extra !== null ? { error: message, ...extra } : { error: message };
+  sendJson(res, statusCode, body);
+}
+
+function containsProhibitedContent(value, keyPath = '') {
+  if (typeof value === 'string') {
+    const loweredKey = keyPath.toLowerCase();
+    if (loweredKey.includes('html')) return true;
+    if (/<\/?[a-z][\s\S]*>/i.test(value)) return true;
+    if (value.length > 500 && BASE64_PATTERN.test(value)) return true;
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.some((item, index) => containsProhibitedContent(item, `${keyPath}[${index}]`));
+  }
+  if (isPlainObject(value)) {
+    return Object.entries(value).some(([key, val]) => containsProhibitedContent(val, key));
+  }
+  return false;
+}
+
+function validateSupplierReportBody(body) {
+  if (!isPlainObject(body)) {
+    return { ok: false, status: 400, error: 'Ungültiges Anfrageformat.' };
+  }
+  for (const key of Object.keys(body)) {
+    if (!ALLOWED_BODY_KEYS.has(key)) {
+      return { ok: false, status: 400, error: 'Ungültige Anfragefelder.' };
+    }
+  }
+  if (body.locale != null && !['de', 'en'].includes(String(body.locale).toLowerCase())) {
+    return { ok: false, status: 400, error: 'Ungültige Sprache.' };
+  }
+  if (body.debug != null && typeof body.debug !== 'boolean') {
+    return { ok: false, status: 400, error: 'Ungültiger Debug-Wert.' };
+  }
+  let layoutOverride = null;
+  if (body.layoutOverride != null) {
+    const normalized = normalizeLayoutInput(body.layoutOverride);
+    if (!normalized.ok) {
+      return { ok: false, status: 400, error: normalized.error };
+    }
+    layoutOverride = normalized.layout;
+  }
+  return {
+    ok: true,
+    layoutOverride,
+    locale: body.locale ? String(body.locale).toLowerCase() : null,
+    debug: body.debug === true,
+  };
+}
 
 function pickNumericFields(source, allowedKeys, target, errors) {
   if (source == null) return;
@@ -980,7 +1038,7 @@ function drawPdfTable(layout, {
   layout.moveDown(8);
 }
 
-async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview }) {
+async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, preview, localeOverride }) {
   const suppliers = await supplierAll();
   const supplierLookup = new Map(suppliers.map((s) => [s.id, s]));
   const entries = await supplierPerformanceAll({ supplierId });
@@ -1005,7 +1063,8 @@ async function buildSupplierLetter({ supplierId, year, actor, layoutConfig, prev
     throw new SupplierReportError('Lieferant nicht gefunden.', 404);
   }
 
-  const language = supplier.correspondenceLanguage === 'EN' ? 'EN' : 'DE';
+  const normalizedLocale = localeOverride === 'en' ? 'EN' : localeOverride === 'de' ? 'DE' : null;
+  const language = normalizedLocale || (supplier.correspondenceLanguage === 'EN' ? 'EN' : 'DE');
   const locale = language === 'EN' ? 'en-US' : 'de-DE';
   const statusClass = statusClassFor(aggregates.classification);
   const periodDates = filtered.map((entry) => entry.date).filter(Boolean).sort();
@@ -1658,11 +1717,18 @@ async function buildSupplierReport({ supplierId, year, actor }) {
 export default async function handler(req, res) {
   if (applyAdminCors(req, res)) return;
 
-  const wantsWrite = ['POST'].includes(req.method);
-  const actor = await requirePortalAccess(req, res, { tile: SUPPLIER_TILE, write: wantsWrite });
-  if (!actor) return;
-
   try {
+    if (req.method === 'POST') {
+      const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+      if (Buffer.byteLength(raw || '', 'utf8') > MAX_REQUEST_BYTES) {
+        return sendError(res, 413, 'payload too large', { limit: MAX_REQUEST_BYTES });
+      }
+    }
+
+    const wantsWrite = ['POST'].includes(req.method);
+    const actor = await requirePortalAccess(req, res, { tile: SUPPLIER_TILE, write: wantsWrite });
+    if (!actor) return;
+
     const { format, supplierId } = req.query || {};
     if (format === 'csv') {
       const csv = await buildCsvReport();
@@ -1674,35 +1740,56 @@ export default async function handler(req, res) {
     }
     if (format === 'pdf') {
       let body = {};
+      let localeOverride = null;
       if (req.method === 'POST') {
-        const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
-        if (Buffer.byteLength(raw || '', 'utf8') > MAX_LAYOUT_BYTES) {
-          return bad(res, 'layout payload too large', 413);
-        }
         body = readJson(req) || {};
+        if (containsProhibitedContent(body)) {
+          return sendError(
+            res,
+            413,
+            'Do not send HTML/base64 to supplier-reports. Only send small JSON.'
+          );
+        }
+        const validated = validateSupplierReportBody(body);
+        if (!validated.ok) {
+          return sendError(res, validated.status || 400, validated.error);
+        }
+        localeOverride = validated.locale;
+        body = {
+          layoutOverride: validated.layoutOverride,
+          debug: validated.debug,
+        };
       }
       const reportType = req.query?.type || 'report';
       const yearParam = req.query?.year;
       const year = yearParam ? Number(yearParam) : null;
       const actorName = actor?.email || '';
       const preview = String(req.query?.preview).toLowerCase() === 'true';
+      if (!localeOverride && req.query?.locale) {
+        const localeParam = String(req.query.locale).toLowerCase();
+        if (['de', 'en'].includes(localeParam)) {
+          localeOverride = localeParam;
+        } else {
+          return sendError(res, 400, 'Ungültige Sprache.');
+        }
+      }
       if (yearParam && !Number.isFinite(year)) {
-        return bad(res, 'Bitte ein gültiges Bewertungsjahr angeben.', 400);
+        return sendError(res, 400, 'Bitte ein gültiges Bewertungsjahr angeben.');
       }
       if (reportType !== 'summary' && !supplierId) {
-        return bad(res, 'Bitte einen Lieferanten auswählen.', 400);
+        return sendError(res, 400, 'Bitte einen Lieferanten auswählen.');
       }
       if (reportType !== 'summary' && !yearParam) {
-        return bad(res, 'Bitte ein Bewertungsjahr angeben.', 400);
+        return sendError(res, 400, 'Bitte ein Bewertungsjahr angeben.');
       }
       let pdf;
       if (reportType === 'letter') {
-        const layoutInput = body?.layout || body?.layoutConfig || null;
+        const layoutInput = body?.layoutOverride || null;
         let layoutConfig = null;
         if (layoutInput != null) {
           const normalized = normalizeLayoutInput(layoutInput);
           if (!normalized.ok) {
-            return bad(res, normalized.error, 400);
+            return sendError(res, 400, normalized.error);
           }
           layoutConfig = normalized.layout;
         }
@@ -1712,38 +1799,51 @@ export default async function handler(req, res) {
           actor: actorName,
           layoutConfig,
           preview,
+          localeOverride,
         });
       } else if (reportType === 'report' || reportType === 'internal') {
         pdf = await buildSupplierReport({ supplierId, year, actor: actorName });
       } else if (reportType === 'summary') {
         pdf = await buildSummaryPdf();
       } else {
-        return bad(res, 'Bitte einen gültigen Berichtstyp angeben.', 400);
+        return sendError(res, 400, 'Bitte einen gültigen Berichtstyp angeben.');
       }
       console.info('[supplier-reports] pdf generated', { type: reportType, supplierId, year });
-      res.statusCode = 200;
       res.setHeader('Content-Type', 'application/pdf');
-      const disposition = preview ? 'inline' : 'attachment';
+      const filenameYear = Number.isFinite(year) ? year : 'report';
       res.setHeader(
         'Content-Disposition',
-        `${disposition}; filename="supplier_${reportType}_${year || 'report'}.pdf"`
+        `inline; filename="supplier_letter_${filenameYear}.pdf"`
       );
-      res.end(pdf);
+      if (typeof res.status === 'function') {
+        res.status(200).send(pdf);
+      } else {
+        res.statusCode = 200;
+        res.end(pdf);
+      }
       return;
     }
     if (req.method === 'POST') {
       const body = readJson(req) || {};
+      if (containsProhibitedContent(body)) {
+        return sendError(
+          res,
+          413,
+          'Do not send HTML/base64 to supplier-reports. Only send small JSON.'
+        );
+      }
       if (body?.format === 'csv') {
         const csv = await buildCsvReport();
-        return ok(res, { ok: true, csv });
+        return sendJson(res, 200, { ok: true, csv });
       }
     }
-    return bad(res, 'Bitte ein gültiges Exportformat angeben.', 400);
+    return sendError(res, 400, 'Bitte ein gültiges Exportformat angeben.');
   } catch (err) {
+    applyAdminCors(req, res);
     if (err instanceof SupplierReportError) {
-      return bad(res, err.message, err.status);
+      return sendError(res, err.status, err.message);
     }
     console.error('[admin/supplier-reports] failed', err);
-    return bad(res, 'Export konnte nicht erstellt werden.', 500);
+    return sendError(res, 500, 'Export konnte nicht erstellt werden.');
   }
 }
