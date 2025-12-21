@@ -45,6 +45,24 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
 
   final _horizontalHeaderController = ScrollController();
   final _horizontalBodyController = ScrollController();
+  final _verticalBodyController = ScrollController();
+  final _detailScrollController = ScrollController();
+
+  static const double _supplierWidth = 260;
+  static const double _supplierNoWidth = 140;
+  static const double _criticalWidth = 110;
+  static const double _statusWidth = 200;
+  static const double _scoreWidth = 120;
+  static const double _yearWidth = 120;
+  static const double _evalStatusWidth = 140;
+  static const double _lastEvalWidth = 180;
+  static const double _nextEvalWidth = 170;
+  static const double _auditBasisWidth = 260;
+  static const double _decisionWidth = 200;
+  static const double _evidenceWidth = 260;
+  static const double _actionsWidth = 140;
+
+  double get _tableMinWidth => _auditView ? 1880 : 1600;
 
   @override
   void initState() {
@@ -58,6 +76,8 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
     _horizontalBodyController.removeListener(_syncHeaderScroll);
     _horizontalBodyController.dispose();
     _horizontalHeaderController.dispose();
+    _verticalBodyController.dispose();
+    _detailScrollController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -428,48 +448,74 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
     );
     final columns = <DataColumn>[
       DataColumn(
-        label: Row(children: [const Text('Lieferant'), const SizedBox(width: 6), help]),
+        label: SizedBox(
+          width: _supplierWidth,
+          child: Row(
+            children: [
+              const Expanded(child: Text('Lieferant', overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 6),
+              help,
+            ],
+          ),
+        ),
         onSort: (_, __) => _sortBy('name', (s) => s.name.toLowerCase()),
       ),
       DataColumn(
-        label: const Text('Lieferanten-Nr.'),
+        label: const SizedBox(width: _supplierNoWidth, child: Text('Lieferanten-Nr.')),
         onSort: (_, __) => _sortBy('number', (s) => s.supplierNo.toLowerCase()),
       ),
-      const DataColumn(label: Text('Kritisch')),
+      const DataColumn(label: SizedBox(width: _criticalWidth, child: Text('Kritisch'))),
       DataColumn(
-        label: const Text('Statusklasse'),
+        label: const SizedBox(width: _statusWidth, child: Text('Statusklasse')),
         onSort: (_, __) => _sortBy('status', (s) => s.statusClass ?? ''),
       ),
       DataColumn(
         numeric: true,
-        label: const Text('Score'),
+        label: const SizedBox(width: _scoreWidth, child: Text('Score')),
         onSort: (_, __) => _sortBy('score', (s) => s.score ?? 999),
       ),
       DataColumn(
-        label: const Text('Letzte Jahresbewertung'),
+        label: const SizedBox(width: _lastEvalWidth, child: Text('Letzte Jahresbewertung')),
         onSort: (_, __) => _sortBy('lastFinalized', (s) => s.lastFinalizedAt ?? ''),
       ),
       DataColumn(
-        label: const Text('Nächste Bewertung'),
+        label: const SizedBox(width: _nextEvalWidth, child: Text('Nächste Bewertung')),
         onSort: (_, __) => _sortBy('nextDue', (s) => s.nextDueDate ?? ''),
       ),
       DataColumn(
-        label: const Text('Entscheidung'),
+        label: const SizedBox(width: _decisionWidth, child: Text('Entscheidung')),
         onSort: (_, __) => _sortBy('decision', (s) => s.decisionText.toLowerCase()),
       ),
-      const DataColumn(label: Text('Evidenz')),
-      const DataColumn(label: Text('Aktionen')),
+      const DataColumn(label: SizedBox(width: _evidenceWidth, child: Text('Evidenz'))),
+      const DataColumn(label: SizedBox(width: _actionsWidth, child: Text('Aktionen'))),
     ];
 
     if (_auditView) {
       columns.insertAll(5, [
-        const DataColumn(label: Text('Bewertungsjahr')),
-        const DataColumn(label: Text('Status')),
+        const DataColumn(label: SizedBox(width: _yearWidth, child: Text('Bewertungsjahr'))),
+        const DataColumn(label: SizedBox(width: _evalStatusWidth, child: Text('Status'))),
       ]);
-      columns.insert(9, const DataColumn(label: Text('Audit-Basis')));
+      columns.insert(9, const DataColumn(label: SizedBox(width: _auditBasisWidth, child: Text('Audit-Basis'))));
     }
 
     return columns;
+  }
+
+  Widget _textCell(String value, double width, {int maxLines = 1, TextAlign? align}) {
+    final text = Text(
+      value,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      textAlign: align,
+    );
+    return SizedBox(
+      width: width,
+      child: Tooltip(message: value, child: text),
+    );
+  }
+
+  Widget _rowCell(Widget child, double width, {Alignment alignment = Alignment.centerLeft}) {
+    return SizedBox(width: width, child: Align(alignment: alignment, child: child));
   }
 
   List<DataRow> _buildRows(List<ApprovedSupplier> items, ThemeData theme) {
@@ -487,96 +533,110 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
         selected: _selected?.supplierId == supplier.supplierId,
         onSelectChanged: (_) => _selectSupplier(supplier),
         cells: [
-          DataCell(Text(supplier.name)),
-          DataCell(Text(supplier.supplierNo.isEmpty ? '—' : supplier.supplierNo)),
-          DataCell(_criticalBadge(supplier, theme)),
-          DataCell(Row(
-            children: [
-              _statusBadge(supplier, theme),
-              if (draft)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Chip(
-                    label: const Text('ENTWURF'),
-                    labelStyle: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSecondaryContainer),
-                    backgroundColor: theme.colorScheme.secondaryContainer,
+          DataCell(_textCell(supplier.name, _supplierWidth, maxLines: 2)),
+          DataCell(_textCell(supplier.supplierNo.isEmpty ? '—' : supplier.supplierNo, _supplierNoWidth)),
+          DataCell(_rowCell(_criticalBadge(supplier, theme), _criticalWidth)),
+          DataCell(_rowCell(
+            Row(
+              children: [
+                _statusBadge(supplier, theme),
+                if (draft)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Chip(
+                      label: const Text('ENTWURF'),
+                      labelStyle: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSecondaryContainer),
+                      backgroundColor: theme.colorScheme.secondaryContainer,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
+            _statusWidth,
           )),
-          DataCell(Row(
-            children: [
-              Text(_scoreLabel(supplier)),
-              if (_trendLabel(supplier).isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    _trendLabel(supplier),
-                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+          DataCell(_rowCell(
+            Row(
+              children: [
+                Text(_scoreLabel(supplier)),
+                if (_trendLabel(supplier).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      _trendLabel(supplier),
+                      style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
+            _scoreWidth,
           )),
-          if (_auditView) DataCell(Text(yearLabel)),
-          if (_auditView) DataCell(Text(statusLabel)),
-          DataCell(Text(
+          if (_auditView) DataCell(_textCell(yearLabel, _yearWidth)),
+          if (_auditView) DataCell(_textCell(statusLabel, _evalStatusWidth)),
+          DataCell(_textCell(
             supplier.evaluationYearUsed == null
                 ? _formatDate(supplier.lastFinalizedAt)
                 : '${supplier.evaluationYearUsed} · ${_formatDate(supplier.lastFinalizedAt)}',
+            _lastEvalWidth,
           )),
-          DataCell(Row(
-            children: [
-              Text(_formatDate(supplier.nextDueDate)),
-              if (overdue)
-                Padding(
-                  padding: const EdgeInsets.only(left: 6),
-                  child: Chip(
-                    label: const Text('überfällig'),
-                    labelStyle: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onErrorContainer),
-                    backgroundColor: theme.colorScheme.errorContainer,
+          DataCell(_rowCell(
+            Row(
+              children: [
+                Text(_formatDate(supplier.nextDueDate)),
+                if (overdue)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Chip(
+                      label: const Text('überfällig'),
+                      labelStyle: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onErrorContainer),
+                      backgroundColor: theme.colorScheme.errorContainer,
+                    ),
                   ),
-                ),
-            ],
-          )),
-          if (_auditView) DataCell(Text(auditBasis)),
-          DataCell(Text(supplier.decisionText.isEmpty ? '—' : supplier.decisionText)),
-          DataCell(Text(evidence)),
-          DataCell(
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                switch (value) {
-                  case 'details':
-                    _selectSupplier(supplier);
-                    break;
-                  case 'evaluation':
-                    widget.onOpenSupplierEvaluationFor(supplier.supplierId);
-                    break;
-                  case 'recompute':
-                    _recomputeSupplier(supplier);
-                    break;
-                  case 'review':
-                    _selectSupplier(supplier);
-                    _markReviewed();
-                    break;
-                  case 'letter':
-                    _selectSupplier(supplier);
-                    _downloadLetter(type: 'letter');
-                    break;
-                  case 'report':
-                    _selectSupplier(supplier);
-                    _downloadLetter(type: 'summary');
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'details', child: Text('Details anzeigen')),
-                const PopupMenuItem(value: 'evaluation', child: Text('Zur Lieferantenbewertung')),
-                const PopupMenuItem(value: 'recompute', child: Text('Status neu berechnen')),
-                const PopupMenuItem(value: 'review', child: Text('Als geprüft markieren')),
-                const PopupMenuDivider(),
-                const PopupMenuItem(value: 'letter', child: Text('Lieferantenbrief (PDF)')),
-                const PopupMenuItem(value: 'report', child: Text('Bewertungsreport (PDF)')),
               ],
+            ),
+            _nextEvalWidth,
+          )),
+          if (_auditView) DataCell(_textCell(auditBasis, _auditBasisWidth, maxLines: 2)),
+          DataCell(_textCell(supplier.decisionText.isEmpty ? '—' : supplier.decisionText, _decisionWidth, maxLines: 2)),
+          DataCell(_textCell(evidence, _evidenceWidth, maxLines: 2)),
+          DataCell(
+            _rowCell(
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  switch (value) {
+                    case 'details':
+                      _selectSupplier(supplier);
+                      break;
+                    case 'evaluation':
+                      widget.onOpenSupplierEvaluationFor(supplier.supplierId);
+                      break;
+                    case 'recompute':
+                      _recomputeSupplier(supplier);
+                      break;
+                    case 'review':
+                      _selectSupplier(supplier);
+                      _markReviewed();
+                      break;
+                    case 'letter':
+                      _selectSupplier(supplier);
+                      _downloadLetter(type: 'letter');
+                      break;
+                    case 'report':
+                      _selectSupplier(supplier);
+                      _downloadLetter(type: 'summary');
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'details', child: Text('Details anzeigen')),
+                  const PopupMenuItem(value: 'evaluation', child: Text('Zur Lieferantenbewertung')),
+                  const PopupMenuItem(value: 'recompute', child: Text('Status neu berechnen')),
+                  const PopupMenuItem(value: 'review', child: Text('Als geprüft markieren')),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(value: 'letter', child: Text('Lieferantenbrief (PDF)')),
+                  const PopupMenuItem(value: 'report', child: Text('Bewertungsreport (PDF)')),
+                ],
+              ),
+              _actionsWidth,
+              alignment: Alignment.centerLeft,
             ),
           ),
         ],
@@ -592,16 +652,19 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
       child: SingleChildScrollView(
         controller: _horizontalHeaderController,
         scrollDirection: Axis.horizontal,
-        child: DataTable(
-          sortAscending: _sortAsc,
-          sortColumnIndex: _sortIndex,
-          columns: _buildColumns(theme),
-          rows: const [],
-          headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant),
-          dataRowMinHeight: 0,
-          dataRowMaxHeight: 0,
-          headingRowHeight: 48,
-          dividerThickness: 0.4,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: _tableMinWidth),
+          child: DataTable(
+            sortAscending: _sortAsc,
+            sortColumnIndex: _sortIndex,
+            columns: _buildColumns(theme),
+            rows: const [],
+            headingRowColor: MaterialStateProperty.all(theme.colorScheme.surfaceVariant),
+            dataRowMinHeight: 0,
+            dataRowMaxHeight: 0,
+            headingRowHeight: 48,
+            dividerThickness: 0.4,
+          ),
         ),
       ),
     );
@@ -616,6 +679,15 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
       headingRowHeight: 0,
       dataRowMinHeight: 52,
       dividerThickness: 0.4,
+      dataRowColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.selected)) {
+          return theme.colorScheme.primaryContainer.withOpacity(0.45);
+        }
+        if (states.contains(MaterialState.hovered)) {
+          return theme.colorScheme.surfaceVariant.withOpacity(0.45);
+        }
+        return null;
+      }),
     );
   }
 
@@ -691,7 +763,8 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
   Widget _buildDetailPanel(ThemeData theme) {
     final supplier = _selected;
     if (supplier == null) {
-      return Container(
+      return SingleChildScrollView(
+        controller: _detailScrollController,
         padding: const EdgeInsets.all(24),
         child: Text(
           'Wählen Sie einen Lieferanten, um Details anzuzeigen.',
@@ -710,6 +783,7 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
         : 'Status ${supplier.statusClass} basiert auf Score ${_scoreLabel(supplier)} und Entscheidungslogik.';
 
     return SingleChildScrollView(
+      controller: _detailScrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -932,70 +1006,89 @@ class _ApprovedSuppliersPageState extends State<ApprovedSuppliersPage> {
         _buildToolbar(theme),
         const SizedBox(height: 16),
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
-                  ),
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _error != null
-                          ? Center(child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)))
-                          : items.isEmpty
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Text(
-                                      'Keine Lieferanten gefunden. Prüfen Sie die Filter oder legen Sie eine Lieferantenbewertung an.',
-                                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                )
-                              : Column(
-                                  children: [
-                                    _buildDataTableHeader(theme),
-                                    Expanded(
-                                      child: Scrollbar(
-                                        controller: _horizontalBodyController,
-                                        thumbVisibility: true,
-                                        notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
-                                        child: SingleChildScrollView(
-                                          controller: _horizontalBodyController,
-                                          scrollDirection: Axis.horizontal,
-                                          child: SizedBox(
-                                            width: _auditView ? 1400 : 1180,
+          child: LayoutBuilder(builder: (context, constraints) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: SizedBox(
+                    height: constraints.maxHeight,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+                      ),
+                      child: _loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _error != null
+                              ? Center(child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)))
+                              : items.isEmpty
+                                  ? Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Text(
+                                          'Keine Lieferanten gefunden. Prüfen Sie die Filter oder legen Sie eine Lieferantenbewertung an.',
+                                          style:
+                                              theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    )
+                                  : Column(
+                                      children: [
+                                        _buildDataTableHeader(theme),
+                                        Expanded(
+                                          child: Scrollbar(
+                                            controller: _verticalBodyController,
+                                            thumbVisibility: true,
+                                            notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
                                             child: SingleChildScrollView(
-                                              child: _buildDataTableBody(items, theme),
+                                              controller: _verticalBodyController,
+                                              child: Scrollbar(
+                                                controller: _horizontalBodyController,
+                                                thumbVisibility: true,
+                                                notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+                                                child: SingleChildScrollView(
+                                                  controller: _horizontalBodyController,
+                                                  scrollDirection: Axis.horizontal,
+                                                  child: ConstrainedBox(
+                                                    constraints: BoxConstraints(minWidth: _tableMinWidth),
+                                                    child: _buildDataTableBody(items, theme),
+                                                  ),
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 2,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+                    ),
                   ),
-                  child: _buildDetailPanel(theme),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: constraints.maxHeight,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.6)),
+                      ),
+                      child: Scrollbar(
+                        controller: _detailScrollController,
+                        thumbVisibility: true,
+                        child: _buildDetailPanel(theme),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
         ),
       ],
     );

@@ -7329,13 +7329,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       ),
       const _AdminMenuSectionState(
         title: 'Lieferantenmanagement',
-        subtitle: 'Zugelassene Lieferanten und Audit-Übersicht',
-        tileIds: ['approvedSuppliers'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ Supplier Management',
-        subtitle: 'Lieferantenbewertung und Monitoring',
-        tileIds: ['supplierEvaluation'],
+        subtitle: 'Zugelassene Lieferanten, Bewertung und Monitoring',
+        tileIds: ['approvedSuppliers', 'supplierEvaluation'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Customer Management',
