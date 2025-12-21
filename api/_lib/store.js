@@ -124,6 +124,7 @@ const mem = {
   supplierEscalations: new Map(),
   supplierEscalationIndex: new Set(),
   supplierEvalConfig: null,
+  supplierReportLetterLayout: null,
   supplierLookups: null,
 };
 
@@ -5098,6 +5099,7 @@ const KEY_SUPPLIER_ESC_INDEX = `${P}supplierEsc:index`;
 const KEY_SUPPLIER_ESC = (id) => `${P}supplierEsc:${id}`;
 const KEY_SUPPLIER_EVAL_CONFIG = `${P}supplierEvalConfig:default`;
 const KEY_SUPPLIER_LOOKUPS = `${P}supplierLookups:default`;
+const KEY_SUPPLIER_REPORT_LETTER_LAYOUT = `${P}supplier_reports:letter_layout:v1`;
 
 function ensureSupplierStores() {
   if (!mem.suppliers) mem.suppliers = new Map();
@@ -5109,6 +5111,7 @@ function ensureSupplierStores() {
   if (!mem.supplierEvaluationIndex) mem.supplierEvaluationIndex = new Set();
   if (!mem.supplierEscalations) mem.supplierEscalations = new Map();
   if (!mem.supplierEscalationIndex) mem.supplierEscalationIndex = new Set();
+  if (!mem.supplierReportLetterLayout) mem.supplierReportLetterLayout = null;
 }
 
 function normalizeSupplierStatus(status) {
@@ -5481,6 +5484,22 @@ function defaultSupplierLookups() {
   };
 }
 
+function defaultSupplierReportLetterLayout() {
+  return {
+    id: 'letter-default',
+    version: 1,
+    page: { marginTopMm: 18, marginRightMm: 18, marginBottomMm: 18, marginLeftMm: 18 },
+    header: { logoWidthMm: 35, headerTopMm: 10 },
+    recipientBlock: { topMm: 45, leftMm: 20 },
+    dateBlock: { topMm: 45, rightMm: 20 },
+    titleBlock: { topMm: 85 },
+    bodyStartMm: 95,
+    updatedAt: Date.now(),
+    updatedBy: '',
+    history: [],
+  };
+}
+
 function normalizeSupplierLookups(lookups = {}) {
   const base = lookups && typeof lookups === 'object' ? { ...lookups } : {};
   const defaults = defaultSupplierLookups();
@@ -5515,6 +5534,49 @@ function normalizeSupplierEvalConfig(config = {}) {
   merged.editRules = merged.editRules && typeof merged.editRules === 'object' ? merged.editRules : defaultConfig.editRules;
   merged.notifications =
     merged.notifications && typeof merged.notifications === 'object' ? merged.notifications : defaultConfig.notifications;
+  merged.updatedAt = normalizeDateValue(merged.updatedAt) || Date.now();
+  merged.updatedBy = normalizeString(merged.updatedBy || '');
+  merged.history = Array.isArray(merged.history) ? merged.history : [];
+  return merged;
+}
+
+function normalizeSupplierReportLetterLayout(config = {}) {
+  const base = config && typeof config === 'object' ? { ...config } : {};
+  const defaults = defaultSupplierReportLetterLayout();
+  const toNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
+  const page = base.page && typeof base.page === 'object' ? base.page : {};
+  const header = base.header && typeof base.header === 'object' ? base.header : {};
+  const recipientBlock = base.recipientBlock && typeof base.recipientBlock === 'object' ? base.recipientBlock : {};
+  const dateBlock = base.dateBlock && typeof base.dateBlock === 'object' ? base.dateBlock : {};
+  const titleBlock = base.titleBlock && typeof base.titleBlock === 'object' ? base.titleBlock : {};
+  const merged = {
+    ...defaults,
+    ...base,
+    page: {
+      marginTopMm: toNumber(page.marginTopMm, defaults.page.marginTopMm),
+      marginRightMm: toNumber(page.marginRightMm, defaults.page.marginRightMm),
+      marginBottomMm: toNumber(page.marginBottomMm, defaults.page.marginBottomMm),
+      marginLeftMm: toNumber(page.marginLeftMm, defaults.page.marginLeftMm),
+    },
+    header: {
+      logoWidthMm: toNumber(header.logoWidthMm, defaults.header.logoWidthMm),
+      headerTopMm: toNumber(header.headerTopMm, defaults.header.headerTopMm),
+    },
+    recipientBlock: {
+      topMm: toNumber(recipientBlock.topMm, defaults.recipientBlock.topMm),
+      leftMm: toNumber(recipientBlock.leftMm, defaults.recipientBlock.leftMm),
+    },
+    dateBlock: {
+      topMm: toNumber(dateBlock.topMm, defaults.dateBlock.topMm),
+      rightMm: toNumber(dateBlock.rightMm, defaults.dateBlock.rightMm),
+    },
+    titleBlock: {
+      topMm: toNumber(titleBlock.topMm, defaults.titleBlock.topMm),
+    },
+    bodyStartMm: toNumber(base.bodyStartMm, defaults.bodyStartMm),
+  };
+  merged.id = defaults.id;
+  merged.version = Number(merged.version || defaults.version);
   merged.updatedAt = normalizeDateValue(merged.updatedAt) || Date.now();
   merged.updatedBy = normalizeString(merged.updatedBy || '');
   merged.history = Array.isArray(merged.history) ? merged.history : [];
@@ -5886,6 +5948,43 @@ export async function supplierEvalConfigGet() {
   const fallback = normalizeSupplierEvalConfig({});
   mem.supplierEvalConfig = fallback;
   return fallback;
+}
+
+export async function supplierReportLetterLayoutGet() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_SUPPLIER_REPORT_LETTER_LAYOUT, r);
+    if (raw && typeof raw === 'object') return normalizeSupplierReportLetterLayout(raw);
+  }
+  if (mem.supplierReportLetterLayout) return normalizeSupplierReportLetterLayout(mem.supplierReportLetterLayout);
+  const fallback = normalizeSupplierReportLetterLayout({});
+  mem.supplierReportLetterLayout = fallback;
+  return fallback;
+}
+
+export async function supplierReportLetterLayoutSave(input = {}, { updatedBy = '' } = {}) {
+  const current = await supplierReportLetterLayoutGet();
+  const nextVersion = current.version + 1;
+  const historyEntry = {
+    version: current.version,
+    updatedAt: current.updatedAt,
+    updatedBy: current.updatedBy,
+    snapshot: current,
+  };
+  const merged = normalizeSupplierReportLetterLayout({
+    ...current,
+    ...input,
+    version: nextVersion,
+    updatedAt: Date.now(),
+    updatedBy,
+    history: [...(current.history || []), historyEntry],
+  });
+  mem.supplierReportLetterLayout = merged;
+  const r = getRedis();
+  if (r) {
+    await rset(KEY_SUPPLIER_REPORT_LETTER_LAYOUT, merged, r);
+  }
+  return merged;
 }
 
 export async function supplierEvalConfigSave(input = {}, { updatedBy = '' } = {}) {

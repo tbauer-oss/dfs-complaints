@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Supplier Evaluation {{year}}</title>
+    <style>
+      {{layout_css}}
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="letterhead">
+        <img src="{{letterhead_base64}}" alt="DFS Letterhead" />
+      </div>
+      <div class="recipient-block">
+        <div class="supplier-name">{{supplier_name}}</div>
+        {{supplier_address_lines}}
+      </div>
+      <div class="date-block">{{date}}</div>
+      <div class="title-block">{{subject}}</div>
+      {{preview_watermark}}
+      <div class="content">
+        <p>{{intro_text}}</p>
+        <div class="status-line status-{{status_class}}">{{status_text}}</div>
+        <h2>Evaluation results {{year}}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Criterion</th>
+              <th>Grade</th>
+              <th>Weighting</th>
+              <th>Weighted score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{table_rows_html}}
+          </tbody>
+        </table>
+        <h2>Measures / notes</h2>
+        <div class="measures">
+          {{measures_text}}
+        </div>
+        <p>Please contact us if you require clarification or would like to discuss improvement measures.</p>
+        <div class="signature">
+          {{signature_block}}
+        </div>
+        {{preview_note}}
+      </div>
+    </div>
+  </body>
+</html>

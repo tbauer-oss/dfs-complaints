@@ -32,6 +32,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   List<SupplierAnnualEvaluation> _evaluations = const [];
   List<SupplierEscalation> _escalations = const [];
   SupplierEvaluationConfig? _config;
+  SupplierLetterLayoutConfig? _letterLayoutConfig;
+  SupplierLetterLayoutConfig? _letterLayoutDraft;
   SupplierLookups _supplierLookups = SupplierLookups.empty();
   String? _supplierFilter;
   String? _performanceStatusFilter;
@@ -40,6 +42,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   bool _formDirty = false;
   bool _emailTouched = false;
   bool _emailValidationRequested = false;
+  bool _layoutSaving = false;
+  bool _layoutPreviewing = false;
 
   final _supplierFormKey = GlobalKey<FormState>();
   final _emailFieldKey = GlobalKey();
@@ -311,6 +315,7 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         widget.api.adminSupplierEscalations(),
         widget.api.adminSupplierEvalConfig(),
         widget.api.adminSupplierLookups(),
+        widget.api.adminSupplierReportLayout(),
       ]);
       setState(() {
         _suppliers = results[0] as List<Supplier>;
@@ -319,6 +324,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         _escalations = results[3] as List<SupplierEscalation>;
         _config = results[4] as SupplierEvaluationConfig;
         _supplierLookups = results[5] as SupplierLookups;
+        _letterLayoutConfig = results[6] as SupplierLetterLayoutConfig;
+        _letterLayoutDraft = results[6] as SupplierLetterLayoutConfig;
         _loading = false;
       });
       if (_selectedSupplierId != null) {
@@ -376,6 +383,19 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
       updatedBy: updatedBy ?? base.updatedBy,
       history: history ?? base.history,
     );
+  }
+
+  SupplierLetterLayoutConfig _layoutOrDefault() {
+    return _letterLayoutDraft ?? _letterLayoutConfig ?? SupplierLetterLayoutConfig.defaults();
+  }
+
+  void _updateLayoutDraft(SupplierLetterLayoutConfig updated) {
+    setState(() => _letterLayoutDraft = updated);
+  }
+
+  double _roundToStep(double value, double step) {
+    if (step <= 0) return value;
+    return (value / step).round() * step;
   }
 
   String _supplierName(String id) {
@@ -3129,6 +3149,8 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
           );
         }),
         const SizedBox(height: 12),
+        _buildLetterLayoutConfigCard(),
+        const SizedBox(height: 12),
         ElevatedButton.icon(
           onPressed: () async {
             try {
@@ -3176,6 +3198,252 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
           label: const Text('Konfiguration speichern'),
         ),
       ],
+    );
+  }
+
+  Widget _buildLayoutSlider({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    double step = 1,
+    required ValueChanged<double> onChanged,
+  }) {
+    final clamped = value.clamp(min, max);
+    return Row(
+      children: [
+        Expanded(flex: 3, child: Text(label)),
+        IconButton(
+          tooltip: 'Minus',
+          onPressed: () => onChanged(_roundToStep((clamped - step).clamp(min, max), step)),
+          icon: const Icon(Icons.remove_circle_outline),
+        ),
+        Expanded(
+          flex: 5,
+          child: Slider(
+            value: clamped,
+            min: min,
+            max: max,
+            divisions: ((max - min) / step).round(),
+            label: '${clamped.toStringAsFixed(0)} mm',
+            onChanged: (next) => onChanged(_roundToStep(next, step)),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Plus',
+          onPressed: () => onChanged(_roundToStep((clamped + step).clamp(min, max), step)),
+          icon: const Icon(Icons.add_circle_outline),
+        ),
+        SizedBox(
+          width: 70,
+          child: Text('${clamped.toStringAsFixed(0)} mm', textAlign: TextAlign.end),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLetterLayoutConfigCard() {
+    final layout = _layoutOrDefault();
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Brief-Layout konfigurieren', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text(
+              'Mit diesen mm-Werten steuern Sie die Positionen im Briefkopfbereich (Empfängerblock, Datum, Titel, Body-Start).',
+            ),
+            const SizedBox(height: 12),
+            Text('Seitenränder', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _buildLayoutSlider(
+              label: 'Oben',
+              value: layout.page['marginTopMm'] ?? 18,
+              min: 0,
+              max: 40,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(page: {...layout.page, 'marginTopMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Rechts',
+              value: layout.page['marginRightMm'] ?? 18,
+              min: 0,
+              max: 40,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(page: {...layout.page, 'marginRightMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Unten',
+              value: layout.page['marginBottomMm'] ?? 18,
+              min: 0,
+              max: 40,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(page: {...layout.page, 'marginBottomMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Links',
+              value: layout.page['marginLeftMm'] ?? 18,
+              min: 0,
+              max: 40,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(page: {...layout.page, 'marginLeftMm': val}),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Header', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _buildLayoutSlider(
+              label: 'Logo-Breite',
+              value: layout.header['logoWidthMm'] ?? 35,
+              min: 20,
+              max: 70,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(header: {...layout.header, 'logoWidthMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Header oben',
+              value: layout.header['headerTopMm'] ?? 10,
+              min: 0,
+              max: 40,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(header: {...layout.header, 'headerTopMm': val}),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Empfängerblock', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _buildLayoutSlider(
+              label: 'Top',
+              value: layout.recipientBlock['topMm'] ?? 45,
+              min: 0,
+              max: 120,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(recipientBlock: {...layout.recipientBlock, 'topMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Links',
+              value: layout.recipientBlock['leftMm'] ?? 20,
+              min: 0,
+              max: 60,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(recipientBlock: {...layout.recipientBlock, 'leftMm': val}),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Datumsblock', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _buildLayoutSlider(
+              label: 'Top',
+              value: layout.dateBlock['topMm'] ?? 45,
+              min: 0,
+              max: 120,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(dateBlock: {...layout.dateBlock, 'topMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Rechts',
+              value: layout.dateBlock['rightMm'] ?? 20,
+              min: 0,
+              max: 60,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(dateBlock: {...layout.dateBlock, 'rightMm': val}),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Titel & Body', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _buildLayoutSlider(
+              label: 'Titel-Top',
+              value: layout.titleBlock['topMm'] ?? 85,
+              min: 40,
+              max: 140,
+              onChanged: (val) => _updateLayoutDraft(
+                layout.copyWith(titleBlock: {...layout.titleBlock, 'topMm': val}),
+              ),
+            ),
+            _buildLayoutSlider(
+              label: 'Body-Start',
+              value: layout.bodyStartMm,
+              min: 50,
+              max: 160,
+              onChanged: (val) => _updateLayoutDraft(layout.copyWith(bodyStartMm: val)),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _layoutPreviewing
+                      ? null
+                      : () async {
+                          final supplierId = _annualSupplierId ?? _selectedSupplierId ?? (_suppliers.isNotEmpty ? _suppliers.first.id : null);
+                          if (supplierId == null) {
+                            _showSnack('Bitte zuerst einen Lieferanten auswählen.');
+                            return;
+                          }
+                          setState(() => _layoutPreviewing = true);
+                          try {
+                            final bytes = await widget.api.adminSupplierReportPdf(
+                              supplierId: supplierId,
+                              year: _annualYear,
+                              type: 'letter',
+                              preview: true,
+                              layoutConfig: _layoutOrDefault(),
+                            );
+                            _downloadBytes(bytes, 'lieferantenbrief_vorschau.pdf', 'application/pdf');
+                          } catch (err) {
+                            final mapped = AppErrorMapper.map(err);
+                            _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+                          } finally {
+                            if (mounted) setState(() => _layoutPreviewing = false);
+                          }
+                        },
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: Text(_layoutPreviewing ? 'Vorschau...' : 'Vorschau generieren'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _layoutSaving
+                      ? null
+                      : () async {
+                          setState(() => _layoutSaving = true);
+                          try {
+                            final saved = await widget.api.adminUpdateSupplierReportLayout(_layoutOrDefault());
+                            setState(() {
+                              _letterLayoutConfig = saved;
+                              _letterLayoutDraft = saved;
+                            });
+                            _showSnack('Layout gespeichert.');
+                          } catch (err) {
+                            final mapped = AppErrorMapper.map(err);
+                            _showSnack(mapped.message.isEmpty ? mapped.title : '${mapped.title} ${mapped.message}'.trim());
+                          } finally {
+                            if (mounted) setState(() => _layoutSaving = false);
+                          }
+                        },
+                  icon: const Icon(Icons.save_outlined),
+                  label: Text(_layoutSaving ? 'Speichern...' : 'Layout speichern'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _updateLayoutDraft(SupplierLetterLayoutConfig.defaults()),
+                  icon: const Icon(Icons.restart_alt_outlined),
+                  label: const Text('Auf Standard zurücksetzen'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

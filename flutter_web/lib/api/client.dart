@@ -2376,21 +2376,56 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Konfigurations-Antwort');
   }
 
+  Future<SupplierLetterLayoutConfig> adminSupplierReportLayout() async {
+    final path = Uri(path: '/api/admin/supplier-report-layout', queryParameters: {'type': 'letter'}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['layout'] is Map ? decoded['layout'] as Map : decoded;
+    if (map is Map) return SupplierLetterLayoutConfig.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Layout-Antwort');
+  }
+
+  Future<SupplierLetterLayoutConfig> adminUpdateSupplierReportLayout(SupplierLetterLayoutConfig layout) async {
+    final path = Uri(path: '/api/admin/supplier-report-layout', queryParameters: {'type': 'letter'}).toString();
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(layout.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final map = decoded is Map && decoded['layout'] is Map ? decoded['layout'] as Map : decoded;
+    if (map is Map) return SupplierLetterLayoutConfig.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Layout-Antwort');
+  }
+
   Future<Uint8List> adminSupplierReportPdf({
     String? supplierId,
     int? year,
     String type = 'internal',
+    bool preview = false,
+    SupplierLetterLayoutConfig? layoutConfig,
   }) async {
-    final path = Uri(
-      path: '/api/admin/supplier-reports',
-      queryParameters: {
-        'format': 'pdf',
-        if (supplierId != null) 'supplierId': supplierId,
-        if (year != null) 'year': year.toString(),
-        if (type.isNotEmpty) 'type': type,
-      },
-    ).toString();
-    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    final queryParameters = {
+      'format': 'pdf',
+      if (supplierId != null) 'supplierId': supplierId,
+      if (year != null) 'year': year.toString(),
+      if (type.isNotEmpty) 'type': type,
+      if (preview) 'preview': 'true',
+    };
+    final path = Uri(path: '/api/admin/supplier-reports', queryParameters: queryParameters).toString();
+    final r = preview || layoutConfig != null
+        ? await http.post(
+            _u(path),
+            headers: _adminHeaders(auth: true),
+            body: jsonEncode({'layout': layoutConfig?.toJson(), 'preview': preview}),
+          )
+        : await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
