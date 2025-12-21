@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
-import { setCors } from '../_lib/http.js';
+import { setCors } from '../_lib/cors.js';
 import { loadRepById } from '../_lib/repsStore.js';
 
 const REP_SECRET = process.env.REP_JWT_SECRET;

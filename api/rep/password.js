@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { setCors } from '../_lib/http.js';
+import { setCors } from '../_lib/cors.js';
 import { loadRepById, updateRepPassword } from '../_lib/repsStore.js';
 import { isStrongPassword } from '../_lib/passwords.js';
 
