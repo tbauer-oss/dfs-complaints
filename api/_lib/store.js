@@ -681,6 +681,18 @@ function _parseTs(value, fallback) {
   return fallback;
 }
 
+function _parseBool(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return fallback;
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
 function _normalizeAcknowledgements(raw) {
   if (!raw) return [];
   const list = Array.isArray(raw) ? raw : [raw];
@@ -725,8 +737,8 @@ function _normalizeStoredNews(raw) {
     category: _newsCategory(raw.category),
     linkLabel: linkLabel || null,
     linkUrl: linkUrl || null,
-    pinned: Boolean(raw.pinned),
-    draft: Boolean(raw.draft),
+    pinned: _parseBool(raw.pinned, false),
+    draft: _parseBool(raw.draft, false),
     createdAt,
     updatedAt,
     publishedAt,
@@ -821,8 +833,12 @@ function _normalizeNewsPayload(input = {}, existing = null) {
     category: _newsCategory(input.category ?? base.category ?? ''),
     linkLabel: linkLabel || null,
     linkUrl: linkUrl || null,
-    pinned: input.pinned !== undefined ? Boolean(input.pinned) : Boolean(base.pinned),
-    draft: input.draft !== undefined ? Boolean(input.draft) : Boolean(base.draft),
+    pinned: input.pinned !== undefined
+      ? _parseBool(input.pinned, false)
+      : _parseBool(base.pinned, false),
+    draft: input.draft !== undefined
+      ? _parseBool(input.draft, false)
+      : _parseBool(base.draft, false),
     createdAt: created,
     updatedAt: now,
     publishedAt: published,
