@@ -4,6 +4,7 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -622,11 +623,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                      child: _CustomerNewsSpotlight(
+                      child: NewsHighlightCard(
                         title: t.customerNewsTitle,
                         subtitle: t.customerNewsSubtitle,
                         lead: t.customerNewsHeroLead,
                         freshLabel: t.customerNewsHeroFreshLabel,
+                        dateLabel: _latestNewsTimestamp == null
+                            ? t.customerNewsUpdateLabel
+                            : t.customerNewsNewSince(
+                                DateFormat.MMMd(Localizations.localeOf(context).toLanguageTag())
+                                    .format(_latestNewsTimestamp!),
+                              ),
                         ctaLabel: t.customerNewsReadMore,
                         showIndicator: _hasUnreadNews,
                         onTap: () async {
@@ -839,24 +846,34 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-class _CustomerNewsSpotlight extends StatelessWidget {
+class NewsHighlightCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String lead;
   final String freshLabel;
+  final String dateLabel;
   final String ctaLabel;
   final bool showIndicator;
   final VoidCallback onTap;
 
-  const _CustomerNewsSpotlight({
+  const NewsHighlightCard({
     required this.title,
     required this.subtitle,
     required this.lead,
     required this.freshLabel,
+    required this.dateLabel,
     required this.ctaLabel,
     required this.showIndicator,
     required this.onTap,
   });
+
+  String _buildTeaser() {
+    final source = subtitle.trim().isNotEmpty ? subtitle.trim() : lead.trim();
+    if (source.length <= 110) {
+      return source;
+    }
+    return '${source.substring(0, 110).trimRight()}…';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -864,29 +881,38 @@ class _CustomerNewsSpotlight extends StatelessWidget {
     final textTheme = theme.textTheme;
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 640;
-    final teaser = subtitle.trim().isNotEmpty ? subtitle : lead;
+    final teaser = _buildTeaser();
+    final radius = BorderRadius.circular(20);
+    final gradientColors = [
+      Color.lerp(cs.primary, cs.secondary, 0.2)!.withOpacity(0.92),
+      Color.lerp(cs.primary, cs.tertiary, 0.35)!.withOpacity(0.88),
+    ];
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: radius,
         child: Ink(
           decoration: BoxDecoration(
-            color: cs.surfaceVariant.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradientColors,
+            ),
+            borderRadius: radius,
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: isPhone ? 12 : 16,
-            vertical: isPhone ? 10 : 12,
+            horizontal: isPhone ? 14 : 16,
+            vertical: isPhone ? 12 : 14,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -894,16 +920,17 @@ class _CustomerNewsSpotlight extends StatelessWidget {
               Stack(
                 children: [
                   Container(
-                    width: isPhone ? 36 : 40,
-                    height: isPhone ? 36 : 40,
+                    width: isPhone ? 44 : 48,
+                    height: isPhone ? 44 : 48,
                     decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withOpacity(0.18)),
                     ),
                     child: Icon(
                       Icons.campaign_outlined,
-                      color: cs.primary,
-                      size: isPhone ? 20 : 22,
+                      color: Colors.white.withOpacity(0.92),
+                      size: isPhone ? 22 : 24,
                     ),
                   ),
                   if (showIndicator)
@@ -911,10 +938,10 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                       right: 2,
                       top: 2,
                       child: Container(
-                        width: 9,
-                        height: 9,
+                        width: 10,
+                        height: 10,
                         decoration: BoxDecoration(
-                          color: cs.tertiary,
+                          color: cs.secondaryContainer,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
@@ -930,79 +957,118 @@ class _CustomerNewsSpotlight extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleSmall?.copyWith(
-                        color: cs.onSurface,
-                        fontWeight: FontWeight.w700,
-                        height: 1.15,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      teaser,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: cs.onSurface.withOpacity(0.8),
-                        height: 1.25,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: cs.primary.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: cs.primary.withOpacity(0.2)),
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.titleSmall?.copyWith(
+                            color: Colors.white.withOpacity(0.96),
+                            fontWeight: FontWeight.w700,
+                            height: 1.15,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.fiber_new, size: 14, color: cs.primary),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  freshLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: textTheme.labelSmall?.copyWith(
-                                    color: cs.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          teaser,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: Colors.white.withOpacity(0.82),
+                            height: 1.25,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.fiber_new,
+                                      size: 14,
+                                      color: Colors.white.withOpacity(0.92),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        freshLabel,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: textTheme.labelSmall?.copyWith(
+                                          color: Colors.white.withOpacity(0.92),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: onTap,
-                          style: TextButton.styleFrom(
-                            foregroundColor: cs.primary,
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-                            visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
-                          ),
-                          icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                          label: Text(
-                            ctaLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            ),
+                            ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.history_toggle_off_outlined,
+                                    size: 14,
+                                    color: Colors.white.withOpacity(0.75),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      dateLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: textTheme.labelSmall?.copyWith(
+                                        color: Colors.white.withOpacity(0.78),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                              child: TextButton.icon(
+                                onPressed: onTap,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                                  visualDensity: const VisualDensity.compact,
+                                ),
+                                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                                label: Text(
+                                  ctaLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ],
