@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -599,9 +600,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           final double fontSize = isPhone ? 13.0 : 14.5;
           final double aspectRatio;
           if (compressedHeight) {
-            aspectRatio = isPhone ? 1.05 : 1.1;
+            aspectRatio = isPhone ? 1.0 : 1.06;
           } else {
-            aspectRatio = isPhone ? 0.95 : 1.02;
+            aspectRatio = isPhone ? 0.9 : 0.98;
           }
 
           final repHeader = _buildRepHeaderResponsive(context);
@@ -872,14 +873,14 @@ class _CustomerNewsSpotlight extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: Ink(
           decoration: BoxDecoration(
-            color: cs.surfaceVariant.withOpacity(0.18),
+            color: cs.surfaceVariant.withOpacity(0.12),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -887,134 +888,122 @@ class _CustomerNewsSpotlight extends StatelessWidget {
             horizontal: isPhone ? 12 : 16,
             vertical: isPhone ? 10 : 12,
           ),
-          child: Stack(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                child: Container(
-                  height: 6,
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                    gradient: LinearGradient(
-                      colors: [
-                        cs.primary.withOpacity(0.8),
-                        cs.secondary.withOpacity(0.6),
-                      ],
+              Stack(
+                children: [
+                  Container(
+                    width: isPhone ? 36 : 40,
+                    height: isPhone ? 36 : 40,
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.campaign_outlined,
+                      color: cs.primary,
+                      size: isPhone ? 20 : 22,
                     ),
                   ),
-                ),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Stack(
-                    children: [
-                      Container(
-                        width: isPhone ? 38 : 44,
-                        height: isPhone ? 38 : 44,
+                  if (showIndicator)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        width: 9,
+                        height: 9,
                         decoration: BoxDecoration(
-                          color: cs.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.campaign_outlined,
-                          color: cs.primary,
-                          size: isPhone ? 22 : 26,
+                          color: cs.tertiary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 3,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                       ),
-                      if (showIndicator)
-                        Positioned(
-                          right: 3,
-                          top: 3,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: cs.tertiary,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.18),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleSmall?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      teaser,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: cs.onSurface.withOpacity(0.8),
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text(
-                          title,
-                          style: textTheme.titleSmall?.copyWith(
-                            color: cs.onSurface,
-                            fontWeight: FontWeight.w700,
-                            height: 1.1,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: cs.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: cs.primary.withOpacity(0.2)),
                           ),
-                        ),
-                        if (showIndicator) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: cs.primary.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: cs.primary.withOpacity(0.2)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.fiber_new, size: 14, color: cs.primary),
-                                const SizedBox(width: 4),
-                                Text(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.fiber_new, size: 14, color: cs.primary),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
                                   freshLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: textTheme.labelSmall?.copyWith(
                                     color: cs.primary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                        const SizedBox(height: 6),
-                        Text(
-                          teaser,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: cs.onSurface.withOpacity(0.8),
-                            height: 1.25,
+                        ),
+                        TextButton.icon(
+                          onPressed: onTap,
+                          style: TextButton.styleFrom(
+                            foregroundColor: cs.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                            visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+                          ),
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                          label: Text(
+                            ctaLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  TextButton(
-                    onPressed: onTap,
-                    style: TextButton.styleFrom(
-                      foregroundColor: cs.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(ctaLabel),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_rounded, size: 16),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -1413,12 +1402,14 @@ class _FancyTile extends StatelessWidget {
                                 ),
                               ),
                               SizedBox(height: spacing),
-                              Flexible(
-                                child: Text(
+                              Expanded(
+                                child: AutoSizeText(
                                   label,
                                   textAlign: TextAlign.center,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
+                                  minFontSize: 11,
+                                  stepGranularity: 0.5,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
