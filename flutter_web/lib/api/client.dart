@@ -614,7 +614,15 @@ class ApiClient {
   String get baseUrl {
     const b = String.fromEnvironment('API_BASE', defaultValue: '');
     if (b.isNotEmpty) return b;
-    return html.window.location.origin;
+    try {
+      final ls = html.window.localStorage['API_BASE'] ?? '';
+      if (ls.trim().isNotEmpty) return ls.trim();
+    } catch (_) {}
+    final origin = html.window.location.origin;
+    if (origin == 'https://dfs-complaints-web.vercel.app') {
+      return 'https://dfs-complaints-backend.vercel.app';
+    }
+    return origin;
   }
 
   Map<String, String> _headersJson() => {
