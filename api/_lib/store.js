@@ -746,9 +746,9 @@ function _sortNews(list = []) {
 
 async function _loadCustomerNews() {
   let list = null;
-  const r = getAuditRedis();
-  if (r) {
-    const raw = await rget(KEY_CUSTOMER_NEWS);
+  const primary = getRedis();
+  if (primary) {
+    const raw = await rget(KEY_CUSTOMER_NEWS, primary);
     if (Array.isArray(raw)) {
       list = raw;
     } else if (typeof raw === 'string' && raw.trim()) {
@@ -756,6 +756,20 @@ async function _loadCustomerNews() {
       catch { list = []; }
     } else if (raw && typeof raw === 'object') {
       list = raw.items || raw.list || [];
+    }
+  }
+  if (!Array.isArray(list)) {
+    const legacy = getAuditRedis();
+    if (legacy && legacy !== primary) {
+      const raw = await rget(KEY_CUSTOMER_NEWS, legacy);
+      if (Array.isArray(raw)) {
+        list = raw;
+      } else if (typeof raw === 'string' && raw.trim()) {
+        try { list = JSON.parse(raw); }
+        catch { list = []; }
+      } else if (raw && typeof raw === 'object') {
+        list = raw.items || raw.list || [];
+      }
     }
   }
   if (!Array.isArray(list)) {
@@ -773,11 +787,16 @@ async function _loadCustomerNews() {
 async function _persistCustomerNews(list) {
   const safeList = _sortNews(list).map((item) => ({ ...item }));
   mem.customerNews = safeList.map((item) => ({ ...item }));
-  const r = getAuditRedis();
-  if (r) {
-    await rset(KEY_CUSTOMER_NEWS, safeList);
+  const primary = getRedis();
+  if (primary) {
+    await rset(KEY_CUSTOMER_NEWS, safeList, primary);
   } else {
-    global.__DFS_CUSTOMER_NEWS__ = safeList;
+    const legacy = getAuditRedis();
+    if (legacy) {
+      await rset(KEY_CUSTOMER_NEWS, safeList, legacy);
+    } else {
+      global.__DFS_CUSTOMER_NEWS__ = safeList;
+    }
   }
   return safeList;
 }

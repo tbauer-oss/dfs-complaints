@@ -1,4 +1,5 @@
 // lib/pages/customer_news_page.dart
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -41,9 +42,15 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         _items = list;
         _error = null;
       });
+      if (kDebugMode) {
+        debugPrint('[news] customer page loaded ${list.length} items');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = '$e');
+      if (kDebugMode) {
+        debugPrint('[news] customer page load failed: $e');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -665,7 +672,17 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(t.errorGeneric(_error!), textAlign: TextAlign.center),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(t.errorGeneric(_error!), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => _load(refresh: true),
+                  child: Text(t.refresh),
+                ),
+              ],
+            ),
           ),
         ),
       );

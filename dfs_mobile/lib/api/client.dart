@@ -1,6 +1,6 @@
 // lib/api/client.dart
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
 // EIN einziger bedingter Import – nur für window.localStorage (Stub auf Mobile)
@@ -460,10 +460,16 @@ class ApiClient {
         DateTime.now().difference(_newsLoadedAt!) < _newsCacheTtl;
     if (!refresh && cacheValid) return _newsCache!;
 
+    if (kDebugMode) {
+      debugPrint('[news] GET /api/news refresh=$refresh');
+    }
     final r = await http.get(
       _u('/api/news'),
       headers: {'Content-Type': 'application/json'},
     );
+    if (kDebugMode) {
+      debugPrint('[news] response ${r.statusCode} bytes=${r.body.length}');
+    }
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
@@ -478,6 +484,9 @@ class ApiClient {
           }
         }
       }
+    }
+    if (kDebugMode) {
+      debugPrint('[news] parsed ${items.length} items');
     }
     _newsCache = items;
     _newsLoadedAt = DateTime.now();
