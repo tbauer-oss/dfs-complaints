@@ -595,13 +595,13 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               ? (isPortrait ? 160 : 200)
               : (size.width < 1024 ? 240 : 260);
 
-          final double iconSize = isPhone ? 28 : 40;
+          final double iconSize = isPhone ? 26 : 36;
           final double fontSize = isPhone ? 13.0 : 14.5;
           final double aspectRatio;
           if (compressedHeight) {
-            aspectRatio = isPhone ? 1.18 : 1.15;
+            aspectRatio = isPhone ? 1.05 : 1.1;
           } else {
-            aspectRatio = isPhone ? 1.06 : 1.1;
+            aspectRatio = isPhone ? 0.95 : 1.02;
           }
 
           final repHeader = _buildRepHeaderResponsive(context);
@@ -863,165 +863,158 @@ class _CustomerNewsSpotlight extends StatelessWidget {
     final textTheme = theme.textTheme;
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 640;
+    final teaser = subtitle.trim().isNotEmpty ? subtitle : lead;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
+            color: cs.surfaceVariant.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.4)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: isPhone ? 14 : 18,
-            vertical: isPhone ? 12 : 14,
+            horizontal: isPhone ? 12 : 16,
+            vertical: isPhone ? 10 : 12,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Stack(
-                children: [
-                  Container(
-                    width: isPhone ? 46 : 52,
-                    height: isPhone ? 46 : 52,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.campaign_outlined,
-                      color: Colors.white,
-                      size: 28,
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                    gradient: LinearGradient(
+                      colors: [
+                        cs.primary.withOpacity(0.8),
+                        cs.secondary.withOpacity(0.6),
+                      ],
                     ),
                   ),
-                  if (showIndicator)
-                    Positioned(
-                      right: 4,
-                      top: 4,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Colors.orangeAccent.shade100,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        title,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    if (showIndicator) ...[
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.24),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.fiber_new,
-                                  size: 16, color: Colors.white),
-                              const SizedBox(width: 6),
-                              Text(
-                                freshLabel,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.92),
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      lead,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.94),
-                        height: 1.3,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: ElevatedButton.icon(
-                        onPressed: onTap,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: cs.primary,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        icon:
-                            const Icon(Icons.arrow_outward_rounded, size: 18),
-                        label: Text(
-                          ctaLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Stack(
+                    children: [
+                      Container(
+                        width: isPhone ? 38 : 44,
+                        height: isPhone ? 38 : 44,
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.campaign_outlined,
+                          color: cs.primary,
+                          size: isPhone ? 22 : 26,
+                        ),
+                      ),
+                      if (showIndicator)
+                        Positioned(
+                          right: 3,
+                          top: 3,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: cs.tertiary,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.18),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: textTheme.titleSmall?.copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
+                          ),
+                        ),
+                        if (showIndicator) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: cs.primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: cs.primary.withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.fiber_new, size: 14, color: cs.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  freshLabel,
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: cs.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Text(
+                          teaser,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withOpacity(0.8),
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  TextButton(
+                    onPressed: onTap,
+                    style: TextButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(ctaLabel),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_forward_rounded, size: 16),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1264,11 +1257,16 @@ class _FancyTile extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxHeight < 160;
-                  final shellSize = compact ? iconSize + 18 : iconSize + 30;
-                  final paddingV = compact ? 14.0 : 20.0;
-                  final spacing = compact ? 10.0 : 16.0;
-                  final accentWidth = compact ? 28.0 : 36.0;
+                  final textScale = MediaQuery.textScaleFactorOf(context);
+                  final paddingV = compact ? 12.0 : 16.0;
+                  final paddingH = compact ? 14.0 : 16.0;
+                  final spacing = compact ? 8.0 : 12.0;
+                  final accentWidth = compact ? 24.0 : 32.0;
                   final resolvedFontSize = compact ? fontSize : fontSize + 1;
+                  final maxFontSize = (constraints.maxHeight * 0.14).clamp(11.0, 16.0);
+                  final scaledFontSize = (resolvedFontSize * textScale).clamp(11.0, maxFontSize);
+                  final iconBox = (constraints.maxHeight * 0.36).clamp(44.0, 64.0);
+                  final resolvedIconSize = (iconSize).clamp(20.0, iconBox * 0.55);
 
                   return ClipRRect(
                     borderRadius: borderRadius,
@@ -1357,58 +1355,58 @@ class _FancyTile extends StatelessWidget {
                             child: _BlinkingDot(),
                           ),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: paddingV),
+                          padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Expanded(
-                                child: Center(
-                                  child: Container(
-                                    width: shellSize,
-                                    height: shellSize,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      gradient: RadialGradient(
-                                        colors: [
-                                          Colors.white.withOpacity(.32),
-                                          Colors.white.withOpacity(.10),
-                                        ],
-                                      ),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(hovered ? 0.65 : 0.45),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.18),
-                                          blurRadius: hovered ? 24 : 18,
-                                          offset: const Offset(0, 12),
-                                        ),
-                                        BoxShadow(
-                                          color: colorA.withOpacity(.25),
-                                          blurRadius: hovered ? 26 : 18,
-                                          spreadRadius: -4,
-                                          offset: const Offset(0, 6),
-                                        ),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: iconBox,
+                                  maxHeight: iconBox,
+                                ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        Colors.white.withOpacity(.32),
+                                        Colors.white.withOpacity(.10),
                                       ],
                                     ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            Colors.white.withOpacity(.28),
-                                            Colors.white.withOpacity(.12),
-                                          ],
-                                        ),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(hovered ? 0.65 : 0.45),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.18),
+                                        blurRadius: hovered ? 24 : 18,
+                                        offset: const Offset(0, 12),
                                       ),
-                                      child: Center(
-                                        child: Icon(
-                                          icon,
-                                          size: iconSize,
-                                          color: Colors.white,
-                                        ),
+                                      BoxShadow(
+                                        color: colorA.withOpacity(.25),
+                                        blurRadius: hovered ? 26 : 18,
+                                        spreadRadius: -4,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Colors.white.withOpacity(.28),
+                                          Colors.white.withOpacity(.12),
+                                        ],
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        icon,
+                                        size: resolvedIconSize,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
@@ -1424,9 +1422,9 @@ class _FancyTile extends StatelessWidget {
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
-                                    fontSize: resolvedFontSize,
+                                    fontSize: scaledFontSize,
                                     letterSpacing: .3,
-                                    height: 1.22,
+                                    height: 1.2,
                                   ),
                                 ),
                               ),
