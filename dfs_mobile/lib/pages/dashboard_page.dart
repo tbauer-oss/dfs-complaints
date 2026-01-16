@@ -1054,7 +1054,7 @@ class NewsHighlightCard extends StatelessWidget {
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-                                  visualDensity: const VisualDensity.compact,
+                                  visualDensity: VisualDensity.compact,
                                 ),
                                 icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                                 label: Text(
