@@ -6,10 +6,14 @@ class CustomerNewsEntry {
   final String category;
   final bool pinned;
   final bool draft;
+  final bool published;
   final DateTime publishedAt;
+  final DateTime createdAt;
   final DateTime updatedAt;
   final String? linkLabel;
   final String? linkUrl;
+  final String audience;
+  final String? language;
   final List<String> audienceEmails;
   final List<String> audienceDepartments;
   final List<String> audienceRoles;
@@ -24,10 +28,14 @@ class CustomerNewsEntry {
     required this.category,
     required this.pinned,
     required this.draft,
+    required this.published,
     required this.publishedAt,
+    required this.createdAt,
     required this.updatedAt,
     this.linkLabel,
     this.linkUrl,
+    this.audience = 'all',
+    this.language,
     this.audienceEmails = const [],
     this.audienceDepartments = const [],
     this.audienceRoles = const [],
@@ -51,17 +59,50 @@ class CustomerNewsEntry {
       return DateTime.now();
     }
 
+    bool _parseBool(dynamic value, {required bool fallback}) {
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final normalized = value.trim().toLowerCase();
+        if (normalized.isEmpty) return fallback;
+        if (['true', '1', 'yes', 'y', 'on'].contains(normalized)) return true;
+        if (['false', '0', 'no', 'n', 'off'].contains(normalized)) return false;
+      }
+      return fallback;
+    }
+
+    String _parseAudience(dynamic value) {
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      return 'all';
+    }
+
+    String? _parseLanguage(dynamic value) {
+      if (value == null) return null;
+      final lang = value.toString().trim();
+      return lang.isEmpty ? null : lang;
+    }
+
+    final draft = _parseBool(json['draft'], fallback: false);
+    final published = _parseBool(json['published'], fallback: !draft);
+    final publishedAt = _parseTs(json['publishedAt'] ?? json['date']);
+    final createdAt = _parseTs(json['createdAt'] ?? json['created_at'] ?? publishedAt);
+    final updatedAt = _parseTs(json['updatedAt'] ?? json['updated_at'] ?? createdAt);
+
     return CustomerNewsEntry(
       id: (json['id'] ?? '').toString(),
-      title: (json['title'] ?? '').toString(),
-      summary: (json['summary'] ?? json['text'] ?? '').toString(),
+      title: (json['title'] ?? json['headline'] ?? '').toString(),
+      summary: (json['summary'] ?? json['teaser'] ?? json['body'] ?? json['text'] ?? '').toString(),
       category: (json['category'] ?? 'general').toString(),
       pinned: json['pinned'] == true,
-      draft: json['draft'] == true,
+      draft: draft,
+      published: published,
       linkLabel: (json['linkLabel'] ?? json['linkText'])?.toString(),
       linkUrl: (json['linkUrl'] ?? '').toString().trim().isEmpty ? null : json['linkUrl'].toString(),
-      publishedAt: _parseTs(json['publishedAt']),
-      updatedAt: _parseTs(json['updatedAt'] ?? json['createdAt']),
+      publishedAt: publishedAt,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      audience: _parseAudience(json['audience']),
+      language: _parseLanguage(json['language'] ?? json['lang']),
       audienceEmails: (json['audience'] is Map && (json['audience']['emails'] is List)
               ? (json['audience']['emails'] as List)
               : const [])
@@ -100,10 +141,14 @@ class CustomerNewsEntry {
     String? category,
     bool? pinned,
     bool? draft,
+    bool? published,
     DateTime? publishedAt,
+    DateTime? createdAt,
     DateTime? updatedAt,
     String? linkLabel,
     String? linkUrl,
+    String? audience,
+    String? language,
     List<String>? audienceEmails,
     List<String>? audienceDepartments,
     List<String>? audienceRoles,
@@ -118,10 +163,14 @@ class CustomerNewsEntry {
       category: category ?? this.category,
       pinned: pinned ?? this.pinned,
       draft: draft ?? this.draft,
+      published: published ?? this.published,
       publishedAt: publishedAt ?? this.publishedAt,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       linkLabel: linkLabel ?? this.linkLabel,
       linkUrl: linkUrl ?? this.linkUrl,
+      audience: audience ?? this.audience,
+      language: language ?? this.language,
       audienceEmails: audienceEmails ?? this.audienceEmails,
       audienceDepartments: audienceDepartments ?? this.audienceDepartments,
       audienceRoles: audienceRoles ?? this.audienceRoles,

@@ -28,6 +28,7 @@ import '../l10n/app_localizations.dart';
 import '../services/product_lookup.dart';
 import '../services/onboarding_prefs.dart';
 import '../services/chat_service.dart';
+import '../services/customer_news_service.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/skeletons.dart';
 import '../widgets/legal_footer.dart';
@@ -23925,6 +23926,7 @@ class AdminApi {
   AdminApi({this.onNewsChanged});
 
   final VoidCallback? onNewsChanged;
+  late final CustomerNewsService _customerNewsService = CustomerNewsService(_request);
   String _secret = '';
   String _portalToken = '';
   void setSecret(String s) => _secret = s;
@@ -24651,20 +24653,7 @@ class AdminApi {
   }
 
   Future<List<CustomerNewsEntry>> fetchCustomerNewsEntries() async {
-    final res = await _request('GET', '/api/admin/news');
-    if (res.status != 200) {
-      throw 'admin news GET: HTTP ${res.status} ${res.responseText}';
-    }
-    final txt = res.responseText?.trim() ?? '';
-    dynamic data = txt.isEmpty ? const {} : jsonDecode(txt);
-    if (data is Map && data['items'] is List) {
-      data = data['items'];
-    }
-    final List list = data is List ? data : const [];
-    return list
-        .whereType<Map>()
-        .map((e) => CustomerNewsEntry.fromJson(e.cast<String, dynamic>()))
-        .toList();
+    return _customerNewsService.list(includeDrafts: true);
   }
 
   Future<List<CustomerNewsEntry>> fetchPortalNewsEntries() async {
@@ -24695,25 +24684,19 @@ class AdminApi {
     String? linkLabel,
     String? linkUrl,
   }) async {
-    final body = <String, dynamic>{
-      if (id != null && id.isNotEmpty) 'id': id,
-      'title': title,
-      'summary': summary,
-      'category': category,
-      'pinned': pinned,
-      'draft': draft,
-      'publishedAt': publishedAt.toUtc().toIso8601String(),
-      if (linkLabel != null) 'linkLabel': linkLabel,
-      if (linkUrl != null) 'linkUrl': linkUrl,
-    };
-    final res = await _request('POST', '/api/admin/news', body: body);
-    if (res.status != 200) {
-      throw 'admin news POST: HTTP ${res.status} ${res.responseText}';
-    }
-    final txt = res.responseText?.trim() ?? '';
-    final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
+    final result = await _customerNewsService.save(
+      id: id,
+      title: title,
+      summary: summary,
+      category: category,
+      pinned: pinned,
+      draft: draft,
+      publishedAt: publishedAt,
+      linkLabel: linkLabel,
+      linkUrl: linkUrl,
+    );
     onNewsChanged?.call();
-    return (entry: CustomerNewsEntry.fromJson(j), status: res.status);
+    return result;
   }
 
   Future<({CustomerNewsEntry entry, int? status})> savePortalNews({
@@ -24751,11 +24734,7 @@ class AdminApi {
   }
 
   Future<void> deleteCustomerNews(String id) async {
-    final body = {'id': id};
-    final res = await _request('DELETE', '/api/admin/news', body: body);
-    if (res.status != 200 && res.status != 204) {
-      throw 'admin news DELETE: HTTP ${res.status} ${res.responseText}';
-    }
+    await _customerNewsService.delete(id);
     onNewsChanged?.call();
   }
 

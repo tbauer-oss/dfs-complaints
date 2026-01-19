@@ -6495,7 +6495,7 @@ class AdminApi {
   }
 
   Future<List<CustomerNewsEntry>> fetchCustomerNewsEntries() async {
-    final res = await _request('GET', '/api/admin/news');
+    final res = await _request('GET', '/api/news', q: const {'includeDrafts': '1'});
     if (res.status != 200) {
       throw 'admin news GET: HTTP ${res.status} ${res.body}';
     }
@@ -6533,7 +6533,7 @@ class AdminApi {
       if (linkLabel != null) 'linkLabel': linkLabel,
       if (linkUrl != null) 'linkUrl': linkUrl,
     };
-    final res = await _request('POST', '/api/admin/news', body: body);
+    final res = await _request('POST', '/api/news', body: body);
     if (res.status != 200) {
       throw 'admin news POST: HTTP ${res.status} ${res.body}';
     }
@@ -6545,7 +6545,7 @@ class AdminApi {
 
   Future<void> deleteCustomerNews(String id) async {
     final body = {'id': id};
-    final res = await _request('DELETE', '/api/admin/news', body: body);
+    final res = await _request('DELETE', '/api/news', body: body);
     if (res.status != 200 && res.status != 204) {
       throw 'admin news DELETE: HTTP ${res.status} ${res.body}';
     }

@@ -720,16 +720,18 @@ function _normalizeStoredNews(raw) {
   const now = Date.now();
   const id = (raw.id ?? '').toString().trim();
   if (!id) return null;
-  const title = _text(raw.title ?? '', 220);
-  const summary = _text(raw.summary ?? raw.text ?? '', 4000);
+  const title = _text(raw.title ?? raw.headline ?? '', 220);
+  const summary = _text(raw.summary ?? raw.teaser ?? raw.body ?? raw.text ?? '', 4000);
   if (!title || !summary) return null;
   const createdAt = _parseTs(raw.createdAt, now) ?? now;
   const updatedAt = _parseTs(raw.updatedAt, createdAt) ?? createdAt;
   const publishedAt = _parseTs(raw.publishedAt, createdAt) ?? createdAt;
+  const language = _text(raw.language ?? raw.lang ?? '', 12) || null;
   const linkUrl = _safeUrl(raw.linkUrl ?? '');
   const linkLabel = _text(raw.linkLabel ?? '', 160);
   const audience = _normalizeNewsAudience(raw.audience ?? null);
   const acknowledgedBy = _normalizeAcknowledgements(raw.acknowledgedBy ?? raw.acknowledged ?? []);
+  const draft = _parseBool(raw.draft, !_parseBool(raw.published, true));
   return {
     id,
     title,
@@ -738,10 +740,12 @@ function _normalizeStoredNews(raw) {
     linkLabel: linkLabel || null,
     linkUrl: linkUrl || null,
     pinned: _parseBool(raw.pinned, false),
-    draft: _parseBool(raw.draft, false),
+    draft,
+    published: !draft,
     createdAt,
     updatedAt,
     publishedAt,
+    language,
     audience,
     acknowledgedBy,
     kind: raw.kind || 'news',
@@ -816,8 +820,8 @@ async function _persistCustomerNews(list) {
 function _normalizeNewsPayload(input = {}, existing = null) {
   const now = Date.now();
   const base = existing ? { ...existing } : {};
-  const title = _text(input.title ?? base.title ?? '', 220);
-  const summary = _text(input.summary ?? base.summary ?? '', 4000);
+  const title = _text(input.title ?? input.headline ?? base.title ?? '', 220);
+  const summary = _text(input.summary ?? input.teaser ?? input.body ?? base.summary ?? '', 4000);
   if (!title) throw new Error('title required');
   if (!summary) throw new Error('summary required');
   const published = _parseTs(input.publishedAt, base.publishedAt ?? now) ?? now;
@@ -825,7 +829,14 @@ function _normalizeNewsPayload(input = {}, existing = null) {
   const linkLabel = _text(input.linkLabel ?? '', 160);
   const linkUrl = _safeUrl((input.linkUrl ?? base.linkUrl) ?? '');
   const audience = _normalizeNewsAudience(input.audience ?? base.audience ?? null);
+  const language = _text(input.language ?? input.lang ?? base.language ?? '', 12) || null;
   const acknowledgedBy = _normalizeAcknowledgements(input.acknowledgedBy ?? base.acknowledgedBy ?? base.acknowledged ?? []);
+  const publishedFlag = input.published ?? base.published ?? null;
+  const draft = input.draft !== undefined
+    ? _parseBool(input.draft, false)
+    : publishedFlag !== null
+      ? !_parseBool(publishedFlag, true)
+      : _parseBool(base.draft, false);
   return {
     id: (input.id ?? base.id ?? '').toString().trim() || `news_${now}_${Math.random().toString(36).slice(2, 8)}`,
     title,
@@ -836,12 +847,12 @@ function _normalizeNewsPayload(input = {}, existing = null) {
     pinned: input.pinned !== undefined
       ? _parseBool(input.pinned, false)
       : _parseBool(base.pinned, false),
-    draft: input.draft !== undefined
-      ? _parseBool(input.draft, false)
-      : _parseBool(base.draft, false),
+    draft,
+    published: !draft,
     createdAt: created,
     updatedAt: now,
     publishedAt: published,
+    language,
     audience,
     acknowledgedBy,
   };

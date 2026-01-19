@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/customer_news_entry.dart';
+import '../services/customer_news_service.dart';
 
 class CustomerNewsPage extends StatefulWidget {
   final ApiClient api;
@@ -21,10 +22,12 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
   String? _error;
   List<CustomerNewsEntry> _items = const [];
   final Set<String> _expandedEntries = <String>{};
+  late final CustomerNewsService _newsService;
 
   @override
   void initState() {
     super.initState();
+    _newsService = CustomerNewsService(api: widget.api);
     _load();
   }
 
@@ -36,7 +39,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
       }
     });
     try {
-      final list = await widget.api.fetchCustomerNews(refresh: refresh);
+      final list = await _newsService.list(refresh: refresh);
       if (!mounted) return;
       setState(() {
         _items = list;
@@ -657,6 +660,46 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     );
   }
 
+  Widget _buildDebugOverlay(BuildContext context) {
+    if (!kDebugMode) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    String? lastError = _newsService.lastError;
+    if (lastError != null && lastError.length > 160) {
+      lastError = '${lastError.substring(0, 160)}…';
+    }
+    final lines = <String>[
+      'API_BASE: ${_newsService.apiBase}',
+      'lastUrl: ${_newsService.lastUrl ?? '-'}',
+      'lastStatus: ${_newsService.lastStatus?.toString() ?? '-'}',
+      'lastCount: ${_newsService.lastCount?.toString() ?? '-'}',
+      'lastError: ${lastError ?? '-'}',
+    ];
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'News Debug',
+            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          for (final line in lines)
+            Text(
+              line,
+              style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -737,6 +780,10 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(child: _buildHeader(context, t, theme, _items)),
+            if (kDebugMode)
+              SliverToBoxAdapter(
+                child: _buildDebugOverlay(context),
+              ),
             if (_error != null && _items.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
