@@ -460,11 +460,12 @@ class ApiClient {
         DateTime.now().difference(_newsLoadedAt!) < _newsCacheTtl;
     if (!refresh && cacheValid) return _newsCache!;
 
+    final uri = _u('/api/news');
     if (kDebugMode) {
-      debugPrint('[news] GET /api/news refresh=$refresh');
+      debugPrint('[news] GET $uri refresh=$refresh');
     }
     final r = await http.get(
-      _u('/api/news'),
+      uri,
       headers: {'Content-Type': 'application/json'},
     );
     if (kDebugMode) {
@@ -473,17 +474,51 @@ class ApiClient {
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
-    final decoded = jsonDecode(r.body);
+    final body = r.body.trim();
+    dynamic decoded;
+    try {
+      decoded = body.isEmpty ? null : jsonDecode(body);
+    } catch (e, stack) {
+      if (kDebugMode) {
+        debugPrint('[news] json decode failed: $e');
+        debugPrint(stack.toString());
+      }
+      throw ApiError(r.statusCode, 'invalid news response');
+    }
+    if (kDebugMode) {
+      if (decoded is Map<String, dynamic>) {
+        debugPrint('[news] response keys=${decoded.keys.join(', ')}');
+      } else if (decoded is List) {
+        debugPrint('[news] response list length=${decoded.length}');
+      } else {
+        debugPrint('[news] response type=${decoded.runtimeType}');
+      }
+    }
     final List<CustomerNewsEntry> items = [];
-    if (decoded is Map<String, dynamic>) {
-      final rawList = decoded['items'];
-      if (rawList is List) {
-        for (final entry in rawList) {
-          if (entry is Map<String, dynamic>) {
-            items.add(CustomerNewsEntry.fromJson(entry));
+    final List rawList = decoded is Map<String, dynamic>
+        ? (decoded['items'] is List ? decoded['items'] as List : const [])
+        : (decoded is List ? decoded : const []);
+    var parseFailures = 0;
+    for (final entry in rawList) {
+      if (entry is Map<String, dynamic>) {
+        try {
+          items.add(CustomerNewsEntry.fromJson(entry));
+        } catch (e, stack) {
+          parseFailures += 1;
+          if (kDebugMode) {
+            debugPrint('[news] parse failed for entry: $e');
+            debugPrint(stack.toString());
           }
         }
+      } else {
+        parseFailures += 1;
       }
+    }
+    if (items.isEmpty && rawList.isNotEmpty) {
+      throw ApiError(r.statusCode, 'news parsing failed');
+    }
+    if (parseFailures > 0 && kDebugMode) {
+      debugPrint('[news] parse failures=$parseFailures');
     }
     if (kDebugMode) {
       debugPrint('[news] parsed ${items.length} items');
