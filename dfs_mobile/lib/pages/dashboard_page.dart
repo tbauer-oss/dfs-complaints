@@ -1,5 +1,5 @@
 // lib/pages/dashboard_page.dart
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/customer_news_entry.dart';
 
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
@@ -87,6 +88,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   bool _hasUnreadNews = false;
   bool _newsIndicatorRefreshing = false;
   DateTime? _latestNewsTimestamp;
+  bool _newsLoading = false;
+  String? _newsError;
+  List<CustomerNewsEntry> _newsItems = const [];
 
   @override
   void initState() {
@@ -97,6 +101,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     });
     _initRep();
     _refreshNewsIndicator();
+    _loadDashboardNews();
   }
 
   @override
@@ -233,8 +238,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         _hasUnreadNews = hasUnread;
         _latestNewsTimestamp = latest;
       }
-    } catch (_) {
-      // Indicator silently stays as-is when loading fails
+    } catch (e, stack) {
+      debugPrint('[news] dashboard indicator failed: $e');
+      debugPrint(stack.toString());
     } finally {
       _newsIndicatorRefreshing = false;
     }
@@ -250,8 +256,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             ts = entry.updatedAt;
           }
         }
-      } catch (_) {
-        // ignore
+      } catch (e, stack) {
+        debugPrint('[news] mark seen failed: $e');
+        debugPrint(stack.toString());
       }
     }
     ts ??= DateTime.now();
@@ -273,7 +280,233 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     ));
     if (mounted) {
       await _refreshNewsIndicator(forceRefresh: true);
+      await _loadDashboardNews(refresh: true);
     }
+  }
+
+  Future<void> _loadDashboardNews({bool refresh = false}) async {
+    if (!refresh && _newsLoading) return;
+    setState(() {
+      if (_newsItems.isEmpty || refresh) {
+        _newsLoading = true;
+        if (refresh) _newsError = null;
+      }
+    });
+    try {
+      final list = await widget.api.fetchCustomerNews(refresh: refresh);
+      if (!mounted) return;
+      setState(() {
+        _newsItems = list;
+        _newsError = null;
+      });
+    } catch (e, stack) {
+      debugPrint('[news] dashboard load failed: $e');
+      debugPrint(stack.toString());
+      if (!mounted) return;
+      setState(() => _newsError = '$e');
+    } finally {
+      if (mounted) setState(() => _newsLoading = false);
+    }
+  }
+
+  String _formatNewsDate(BuildContext context, DateTime date) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return DateFormat.MMMd(locale).format(date);
+  }
+
+  Widget _buildNewsPreview(BuildContext context) {
+    final theme = Theme.of(context);
+    final t = AppLocalizations.of(context)!;
+
+    Widget header({Widget? trailing}) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              t.customerNewsTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      );
+    }
+
+    if (_newsLoading) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              header(),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 10,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: theme.dividerColor.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 10,
+                          width: 160,
+                          decoration: BoxDecoration(
+                            color: theme.dividerColor.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_newsError != null) {
+      return Card(
+        elevation: 0,
+        color: theme.colorScheme.errorContainer.withOpacity(0.6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              header(
+                trailing: TextButton(
+                  onPressed: () => _loadDashboardNews(refresh: true),
+                  child: Text(t.refresh),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'News konnten nicht geladen werden',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_newsItems.isEmpty) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              header(),
+              const SizedBox(height: 12),
+              Text(
+                'Derzeit keine Neuigkeiten',
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final items = _newsItems.take(3).toList();
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            header(
+              trailing: TextButton(
+                onPressed: () async => _openCustomerNews(context),
+                child: Text(t.customerNewsReadMore),
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (final item in items) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    item.pinned ? Icons.push_pin_outlined : Icons.article_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.summary,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatNewsDate(context, item.publishedAt),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (item != items.last) const Divider(height: 20),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openMail(String email, String subject, String body) async {
@@ -640,6 +873,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                           await _openCustomerNews(context);
                         },
                       ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _buildNewsPreview(context),
                     ),
                   ),
                   SliverPadding(
