@@ -1,5 +1,5 @@
 // lib/pages/dashboard_page.dart
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/customer_news_entry.dart';
+import '../services/customer_news_service.dart';
 
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
@@ -91,10 +92,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   bool _newsLoading = false;
   String? _newsError;
   List<CustomerNewsEntry> _newsItems = const [];
+  late final CustomerNewsService _newsService;
 
   @override
   void initState() {
     super.initState();
+    _newsService = CustomerNewsService(api: widget.api);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureRepOnce();
       _initCustomerName();
@@ -220,7 +223,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       final lastSeenRaw = prefs.getString(_newsLastSeenKey);
       final lastSeen = lastSeenRaw != null ? DateTime.tryParse(lastSeenRaw) : null;
 
-      final news = await widget.api.fetchCustomerNews(refresh: forceRefresh);
+      final news = await _newsService.list(refresh: forceRefresh);
       DateTime? latest;
       for (final entry in news) {
         if (latest == null || entry.updatedAt.isAfter(latest)) {
@@ -250,7 +253,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     DateTime? ts = _latestNewsTimestamp;
     if (ts == null) {
       try {
-        final news = await widget.api.fetchCustomerNews(refresh: true);
+        final news = await _newsService.list(refresh: true);
         for (final entry in news) {
           if (ts == null || entry.updatedAt.isAfter(ts)) {
             ts = entry.updatedAt;
@@ -293,7 +296,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       }
     });
     try {
-      final list = await widget.api.fetchCustomerNews(refresh: refresh);
+      final list = await _newsService.list(refresh: refresh);
       if (!mounted) return;
       setState(() {
         _newsItems = list;
@@ -408,7 +411,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'News konnten nicht geladen werden',
+                      _newsError == null
+                          ? 'News konnten nicht geladen werden'
+                          : 'News konnten nicht geladen werden: $_newsError',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -505,6 +510,46 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNewsDebugInfo(BuildContext context) {
+    if (!kDebugMode) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    String? lastError = _newsService.lastError;
+    if (lastError != null && lastError.length > 160) {
+      lastError = '${lastError.substring(0, 160)}…';
+    }
+    final lines = <String>[
+      'API_BASE: ${_newsService.apiBase}',
+      'lastUrl: ${_newsService.lastUrl ?? '-'}',
+      'lastStatus: ${_newsService.lastStatus?.toString() ?? '-'}',
+      'lastCount: ${_newsService.lastCount?.toString() ?? '-'}',
+      'lastError: ${lastError ?? '-'}',
+    ];
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'News Debug',
+            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          for (final line in lines)
+            Text(
+              line,
+              style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
+            ),
+        ],
       ),
     );
   }
@@ -880,6 +925,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                       child: _buildNewsPreview(context),
                     ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _buildNewsDebugInfo(context),
                   ),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
