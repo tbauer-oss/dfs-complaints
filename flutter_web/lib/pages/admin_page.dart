@@ -1195,7 +1195,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   bool _newsLoadingPortal = false;
   Object? _newsErrCustomer;
   Object? _newsErrPortal;
-  String _newsScope = 'portal';
+  String _newsScope = 'customer';
   bool get _isPortalNewsScope => _newsScope == 'portal';
   List<CustomerNewsEntry> get _activeNewsEntries =>
       _isPortalNewsScope ? _newsEntriesPortal : _newsEntriesCustomer;
@@ -3900,34 +3900,35 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
 
     try {
-      if (_isPortalNewsScope) {
-        await _api.savePortalNews(
-          id: entry?.id,
-          title: title,
-          summary: summary,
-          category: category,
-          pinned: pinned,
-          draft: draft,
-          publishedAt: publishedAt,
-          linkLabel: linkLabelCtrl.text.trim().isEmpty ? null : linkLabelCtrl.text.trim(),
-          linkUrl: linkUrlCtrl.text.trim().isEmpty ? null : linkUrlCtrl.text.trim(),
-          audience: audience,
-        );
-      } else {
-        await _api.saveCustomerNews(
-          id: entry?.id,
-          title: title,
-          summary: summary,
-          category: category,
-          pinned: pinned,
-          draft: draft,
-          publishedAt: publishedAt,
-          linkLabel: linkLabelCtrl.text.trim().isEmpty ? null : linkLabelCtrl.text.trim(),
-          linkUrl: linkUrlCtrl.text.trim().isEmpty ? null : linkUrlCtrl.text.trim(),
-        );
-      }
+      final result = _isPortalNewsScope
+          ? await _api.savePortalNews(
+              id: entry?.id,
+              title: title,
+              summary: summary,
+              category: category,
+              pinned: pinned,
+              draft: draft,
+              publishedAt: publishedAt,
+              linkLabel: linkLabelCtrl.text.trim().isEmpty ? null : linkLabelCtrl.text.trim(),
+              linkUrl: linkUrlCtrl.text.trim().isEmpty ? null : linkUrlCtrl.text.trim(),
+              audience: audience,
+            )
+          : await _api.saveCustomerNews(
+              id: entry?.id,
+              title: title,
+              summary: summary,
+              category: category,
+              pinned: pinned,
+              draft: draft,
+              publishedAt: publishedAt,
+              linkLabel: linkLabelCtrl.text.trim().isEmpty ? null : linkLabelCtrl.text.trim(),
+              linkUrl: linkUrlCtrl.text.trim().isEmpty ? null : linkUrlCtrl.text.trim(),
+            );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert.')));
+      final scopeLabel = _isPortalNewsScope ? 'Portal-News' : 'Kunden-News';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gespeichert ($scopeLabel, HTTP ${result.status}).')),
+      );
       _refreshNews();
     } catch (e) {
       if (mounted) {
@@ -10517,7 +10518,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(value: 'portal', label: Text('Portal (intern)'), icon: Icon(Icons.badge_outlined)),
-                    ButtonSegment(value: 'customer', label: Text('Kundenticker'), icon: Icon(Icons.public_outlined)),
+                    ButtonSegment(
+                      value: 'customer',
+                      label: Text('Kundenticker (App)'),
+                      icon: Icon(Icons.public_outlined),
+                    ),
                   ],
                   selected: {_newsScope},
                   onSelectionChanged: (s) {
@@ -10570,7 +10575,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       child: Text(
                         _isPortalNewsScope
                             ? 'Zeige personalisierte Mitarbeiter-News (E-Mail, Abteilung, Rolle) — ideal für CAPA-Hinweise.'
-                            : 'Öffentliche Kunden-News für das Portal & Infoscreens verwalten.',
+                            : 'Öffentliche Kunden-News für die App & Infoscreens verwalten.',
                       ),
                     ),
                     if (_activeNewsEntries.any((e) => e.pinned))
@@ -24679,7 +24684,7 @@ class AdminApi {
         .toList();
   }
 
-  Future<CustomerNewsEntry> saveCustomerNews({
+  Future<({CustomerNewsEntry entry, int status})> saveCustomerNews({
     String? id,
     required String title,
     required String summary,
@@ -24708,10 +24713,10 @@ class AdminApi {
     final txt = res.responseText?.trim() ?? '';
     final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
     onNewsChanged?.call();
-    return CustomerNewsEntry.fromJson(j);
+    return (entry: CustomerNewsEntry.fromJson(j), status: res.status);
   }
 
-  Future<CustomerNewsEntry> savePortalNews({
+  Future<({CustomerNewsEntry entry, int status})> savePortalNews({
     String? id,
     required String title,
     required String summary,
@@ -24742,7 +24747,7 @@ class AdminApi {
     final txt = res.responseText?.trim() ?? '';
     final Map<String, dynamic> j = txt.isEmpty ? <String, dynamic>{} : jsonDecode(txt);
     onNewsChanged?.call();
-    return CustomerNewsEntry.fromJson(j);
+    return (entry: CustomerNewsEntry.fromJson(j), status: res.status);
   }
 
   Future<void> deleteCustomerNews(String id) async {

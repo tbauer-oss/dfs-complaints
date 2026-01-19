@@ -675,7 +675,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(t.errorGeneric(_error!), textAlign: TextAlign.center),
+                Text(t.customerNewsError(_error!), textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => _load(refresh: true),
