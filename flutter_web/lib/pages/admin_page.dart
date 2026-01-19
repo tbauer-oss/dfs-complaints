@@ -24684,7 +24684,7 @@ class AdminApi {
         .toList();
   }
 
-  Future<({CustomerNewsEntry entry, int status})> saveCustomerNews({
+  Future<({CustomerNewsEntry entry, int? status})> saveCustomerNews({
     String? id,
     required String title,
     required String summary,
@@ -24716,7 +24716,7 @@ class AdminApi {
     return (entry: CustomerNewsEntry.fromJson(j), status: res.status);
   }
 
-  Future<({CustomerNewsEntry entry, int status})> savePortalNews({
+  Future<({CustomerNewsEntry entry, int? status})> savePortalNews({
     String? id,
     required String title,
     required String summary,
