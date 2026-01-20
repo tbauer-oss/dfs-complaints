@@ -1628,7 +1628,7 @@ class ApiClient {
   Future<List<CustomerNewsEntry>> adminFetchCustomerNewsEntries() async {
     const path = '/api/news';
     final r = await http.get(
-      _u(path, const {'includeDrafts': '1'}),
+      buildUri(path, query: const {'includeDrafts': '1'}),
       headers: _adminHeaders(auth: true, path: path),
     );
     if (!_ok2xx(r.statusCode)) {
