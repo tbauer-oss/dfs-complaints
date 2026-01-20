@@ -317,239 +317,109 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     return DateFormat.MMMd(locale).format(date);
   }
 
-  Widget _buildNewsPreview(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildNewsHighlightCard(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final entry = _newsItems.isNotEmpty ? _newsItems.first : null;
+    final hasError = _newsError != null;
+    final isLoading = _newsLoading && entry == null;
+    String title = t.customerNewsTitle;
+    String teaser = '';
+    String? badgeLabel;
+    String? dateLabel;
+    String ctaLabel = t.customerNewsReadMore;
+    VoidCallback? onTap;
+    bool showIndicator = _hasUnreadNews;
 
-    Widget header({Widget? trailing}) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Text(
-              t.customerNewsTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          if (trailing != null) trailing,
-        ],
-      );
+    if (hasError) {
+      teaser = 'Neuigkeiten konnten nicht geladen werden.';
+      ctaLabel = t.refresh;
+      onTap = () => _loadDashboardNews(refresh: true);
+      showIndicator = false;
+    } else if (isLoading) {
+      teaser = 'Neuigkeiten werden geladen…';
+      showIndicator = false;
+    } else if (entry == null) {
+      teaser = 'Aktuell keine Neuigkeiten.';
+      ctaLabel = 'Alle Neuigkeiten';
+      onTap = () async => _openCustomerNews(context);
+      showIndicator = false;
+    } else {
+      title = entry.title.trim().isEmpty ? t.customerNewsTitle : entry.title.trim();
+      teaser = entry.summary.trim().isEmpty ? t.customerNewsSubtitle : entry.summary.trim();
+      badgeLabel = entry.category.trim().isEmpty
+          ? t.customerNewsHeroFreshLabel
+          : entry.category.trim();
+      dateLabel = t.customerNewsNewSince(_formatNewsDate(context, entry.publishedAt));
+      ctaLabel = entry.linkLabel?.trim().isNotEmpty == true
+          ? entry.linkLabel!.trim()
+          : t.customerNewsReadMore;
+      onTap = () async => _openCustomerNews(context);
     }
 
-    if (_newsLoading) {
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              header(),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 10,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: theme.dividerColor.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 10,
-                          width: 160,
-                          decoration: BoxDecoration(
-                            color: theme.dividerColor.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_newsError != null) {
-      return Card(
-        elevation: 0,
-        color: theme.colorScheme.errorContainer.withOpacity(0.6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              header(
-                trailing: TextButton(
-                  onPressed: () => _loadDashboardNews(refresh: true),
-                  child: Text(t.refresh),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _newsError == null
-                          ? 'News konnten nicht geladen werden'
-                          : 'News konnten nicht geladen werden: $_newsError',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_newsItems.isEmpty) {
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              header(),
-              const SizedBox(height: 12),
-              Text(
-                'Derzeit keine Neuigkeiten',
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final items = _newsItems.take(3).toList();
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            header(
-              trailing: TextButton(
-                onPressed: () async => _openCustomerNews(context),
-                child: Text(t.customerNewsReadMore),
-              ),
-            ),
-            const SizedBox(height: 12),
-            for (final item in items) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    item.pinned ? Icons.push_pin_outlined : Icons.article_outlined,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.summary,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatNewsDate(context, item.publishedAt),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (item != items.last) const Divider(height: 20),
-            ],
-          ],
-        ),
-      ),
+    return NewsHighlightCard(
+      title: title,
+      teaser: teaser,
+      badgeLabel: badgeLabel,
+      dateLabel: dateLabel,
+      ctaLabel: ctaLabel,
+      showIndicator: showIndicator,
+      isLoading: isLoading,
+      isError: hasError,
+      onTap: onTap,
     );
   }
 
-  Widget _buildNewsDebugInfo(BuildContext context) {
+  Widget _buildNewsDebugOverlay(BuildContext context) {
     if (!kDebugMode) return const SizedBox.shrink();
     final theme = Theme.of(context);
     String? lastError = _newsService.lastError;
-    if (lastError != null && lastError.length > 160) {
-      lastError = '${lastError.substring(0, 160)}…';
+    if (lastError != null && lastError.length > 120) {
+      lastError = '${lastError.substring(0, 120)}…';
     }
     final lines = <String>[
-      'API_BASE: ${_newsService.apiBase}',
-      'lastUrl: ${_newsService.lastUrl ?? '-'}',
-      'lastStatus: ${_newsService.lastStatus?.toString() ?? '-'}',
-      'lastCount: ${_newsService.lastCount?.toString() ?? '-'}',
-      'lastError: ${lastError ?? '-'}',
+      'Status: ${_newsService.lastStatus?.toString() ?? '-'}',
+      'Count: ${_newsService.lastCount?.toString() ?? '-'}',
+      if (_newsService.lastUrl != null) 'Url: ${_newsService.lastUrl}',
+      if (lastError != null && lastError.isNotEmpty) 'Error: $lastError',
     ];
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'News Debug',
-            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+
+    return Positioned(
+      right: 12,
+      bottom: 12 + MediaQuery.of(context).padding.bottom,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260, maxHeight: 120),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.82),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: theme.dividerColor.withOpacity(0.6)),
           ),
-          const SizedBox(height: 6),
-          for (final line in lines)
-            Text(
-              line,
-              style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
+          child: DefaultTextStyle(
+            style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                  height: 1.2,
+                ) ??
+                const TextStyle(fontSize: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'News Debug',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ) ??
+                      const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+                ),
+                const SizedBox(height: 4),
+                for (final line in lines) Text(line, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -889,94 +759,74 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
-              child: CustomScrollView(
-                slivers: [
-                  if (repHeader != null)
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                      sliver: SliverToBoxAdapter(
-                        child: repHeader,
+              child: Stack(
+                children: [
+                  CustomScrollView(
+                    slivers: [
+                      if (repHeader != null)
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                          sliver: SliverToBoxAdapter(
+                            child: repHeader,
+                          ),
+                        ),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                          child: _buildNewsHighlightCard(context),
+                        ),
                       ),
-                    ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                      child: NewsHighlightCard(
-                        title: t.customerNewsTitle,
-                        subtitle: t.customerNewsSubtitle,
-                        lead: t.customerNewsHeroLead,
-                        freshLabel: t.customerNewsHeroFreshLabel,
-                        dateLabel: _latestNewsTimestamp == null
-                            ? t.customerNewsUpdateLabel
-                            : t.customerNewsNewSince(
-                                DateFormat.MMMd(Localizations.localeOf(context).toLanguageTag())
-                                    .format(_latestNewsTimestamp!),
-                              ),
-                        ctaLabel: t.customerNewsReadMore,
-                        showIndicator: _hasUnreadNews,
-                        onTap: () async {
-                          await _openCustomerNews(context);
-                        },
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                        sliver: SliverGrid(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, i) {
+                              final e = tiles[i];
+                              final hovered = _hoverIndex == i;
+                              return MouseRegion(
+                                onEnter: (_) => setState(() => _hoverIndex = i),
+                                onExit: (_) => setState(() => _hoverIndex = -1),
+                                child: AnimatedScale(
+                                  duration: const Duration(milliseconds: 140),
+                                  scale: hovered ? 1.02 : 1.0,
+                                  child: _FancyTile(
+                                    label: e.label,
+                                    icon: e.icon,
+                                    colorA: e.colorA,
+                                    colorB: e.colorB,
+                                    iconSize: iconSize,
+                                    fontSize: fontSize,
+                                    onTap: e.onTap,
+                                    showIndicator: e.showIndicator,
+                                    hovered: hovered,
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: tiles.length,
+                          ),
+                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: maxExtent,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: aspectRatio,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: _buildNewsPreview(context),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildNewsDebugInfo(context),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    sliver: SliverGrid(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) {
-                          final e = tiles[i];
-                          final hovered = _hoverIndex == i;
-                          return MouseRegion(
-                            onEnter: (_) => setState(() => _hoverIndex = i),
-                            onExit: (_) => setState(() => _hoverIndex = -1),
-                            child: AnimatedScale(
-                              duration: const Duration(milliseconds: 140),
-                              scale: hovered ? 1.02 : 1.0,
-                              child: _FancyTile(
-                                label: e.label,
-                                icon: e.icon,
-                                colorA: e.colorA,
-                                colorB: e.colorB,
-                                iconSize: iconSize,
-                                fontSize: fontSize,
-                                onTap: e.onTap,
-                                showIndicator: e.showIndicator,
-                                hovered: hovered,
-                              ),
-                            ),
-                          );
-                        },
-                        childCount: tiles.length,
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          16 + MediaQuery.of(ctx).padding.bottom,
+                        ),
+                        sliver: SliverToBoxAdapter(
+                          child: const _CatalogButtons(),
+                        ),
                       ),
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: maxExtent,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: aspectRatio,
-                      ),
-                    ),
+                    ],
                   ),
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      16 + MediaQuery.of(ctx).padding.bottom,
-                    ),
-                    sliver: SliverToBoxAdapter(
-                      child: const _CatalogButtons(),
-                    ),
-                  ),
+                  _buildNewsDebugOverlay(context),
                 ],
               ),
             ),
@@ -1135,32 +985,26 @@ class _RepBanner extends StatelessWidget {
 
 class NewsHighlightCard extends StatelessWidget {
   final String title;
-  final String subtitle;
-  final String lead;
-  final String freshLabel;
-  final String dateLabel;
+  final String teaser;
+  final String? badgeLabel;
+  final String? dateLabel;
   final String ctaLabel;
   final bool showIndicator;
-  final VoidCallback onTap;
+  final bool isLoading;
+  final bool isError;
+  final VoidCallback? onTap;
 
   const NewsHighlightCard({
     required this.title,
-    required this.subtitle,
-    required this.lead,
-    required this.freshLabel,
-    required this.dateLabel,
+    required this.teaser,
+    this.badgeLabel,
+    this.dateLabel,
     required this.ctaLabel,
     required this.showIndicator,
-    required this.onTap,
+    required this.isLoading,
+    required this.isError,
+    this.onTap,
   });
-
-  String _buildTeaser() {
-    final source = subtitle.trim().isNotEmpty ? subtitle.trim() : lead.trim();
-    if (source.length <= 110) {
-      return source;
-    }
-    return '${source.substring(0, 110).trimRight()}…';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1168,197 +1012,203 @@ class NewsHighlightCard extends StatelessWidget {
     final textTheme = theme.textTheme;
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 640;
-    final teaser = _buildTeaser();
-    final radius = BorderRadius.circular(20);
+    final radius = BorderRadius.circular(18);
+    final baseA = isError ? cs.errorContainer : cs.primary;
+    final baseB = isError ? cs.error : cs.secondary;
     final gradientColors = [
-      Color.lerp(cs.primary, cs.secondary, 0.2)!.withOpacity(0.92),
-      Color.lerp(cs.primary, cs.tertiary, 0.35)!.withOpacity(0.88),
+      Color.lerp(baseA, baseB, 0.25)!.withOpacity(0.92),
+      Color.lerp(baseB, cs.tertiary, 0.35)!.withOpacity(0.88),
     ];
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: radius,
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: gradientColors,
-            ),
-            borderRadius: radius,
-            border: Border.all(color: Colors.white.withOpacity(0.12)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.18),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+    Widget iconContent() {
+      if (isLoading) {
+        return SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.9)),
+          ),
+        );
+      }
+      return Icon(
+        isError ? Icons.error_outline : Icons.campaign_outlined,
+        color: Colors.white.withOpacity(0.92),
+        size: 24,
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 130, maxHeight: 160),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: gradientColors,
               ),
-            ],
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: isPhone ? 14 : 16,
-            vertical: isPhone ? 12 : 14,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  Container(
-                    width: isPhone ? 44 : 48,
-                    height: isPhone ? 44 : 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withOpacity(0.18)),
+              borderRadius: radius,
+              border: Border.all(color: Colors.white.withOpacity(0.14)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.16),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            padding: EdgeInsets.all(isPhone ? 14 : 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                      ),
+                      child: Center(child: iconContent()),
                     ),
-                    child: Icon(
-                      Icons.campaign_outlined,
-                      color: Colors.white.withOpacity(0.92),
-                      size: isPhone ? 22 : 24,
-                    ),
-                  ),
-                  if (showIndicator)
-                    Positioned(
-                      right: 2,
-                      top: 2,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: cs.secondaryContainer,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.18),
-                              blurRadius: 3,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                    if (showIndicator && !isError && !isLoading)
+                      Positioned(
+                        right: 2,
+                        top: 2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: cs.secondaryContainer,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 3,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.titleSmall?.copyWith(
-                            color: Colors.white.withOpacity(0.96),
-                            fontWeight: FontWeight.w700,
-                            height: 1.15,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          teaser,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: Colors.white.withOpacity(0.82),
-                            height: 1.25,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.18),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.white.withOpacity(0.2)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.fiber_new,
-                                      size: 14,
-                                      color: Colors.white.withOpacity(0.92),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Flexible(
-                                      child: Text(
-                                        freshLabel,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: textTheme.labelSmall?.copyWith(
-                                          color: Colors.white.withOpacity(0.92),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.titleSmall?.copyWith(
+                              color: Colors.white.withOpacity(0.96),
+                              fontWeight: FontWeight.w700,
+                              height: 1.15,
                             ),
-                            ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.history_toggle_off_outlined,
-                                    size: 14,
-                                    color: Colors.white.withOpacity(0.75),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Flexible(
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            teaser,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withOpacity(0.85),
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (badgeLabel != null && badgeLabel!.isNotEmpty)
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.18),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                    ),
                                     child: Text(
-                                      dateLabel,
+                                      badgeLabel!,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: textTheme.labelSmall?.copyWith(
-                                        color: Colors.white.withOpacity(0.78),
+                                        color: Colors.white.withOpacity(0.92),
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                              child: TextButton.icon(
-                                onPressed: onTap,
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-                                  visualDensity: VisualDensity.compact,
                                 ),
-                                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                                label: Text(
-                                  ctaLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                              if (dateLabel != null && dateLabel!.isNotEmpty)
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.history_toggle_off_outlined,
+                                        size: 14,
+                                        color: Colors.white.withOpacity(0.75),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          dateLabel!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: textTheme.labelSmall?.copyWith(
+                                            color: Colors.white.withOpacity(0.78),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                                child: TextButton.icon(
+                                  onPressed: onTap,
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    textStyle: textTheme.labelMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                                  ),
+                                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                                  label: Text(
+                                    ctaLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
+                            ],
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
