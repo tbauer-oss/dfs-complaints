@@ -9,7 +9,7 @@ import '../models/customer_news_entry.dart';
 
 class CustomerNewsService {
   static const String endpoint = '/api/news';
-  static const Duration cacheTtl = Duration(minutes: 2);
+  static const Duration cacheTtl = Duration(seconds: 30);
 
   CustomerNewsService({required ApiClient api}) : _api = api;
 
@@ -40,6 +40,23 @@ class CustomerNewsService {
       _cache != null &&
       _loadedAt != null &&
       DateTime.now().difference(_loadedAt!) < cacheTtl;
+
+  List _extractList(dynamic decoded) {
+    if (decoded is List) return decoded;
+    if (decoded is Map) {
+      for (final key in ['items', 'news', 'data']) {
+        final value = decoded[key];
+        if (value is List) return value;
+        if (value is Map) {
+          for (final nestedKey in ['items', 'news', 'data']) {
+            final nested = value[nestedKey];
+            if (nested is List) return nested;
+          }
+        }
+      }
+    }
+    return const [];
+  }
 
   Future<List<CustomerNewsEntry>> list({bool refresh = false}) async {
     if (!refresh && _cacheValid()) {
@@ -86,9 +103,7 @@ class CustomerNewsService {
     }
 
     final List<CustomerNewsEntry> items = [];
-    final List rawList = decoded is Map<String, dynamic>
-        ? (decoded['items'] is List ? decoded['items'] as List : const [])
-        : (decoded is List ? decoded : const []);
+    final List rawList = _extractList(decoded);
 
     var parseFailures = 0;
     for (final entry in rawList) {

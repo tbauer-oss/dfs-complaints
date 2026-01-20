@@ -24695,6 +24695,18 @@ class AdminApi {
       linkLabel: linkLabel,
       linkUrl: linkUrl,
     );
+    if (kDebugMode) {
+      try {
+        final list = await _customerNewsService.list();
+        final firstTitle = list.isNotEmpty ? list.first.title : '-';
+        debugPrint(
+          '[news] after save: count=${list.length} first="$firstTitle" endpoint=${CustomerNewsService.endpoint}',
+        );
+      } catch (e, stack) {
+        debugPrint('[news] after save GET failed: $e');
+        debugPrint(stack.toString());
+      }
+    }
     onNewsChanged?.call();
     return result;
   }
@@ -24724,7 +24736,7 @@ class AdminApi {
       if (audience != null) 'audience': audience,
     };
     final res = await _request('POST', '/api/portal/admin/news', body: body);
-    if (res.status != 200) {
+    if (res.status != 200 && res.status != 201) {
       throw 'portal admin news POST: HTTP ${res.status} ${res.responseText}';
     }
     final txt = res.responseText?.trim() ?? '';
