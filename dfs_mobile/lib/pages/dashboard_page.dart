@@ -4,14 +4,12 @@ import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
-import '../models/customer_news_entry.dart';
 import '../services/customer_news_service.dart';
+import '../services/news_badge_store.dart';
 
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
@@ -71,8 +69,6 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
-  static const _newsLastSeenKey = 'customer_news_last_seen';
-
   static const _fallbackRep = MyRep(
     firstName: 'DFS-Diamon',
     lastName: 'GmbH',
@@ -89,22 +85,20 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   bool _hasUnreadNews = false;
   bool _newsIndicatorRefreshing = false;
   DateTime? _latestNewsTimestamp;
-  bool _newsLoading = false;
-  String? _newsError;
-  List<CustomerNewsEntry> _newsItems = const [];
   late final CustomerNewsService _newsService;
+  late final NewsBadgeStore _newsBadgeStore;
 
   @override
   void initState() {
     super.initState();
     _newsService = CustomerNewsService(api: widget.api);
+    _newsBadgeStore = NewsBadgeStore();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureRepOnce();
       _initCustomerName();
     });
     _initRep();
     _refreshNewsIndicator();
-    _loadDashboardNews();
   }
 
   @override
@@ -219,18 +213,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     if (_newsIndicatorRefreshing) return;
     _newsIndicatorRefreshing = true;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastSeenRaw = prefs.getString(_newsLastSeenKey);
-      final lastSeen = lastSeenRaw != null ? DateTime.tryParse(lastSeenRaw) : null;
-
-      final news = await _newsService.list(refresh: forceRefresh);
-      DateTime? latest;
-      for (final entry in news) {
-        if (latest == null || entry.updatedAt.isAfter(latest)) {
-          latest = entry.updatedAt;
-        }
-      }
-
+      final latest = await _fetchLatestNewsTimestamp(forceRefresh: forceRefresh);
+      final lastSeen = await _newsBadgeStore.loadLastSeen();
       final hasUnread = latest != null && (lastSeen == null || latest.isAfter(lastSeen));
       if (mounted) {
         setState(() {
@@ -242,32 +226,41 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         _latestNewsTimestamp = latest;
       }
     } catch (e, stack) {
-      debugPrint('[news] dashboard indicator failed: $e');
-      debugPrint(stack.toString());
+      if (kDebugMode) {
+        debugPrint('[news] dashboard indicator failed: $e');
+        debugPrint(stack.toString());
+      }
     } finally {
       _newsIndicatorRefreshing = false;
     }
+  }
+
+  Future<DateTime?> _fetchLatestNewsTimestamp({required bool forceRefresh}) async {
+    final news = await _newsService.list(refresh: forceRefresh);
+    DateTime? latest;
+    for (final entry in news) {
+      if (latest == null || entry.updatedAt.isAfter(latest)) {
+        latest = entry.updatedAt;
+      }
+    }
+    return latest;
   }
 
   Future<void> _markCustomerNewsSeen() async {
     DateTime? ts = _latestNewsTimestamp;
     if (ts == null) {
       try {
-        final news = await _newsService.list(refresh: true);
-        for (final entry in news) {
-          if (ts == null || entry.updatedAt.isAfter(ts)) {
-            ts = entry.updatedAt;
-          }
-        }
+        ts = await _fetchLatestNewsTimestamp(forceRefresh: true);
       } catch (e, stack) {
-        debugPrint('[news] mark seen failed: $e');
-        debugPrint(stack.toString());
+        if (kDebugMode) {
+          debugPrint('[news] mark seen failed: $e');
+          debugPrint(stack.toString());
+        }
       }
     }
     ts ??= DateTime.now();
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_newsLastSeenKey, ts.toIso8601String());
+    await _newsBadgeStore.saveLastSeen(ts);
     if (!mounted) return;
     setState(() {
       _hasUnreadNews = false;
@@ -283,89 +276,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     ));
     if (mounted) {
       await _refreshNewsIndicator(forceRefresh: true);
-      await _loadDashboardNews(refresh: true);
     }
   }
 
-  Future<void> _loadDashboardNews({bool refresh = false}) async {
-    if (!refresh && _newsLoading) return;
-    setState(() {
-      if (_newsItems.isEmpty || refresh) {
-        _newsLoading = true;
-        if (refresh) _newsError = null;
-      }
-    });
-    try {
-      final list = await _newsService.list(refresh: refresh);
-      if (!mounted) return;
-      setState(() {
-        _newsItems = list;
-        _newsError = null;
-      });
-    } catch (e, stack) {
-      debugPrint('[news] dashboard load failed: $e');
-      debugPrint(stack.toString());
-      if (!mounted) return;
-      setState(() => _newsError = '$e');
-    } finally {
-      if (mounted) setState(() => _newsLoading = false);
-    }
-  }
-
-  String _formatNewsDate(BuildContext context, DateTime date) {
-    final locale = Localizations.localeOf(context).toLanguageTag();
-    return DateFormat.MMMd(locale).format(date);
-  }
-
-  Widget _buildNewsHighlightCard(BuildContext context) {
+  Widget _buildNewsBanner(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final entry = _newsItems.isNotEmpty ? _newsItems.first : null;
-    final hasError = _newsError != null;
-    final isLoading = _newsLoading && entry == null;
-    String title = t.customerNewsTitle;
-    String teaser = '';
-    String? badgeLabel;
-    String? dateLabel;
-    String ctaLabel = t.customerNewsReadMore;
-    VoidCallback? onTap;
-    bool showIndicator = _hasUnreadNews;
-
-    if (hasError) {
-      teaser = 'Neuigkeiten konnten nicht geladen werden.';
-      ctaLabel = t.refresh;
-      onTap = () => _loadDashboardNews(refresh: true);
-      showIndicator = false;
-    } else if (isLoading) {
-      teaser = 'Neuigkeiten werden geladen…';
-      showIndicator = false;
-    } else if (entry == null) {
-      teaser = 'Aktuell keine Neuigkeiten.';
-      ctaLabel = 'Alle Neuigkeiten';
-      onTap = () async => _openCustomerNews(context);
-      showIndicator = false;
-    } else {
-      title = entry.title.trim().isEmpty ? t.customerNewsTitle : entry.title.trim();
-      teaser = entry.summary.trim().isEmpty ? t.customerNewsSubtitle : entry.summary.trim();
-      badgeLabel = entry.category.trim().isEmpty
-          ? t.customerNewsHeroFreshLabel
-          : entry.category.trim();
-      dateLabel = t.customerNewsNewSince(_formatNewsDate(context, entry.publishedAt));
-      ctaLabel = entry.linkLabel?.trim().isNotEmpty == true
-          ? entry.linkLabel!.trim()
-          : t.customerNewsReadMore;
-      onTap = () async => _openCustomerNews(context);
-    }
-
-    return NewsHighlightCard(
-      title: title,
-      teaser: teaser,
-      badgeLabel: badgeLabel,
-      dateLabel: dateLabel,
-      ctaLabel: ctaLabel,
-      showIndicator: showIndicator,
-      isLoading: isLoading,
-      isError: hasError,
-      onTap: onTap,
+    return NewsBannerCard(
+      title: 'Neuigkeiten & News',
+      teaser: 'Updates, Tipps & Service-Highlights',
+      ctaLabel: t.customerNewsReadMore,
+      showIndicator: _hasUnreadNews,
+      onTap: () async => _openCustomerNews(context),
     );
   }
 
@@ -773,7 +694,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                          child: _buildNewsHighlightCard(context),
+                          child: _buildNewsBanner(context),
                         ),
                       ),
                       SliverPadding(
@@ -983,26 +904,18 @@ class _RepBanner extends StatelessWidget {
   }
 }
 
-class NewsHighlightCard extends StatelessWidget {
+class NewsBannerCard extends StatelessWidget {
   final String title;
   final String teaser;
-  final String? badgeLabel;
-  final String? dateLabel;
   final String ctaLabel;
   final bool showIndicator;
-  final bool isLoading;
-  final bool isError;
   final VoidCallback? onTap;
 
-  const NewsHighlightCard({
+  const NewsBannerCard({
     required this.title,
     required this.teaser,
-    this.badgeLabel,
-    this.dateLabel,
     required this.ctaLabel,
     required this.showIndicator,
-    required this.isLoading,
-    required this.isError,
     this.onTap,
   });
 
@@ -1013,33 +926,13 @@ class NewsHighlightCard extends StatelessWidget {
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 640;
     final radius = BorderRadius.circular(18);
-    final baseA = isError ? cs.errorContainer : cs.primary;
-    final baseB = isError ? cs.error : cs.secondary;
     final gradientColors = [
-      Color.lerp(baseA, baseB, 0.25)!.withOpacity(0.92),
-      Color.lerp(baseB, cs.tertiary, 0.35)!.withOpacity(0.88),
+      Color.lerp(cs.primary, cs.secondary, 0.35)!.withOpacity(0.95),
+      Color.lerp(cs.secondary, cs.tertiary, 0.45)!.withOpacity(0.9),
     ];
 
-    Widget iconContent() {
-      if (isLoading) {
-        return SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.9)),
-          ),
-        );
-      }
-      return Icon(
-        isError ? Icons.error_outline : Icons.campaign_outlined,
-        color: Colors.white.withOpacity(0.92),
-        size: 24,
-      );
-    }
-
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 130, maxHeight: 160),
+      constraints: const BoxConstraints(minHeight: 120, maxHeight: 150),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1053,45 +946,50 @@ class NewsHighlightCard extends StatelessWidget {
                 colors: gradientColors,
               ),
               borderRadius: radius,
-              border: Border.all(color: Colors.white.withOpacity(0.14)),
+              border: Border.all(color: Colors.white.withOpacity(0.18)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.16),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
             padding: EdgeInsets.all(isPhone ? 14 : 16),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Stack(
+                  clipBehavior: Clip.none,
                   children: [
                     Container(
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.14),
+                        color: Colors.white.withOpacity(0.16),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.18)),
+                        border: Border.all(color: Colors.white.withOpacity(0.2)),
                       ),
-                      child: Center(child: iconContent()),
+                      child: Icon(
+                        Icons.campaign_outlined,
+                        color: Colors.white.withOpacity(0.96),
+                        size: 24,
+                      ),
                     ),
-                    if (showIndicator && !isError && !isLoading)
+                    if (showIndicator)
                       Positioned(
-                        right: 2,
-                        top: 2,
+                        right: -2,
+                        top: -2,
                         child: Container(
-                          width: 10,
-                          height: 10,
+                          width: 9,
+                          height: 9,
                           decoration: BoxDecoration(
-                            color: cs.secondaryContainer,
+                            color: const Color(0xFFE53935),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.18),
-                                blurRadius: 3,
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
                             ],
@@ -1102,109 +1000,46 @@ class NewsHighlightCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.titleSmall?.copyWith(
-                              color: Colors.white.withOpacity(0.96),
-                              fontWeight: FontWeight.w700,
-                              height: 1.15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            teaser,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodySmall?.copyWith(
-                              color: Colors.white.withOpacity(0.85),
-                              height: 1.25,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              if (badgeLabel != null && badgeLabel!.isNotEmpty)
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.18),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.white.withOpacity(0.2)),
-                                    ),
-                                    child: Text(
-                                      badgeLabel!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: textTheme.labelSmall?.copyWith(
-                                        color: Colors.white.withOpacity(0.92),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              if (dateLabel != null && dateLabel!.isNotEmpty)
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.history_toggle_off_outlined,
-                                        size: 14,
-                                        color: Colors.white.withOpacity(0.75),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          dateLabel!,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: textTheme.labelSmall?.copyWith(
-                                            color: Colors.white.withOpacity(0.78),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ConstrainedBox(
-                                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                                child: TextButton.icon(
-                                  onPressed: onTap,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    textStyle: textTheme.labelMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-                                  ),
-                                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                                  label: Text(
-                                    ctaLabel,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleSmall?.copyWith(
+                          color: Colors.white.withOpacity(0.98),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        teaser,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withOpacity(0.88),
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: onTap,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                  ),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                  label: Text(
+                    ctaLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

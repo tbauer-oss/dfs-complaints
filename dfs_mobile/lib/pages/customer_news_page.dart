@@ -8,6 +8,7 @@ import '../api/client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/customer_news_entry.dart';
 import '../services/customer_news_service.dart';
+import '../services/news_badge_store.dart';
 
 class CustomerNewsPage extends StatefulWidget {
   final ApiClient api;
@@ -23,11 +24,13 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
   List<CustomerNewsEntry> _items = const [];
   final Set<String> _expandedEntries = <String>{};
   late final CustomerNewsService _newsService;
+  late final NewsBadgeStore _badgeStore;
 
   @override
   void initState() {
     super.initState();
     _newsService = CustomerNewsService(api: widget.api);
+    _badgeStore = NewsBadgeStore();
     _load();
   }
 
@@ -45,6 +48,15 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         _items = list;
         _error = null;
       });
+      if (list.isNotEmpty) {
+        DateTime latest = list.first.updatedAt;
+        for (final entry in list.skip(1)) {
+          if (entry.updatedAt.isAfter(latest)) {
+            latest = entry.updatedAt;
+          }
+        }
+        await _badgeStore.saveLastSeen(latest);
+      }
       if (kDebugMode) {
         debugPrint('[news] customer page loaded ${list.length} items');
       }
