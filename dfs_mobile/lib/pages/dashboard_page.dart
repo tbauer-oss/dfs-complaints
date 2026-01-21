@@ -19,7 +19,7 @@ import '../widgets/pdf_view_stub.dart'
 
 // Variante A styling: use theme tokens so dark mode updates the entire UI.
 Color _chipFill(ColorScheme scheme) {
-  final opacity = scheme.brightness == Brightness.dark ? 0.16 : 0.12;
+  final opacity = scheme.brightness == Brightness.dark ? 0.18 : 0.12;
   return scheme.primary.withOpacity(opacity);
 }
 
@@ -343,6 +343,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
+    final backgroundTop = Color.lerp(
+      scheme.primary,
+      scheme.background,
+      isDark ? 0.9 : 0.95,
+    )!;
+    final backgroundBottom = Color.lerp(
+      scheme.primary,
+      scheme.background,
+      isDark ? 0.84 : 0.92,
+    )!;
 
     final tiles = <_Entry>[
       _Entry(
@@ -402,7 +413,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [scheme.background, scheme.surface],
+            colors: [backgroundTop, backgroundBottom],
           ),
         ),
         child: LayoutBuilder(
@@ -540,15 +551,15 @@ class RepresentativeCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        // Variante A styling: white surface with soft shadow and border.
+        // Variante A styling: compact info tile with subtle shadow.
         color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: scheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: _shadowColor(theme),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: _shadowColor(theme).withOpacity(0.6),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -573,19 +584,19 @@ class RepresentativeCard extends StatelessWidget {
                   onPressed: onRefresh,
                   icon: const Icon(Icons.refresh, size: 18),
                   constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.all(4),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Row(
               children: [
                 CircleAvatar(
-                  radius: 14,
+                  radius: 18,
                   backgroundColor: _chipFill(scheme),
-                  child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 16),
+                  child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 18),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,7 +612,7 @@ class RepresentativeCard extends StatelessWidget {
                       ),
                       if (email.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 2),
+                          padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             email,
                             maxLines: 1,
@@ -617,14 +628,15 @@ class RepresentativeCard extends StatelessWidget {
               ],
             ),
             if (onMessageTap != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: onMessageTap,
                 icon: const Icon(Icons.mail_outline, size: 18),
                 label: Text(t.rep_contact_form),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  minimumSize: const Size(0, 34),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, 32),
+                  textStyle: theme.textTheme.labelLarge?.copyWith(fontSize: 14),
                 ),
               ),
             ],
@@ -813,7 +825,35 @@ class DashboardTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
     const radius = BorderRadius.all(Radius.circular(18));
+    final fillTop = scheme.surface.withOpacity(isDark ? 0.92 : 0.96);
+    final fillBottom = scheme.surface.withOpacity(isDark ? 0.88 : 0.94);
+    final shadows = isDark
+        ? [
+            BoxShadow(
+              color: scheme.primary.withOpacity(0.12),
+              blurRadius: 22,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 10),
+            ),
+          ]
+        : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ];
 
     return Semantics(
       button: true,
@@ -823,16 +863,14 @@ class DashboardTile extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             // Unified tile widget + fixed accent bar alignment
-            color: scheme.surface,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [fillTop, fillBottom],
+            ),
             borderRadius: radius,
             border: Border.all(color: scheme.outlineVariant, width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: _shadowColor(theme),
-                blurRadius: 10,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            boxShadow: shadows,
           ),
           child: Material(
             color: Colors.transparent,
