@@ -285,67 +285,87 @@ class _MyAppState extends State<MyApp> {
 
                       // Kunde eingeloggt -> Dashboard
                       if (_loggedIn) {
+                        final scheme = Theme.of(ctx).colorScheme;
                         return _ScaffoldWithAnimatedBackground(
                           appBar: AppBar(
-                            title: Text(t.appTitle),
+                            toolbarHeight: 60,
+                            title: Text(
+                              t.appTitle,
+                              style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             actions: [
-                              LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
-                              w.ThemeAction(),
-                            ],
-                            bottom: PreferredSize(
-                              preferredSize: const Size.fromHeight(50),
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  child: FilledButton.icon(
-                                    icon: const Icon(Icons.logout),
-                                    label: Text(t.logout),
-                                    style: FilledButton.styleFrom(
-                                      visualDensity: VisualDensity.compact,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      minimumSize: const Size(0, 36),
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                            context: ctx,
-                                            builder: (dialogCtx) => AlertDialog(
-                                              title: Text(t.logoutTitle),
-                                              content: Text(t.logoutConfirm),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.pop(dialogCtx, false),
-                                                  child: Text(t.cancel),
-                                                ),
-                                                FilledButton(
-                                                  onPressed: () => Navigator.pop(dialogCtx, true),
-                                                  child: Text(t.logout),
-                                                ),
-                                              ],
-                                            ),
-                                          ) ??
-                                          false;
-                                      if (!confirm) return;
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                          context: ctx,
+                                          builder: (dialogCtx) => AlertDialog(
+                                            title: Text(t.logoutTitle),
+                                            content: Text(t.logoutConfirm),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(dialogCtx, false),
+                                                child: Text(t.cancel),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.pop(dialogCtx, true),
+                                                child: Text(t.logout),
+                                              ),
+                                            ],
+                                          ),
+                                        ) ??
+                                        false;
+                                    if (!confirm) return;
 
-                                      await push.deactivate(api);
-                                      await api.logout(); // Kunden-Logout
-                                      if (ctx.mounted) {
-                                        ScaffoldMessenger.of(ctx).showSnackBar(
-                                          SnackBar(content: Text(t.loggedOut)),
-                                        );
-                                      }
-                                      _onLoggedOut();
-                                    },
+                                    await push.deactivate(api);
+                                    await api.logout(); // Kunden-Logout
+                                    if (ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                        SnackBar(content: Text(t.loggedOut)),
+                                      );
+                                    }
+                                    _onLoggedOut();
+                                  },
+                                  icon: const Icon(Icons.logout, size: 18),
+                                  label: Text(
+                                    t.logout,
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: scheme.onSurface,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    minimumSize: const Size(0, 34),
+                                    side: BorderSide(color: scheme.outlineVariant),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    visualDensity: VisualDensity.compact,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                   ),
                                 ),
                               ),
-                            ),
+                              SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Center(
+                                  child: LangAction(
+                                    onLocaleChanged: (l) => prefs.setLang(l.languageCode),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Center(child: w.ThemeAction()),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
                           ),
                           body: SafeArea(
                             child: Padding(
                               padding: const EdgeInsets.only(top: 0),
-                              child: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                              child: DashboardPage(api: api),
                             ),
                           ),
                           footer: const SizedBox.shrink(),
