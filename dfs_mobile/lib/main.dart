@@ -14,6 +14,7 @@ import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'services/push_notifications.dart';
 import 'services/geo_locale_service.dart';
+import 'theme/app_theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
@@ -35,202 +36,6 @@ import 'widgets/theme_action.dart' as w;
 import 'widgets/password_field.dart';
 import 'utils/lang_utils.dart';
 
-// ===== THEME BRANDING ===== //
-// DFS-Blau leicht heller und lebendiger (dezent medizinisch/vertrauenswürdig)
-const kBrandSeed = Color(0xFF0A4FA3);
-
-ThemeData _lightTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: kBrandSeed,
-    brightness: Brightness.light,
-  );
-
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    visualDensity: VisualDensity.standard,
-    typography: Typography.material2021(),
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      centerTitle: false,
-      titleTextStyle: TextStyle(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w700,
-        fontSize: 20,
-      ),
-    ),
-    // <-- geändert: CardThemeData
-    cardTheme: CardThemeData(
-      color: scheme.surface.withOpacity(0.75),
-      surfaceTintColor: Colors.transparent,
-      elevation: 6,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      shadowColor: scheme.primary.withOpacity(.15),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: scheme.onPrimary,
-        backgroundColor: scheme.primary,
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-        elevation: 2,
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        side: BorderSide(color: scheme.outline),
-        shape: const StadiumBorder(),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerHighest.withOpacity(.75),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: scheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: scheme.primary, width: 2),
-      ),
-      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
-      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withOpacity(.8)),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: scheme.inverseSurface,
-      contentTextStyle: TextStyle(color: scheme.onInverseSurface),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ),
-    // <-- geändert: DialogThemeData
-    dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surfaceContainerHigh.withOpacity(.9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    ),
-    dividerTheme: DividerThemeData(color: scheme.outlineVariant),
-    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    // <-- geändert: MaterialStatePropertyAll
-    checkboxTheme: CheckboxThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
-    switchTheme: SwitchThemeData(
-      thumbColor: MaterialStatePropertyAll(scheme.primary),
-      trackColor: MaterialStatePropertyAll(scheme.primary.withOpacity(.35)),
-    ),
-  );
-}
-
-ThemeData _darkTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: kBrandSeed,
-    brightness: Brightness.dark,
-  );
-
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    visualDensity: VisualDensity.standard,
-    typography: Typography.material2021(),
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      centerTitle: false,
-      titleTextStyle: TextStyle(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w700,
-        fontSize: 20,
-      ),
-    ),
-    // <-- geändert: CardThemeData
-    cardTheme: CardThemeData(
-      color: scheme.surfaceContainerHigh.withOpacity(.7),
-      surfaceTintColor: Colors.transparent,
-      elevation: 4,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      shadowColor: scheme.primary.withOpacity(.18),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: scheme.onPrimary,
-        backgroundColor: scheme.primary,
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-        elevation: 2,
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        foregroundColor: scheme.onSecondaryContainer,
-        backgroundColor: scheme.secondaryContainer,
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: scheme.onSurface,
-        side: BorderSide(color: scheme.outline),
-        minimumSize: const Size(48, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: const StadiumBorder(),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerHigh.withOpacity(.7),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: scheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: scheme.primary, width: 2),
-      ),
-      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
-      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withOpacity(.9)),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: scheme.inverseSurface,
-      contentTextStyle: TextStyle(color: scheme.onInverseSurface),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ),
-    // <-- geändert: DialogThemeData
-    dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surfaceContainerHigh.withOpacity(.9),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    ),
-    dividerTheme: DividerThemeData(color: scheme.outlineVariant),
-    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    // <-- geändert: MaterialStatePropertyAll
-    checkboxTheme: CheckboxThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: MaterialStatePropertyAll(scheme.primary)),
-    switchTheme: SwitchThemeData(
-      thumbColor: MaterialStatePropertyAll(scheme.primary),
-      trackColor: MaterialStatePropertyAll(scheme.primary.withOpacity(.35)),
-    ),
-  );
-}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -465,8 +270,8 @@ class _MyAppState extends State<MyApp> {
 
             // ---- Theme ----
             themeMode: prefs.themeMode,
-            theme: _lightTheme(),
-            darkTheme: _darkTheme(),
+            theme: lightTheme(),
+            darkTheme: darkTheme(),
 
             // ---- Routing ----
             // Wenn ein Vertreter-Token vorhanden ist, direkt ins Rep-Dashboard einsteigen,

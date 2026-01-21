@@ -17,13 +17,18 @@ import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
-// Variante A styling: tinted background + white surfaces with soft elevation.
-const _dashboardBackground = Color(0xFFF3F6FB);
-const _dashboardBackgroundEnd = Color(0xFFEEF3FA);
-const _accentColor = Color(0xFF0A63A8);
-const _surfaceBorderColor = Color(0xFFE1E8F5);
-const _titleColor = Color(0xFF0B1220);
-const _subtitleColor = Color(0xFF5F6B7A);
+// Variante A styling: use theme tokens so dark mode updates the entire UI.
+Color _chipFill(ColorScheme scheme) {
+  final opacity = scheme.brightness == Brightness.dark ? 0.16 : 0.12;
+  return scheme.primary.withOpacity(opacity);
+}
+
+Color _subtitleColor(ColorScheme scheme) => scheme.onSurface.withOpacity(0.7);
+
+Color _shadowColor(ThemeData theme) {
+  final opacity = theme.brightness == Brightness.dark ? 0.18 : 0.08;
+  return theme.colorScheme.shadow.withOpacity(opacity);
+}
 
 const _labCatalogLinks = [
   _CatalogLink(
@@ -338,6 +343,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     final tiles = <_Entry>[
       _Entry(
@@ -391,18 +398,19 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     return SafeArea(
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          // Variante A styling: subtle tinted background for depth.
+        decoration: BoxDecoration(
+          // Theme tokens replace hardcoded colors so Dark Mode flips the whole surface.
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [_dashboardBackground, _dashboardBackgroundEnd],
+            colors: [scheme.background, scheme.surface],
           ),
         ),
         child: LayoutBuilder(
           builder: (ctx, constraints) {
             final theme = Theme.of(ctx);
             final textTheme = theme.textTheme;
+            final scheme = theme.colorScheme;
             final rep = _myRep;
             final repTitle = _repTitle(context, rep);
             final repEmail = rep?.email.trim() ?? '';
@@ -435,7 +443,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                           style: textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w700,
                             fontSize: 22,
-                            color: _titleColor,
+                            color: scheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -462,7 +470,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                           style: textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w700,
                             fontSize: 22,
-                            color: _titleColor,
+                            color: scheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -511,6 +519,7 @@ class RepresentativeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final t = AppLocalizations.of(context)!;
 
     if (loading) {
@@ -523,12 +532,12 @@ class RepresentativeCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         // Variante A styling: white surface with soft shadow and border.
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _surfaceBorderColor),
+        border: Border.all(color: scheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: _shadowColor(theme),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -543,8 +552,8 @@ class RepresentativeCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: const Color(0xFFEAF1FB),
-                  child: const Icon(Icons.handshake_outlined, color: _accentColor, size: 20),
+                  backgroundColor: _chipFill(scheme),
+                  child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -557,7 +566,7 @@ class RepresentativeCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: _titleColor,
+                          color: scheme.onSurface,
                         ),
                       ),
                       if (email.isNotEmpty)
@@ -568,7 +577,7 @@ class RepresentativeCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: _subtitleColor,
+                              color: _subtitleColor(scheme),
                             ),
                           ),
                         ),
@@ -624,6 +633,7 @@ class NewsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final radius = BorderRadius.circular(20);
 
@@ -650,12 +660,12 @@ class NewsCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           // Variante A styling: white surface with soft shadow and border.
-          color: Colors.white,
+          color: scheme.surface,
           borderRadius: radius,
-          border: Border.all(color: _surfaceBorderColor),
+          border: Border.all(color: scheme.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: _shadowColor(theme),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -682,22 +692,22 @@ class NewsCard extends StatelessWidget {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEAF1FB),
+                              color: _chipFill(scheme),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.campaign_outlined,
-                              color: _accentColor,
+                              color: scheme.primary,
                               size: 22,
                             ),
                           ),
                           if (showIndicator)
-                            const Positioned(
+                            Positioned(
                               right: -2,
                               top: -2,
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: _accentColor,
+                                  color: scheme.primary,
                                   shape: BoxShape.circle,
                                 ),
                                 child: SizedBox(width: 10, height: 10),
@@ -717,7 +727,7 @@ class NewsCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: _titleColor,
+                                color: scheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -726,7 +736,7 @@ class NewsCard extends StatelessWidget {
                               maxLines: state == NewsCardState.ready ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.bodySmall?.copyWith(
-                                color: _subtitleColor,
+                                color: _subtitleColor(scheme),
                               ),
                             ),
                           ],
@@ -740,7 +750,7 @@ class NewsCard extends StatelessWidget {
                     child: TextButton.icon(
                       onPressed: onTap,
                       style: TextButton.styleFrom(
-                        foregroundColor: _accentColor,
+                        foregroundColor: scheme.primary,
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
                       ),
@@ -775,6 +785,7 @@ class DashboardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     const radius = BorderRadius.all(Radius.circular(18));
 
     return Semantics(
@@ -786,23 +797,23 @@ class DashboardTile extends StatelessWidget {
           borderRadius: radius,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: _shadowColor(theme),
               blurRadius: 10,
               offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Material(
-          color: Colors.white,
+          color: scheme.surface,
           borderRadius: radius,
           child: InkWell(
             onTap: onTap,
             borderRadius: radius,
             child: Ink(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: scheme.surface,
                 borderRadius: radius,
-                border: Border.all(color: _surfaceBorderColor, width: 1.2),
+                border: Border.all(color: scheme.outlineVariant, width: 1.2),
               ),
               child: ClipRRect(
                 borderRadius: radius,
@@ -812,7 +823,7 @@ class DashboardTile extends StatelessWidget {
                     Container(
                       height: 4,
                       width: double.infinity,
-                      color: _accentColor.withOpacity(0.85),
+                      color: scheme.primary.withOpacity(0.85),
                     ),
                     const SizedBox(height: 12),
                     Stack(
@@ -822,18 +833,18 @@ class DashboardTile extends StatelessWidget {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEAF1FB),
+                            color: _chipFill(scheme),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Icon(icon, color: _accentColor, size: 30),
+                          child: Icon(icon, color: scheme.primary, size: 30),
                         ),
                         if (showIndicator)
-                          const Positioned(
+                          Positioned(
                             right: -2,
                             top: -2,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: _accentColor,
+                                color: scheme.primary,
                                 shape: BoxShape.circle,
                               ),
                               child: SizedBox(width: 8, height: 8),
@@ -853,7 +864,7 @@ class DashboardTile extends StatelessWidget {
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
-                          color: _titleColor,
+                          color: scheme.onSurface,
                           height: 1.2,
                         ),
                       ),
@@ -887,17 +898,18 @@ class CatalogListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final t = AppLocalizations.of(context)!;
 
     return DecoratedBox(
       decoration: BoxDecoration(
         // Variante A styling: white surface with soft shadow and border.
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _surfaceBorderColor),
+        border: Border.all(color: scheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: _shadowColor(theme),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -907,7 +919,7 @@ class CatalogListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(icon, color: _subtitleColor),
+            Icon(icon, color: _subtitleColor(scheme)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -919,13 +931,13 @@ class CatalogListItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: _titleColor,
+                      color: scheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(color: _subtitleColor),
+                    style: theme.textTheme.bodySmall?.copyWith(color: _subtitleColor(scheme)),
                   ),
                 ],
               ),
@@ -933,7 +945,7 @@ class CatalogListItem extends StatelessWidget {
             TextButton.icon(
               onPressed: onTap,
               style: TextButton.styleFrom(
-                foregroundColor: _accentColor,
+                foregroundColor: scheme.primary,
                 minimumSize: const Size(0, 44),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
