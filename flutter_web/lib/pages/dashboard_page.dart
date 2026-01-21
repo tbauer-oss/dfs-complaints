@@ -521,13 +521,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    // Dashboard uses colorScheme tokens to remain fully theme-aware (no hardcoded colors).
 
     final tiles = <_Entry>[
       _Entry(
         label: t.reportComplaint,
         icon: Icons.add_circle,
-        colorA: const Color(0xFF1976D2),
-        colorB: const Color(0xFF42A5F5),
+        colorA: cs.primary,
+        colorB: cs.primaryContainer,
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => ComplaintFormPage(api: widget.api),
@@ -537,8 +541,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.myComplaints,
         icon: Icons.list_alt,
-        colorA: const Color(0xFF2E7D32),
-        colorB: const Color(0xFF66BB6A),
+        colorA: cs.secondary,
+        colorB: cs.secondaryContainer,
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => MyComplaintsPage(api: widget.api),
@@ -548,8 +552,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.myAccount,
         icon: Icons.person,
-        colorA: const Color(0xFF6A1B9A),
-        colorB: const Color(0xFFAB47BC),
+        colorA: cs.tertiary,
+        colorB: cs.tertiaryContainer,
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => AccountPage(api: widget.api),
@@ -559,8 +563,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.supportTitle,
         icon: Icons.support_agent,
-        colorA: const Color(0xFFAD1457),
-        colorB: const Color(0xFFEC407A),
+        colorA: cs.error,
+        colorB: cs.errorContainer,
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => SupportPage(api: widget.api),
@@ -570,8 +574,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       _Entry(
         label: t.knowledgeBaseTile ?? 'Knowledge base (FAQ)',
         icon: Icons.menu_book_outlined,
-        colorA: const Color(0xFF1E3A8A),
-        colorB: const Color(0xFF3B82F6),
+        colorA: cs.primaryContainer,
+        colorB: cs.secondary,
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -582,111 +586,126 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       ),
     ];
 
-    return SafeArea(
-      child: LayoutBuilder(
-        builder: (ctx, constraints) {
-          final size = MediaQuery.of(ctx).size;
-          final orientation = MediaQuery.of(ctx).orientation;
-          final isPortrait = orientation == Orientation.portrait;
-          final isPhone = size.width < 600;
-          final bool compressedHeight = constraints.maxHeight < (isPhone ? 620 : 540);
-
-          final double maxExtent = isPhone
-              ? (isPortrait ? 160 : 200)
-              : (size.width < 1024 ? 240 : 260);
-
-          final double iconSize = isPhone ? 28 : 40;
-          final double fontSize = isPhone ? 13.0 : 14.5;
-          final double aspectRatio;
-          if (compressedHeight) {
-            aspectRatio = isPhone ? 1.18 : 1.15;
-          } else {
-            aspectRatio = isPhone ? 1.06 : 1.1;
-          }
-
-          final repHeader = _buildRepHeaderResponsive(context);
-
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1080),
-              child: CustomScrollView(
-                slivers: [
-                  if (repHeader != null)
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                      sliver: SliverToBoxAdapter(
-                        child: repHeader,
-                      ),
-                    ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                      child: _CustomerNewsSpotlight(
-                        title: t.customerNewsTitle,
-                        subtitle: t.customerNewsSubtitle,
-                        lead: t.customerNewsHeroLead,
-                        freshLabel: t.customerNewsHeroFreshLabel,
-                        ctaLabel: t.customerNewsReadMore,
-                        showIndicator: _hasUnreadNews,
-                        onTap: () async {
-                          await _openCustomerNews(context);
-                        },
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    sliver: SliverGrid(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) {
-                          final e = tiles[i];
-                          final hovered = _hoverIndex == i;
-                          return MouseRegion(
-                            onEnter: (_) => setState(() => _hoverIndex = i),
-                            onExit: (_) => setState(() => _hoverIndex = -1),
-                            child: AnimatedScale(
-                              duration: const Duration(milliseconds: 140),
-                              scale: hovered ? 1.02 : 1.0,
-                              child: _FancyTile(
-                                label: e.label,
-                                icon: e.icon,
-                                colorA: e.colorA,
-                                colorB: e.colorB,
-                                iconSize: iconSize,
-                                fontSize: fontSize,
-                                onTap: e.onTap,
-                                showIndicator: e.showIndicator,
-                                hovered: hovered,
-                              ),
-                            ),
-                          );
-                        },
-                        childCount: tiles.length,
-                      ),
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: maxExtent,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: aspectRatio,
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      16 + MediaQuery.of(ctx).padding.bottom,
-                    ),
-                    sliver: SliverToBoxAdapter(
-                      child: const _CatalogButtons(),
-                    ),
-                  ),
-                ],
-              ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            cs.background,
+            Color.alphaBlend(
+              cs.surface.withOpacity(isDark ? 0.75 : 0.9),
+              cs.background,
             ),
-          );
-        },
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            final size = MediaQuery.of(ctx).size;
+            final orientation = MediaQuery.of(ctx).orientation;
+            final isPortrait = orientation == Orientation.portrait;
+            final isPhone = size.width < 600;
+            final bool compressedHeight = constraints.maxHeight < (isPhone ? 620 : 540);
+
+            final double maxExtent = isPhone
+                ? (isPortrait ? 160 : 200)
+                : (size.width < 1024 ? 240 : 260);
+
+            final double iconSize = isPhone ? 28 : 40;
+            final double fontSize = isPhone ? 13.0 : 14.5;
+            final double aspectRatio;
+            if (compressedHeight) {
+              aspectRatio = isPhone ? 1.18 : 1.15;
+            } else {
+              aspectRatio = isPhone ? 1.06 : 1.1;
+            }
+
+            final repHeader = _buildRepHeaderResponsive(context);
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1080),
+                child: CustomScrollView(
+                  slivers: [
+                    if (repHeader != null)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                        sliver: SliverToBoxAdapter(
+                          child: repHeader,
+                        ),
+                      ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                        child: _CustomerNewsSpotlight(
+                          title: t.customerNewsTitle,
+                          subtitle: t.customerNewsSubtitle,
+                          lead: t.customerNewsHeroLead,
+                          freshLabel: t.customerNewsHeroFreshLabel,
+                          ctaLabel: t.customerNewsReadMore,
+                          showIndicator: _hasUnreadNews,
+                          onTap: () async {
+                            await _openCustomerNews(context);
+                          },
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      sliver: SliverGrid(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            final e = tiles[i];
+                            final hovered = _hoverIndex == i;
+                            return MouseRegion(
+                              onEnter: (_) => setState(() => _hoverIndex = i),
+                              onExit: (_) => setState(() => _hoverIndex = -1),
+                              child: AnimatedScale(
+                                duration: const Duration(milliseconds: 140),
+                                scale: hovered ? 1.02 : 1.0,
+                                child: _FancyTile(
+                                  label: e.label,
+                                  icon: e.icon,
+                                  colorA: e.colorA,
+                                  colorB: e.colorB,
+                                  iconSize: iconSize,
+                                  fontSize: fontSize,
+                                  onTap: e.onTap,
+                                  showIndicator: e.showIndicator,
+                                  hovered: hovered,
+                                ),
+                              ),
+                            );
+                          },
+                          childCount: tiles.length,
+                        ),
+                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: maxExtent,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: aspectRatio,
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        0,
+                        16,
+                        16 + MediaQuery.of(ctx).padding.bottom,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: const _CatalogButtons(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -712,6 +731,8 @@ class _RepBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     if (loading) {
       return Container(
@@ -719,14 +740,18 @@ class _RepBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: Colors.blue.withOpacity(.06),
-          border: Border.all(color: const Color(0xFF1976D2).withOpacity(.35)),
+          color: cs.primary.withOpacity(.08),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Row(
-          children: const [
-            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 10),
-            Text('…'),
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+            ),
+            const SizedBox(width: 10),
+            Text('…', style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurface)),
           ],
         ),
       );
@@ -739,14 +764,14 @@ class _RepBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.withOpacity(.35)),
-          color: Colors.grey.withOpacity(.07),
+          border: Border.all(color: cs.outlineVariant),
+          color: cs.surfaceVariant.withOpacity(.35),
         ),
         child: Row(
           children: [
-            const Icon(Icons.person_search_outlined, size: 20),
+            Icon(Icons.person_search_outlined, size: 20, color: cs.onSurfaceVariant),
             const SizedBox(width: 10),
-            Expanded(child: Text(t.rep_not_assigned)),
+            Expanded(child: Text(t.rep_not_assigned, style: theme.textTheme.bodyMedium)),
             IconButton(
               tooltip: t.refresh,
               onPressed: onRefresh,
@@ -772,15 +797,15 @@ class _RepBanner extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF1976D2).withOpacity(0.14),
-            const Color(0xFF42A5F5).withOpacity(0.10),
+            cs.primary.withOpacity(0.16),
+            cs.primaryContainer.withOpacity(0.18),
           ],
         ),
-        border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
+        border: Border.all(color: cs.outlineVariant, width: 1),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: cs.shadow.withOpacity(0.12),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -790,20 +815,23 @@ class _RepBanner extends StatelessWidget {
         children: [
           Container(
             width: 34, height: 34,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-            child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 20),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: cs.primary),
+            child: Icon(Icons.handshake_outlined, color: cs.onPrimary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+                Text(
+                  bannerTitle,
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 2),
                 if (email.isNotEmpty || region.isNotEmpty)
                   Text(
                     [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
-                    style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                   ),
               ],
             ),
@@ -863,23 +891,24 @@ class _CustomerNewsSpotlight extends StatelessWidget {
     final textTheme = theme.textTheme;
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 640;
+    final onAccent = theme.brightness == Brightness.dark ? cs.onSurface : cs.onPrimary;
 
     return Material(
-      color: Colors.transparent,
+      color: cs.surface.withOpacity(0),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
+            gradient: LinearGradient(
+              colors: [cs.primary, cs.tertiary, cs.secondary],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: cs.shadow.withOpacity(0.18),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -898,12 +927,12 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                     width: isPhone ? 46 : 52,
                     height: isPhone ? 46 : 52,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: onAccent.withOpacity(0.16),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.campaign_outlined,
-                      color: Colors.white,
+                      color: onAccent,
                       size: 28,
                     ),
                   ),
@@ -915,11 +944,11 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: Colors.orangeAccent.shade100,
+                          color: cs.tertiaryContainer,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
+                              color: cs.shadow.withOpacity(0.25),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -939,7 +968,7 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                       child: Text(
                         title,
                         style: textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
+                          color: onAccent,
                           fontWeight: FontWeight.w800,
                           height: 1.1,
                         ),
@@ -955,22 +984,21 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.14),
+                            color: onAccent.withOpacity(0.14),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.24),
+                              color: onAccent.withOpacity(0.24),
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.fiber_new,
-                                  size: 16, color: Colors.white),
+                              Icon(Icons.fiber_new, size: 16, color: onAccent),
                               const SizedBox(width: 6),
                               Text(
                                 freshLabel,
                                 style: textTheme.bodySmall?.copyWith(
-                                  color: Colors.white,
+                                  color: onAccent,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -983,7 +1011,7 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                     Text(
                       subtitle,
                       style: textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.92),
+                        color: onAccent.withOpacity(0.92),
                         height: 1.35,
                       ),
                     ),
@@ -991,7 +1019,7 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                     Text(
                       lead,
                       style: textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.94),
+                        color: onAccent.withOpacity(0.94),
                         height: 1.3,
                       ),
                     ),
@@ -1001,7 +1029,7 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: onTap,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
+                          backgroundColor: cs.surface,
                           foregroundColor: cs.primary,
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(
@@ -1199,13 +1227,18 @@ class _FancyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final onTile = theme.brightness == Brightness.dark ? cs.onSurface : cs.onPrimary;
+    final shadowColor = cs.shadow;
+    final transparentSurface = cs.surface.withOpacity(0);
     final borderRadius = BorderRadius.circular(22);
     final baseGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.lerp(colorA, Colors.white, hovered ? 0.14 : 0.08)!.withOpacity(.97),
-        Color.lerp(colorB, Colors.black, hovered ? 0.08 : 0.03)!.withOpacity(.93),
+        Color.lerp(colorA, onTile, hovered ? 0.14 : 0.08)!.withOpacity(.97),
+        Color.lerp(colorB, shadowColor, hovered ? 0.08 : 0.03)!.withOpacity(.93),
       ],
     );
 
@@ -1220,7 +1253,7 @@ class _FancyTile extends StatelessWidget {
 
     final List<BoxShadow> shadow = [
       BoxShadow(
-        color: Colors.black.withOpacity(hovered ? 0.24 : 0.18),
+        color: shadowColor.withOpacity(hovered ? 0.24 : 0.18),
         blurRadius: hovered ? 28 : 20,
         spreadRadius: -4,
         offset: Offset(0, hovered ? 16 : 12),
@@ -1250,7 +1283,7 @@ class _FancyTile extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(1.6),
         child: Material(
-          color: Colors.transparent,
+          color: transparentSurface,
           borderRadius: borderRadius,
           child: InkWell(
             borderRadius: borderRadius,
@@ -1259,7 +1292,7 @@ class _FancyTile extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: borderRadius,
                 gradient: baseGradient,
-                border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.4),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.5), width: 1.4),
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -1283,9 +1316,9 @@ class _FancyTile extends StatelessWidget {
                                 end: Alignment.bottomRight,
                                 stops: const [0, .36, 1],
                                 colors: [
-                                  Colors.white.withOpacity(.16),
-                                  Colors.white.withOpacity(.04),
-                                  Colors.black.withOpacity(.08),
+                                  onTile.withOpacity(.16),
+                                  onTile.withOpacity(.04),
+                                  shadowColor.withOpacity(.08),
                                 ],
                               ),
                             ),
@@ -1305,8 +1338,8 @@ class _FancyTile extends StatelessWidget {
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    Colors.white.withOpacity(.28),
-                                    Colors.white.withOpacity(.03),
+                                    onTile.withOpacity(.28),
+                                    onTile.withOpacity(.03),
                                   ],
                                 ),
                               ),
@@ -1319,17 +1352,17 @@ class _FancyTile extends StatelessWidget {
                           child: Container(
                             width: 150,
                             height: 150,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  colorB.withOpacity(.18),
-                                  Colors.transparent,
-                                ],
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    colorB.withOpacity(.18),
+                                    transparentSurface,
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
                         // Diagonal glow stripe
                         Positioned(
                           top: -70,
@@ -1342,8 +1375,8 @@ class _FancyTile extends StatelessWidget {
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    Colors.white.withOpacity(.12),
-                                    Colors.white.withOpacity(.02),
+                                    onTile.withOpacity(.12),
+                                    onTile.withOpacity(.02),
                                   ],
                                 ),
                               ),
@@ -1370,16 +1403,16 @@ class _FancyTile extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(18),
                                       gradient: RadialGradient(
                                         colors: [
-                                          Colors.white.withOpacity(.32),
-                                          Colors.white.withOpacity(.10),
+                                          onTile.withOpacity(.32),
+                                          onTile.withOpacity(.10),
                                         ],
                                       ),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(hovered ? 0.65 : 0.45),
+                                        color: onTile.withOpacity(hovered ? 0.65 : 0.45),
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.18),
+                                          color: shadowColor.withOpacity(0.18),
                                           blurRadius: hovered ? 24 : 18,
                                           offset: const Offset(0, 12),
                                         ),
@@ -1398,8 +1431,8 @@ class _FancyTile extends StatelessWidget {
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                           colors: [
-                                            Colors.white.withOpacity(.28),
-                                            Colors.white.withOpacity(.12),
+                                            onTile.withOpacity(.28),
+                                            onTile.withOpacity(.12),
                                           ],
                                         ),
                                       ),
@@ -1407,7 +1440,7 @@ class _FancyTile extends StatelessWidget {
                                         child: Icon(
                                           icon,
                                           size: iconSize,
-                                          color: Colors.white,
+                                          color: onTile,
                                         ),
                                       ),
                                     ),
@@ -1422,7 +1455,7 @@ class _FancyTile extends StatelessWidget {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: onTile,
                                     fontWeight: FontWeight.w800,
                                     fontSize: resolvedFontSize,
                                     letterSpacing: .3,
@@ -1437,14 +1470,14 @@ class _FancyTile extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
-                                      Colors.white.withOpacity(.75),
-                                      Colors.white.withOpacity(.25),
+                                      onTile.withOpacity(.75),
+                                      onTile.withOpacity(.25),
                                     ],
                                   ),
                                   borderRadius: BorderRadius.circular(3),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.white.withOpacity(.24),
+                                      color: onTile.withOpacity(.24),
                                       blurRadius: 8,
                                       spreadRadius: 1,
                                     ),
@@ -1489,18 +1522,19 @@ class _BlinkingDotState extends State<_BlinkingDot>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return FadeTransition(
       opacity: CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
       child: Container(
         width: 14,
         height: 14,
         decoration: BoxDecoration(
-          color: const Color(0xFFFFEB3B),
+          color: cs.tertiary,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: cs.onTertiary, width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.amber.withOpacity(0.6),
+              color: cs.tertiary.withOpacity(0.6),
               blurRadius: 8,
               spreadRadius: 1,
             ),
