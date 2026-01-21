@@ -414,7 +414,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       _buildNewsSection(context),
                       const SizedBox(height: 16),
                       Text(
-                        t.quickAccessTitle,
+                        t.quick_access_title,
                         style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 12),
@@ -437,7 +437,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        t.catalogsTitle,
+                        t.catalogs_title,
                         style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 12),
@@ -598,7 +598,7 @@ class NewsCard extends StatelessWidget {
         stateText = AppLocalizations.of(context)!.loading;
         break;
       case NewsCardState.error:
-        stateText = AppLocalizations.of(context)!.networkErrorGeneric;
+        stateText = AppLocalizations.of(context)!.network_error_generic;
         break;
       case NewsCardState.empty:
         stateText = AppLocalizations.of(context)!.customerNewsEmpty;
