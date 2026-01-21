@@ -57,12 +57,14 @@ class CustomerNewsService {
       'category': category,
       'pinned': pinned,
       'draft': draft,
+      'published': !draft,
+      'audience': 'customer',
       'publishedAt': publishedAt.toUtc().toIso8601String(),
       if (linkLabel != null) 'linkLabel': linkLabel,
       if (linkUrl != null) 'linkUrl': linkUrl,
     };
     final res = await _request('POST', endpoint, body: body);
-    if (res.status != 200) {
+    if (res.status != 200 && res.status != 201) {
       throw 'news POST: HTTP ${res.status} ${res.responseText}';
     }
     final txt = res.responseText?.trim() ?? '';

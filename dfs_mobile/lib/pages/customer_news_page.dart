@@ -31,7 +31,12 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     super.initState();
     _newsService = CustomerNewsService(api: widget.api);
     _badgeStore = NewsBadgeStore();
-    _load();
+    _newsService.clearCache();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _load(refresh: true);
+      }
+    });
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -43,14 +48,17 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     });
     try {
       final list = await _newsService.list(refresh: refresh);
+      final locale =
+          Localizations.maybeLocaleOf(context)?.languageCode.toLowerCase() ?? 'de';
+      final filtered = _filterVisibleEntries(list, locale);
       if (!mounted) return;
       setState(() {
-        _items = list;
+        _items = filtered;
         _error = null;
       });
-      if (list.isNotEmpty) {
-        DateTime latest = list.first.updatedAt;
-        for (final entry in list.skip(1)) {
+      if (filtered.isNotEmpty) {
+        DateTime latest = filtered.first.updatedAt;
+        for (final entry in filtered.skip(1)) {
           if (entry.updatedAt.isAfter(latest)) {
             latest = entry.updatedAt;
           }
@@ -58,7 +66,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
         await _badgeStore.saveLastSeen(latest);
       }
       if (kDebugMode) {
-        debugPrint('[news] customer page loaded ${list.length} items');
+        debugPrint('[news] customer page loaded ${filtered.length} items');
       }
     } catch (e) {
       if (!mounted) return;
@@ -69,6 +77,21 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  List<CustomerNewsEntry> _filterVisibleEntries(List<CustomerNewsEntry> list, String locale) {
+    final normalizedLocale = locale.trim().toLowerCase();
+    return list.where((entry) {
+      if (entry.draft) return false;
+      final audience = entry.audience.trim().toLowerCase();
+      final audienceEffective = audience.isEmpty ? 'customer' : audience;
+      if (audienceEffective != 'customer' && audienceEffective != 'all') {
+        return false;
+      }
+      final lang = entry.language?.trim().toLowerCase();
+      if (lang == null || lang.isEmpty) return true;
+      return normalizedLocale.startsWith(lang);
+    }).toList();
   }
 
   String _categoryLabel(AppLocalizations t, String raw) {
@@ -195,7 +218,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
 
         return Container(
           margin: EdgeInsets.fromLTRB(12, 10, 12, compact ? 6 : 10),
-          constraints: BoxConstraints(minHeight: heroHeight),
+          height: heroHeight,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(compact ? 18 : 22),
             gradient: baseGradient,
