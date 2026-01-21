@@ -218,7 +218,7 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
 
         return Container(
           margin: EdgeInsets.fromLTRB(12, 10, 12, compact ? 6 : 10),
-          constraints: BoxConstraints(minHeight: heroHeight),
+          height: heroHeight,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(compact ? 18 : 22),
             gradient: baseGradient,
