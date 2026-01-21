@@ -16,6 +16,10 @@ import 'customer_news_page.dart';
 import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
+import '../widgets/lang_action.dart';
+import '../widgets/theme_action.dart';
+import '../services/push_notifications.dart';
+import '../services/app_prefs_scope.dart';
 
 // Variante A styling: use theme tokens so dark mode updates the entire UI.
 Color _chipFill(ColorScheme scheme) {
@@ -340,6 +344,104 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     );
   }
 
+  Future<void> _handleLogout() async {
+    final t = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(t.logoutTitle),
+            content: Text(t.logoutConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(t.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(t.logout),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+    await PushNotifications.instance.deactivate(widget.api);
+    await widget.api.logout();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.loggedOut)));
+    widget.onLoggedOut();
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final t = AppLocalizations.of(context)!;
+    final prefs = AppPrefsScope.of(context);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      decoration: BoxDecoration(
+        color: scheme.background,
+      ),
+      child: SafeArea(
+        top: true,
+        bottom: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                'DFS Connect',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 26,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ),
+            // Header compact: logout next to flag
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _handleLogout,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: Text(
+                    t.logout,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: scheme.onSurface,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 34),
+                    side: BorderSide(color: scheme.outlineVariant),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(
+                    child: LangAction(
+                      onLocaleChanged: (l) => prefs.setLang(l.languageCode),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(child: ThemeAction()),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -397,6 +499,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     ];
 
     return SafeArea(
+      top: false,
       child: DecoratedBox(
         decoration: BoxDecoration(
           // Theme tokens replace hardcoded colors so Dark Mode flips the whole surface.
@@ -419,64 +522,75 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1080),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // UX: ruhiger Startbereich mit klaren Abständen.
-                        if (_repLoading || rep != null)
-                          RepresentativeCard(
-                            title: repTitle,
-                            email: repEmail,
-                            loading: _repLoading,
-                            onRefresh: _initRep,
-                            onMessageTap: hasContact ? () => _openRepContactForm(context) : null,
-                          ),
-                        const SizedBox(height: 12),
-                        _buildNewsSection(context),
-                        const SizedBox(height: 16),
-                        Text(
-                          t.quick_access_title,
-                          style: textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 22,
-                            color: scheme.onSurface,
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: Column(
+                    children: [
+                      _buildHeader(ctx),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // UX: ruhiger Startbereich mit klaren Abständen.
+                                if (_repLoading || rep != null)
+                                  RepresentativeCard(
+                                    title: repTitle,
+                                    email: repEmail,
+                                    loading: _repLoading,
+                                    onRefresh: _initRep,
+                                    onMessageTap: hasContact ? () => _openRepContactForm(context) : null,
+                                  ),
+                                const SizedBox(height: 12),
+                                _buildNewsSection(context),
+                                const SizedBox(height: 16),
+                                Text(
+                                  t.quick_access_title,
+                                  style: textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 22,
+                                    color: scheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                GridView.count(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 12,
+                                  crossAxisSpacing: 12,
+                                  childAspectRatio: 1.1,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  shrinkWrap: true,
+                                  children: [
+                                    for (final entry in tiles)
+                                      DashboardTile(
+                                        label: entry.label,
+                                        icon: entry.icon,
+                                        onTap: entry.onTap,
+                                        showIndicator: entry.showIndicator,
+                                        accentColor: scheme.primary,
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  t.catalogs_title,
+                                  style: textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 22,
+                                    color: scheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                _CatalogList(),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        GridView.count(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.05,
-                          physics: const NeverScrollableScrollPhysics(),
-                          shrinkWrap: true,
-                          children: [
-                            for (final entry in tiles)
-                              DashboardTile(
-                                label: entry.label,
-                                icon: entry.icon,
-                                onTap: entry.onTap,
-                                showIndicator: entry.showIndicator,
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          t.catalogs_title,
-                          style: textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 22,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _CatalogList(),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -533,39 +647,60 @@ class RepresentativeCard extends StatelessWidget {
       decoration: BoxDecoration(
         // Variante A styling: white surface with soft shadow and border.
         color: scheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: scheme.outlineVariant),
         boxShadow: [
           BoxShadow(
             color: _shadowColor(theme),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Representative card compact
+            Row(
+              children: [
+                Text(
+                  t.contact_person_plain,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: t.refresh,
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
             Row(
               children: [
                 CircleAvatar(
-                  radius: 18,
+                  radius: 14,
                   backgroundColor: _chipFill(scheme),
-                  child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 20),
+                  child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 16),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                           color: scheme.onSurface,
                         ),
                       ),
@@ -584,22 +719,17 @@ class RepresentativeCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  tooltip: t.refresh,
-                  onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh),
-                ),
               ],
             ),
             if (onMessageTap != null) ...[
-              const SizedBox(height: 8),
-              FilledButton.icon(
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
                 onPressed: onMessageTap,
                 icon: const Icon(Icons.mail_outline, size: 18),
                 label: Text(t.rep_contact_form),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  minimumSize: const Size(0, 44),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  minimumSize: const Size(0, 34),
                 ),
               ),
             ],
@@ -773,12 +903,14 @@ class DashboardTile extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool showIndicator;
+  final Color accentColor;
 
   const DashboardTile({
     super.key,
     required this.label,
     required this.icon,
     required this.onTap,
+    required this.accentColor,
     this.showIndicator = false,
   });
 
@@ -791,87 +923,86 @@ class DashboardTile extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          // Variante A styling: white tiles with subtle border/shadow and accent bar.
-          borderRadius: radius,
-          boxShadow: [
-            BoxShadow(
-              color: _shadowColor(theme),
-              blurRadius: 10,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Material(
-          color: scheme.surface,
-          borderRadius: radius,
-          child: InkWell(
-            onTap: onTap,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            // Unified tile widget + fixed accent bar alignment
+            color: scheme.surface,
             borderRadius: radius,
-            child: Ink(
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                borderRadius: radius,
-                border: Border.all(color: scheme.outlineVariant, width: 1.2),
+            border: Border.all(color: scheme.outlineVariant, width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: _shadowColor(theme),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
               ),
-              child: ClipRRect(
-                borderRadius: radius,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      height: 4,
-                      width: double.infinity,
-                      color: scheme.primary.withOpacity(0.85),
-                    ),
-                    const SizedBox(height: 12),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: _chipFill(scheme),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(icon, color: scheme.primary, size: 30),
-                        ),
-                        if (showIndicator)
-                          Positioned(
-                            right: -2,
-                            top: -2,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: scheme.primary,
-                                shape: BoxShape.circle,
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: radius,
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Container(
+                    height: 4,
+                    width: double.infinity,
+                    color: accentColor,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: _chipFill(scheme),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Icon(icon, color: scheme.primary, size: 26),
                               ),
-                              child: SizedBox(width: 8, height: 8),
+                              if (showIndicator)
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: scheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: SizedBox(width: 8, height: 8),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              color: scheme.onSurface,
+                              height: 1.2,
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: scheme.onSurface,
-                          height: 1.2,
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
