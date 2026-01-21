@@ -32,7 +32,11 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     _newsService = CustomerNewsService(api: widget.api);
     _badgeStore = NewsBadgeStore();
     _newsService.clearCache();
-    _load(refresh: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _load(refresh: true);
+      }
+    });
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -44,7 +48,8 @@ class _CustomerNewsPageState extends State<CustomerNewsPage> {
     });
     try {
       final list = await _newsService.list(refresh: refresh);
-      final locale = Localizations.localeOf(context).languageCode.toLowerCase();
+      final locale =
+          Localizations.maybeLocaleOf(context)?.languageCode.toLowerCase() ?? 'de';
       final filtered = _filterVisibleEntries(list, locale);
       if (!mounted) return;
       setState(() {
