@@ -282,66 +282,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   Widget _buildNewsBanner(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     return NewsBannerCard(
-      title: 'Neuigkeiten & News',
-      teaser: 'Updates, Tipps & Service-Highlights',
+      title: 'Neuigkeiten & Updates',
+      teaser: 'Produkt-Updates, Service-Infos und Tipps für Ihre Praxis.',
       ctaLabel: t.customerNewsReadMore,
       showIndicator: _hasUnreadNews,
       onTap: () async => _openCustomerNews(context),
-    );
-  }
-
-  Widget _buildNewsDebugOverlay(BuildContext context) {
-    if (!kDebugMode) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    String? lastError = _newsService.lastError;
-    if (lastError != null && lastError.length > 120) {
-      lastError = '${lastError.substring(0, 120)}…';
-    }
-    final lines = <String>[
-      'Status: ${_newsService.lastStatus?.toString() ?? '-'}',
-      'Count: ${_newsService.lastCount?.toString() ?? '-'}',
-      if (_newsService.lastUrl != null) 'Url: ${_newsService.lastUrl}',
-      if (lastError != null && lastError.isNotEmpty) 'Error: $lastError',
-    ];
-
-    return Positioned(
-      right: 12,
-      bottom: 12 + MediaQuery.of(context).padding.bottom,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 260, maxHeight: 120),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceVariant.withOpacity(0.82),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.dividerColor.withOpacity(0.6)),
-          ),
-          child: DefaultTextStyle(
-            style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 10,
-                  height: 1.2,
-                ) ??
-                const TextStyle(fontSize: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'News Debug',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ) ??
-                      const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
-                ),
-                const SizedBox(height: 4),
-                for (final line in lines) Text(line, maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -680,74 +625,69 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1080),
-              child: Stack(
-                children: [
-                  CustomScrollView(
-                    slivers: [
-                      if (repHeader != null)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                          sliver: SliverToBoxAdapter(
-                            child: repHeader,
-                          ),
-                        ),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                          child: _buildNewsBanner(context),
-                        ),
+              child: CustomScrollView(
+                slivers: [
+                  if (repHeader != null)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                      sliver: SliverToBoxAdapter(
+                        child: repHeader,
                       ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                        sliver: SliverGrid(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, i) {
-                              final e = tiles[i];
-                              final hovered = _hoverIndex == i;
-                              return MouseRegion(
-                                onEnter: (_) => setState(() => _hoverIndex = i),
-                                onExit: (_) => setState(() => _hoverIndex = -1),
-                                child: AnimatedScale(
-                                  duration: const Duration(milliseconds: 140),
-                                  scale: hovered ? 1.02 : 1.0,
-                                  child: _FancyTile(
-                                    label: e.label,
-                                    icon: e.icon,
-                                    colorA: e.colorA,
-                                    colorB: e.colorB,
-                                    iconSize: iconSize,
-                                    fontSize: fontSize,
-                                    onTap: e.onTap,
-                                    showIndicator: e.showIndicator,
-                                    hovered: hovered,
-                                  ),
-                                ),
-                              );
-                            },
-                            childCount: tiles.length,
-                          ),
-                          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: maxExtent,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: aspectRatio,
-                          ),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: EdgeInsets.fromLTRB(
-                          16,
-                          0,
-                          16,
-                          16 + MediaQuery.of(ctx).padding.bottom,
-                        ),
-                        sliver: SliverToBoxAdapter(
-                          child: const _CatalogButtons(),
-                        ),
-                      ),
-                    ],
+                    ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                      child: _buildNewsBanner(context),
+                    ),
                   ),
-                  _buildNewsDebugOverlay(context),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    sliver: SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) {
+                          final e = tiles[i];
+                          final hovered = _hoverIndex == i;
+                          return MouseRegion(
+                            onEnter: (_) => setState(() => _hoverIndex = i),
+                            onExit: (_) => setState(() => _hoverIndex = -1),
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 140),
+                              scale: hovered ? 1.02 : 1.0,
+                              child: _FancyTile(
+                                label: e.label,
+                                icon: e.icon,
+                                colorA: e.colorA,
+                                colorB: e.colorB,
+                                iconSize: iconSize,
+                                fontSize: fontSize,
+                                onTap: e.onTap,
+                                showIndicator: e.showIndicator,
+                                hovered: hovered,
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: tiles.length,
+                      ),
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: maxExtent,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: aspectRatio,
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      16 + MediaQuery.of(ctx).padding.bottom,
+                    ),
+                    sliver: const SliverToBoxAdapter(
+                      child: _CatalogButtons(),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -931,109 +871,115 @@ class NewsBannerCard extends StatelessWidget {
       Color.lerp(cs.secondary, cs.tertiary, 0.45)!.withOpacity(0.9),
     ];
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 120, maxHeight: 150),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: gradientColors,
-              ),
-              borderRadius: radius,
-              border: Border.all(color: Colors.white.withOpacity(0.18)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradientColors,
             ),
-            padding: EdgeInsets.all(isPhone ? 14 : 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.2)),
+            borderRadius: radius,
+            border: Border.all(color: Colors.white.withOpacity(0.18)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: EdgeInsets.all(isPhone ? 14 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        child: Icon(
+                          Icons.campaign_outlined,
+                          color: Colors.white.withOpacity(0.96),
+                          size: 24,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.campaign_outlined,
-                        color: Colors.white.withOpacity(0.96),
-                        size: 24,
-                      ),
-                    ),
-                    if (showIndicator)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 9,
-                          height: 9,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE53935),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+                      if (showIndicator)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE53935),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleSmall?.copyWith(
-                          color: Colors.white.withOpacity(0.98),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        teaser,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withOpacity(0.88),
-                          height: 1.2,
-                        ),
-                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.titleSmall?.copyWith(
+                            color: Colors.white.withOpacity(0.98),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          teaser,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: Colors.white.withOpacity(0.88),
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
                   onPressed: onTap,
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                    visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
                   ),
                   icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                   label: Text(
@@ -1042,8 +988,8 @@ class NewsBannerCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
