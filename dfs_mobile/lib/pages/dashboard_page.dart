@@ -17,6 +17,14 @@ import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
 
+// Variante A styling: tinted background + white surfaces with soft elevation.
+const _dashboardBackground = Color(0xFFF3F6FB);
+const _dashboardBackgroundEnd = Color(0xFFEEF3FA);
+const _accentColor = Color(0xFF0A63A8);
+const _surfaceBorderColor = Color(0xFFE1E8F5);
+const _titleColor = Color(0xFF0B1220);
+const _subtitleColor = Color(0xFF5F6B7A);
+
 const _labCatalogLinks = [
   _CatalogLink(
     label: 'DE / EN',
@@ -382,73 +390,91 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     ];
 
     return SafeArea(
-      child: LayoutBuilder(
-        builder: (ctx, constraints) {
-          final theme = Theme.of(ctx);
-          final textTheme = theme.textTheme;
-          final rep = _myRep;
-          final repTitle = _repTitle(context, rep);
-          final repEmail = rep?.email.trim() ?? '';
-          final hasContact = _repForContact().email.trim().isNotEmpty;
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          // Variante A styling: subtle tinted background for depth.
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_dashboardBackground, _dashboardBackgroundEnd],
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            final theme = Theme.of(ctx);
+            final textTheme = theme.textTheme;
+            final rep = _myRep;
+            final repTitle = _repTitle(context, rep);
+            final repEmail = rep?.email.trim() ?? '';
+            final hasContact = _repForContact().email.trim().isNotEmpty;
 
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1080),
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // UX: ruhiger Startbereich mit klaren Abständen.
-                      if (_repLoading || rep != null)
-                        RepresentativeCard(
-                          title: repTitle,
-                          email: repEmail,
-                          loading: _repLoading,
-                          onRefresh: _initRep,
-                          onMessageTap: hasContact ? () => _openRepContactForm(context) : null,
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1080),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // UX: ruhiger Startbereich mit klaren Abständen.
+                        if (_repLoading || rep != null)
+                          RepresentativeCard(
+                            title: repTitle,
+                            email: repEmail,
+                            loading: _repLoading,
+                            onRefresh: _initRep,
+                            onMessageTap: hasContact ? () => _openRepContactForm(context) : null,
+                          ),
+                        const SizedBox(height: 12),
+                        _buildNewsSection(context),
+                        const SizedBox(height: 16),
+                        Text(
+                          t.quick_access_title,
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 22,
+                            color: _titleColor,
+                          ),
                         ),
-                      const SizedBox(height: 12),
-                      _buildNewsSection(context),
-                      const SizedBox(height: 16),
-                      Text(
-                        t.quick_access_title,
-                        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 12),
-                      GridView.count(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 1.05,
-                        physics: const NeverScrollableScrollPhysics(),
-                        shrinkWrap: true,
-                        children: [
-                          for (final entry in tiles)
-                            DashboardTile(
-                              label: entry.label,
-                              icon: entry.icon,
-                              onTap: entry.onTap,
-                              showIndicator: entry.showIndicator,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        t.catalogs_title,
-                        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 12),
-                      _CatalogList(),
-                    ],
+                        const SizedBox(height: 12),
+                        GridView.count(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.05,
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          children: [
+                            for (final entry in tiles)
+                              DashboardTile(
+                                label: entry.label,
+                                icon: entry.icon,
+                                onTap: entry.onTap,
+                                showIndicator: entry.showIndicator,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          t.catalogs_title,
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 22,
+                            color: _titleColor,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _CatalogList(),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -485,7 +511,6 @@ class RepresentativeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final t = AppLocalizations.of(context)!;
 
     if (loading) {
@@ -495,10 +520,20 @@ class RepresentativeCard extends StatelessWidget {
       );
     }
 
-    return Card(
-      elevation: 0,
-      color: cs.surfaceVariant.withOpacity(0.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        // Variante A styling: white surface with soft shadow and border.
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _surfaceBorderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
@@ -508,8 +543,8 @@ class RepresentativeCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: cs.primary.withOpacity(0.12),
-                  child: Icon(Icons.handshake_outlined, color: cs.primary, size: 20),
+                  backgroundColor: const Color(0xFFEAF1FB),
+                  child: const Icon(Icons.handshake_outlined, color: _accentColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -520,7 +555,10 @@ class RepresentativeCard extends StatelessWidget {
                         title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: _titleColor,
+                        ),
                       ),
                       if (email.isNotEmpty)
                         Padding(
@@ -530,7 +568,7 @@ class RepresentativeCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
+                              color: _subtitleColor,
                             ),
                           ),
                         ),
@@ -587,9 +625,7 @@ class NewsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
-    final cs = theme.colorScheme;
-    final radius = BorderRadius.circular(16);
-    final surfaceColor = cs.surfaceVariant.withOpacity(0.5);
+    final radius = BorderRadius.circular(20);
 
     // UX: kompakte News-Card mit Lade-/Fehlerzustand statt leerem Widget.
     String stateText;
@@ -611,98 +647,109 @@ class NewsCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: title,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          // Variante A styling: white surface with soft shadow and border.
+          color: Colors.white,
           borderRadius: radius,
-          child: Ink(
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: radius,
-              border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
+          border: Border.all(color: _surfaceBorderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: cs.primary.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(12),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEAF1FB),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.campaign_outlined,
+                              color: _accentColor,
+                              size: 22,
+                            ),
                           ),
-                          child: Icon(
-                            Icons.campaign_outlined,
-                            color: cs.primary,
-                            size: 22,
-                          ),
-                        ),
-                        if (showIndicator)
-                          Positioned(
-                            right: -2,
-                            top: -2,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: cs.primary,
-                                shape: BoxShape.circle,
+                          if (showIndicator)
+                            const Positioned(
+                              right: -2,
+                              top: -2,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: _accentColor,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: SizedBox(width: 10, height: 10),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            stateText,
-                            maxLines: state == NewsCardState.ready ? 2 : 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: onTap,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                    label: Text(ctaLabel),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: _titleColor,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              stateText,
+                              maxLines: state == NewsCardState.ready ? 2 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: _subtitleColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onTap,
+                      style: TextButton.styleFrom(
+                        foregroundColor: _accentColor,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      label: Text(ctaLabel),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -728,61 +775,93 @@ class DashboardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    const radius = BorderRadius.all(Radius.circular(18));
 
     return Semantics(
       button: true,
       label: label,
-      child: Material(
-        color: cs.surfaceVariant.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          // Variante A styling: white tiles with subtle border/shadow and accent bar.
+          borderRadius: radius,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.white,
+          borderRadius: radius,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: Ink(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: radius,
+                border: Border.all(color: _surfaceBorderColor, width: 1.2),
+              ),
+              child: ClipRRect(
+                borderRadius: radius,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(icon, color: cs.primary, size: 24),
+                      height: 4,
+                      width: double.infinity,
+                      color: _accentColor.withOpacity(0.85),
                     ),
-                    if (showIndicator)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 8,
-                          height: 8,
+                    const SizedBox(height: 12),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
                           decoration: BoxDecoration(
-                            color: cs.primary,
-                            shape: BoxShape.circle,
+                            color: const Color(0xFFEAF1FB),
+                            borderRadius: BorderRadius.circular(16),
                           ),
+                          child: Icon(icon, color: _accentColor, size: 30),
+                        ),
+                        if (showIndicator)
+                          const Positioned(
+                            right: -2,
+                            top: -2,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: _accentColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: SizedBox(width: 8, height: 8),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: _titleColor,
+                          height: 1.2,
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 12),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -808,18 +887,27 @@ class CatalogListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final t = AppLocalizations.of(context)!;
 
-    return Card(
-      elevation: 0,
-      color: cs.surfaceVariant.withOpacity(0.35),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        // Variante A styling: white surface with soft shadow and border.
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _surfaceBorderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(icon, color: cs.onSurfaceVariant),
+            Icon(icon, color: _subtitleColor),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -829,12 +917,15 @@ class CatalogListItem extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: _titleColor,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(color: _subtitleColor),
                   ),
                 ],
               ),
@@ -842,6 +933,7 @@ class CatalogListItem extends StatelessWidget {
             TextButton.icon(
               onPressed: onTap,
               style: TextButton.styleFrom(
+                foregroundColor: _accentColor,
                 minimumSize: const Size(0, 44),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
