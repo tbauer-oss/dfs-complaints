@@ -16,10 +16,6 @@ import 'customer_news_page.dart';
 import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
   if (dart.library.html) '../widgets/pdf_view_web.dart';
-import '../widgets/lang_action.dart';
-import '../widgets/theme_action.dart';
-import '../services/push_notifications.dart';
-import '../services/app_prefs_scope.dart';
 
 // Variante A styling: use theme tokens so dark mode updates the entire UI.
 Color _chipFill(ColorScheme scheme) {
@@ -70,12 +66,10 @@ _CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) 
 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
-  final VoidCallback onLoggedOut;
 
   const DashboardPage({
     super.key,
     required this.api,
-    required this.onLoggedOut,
   });
 
   @override
@@ -344,104 +338,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     );
   }
 
-  Future<void> _handleLogout() async {
-    final t = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(t.logoutTitle),
-            content: Text(t.logoutConfirm),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(t.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(t.logout),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (!confirmed || !mounted) return;
-    await PushNotifications.instance.deactivate(widget.api);
-    await widget.api.logout();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.loggedOut)));
-    widget.onLoggedOut();
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final t = AppLocalizations.of(context)!;
-    final prefs = AppPrefsScope.of(context);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      decoration: BoxDecoration(
-        color: scheme.background,
-      ),
-      child: SafeArea(
-        top: true,
-        bottom: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                'DFS Connect',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 26,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ),
-            // Header compact: logout next to flag
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _handleLogout,
-                  icon: const Icon(Icons.logout, size: 18),
-                  label: Text(
-                    t.logout,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: scheme.onSurface,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    minimumSize: const Size(0, 34),
-                    side: BorderSide(color: scheme.outlineVariant),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Center(
-                    child: LangAction(
-                      onLocaleChanged: (l) => prefs.setLang(l.languageCode),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 2),
-                const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Center(child: ThemeAction()),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -526,7 +422,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   height: constraints.maxHeight,
                   child: Column(
                     children: [
-                      _buildHeader(ctx),
                       Expanded(
                         child: SingleChildScrollView(
                           padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom),
