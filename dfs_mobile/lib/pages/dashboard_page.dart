@@ -423,7 +423,6 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             final scheme = theme.colorScheme;
             final rep = _myRep;
             final repTitle = _repTitle(context, rep);
-            final repEmail = rep?.email.trim() ?? '';
             final hasContact = _repForContact().email.trim().isNotEmpty;
 
             return Center(
@@ -443,12 +442,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                               children: [
                                 // UX: ruhiger Startbereich mit klaren Abständen.
                                 if (_repLoading || rep != null)
-                                  RepresentativeCard(
+                                  RepresentativeStrip(
                                     title: repTitle,
-                                    email: repEmail,
                                     loading: _repLoading,
-                                    onRefresh: _initRep,
-                                    onMessageTap: hasContact ? () => _openRepContactForm(context) : null,
+                                    onRefreshTap: _initRep,
+                                    onMailTap: hasContact ? () => _openRepContactForm(context) : null,
                                   ),
                                 const SizedBox(height: 12),
                                 _buildNewsSection(context),
@@ -509,31 +507,28 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
   String _repTitle(BuildContext context, MyRep? rep) {
     final t = AppLocalizations.of(context)!;
-    if (rep == null) return '';
+    if (rep == null) return '—';
     final first = rep.firstName.trim();
     final last = rep.lastName.trim();
-    final email = rep.email.trim();
     final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-    return name.isNotEmpty ? t.rep_banner_title(name) : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    return name.isNotEmpty ? name : '—';
   }
 }
 
 // ---------------- Komponenten ----------------
 
-class RepresentativeCard extends StatelessWidget {
+class RepresentativeStrip extends StatelessWidget {
   final String title;
-  final String email;
   final bool loading;
-  final VoidCallback onRefresh;
-  final VoidCallback? onMessageTap;
+  final VoidCallback onRefreshTap;
+  final VoidCallback? onMailTap;
 
-  const RepresentativeCard({
+  const RepresentativeStrip({
     super.key,
     required this.title,
-    required this.email,
     required this.loading,
-    required this.onRefresh,
-    this.onMessageTap,
+    required this.onRefreshTap,
+    this.onMailTap,
   });
 
   @override
@@ -541,106 +536,68 @@ class RepresentativeCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final t = AppLocalizations.of(context)!;
+    final isDark = theme.brightness == Brightness.dark;
+    final surfaceOpacity = isDark ? 0.4 : 0.93;
+    final radius = BorderRadius.circular(15);
 
     if (loading) {
       return const SizedBox(
-        height: 72,
+        height: 48,
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        // Variante A styling: compact info tile with subtle shadow.
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        color: scheme.surface.withOpacity(surfaceOpacity),
+        borderRadius: radius,
         border: Border.all(color: scheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: _shadowColor(theme).withOpacity(0.6),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Representative card compact
-            Row(
-              children: [
-                Text(
-                  t.contact_person_plain,
+      child: SizedBox(
+        height: 48,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _chipFill(scheme),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${t.contact_person_label} $title',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w600,
+                    fontSize: 14,
                     color: scheme.onSurface,
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  tooltip: t.refresh,
-                  onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                  padding: const EdgeInsets.all(4),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: _chipFill(scheme),
-                  child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 18),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: scheme.onSurface,
-                        ),
-                      ),
-                      if (email.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            email,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: _subtitleColor(scheme),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (onMessageTap != null) ...[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: onMessageTap,
-                icon: const Icon(Icons.mail_outline, size: 18),
-                label: Text(t.rep_contact_form),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  minimumSize: const Size(0, 32),
-                  textStyle: theme.textTheme.labelLarge?.copyWith(fontSize: 14),
-                ),
+              ),
+              IconButton(
+                tooltip: t.rep_contact_form,
+                onPressed: onMailTap,
+                icon: const Icon(Icons.mail_outline, size: 20),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: const EdgeInsets.all(4),
+              ),
+              IconButton(
+                tooltip: t.refresh,
+                onPressed: onRefreshTap,
+                icon: const Icon(Icons.refresh, size: 20),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: const EdgeInsets.all(4),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
