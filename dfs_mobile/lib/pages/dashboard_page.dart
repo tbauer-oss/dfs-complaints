@@ -813,17 +813,17 @@ class _DashboardTileState extends State<DashboardTile> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = scheme.brightness == Brightness.dark;
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     const radius = BorderRadius.all(Radius.circular(18));
-    final baseFill = scheme.surface.withOpacity(isDark ? 0.88 : 0.96);
+    final baseFill = cs.surface.withOpacity(isDark ? 0.88 : 0.96);
     final gradient = isDark
         ? LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              scheme.surface.withOpacity(0.92),
-              scheme.surface.withOpacity(0.78),
+              cs.surface.withOpacity(0.92),
+              cs.surface.withOpacity(0.78),
             ],
           )
         : LinearGradient(
@@ -831,83 +831,84 @@ class _DashboardTileState extends State<DashboardTile> {
             end: Alignment.bottomRight,
             colors: [
               baseFill,
-              scheme.surface.withOpacity(0.90),
+              cs.surface.withOpacity(0.90),
             ],
           );
+    final baseShadows = isDark
+        ? [
+            // Tiefer Hauptschatten
+            BoxShadow(
+              color: Colors.black.withOpacity(0.65),
+              blurRadius: 40,
+              offset: const Offset(0, 26),
+            ),
+            // Secondary Depth
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 22,
+              offset: const Offset(0, 14),
+            ),
+            // DFS-Blue Glow für Premium Look
+            BoxShadow(
+              color: cs.primary.withOpacity(0.22),
+              blurRadius: 30,
+              offset: const Offset(0, 18),
+            ),
+          ]
+        : [
+            // Hauptschatten (Tiefe)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 36,
+              offset: const Offset(0, 22),
+            ),
+            // Weicher Ambient-Schatten
+            BoxShadow(
+              color: Colors.black.withOpacity(0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+            // DFS-Blau Glow (subtil!)
+            BoxShadow(
+              color: cs.primary.withOpacity(0.12),
+              blurRadius: 28,
+              offset: const Offset(0, 16),
+            ),
+          ];
     final shadows = _pressed
-        ? (isDark
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.45),
-                  blurRadius: 20,
-                  offset: const Offset(0, 12),
-                ),
-                BoxShadow(
-                  color: scheme.primary.withOpacity(0.12),
-                  blurRadius: 16,
-                  offset: const Offset(0, 10),
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 18,
-                  offset: const Offset(0, 12),
-                ),
-                BoxShadow(
-                  color: scheme.primary.withOpacity(0.08),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
-                ),
-              ])
-        : (isDark
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
-                  blurRadius: 28,
-                  offset: const Offset(0, 18),
-                ),
-                BoxShadow(
-                  color: scheme.primary.withOpacity(0.18),
-                  blurRadius: 22,
-                  offset: const Offset(0, 14),
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.10),
-                  blurRadius: 26,
-                  offset: const Offset(0, 16),
-                ),
-                BoxShadow(
-                  color: scheme.primary.withOpacity(0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ]);
+        ? baseShadows
+            .map(
+              (shadow) => shadow.copyWith(
+                blurRadius: shadow.blurRadius * 0.8,
+                offset: Offset(0, shadow.offset.dy - 3),
+              ),
+            )
+            .toList()
+        : baseShadows;
 
     return Semantics(
       button: true,
       label: widget.label,
-      child: ClipRRect(
-        borderRadius: radius,
-        child: AnimatedScale(
-          scale: _pressed ? 0.98 : 1.0,
+      child: AnimatedScale(
+        scale: _pressed ? 0.975 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
-            decoration: BoxDecoration(
-              // Unified tile widget + fixed accent bar alignment
-              gradient: gradient,
-              borderRadius: radius,
-              border: Border.all(
-                color: scheme.outlineVariant.withOpacity(isDark ? 0.35 : 0.65),
-                width: 1.2,
-              ),
-              boxShadow: shadows,
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            // Unified tile widget + fixed accent bar alignment
+            // Premium layered shadow for strong tile separation
+            gradient: gradient,
+            borderRadius: radius,
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.65),
+              width: 1.2,
             ),
+            boxShadow: shadows,
+          ),
+          child: ClipRRect(
+            borderRadius: radius,
             child: Stack(
               children: [
                 Material(
@@ -946,19 +947,19 @@ class _DashboardTileState extends State<DashboardTile> {
                                       width: 46,
                                       height: 46,
                                       decoration: BoxDecoration(
-                                        color: scheme.primary.withOpacity(isDark ? 0.20 : 0.12),
+                                        color: cs.primary.withOpacity(isDark ? 0.20 : 0.12),
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
                                             color: isDark
-                                                ? scheme.primary.withOpacity(0.18)
+                                                ? cs.primary.withOpacity(0.18)
                                                 : Colors.black.withOpacity(0.06),
                                             blurRadius: isDark ? 14 : 12,
                                             offset: Offset(0, isDark ? 8 : 6),
                                           ),
                                         ],
                                       ),
-                                      child: Icon(widget.icon, color: scheme.primary, size: 26),
+                                      child: Icon(widget.icon, color: cs.primary, size: 26),
                                     ),
                                     if (widget.showIndicator)
                                       Positioned(
@@ -966,7 +967,7 @@ class _DashboardTileState extends State<DashboardTile> {
                                         top: -2,
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
-                                            color: scheme.primary,
+                                            color: cs.primary,
                                             shape: BoxShape.circle,
                                           ),
                                           child: SizedBox(width: 8, height: 8),
@@ -984,7 +985,7 @@ class _DashboardTileState extends State<DashboardTile> {
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 15,
-                                    color: scheme.onSurface,
+                                    color: cs.onSurface,
                                     height: 1.2,
                                   ),
                                 ),
