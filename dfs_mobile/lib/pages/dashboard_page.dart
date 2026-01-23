@@ -738,11 +738,11 @@ class NewsTeaserCard extends StatelessWidget {
               ),
             ),
             Positioned(
-              right: -30,
+              right: -60,
               top: -25,
               child: Container(
-                width: 140,
-                height: 140,
+                width: 120,
+                height: 120,
                 decoration: BoxDecoration(
                   color: scheme.primary.withOpacity(isDark ? 0.28 : 0.20),
                   shape: BoxShape.circle,
@@ -761,94 +761,119 @@ class NewsTeaserCard extends StatelessWidget {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: radius,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  // Compact marketing teaser (news) with small CTA button
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: scheme.primary.withOpacity(isDark ? 0.22 : 0.14),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.campaign_outlined,
-                              color: isDark ? scheme.onPrimary : scheme.primary,
-                              size: 22,
-                            ),
-                          ),
-                          if (showIndicator)
-                            Positioned(
-                              right: -2,
-                              top: -2,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: scheme.primary,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: SizedBox(width: 10, height: 10),
-                              ),
-                            ),
-                        ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compactCta = constraints.maxWidth < 360;
+                    final ctaStyle = TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: const Size(0, 32),
+                      shape: const StadiumBorder(),
+                      backgroundColor: scheme.primary.withOpacity(isDark ? 0.22 : 0.16),
+                      foregroundColor: scheme.primary,
+                      side: BorderSide(color: scheme.primary.withOpacity(isDark ? 0.45 : 0.35)),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      textStyle: textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    );
+
+                    final ctaButton = compactCta
+                        ? TextButton(
+                            onPressed: onTap,
+                            style: ctaStyle,
+                            child: const Icon(Icons.chevron_right_rounded, size: 18),
+                          )
+                        : TextButton.icon(
+                            onPressed: onTap,
+                            style: ctaStyle,
+                            icon: const Icon(Icons.chevron_right_rounded, size: 16),
+                            label: Text(shortCta),
+                          );
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      // Title never truncated: allow 2 lines, keep CTA constrained, blob moved outward
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.titleSmall?.copyWith(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: scheme.onSurface,
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary.withOpacity(isDark ? 0.22 : 0.14),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.campaign_outlined,
+                                    color: isDark ? scheme.onPrimary : scheme.primary,
+                                    size: 22,
+                                  ),
+                                ),
+                                if (showIndicator)
+                                  Positioned(
+                                    right: -2,
+                                    top: -2,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: scheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: SizedBox(width: 10, height: 10),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Text(
+                                      title,
+                                      maxLines: 2,
+                                      softWrap: true,
+                                      overflow: TextOverflow.visible,
+                                      style: textTheme.titleSmall?.copyWith(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: scheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                  if (stateText != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      stateText,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: _subtitleColor(scheme),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            if (stateText != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                stateText,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: _subtitleColor(scheme),
-                                ),
-                              ),
-                            ],
+                            const SizedBox(width: 8),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 64, maxWidth: 92),
+                              child: ctaButton,
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: onTap,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          minimumSize: const Size(0, 32),
-                          shape: const StadiumBorder(),
-                          backgroundColor: scheme.primary.withOpacity(isDark ? 0.22 : 0.16),
-                          foregroundColor: scheme.primary,
-                          side: BorderSide(color: scheme.primary.withOpacity(isDark ? 0.45 : 0.35)),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                          textStyle: textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                        icon: const Icon(Icons.chevron_right_rounded, size: 16),
-                        label: Text(shortCta),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
