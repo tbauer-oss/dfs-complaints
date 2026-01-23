@@ -582,43 +582,82 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.08),
-                      border: Border.all(color: Colors.blue, width: 1),
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        width: 1,
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.handshake_outlined, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.rep_banner_title(repName.isEmpty ? '—' : repName),
-                                style: const TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 2),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (repEmail.isNotEmpty)
-                          Tooltip(
-                            message: t.rep_email_tooltip,
-                            child: TextButton.icon(
-                              onPressed: () {
-                                final subject = Uri.encodeComponent(t.mail_subject_rep);
-                                final mailto = 'mailto:$repEmail?subject=$subject';
-                                html.window.open(mailto, '_self');
-                              },
-                              icon: const Icon(Icons.email_outlined),
-                              label: Text(t.rep_email_button),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 52, maxHeight: 64),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.handshake_outlined, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  t.contact_person_label,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.15,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  repName.isEmpty ? '—' : repName,
+                                  maxLines: 2,
+                                  softWrap: true,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.15,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
+                          if (repEmail.isNotEmpty)
+                            Tooltip(
+                              message: t.rep_email_tooltip,
+                              child: IconButton(
+                                onPressed: () {
+                                  final subject = Uri.encodeComponent(t.mail_subject_rep);
+                                  final mailto = 'mailto:$repEmail?subject=$subject';
+                                  html.window.open(mailto, '_self');
+                                },
+                                icon: const Icon(Icons.email_outlined),
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
+                          IconButton(
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    _load(silent: false);
+                                    _loadDrafts();
+                                  },
+                            icon: const Icon(Icons.refresh),
+                            tooltip: t.refresh,
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

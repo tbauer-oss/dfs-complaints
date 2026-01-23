@@ -553,10 +553,10 @@ class RepresentativeStrip extends StatelessWidget {
         borderRadius: radius,
         border: Border.all(color: scheme.outlineVariant),
       ),
-      child: SizedBox(
-        height: 48,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52, maxHeight: 64),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -571,30 +571,50 @@ class RepresentativeStrip extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  '${t.contact_person_label} $title',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: scheme.onSurface,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      t.contact_person_label,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        height: 1.15,
+                        color: scheme.onSurface.withOpacity(0.75),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        height: 1.15,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               IconButton(
                 tooltip: t.rep_contact_form,
                 onPressed: onMailTap,
                 icon: const Icon(Icons.mail_outline, size: 20),
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                padding: const EdgeInsets.all(4),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                padding: EdgeInsets.zero,
               ),
               IconButton(
                 tooltip: t.refresh,
                 onPressed: onRefreshTap,
                 icon: const Icon(Icons.refresh, size: 20),
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                padding: const EdgeInsets.all(4),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                padding: EdgeInsets.zero,
               ),
             ],
           ),
