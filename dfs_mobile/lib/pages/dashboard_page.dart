@@ -1057,59 +1057,66 @@ class _DashboardTileState extends State<DashboardTile> {
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.all(12),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final compact = constraints.maxHeight < 140;
+                                final iconContainerSize = compact ? 52.0 : 56.0;
+                                final iconSize = compact ? 26.0 : 28.0;
+                                final iconSpacing = compact ? 8.0 : 10.0;
+                                return Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Container(
-                                      width: 46,
-                                      height: 46,
-                                      decoration: BoxDecoration(
-                                        color: cs.primary.withOpacity(isDark ? 0.20 : 0.12),
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: isDark
-                                                ? cs.primary.withOpacity(0.18)
-                                                : Colors.black.withOpacity(0.06),
-                                            blurRadius: isDark ? 14 : 12,
-                                            offset: Offset(0, isDark ? 8 : 6),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Icon(widget.icon, color: cs.primary, size: 26),
-                                    ),
-                                    if (widget.showIndicator)
-                                      Positioned(
-                                        right: -2,
-                                        top: -2,
-                                        child: DecoratedBox(
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Container(
+                                          // Larger icon emphasis without changing tile size
+                                          width: iconContainerSize,
+                                          height: iconContainerSize,
                                           decoration: BoxDecoration(
-                                            color: cs.primary,
+                                            color: cs.primary.withOpacity(isDark ? 0.28 : 0.16),
                                             shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: cs.primary.withOpacity(isDark ? 0.30 : 0.18),
+                                                blurRadius: 12,
+                                                offset: const Offset(0, 6),
+                                              ),
+                                            ],
                                           ),
-                                          child: SizedBox(width: 8, height: 8),
+                                          child: Icon(widget.icon, color: cs.primary, size: iconSize),
                                         ),
+                                        if (widget.showIndicator)
+                                          Positioned(
+                                            right: -2,
+                                            top: -2,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: cs.primary,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: SizedBox(width: 8, height: 8),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    SizedBox(height: iconSpacing),
+                                    Text(
+                                      widget.label,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      softWrap: true,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
+                                        color: cs.onSurface,
+                                        height: 1.2,
                                       ),
+                                    ),
                                   ],
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  widget.label,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  softWrap: true,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                    color: cs.onSurface,
-                                    height: 1.2,
-                                  ),
-                                ),
-                              ],
+                                );
+                              },
                             ),
                           ),
                         ),
