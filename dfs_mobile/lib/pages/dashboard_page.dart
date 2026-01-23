@@ -303,9 +303,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 : hasNews
                     ? NewsCardState.ready
                     : NewsCardState.empty;
-        return NewsCard(
+        return NewsTeaserCard(
           title: t.customerNewsTitle,
-          subtitle: t.customerNewsSubtitle,
           ctaLabel: t.customerNewsReadMore,
           showIndicator: _hasUnreadNews,
           state: state,
@@ -626,18 +625,16 @@ class RepresentativeStrip extends StatelessWidget {
 
 enum NewsCardState { loading, ready, empty, error }
 
-class NewsCard extends StatelessWidget {
+class NewsTeaserCard extends StatelessWidget {
   final String title;
-  final String subtitle;
   final String ctaLabel;
   final bool showIndicator;
   final NewsCardState state;
   final VoidCallback? onTap;
 
-  const NewsCard({
+  const NewsTeaserCard({
     super.key,
     required this.title,
-    required this.subtitle,
     required this.ctaLabel,
     required this.showIndicator,
     required this.state,
@@ -650,9 +647,18 @@ class NewsCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final radius = BorderRadius.circular(20);
+    final isDark = theme.brightness == Brightness.dark;
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        scheme.primary.withOpacity(isDark ? 0.18 : 0.10),
+        scheme.surface.withOpacity(isDark ? 0.60 : 0.95),
+      ],
+    );
 
     // UX: kompakte News-Card mit Lade-/Fehlerzustand statt leerem Widget.
-    String stateText;
+    String? stateText;
     switch (state) {
       case NewsCardState.loading:
         stateText = AppLocalizations.of(context)!.loading;
@@ -664,47 +670,70 @@ class NewsCard extends StatelessWidget {
         stateText = AppLocalizations.of(context)!.customerNewsEmpty;
         break;
       case NewsCardState.ready:
-        stateText = subtitle;
+        stateText = null;
         break;
     }
+
+    final shortCta = _shortCtaLabel(context, ctaLabel);
 
     return Semantics(
       button: true,
       label: title,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          // Variante A styling: white surface with soft shadow and border.
-          color: scheme.surface,
-          borderRadius: radius,
-          border: Border.all(color: scheme.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: _shadowColor(theme),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Stack(
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: radius,
+                border: Border.all(color: scheme.outlineVariant),
+                boxShadow: [
+                  BoxShadow(
+                    color: _shadowColor(theme),
+                    blurRadius: 16,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: const SizedBox(height: 96),
             ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: radius,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
+            Positioned(
+              right: -28,
+              top: -24,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withOpacity(isDark ? 0.16 : 0.12),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: scheme.primary.withOpacity(isDark ? 0.18 : 0.14),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: radius,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  // Compact marketing teaser (news) with small CTA button
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            width: 44,
-                            height: 44,
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: _chipFill(scheme),
                               borderRadius: BorderRadius.circular(12),
@@ -712,7 +741,7 @@ class NewsCard extends StatelessWidget {
                             child: Icon(
                               Icons.campaign_outlined,
                               color: scheme.primary,
-                              size: 22,
+                              size: 20,
                             ),
                           ),
                           if (showIndicator)
@@ -732,8 +761,8 @@ class NewsCard extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               title,
@@ -744,41 +773,63 @@ class NewsCard extends StatelessWidget {
                                 color: scheme.onSurface,
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              stateText,
-                              maxLines: state == NewsCardState.ready ? 2 : 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.bodySmall?.copyWith(
-                                color: _subtitleColor(scheme),
+                            if (stateText != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                stateText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: _subtitleColor(scheme),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: onTap,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          minimumSize: const Size(0, 30),
+                          shape: const StadiumBorder(),
+                          backgroundColor: scheme.primary.withOpacity(isDark ? 0.18 : 0.12),
+                          foregroundColor: scheme.primary,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        icon: const Icon(Icons.chevron_right_rounded, size: 16),
+                        label: Text(shortCta),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: onTap,
-                      style: TextButton.styleFrom(
-                        foregroundColor: scheme.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                      label: Text(ctaLabel),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  String _shortCtaLabel(BuildContext context, String fallback) {
+    final locale = Localizations.localeOf(context).languageCode;
+    switch (locale) {
+      case 'de':
+        return 'Mehr';
+      case 'fr':
+        return 'Voir';
+      case 'es':
+        return 'Más';
+      case 'it':
+        return 'Altro';
+      case 'en':
+        return 'More';
+      default:
+        return fallback.length <= 8 ? fallback : 'More';
+    }
   }
 }
 
