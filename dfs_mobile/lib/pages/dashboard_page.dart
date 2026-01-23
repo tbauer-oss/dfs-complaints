@@ -648,13 +648,22 @@ class NewsTeaserCard extends StatelessWidget {
     final textTheme = theme.textTheme;
     final radius = BorderRadius.circular(20);
     final isDark = theme.brightness == Brightness.dark;
+    // Stronger marketing-style gradient + glow blob + prominent CTA
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        scheme.primary.withOpacity(isDark ? 0.18 : 0.10),
-        scheme.surface.withOpacity(isDark ? 0.60 : 0.95),
-      ],
+      colors: isDark
+          ? [
+              scheme.primary.withOpacity(0.30),
+              scheme.surface.withOpacity(0.55),
+              scheme.surface.withOpacity(0.72),
+            ]
+          : [
+              scheme.primary.withOpacity(0.22),
+              scheme.primary.withOpacity(0.10),
+              scheme.surface.withOpacity(0.92),
+            ],
+      stops: const [0.0, 0.55, 1.0],
     );
 
     // UX: kompakte News-Card mit Lade-/Fehlerzustand statt leerem Widget.
@@ -688,30 +697,60 @@ class NewsTeaserCard extends StatelessWidget {
                 gradient: gradient,
                 borderRadius: radius,
                 border: Border.all(color: scheme.outlineVariant),
-                boxShadow: [
-                  BoxShadow(
-                    color: _shadowColor(theme),
-                    blurRadius: 16,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                boxShadow: isDark
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.55),
+                          blurRadius: 28,
+                          offset: const Offset(0, 18),
+                        ),
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.22),
+                          blurRadius: 26,
+                          offset: const Offset(0, 16),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.14),
+                          blurRadius: 24,
+                          offset: const Offset(0, 14),
+                        ),
+                        BoxShadow(
+                          color: scheme.primary.withOpacity(0.12),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
               ),
               child: const SizedBox(height: 96),
             ),
             Positioned(
-              right: -28,
-              top: -24,
+              left: 0,
+              top: 0,
+              bottom: 0,
               child: Container(
-                width: 120,
-                height: 120,
+                width: 4,
                 decoration: BoxDecoration(
-                  color: scheme.primary.withOpacity(isDark ? 0.16 : 0.12),
+                  color: scheme.primary.withOpacity(0.80),
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                ),
+              ),
+            ),
+            Positioned(
+              right: -30,
+              top: -25,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withOpacity(isDark ? 0.28 : 0.20),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: scheme.primary.withOpacity(isDark ? 0.18 : 0.14),
-                      blurRadius: 24,
-                      spreadRadius: 2,
+                      color: scheme.primary.withOpacity(isDark ? 0.25 : 0.18),
+                      blurRadius: 40,
+                      offset: const Offset(0, 18),
                     ),
                   ],
                 ),
@@ -732,16 +771,16 @@ class NewsTeaserCard extends StatelessWidget {
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            width: 38,
-                            height: 38,
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
-                              color: _chipFill(scheme),
+                              color: scheme.primary.withOpacity(isDark ? 0.22 : 0.14),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Icon(
                               Icons.campaign_outlined,
-                              color: scheme.primary,
-                              size: 20,
+                              color: isDark ? scheme.onPrimary : scheme.primary,
+                              size: 22,
                             ),
                           ),
                           if (showIndicator)
@@ -769,7 +808,8 @@ class NewsTeaserCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
                                 color: scheme.onSurface,
                               ),
                             ),
@@ -792,13 +832,17 @@ class NewsTeaserCard extends StatelessWidget {
                         onPressed: onTap,
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          minimumSize: const Size(0, 30),
+                          minimumSize: const Size(0, 32),
                           shape: const StadiumBorder(),
-                          backgroundColor: scheme.primary.withOpacity(isDark ? 0.18 : 0.12),
+                          backgroundColor: scheme.primary.withOpacity(isDark ? 0.22 : 0.16),
                           foregroundColor: scheme.primary,
+                          side: BorderSide(color: scheme.primary.withOpacity(isDark ? 0.45 : 0.35)),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
-                          textStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                          textStyle: textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
                         ),
                         icon: const Icon(Icons.chevron_right_rounded, size: 16),
                         label: Text(shortCta),
