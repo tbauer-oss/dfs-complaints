@@ -347,12 +347,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final backgroundTop = Color.lerp(
       scheme.primary,
       scheme.background,
-      isDark ? 0.9 : 0.95,
+      isDark ? 0.88 : 0.92,
     )!;
     final backgroundBottom = Color.lerp(
       scheme.primary,
       scheme.background,
-      isDark ? 0.84 : 0.92,
+      isDark ? 0.82 : 0.88,
     )!;
 
     final tiles = <_Entry>[
@@ -782,7 +782,7 @@ class NewsCard extends StatelessWidget {
   }
 }
 
-class DashboardTile extends StatelessWidget {
+class DashboardTile extends StatefulWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
@@ -799,121 +799,215 @@ class DashboardTile extends StatelessWidget {
   });
 
   @override
+  State<DashboardTile> createState() => _DashboardTileState();
+}
+
+class _DashboardTileState extends State<DashboardTile> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
     const radius = BorderRadius.all(Radius.circular(18));
-    final fillTop = scheme.surface.withOpacity(isDark ? 0.92 : 0.96);
-    final fillBottom = scheme.surface.withOpacity(isDark ? 0.88 : 0.94);
-    final shadows = isDark
-        ? [
-            BoxShadow(
-              color: scheme.primary.withOpacity(0.12),
-              blurRadius: 22,
-              offset: const Offset(0, 12),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 10),
-            ),
-          ]
-        : [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ];
+    final baseFill = scheme.surface.withOpacity(isDark ? 0.88 : 0.96);
+    final gradient = isDark
+        ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              scheme.surface.withOpacity(0.92),
+              scheme.surface.withOpacity(0.78),
+            ],
+          )
+        : LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              baseFill,
+              scheme.surface.withOpacity(0.90),
+            ],
+          );
+    final shadows = _pressed
+        ? (isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.45),
+                  blurRadius: 20,
+                  offset: const Offset(0, 12),
+                ),
+                BoxShadow(
+                  color: scheme.primary.withOpacity(0.12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 18,
+                  offset: const Offset(0, 12),
+                ),
+                BoxShadow(
+                  color: scheme.primary.withOpacity(0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ])
+        : (isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.55),
+                  blurRadius: 28,
+                  offset: const Offset(0, 18),
+                ),
+                BoxShadow(
+                  color: scheme.primary.withOpacity(0.18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 14),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.10),
+                  blurRadius: 26,
+                  offset: const Offset(0, 16),
+                ),
+                BoxShadow(
+                  color: scheme.primary.withOpacity(0.10),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ]);
 
     return Semantics(
       button: true,
-      label: label,
+      label: widget.label,
       child: ClipRRect(
         borderRadius: radius,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            // Unified tile widget + fixed accent bar alignment
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [fillTop, fillBottom],
-            ),
-            borderRadius: radius,
-            border: Border.all(color: scheme.outlineVariant, width: 1.2),
-            boxShadow: shadows,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.98 : 1.0,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              // Unified tile widget + fixed accent bar alignment
+              gradient: gradient,
               borderRadius: radius,
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  Container(
-                    height: 4,
-                    width: double.infinity,
-                    color: accentColor,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: _chipFill(scheme),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Icon(icon, color: scheme.primary, size: 26),
-                              ),
-                              if (showIndicator)
-                                Positioned(
-                                  right: -2,
-                                  top: -2,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: scheme.primary,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: SizedBox(width: 8, height: 8),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            label,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: true,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                              color: scheme.onSurface,
-                              height: 1.2,
+              border: Border.all(
+                color: scheme.outlineVariant.withOpacity(isDark ? 0.35 : 0.65),
+                width: 1.2,
+              ),
+              boxShadow: shadows,
+            ),
+            child: Stack(
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: widget.onTap,
+                    onTapDown: (_) => _setPressed(true),
+                    onTapUp: (_) => _setPressed(false),
+                    onTapCancel: () => _setPressed(false),
+                    borderRadius: radius,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Container(
+                          height: 6,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                widget.accentColor.withOpacity(0.95),
+                                widget.accentColor.withOpacity(0.55),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 46,
+                                      height: 46,
+                                      decoration: BoxDecoration(
+                                        color: scheme.primary.withOpacity(isDark ? 0.20 : 0.12),
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: isDark
+                                                ? scheme.primary.withOpacity(0.18)
+                                                : Colors.black.withOpacity(0.06),
+                                            blurRadius: isDark ? 14 : 12,
+                                            offset: Offset(0, isDark ? 8 : 6),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(widget.icon, color: scheme.primary, size: 26),
+                                    ),
+                                    if (widget.showIndicator)
+                                      Positioned(
+                                        right: -2,
+                                        top: -2,
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: scheme.primary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: SizedBox(width: 8, height: 8),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  widget.label,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: true,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: scheme.onSurface,
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                IgnorePointer(
+                  child: Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Container(
+                        height: 1.2,
+                        color: Colors.white.withOpacity(isDark ? 0.06 : 0.35),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
