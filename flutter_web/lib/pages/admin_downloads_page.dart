@@ -216,7 +216,7 @@ class _AdminDownloadsPageState extends State<AdminDownloadsPage> {
   }
 
   Future<void> _pickFile() async {
-    final res = await FilePicker.platform.pickFiles(allowMultiple: false, withData: true);
+    final res = await FilePicker.pickFiles(allowMultiple: false, withData: true);
     if (res == null || res.files.isEmpty) return;
     final file = res.files.first;
     final bytes = file.bytes;
