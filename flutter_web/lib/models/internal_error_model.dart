@@ -32,7 +32,7 @@ class InternalError {
   final bool capaOverride;
   final String capaOverrideReason;
 
-  const InternalError({
+  InternalError({
     this.id = '',
     this.errorCode = '',
     this.year = 0,
