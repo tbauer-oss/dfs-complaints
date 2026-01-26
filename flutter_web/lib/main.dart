@@ -724,6 +724,18 @@ class _MyAppState extends State<MyApp> {
                 );
               }
 
+              if (name.startsWith('/admin/quality/internal-errors')) {
+                return MaterialPageRoute(
+                  builder: (_) => AdminPage(
+                    api: api,
+                    portalProfile: api.portalProfile,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                    initialView: AdminView.internalErrors,
+                  ),
+                  settings: settings,
+                );
+              }
+
               if (name.startsWith('/admin/audits')) {
                 final uri = Uri.tryParse(name);
                 final segments = uri?.pathSegments ?? const [];

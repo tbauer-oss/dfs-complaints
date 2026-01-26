@@ -9181,13 +9181,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       case 'internalErrors':
         return _buildDashboardTile(
           tileId: tileId,
-          label: 'Interne Fehler',
-          subtitle: 'AA852/FB852 erfassen',
+          label: 'Interne Fehlererfassung',
+          subtitle: 'Fehler erfassen, bewerten, eskalieren',
           icon: Icons.bug_report_outlined,
           colorA: AdminPalette.indigoA,
           colorB: AdminPalette.indigoB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.internalErrors),
+          onTap: isPreview ? () {} : () => _handleNavigation(AdminView.internalErrors),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
