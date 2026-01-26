@@ -240,7 +240,7 @@ class _InternalChatPanelState extends State<InternalChatPanel> {
 
   Future<void> _pickAttachments() async {
     try {
-      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+      final result = await FilePicker.pickFiles(allowMultiple: true);
       if (result == null) return;
       if (!mounted) return;
       setState(() {
