@@ -1319,6 +1319,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final rawData = stored;
     final hasChangeManagementInStored = rawData != null &&
         rawData.values.any((value) => value is List && value.whereType<String>().contains('changeManagement'));
+    final hasInternalErrorsInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('internalErrors'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1342,7 +1344,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       // wenn noch kein Rollen-Layout aus dem Backend vorliegt. Damit bleiben
       // explizit ausgeblendete Kacheln erhalten, sobald eine gespeicherte
       // Auswahl existiert.
-      if (shouldMergeDefaults || (!hasChangeManagementInStored && defaults.contains('changeManagement'))) {
+      if (shouldMergeDefaults ||
+          (!hasChangeManagementInStored && defaults.contains('changeManagement')) ||
+          (!hasInternalErrorsInStored && defaults.contains('internalErrors'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
@@ -7755,6 +7759,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'CAPA-Dashboard';
       case 'fmea':
         return 'FMEA';
+      case 'internalErrors':
+        return 'Interne Fehlererfassung';
       case 'prrc':
         return 'PRRC-Bewertung';
       case 'stats':
@@ -9070,6 +9076,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     String? actionLabel,
     IconData? actionIcon,
   }) {
+    final theme = Theme.of(context);
     final resolvedActionLabel =
         onActionTap == null ? null : (actionLabel ?? 'Kachel einblenden');
     final resolvedActionIcon = onActionTap == null ? null : (actionIcon ?? Icons.unarchive_outlined);
@@ -9179,13 +9186,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           onActionTap: onActionTap,
         );
       case 'internalErrors':
+        final accent = theme.colorScheme.primary;
         return _buildDashboardTile(
           tileId: tileId,
           label: 'Interne Fehlererfassung',
-          subtitle: 'Fehler erfassen, bewerten, eskalieren',
+          subtitle: 'Interne Fehler erfassen & bewerten',
           icon: Icons.bug_report_outlined,
-          colorA: AdminPalette.indigoA,
-          colorB: AdminPalette.indigoB,
+          colorA: accent,
+          colorB: accent,
           compact: compact,
           onTap: isPreview ? () {} : () => _handleNavigation(AdminView.internalErrors),
           registerOnboarding: registerOnboarding,
