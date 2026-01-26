@@ -29,6 +29,7 @@ import '../services/product_lookup.dart';
 import '../services/onboarding_prefs.dart';
 import '../services/chat_service.dart';
 import '../services/customer_news_service.dart';
+import '../services/internal_error_service.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/skeletons.dart';
 import '../widgets/legal_footer.dart';
@@ -60,6 +61,7 @@ import 'admin_fmea_page.dart';
 import 'change_management_page.dart';
 import 'supplier_evaluation_page.dart';
 import 'approved_suppliers_page.dart';
+import 'internal_errors_page.dart';
 
 String _formatError(Object error) {
   final message = AppErrorMapper.map(error);
@@ -112,6 +114,7 @@ enum AdminView {
   capaReports,
   capaDashboard,
   fmea,
+  internalErrors,
   changeManagement,
   prrc,
   audits,
@@ -197,6 +200,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'internalErrors',
     'changeManagement',
     'prrc',
     'internalChat',
@@ -230,6 +234,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'internalErrors',
     'changeManagement',
     'prrc',
     'internalChat',
@@ -259,6 +264,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'internalChat',
     'fmea',
+    'internalErrors',
     'audits',
     'stats',
     'pending',
@@ -274,6 +280,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'internalErrors',
     'changeManagement',
     'prrc',
     'internalChat',
@@ -289,6 +296,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'internalErrors',
     'changeManagement',
     'prrc',
     'internalChat',
@@ -330,6 +338,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'capaReports',
     'prrc',
+    'internalErrors',
     'changeManagement',
     'internalChat',
     'stats',
@@ -5810,6 +5819,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaReports    => 'CAPA / 8D-Reports',
       AdminView.capaDashboard  => 'CAPA-Dashboard',
       AdminView.fmea           => 'FMEA',
+      AdminView.internalErrors => 'Interne Fehlererfassung',
       AdminView.changeManagement => 'Change Management',
       AdminView.prrc           => 'PRRC-Einstufungen',
       AdminView.audits         => 'Audits',
@@ -6937,6 +6947,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'capaDashboard';
       case AdminView.fmea:
         return 'fmea';
+      case AdminView.internalErrors:
+        return 'internalErrors';
       case AdminView.changeManagement:
         return 'changeManagement';
       case AdminView.prrc:
@@ -6995,6 +7007,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         AdminView.all,
         AdminView.complaintList,
         AdminView.fmea,
+        AdminView.internalErrors,
         AdminView.audits,
         AdminView.pending,
         AdminView.activity,
@@ -7011,6 +7024,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaReports,
       AdminView.capaDashboard,
       AdminView.fmea,
+      AdminView.internalErrors,
       AdminView.changeManagement,
       AdminView.prrc,
       AdminView.pending,
@@ -7096,6 +7110,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             label: 'FMEA',
             icon: Icons.analytics_outlined,
             view: AdminView.fmea,
+          ),
+          _AdminNavItem(
+            label: 'Interne Fehlererfassung',
+            icon: Icons.bug_report_outlined,
+            view: AdminView.internalErrors,
           ),
           _AdminNavItem(
             label: 'Change Management',
@@ -7318,6 +7337,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.capaDashboard;
         case 'fmea':
           return AdminView.fmea;
+        case 'internalErrors':
+          return AdminView.internalErrors;
         case 'changeManagement':
           return AdminView.changeManagement;
         case 'prrc':
@@ -7379,7 +7400,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       const _AdminMenuSectionState(
         title: 'Connect+ Quality',
         subtitle: 'FMEA, CAPA / 8D-Reports und Change Control',
-        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'changeManagement', 'audits'],
+        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'internalErrors', 'changeManagement', 'audits'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Supplier Management',
@@ -7433,6 +7454,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('capaReports');
     _ensureMenuTilePresent('capaDashboard');
     _ensureMenuTilePresent('fmea');
+    _ensureMenuTilePresent('internalErrors');
     _ensureMenuTilePresent('changeManagement');
     _ensureMenuTilePresent('audits');
     _ensureMenuTilePresent('portalUsers');
@@ -7459,6 +7481,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
         _ensureMenuTilePresent('approvedSuppliers');
@@ -7477,6 +7500,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
         _ensureMenuTilePresent('approvedSuppliers');
@@ -9154,6 +9178,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'internalErrors':
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Interne Fehler',
+          subtitle: 'AA852/FB852 erfassen',
+          icon: Icons.bug_report_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.internalErrors),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'changeManagement':
         final open = (_changeSummary['open'] is num) ? (_changeSummary['open'] as num).toInt() : null;
         final closed = _changeSummary['closed'] ?? '—';
@@ -10219,6 +10258,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return AdminFmeaPage(
           api: widget.api,
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
+        );
+      case AdminView.internalErrors:
+        return InternalErrorsPage(
+          service: InternalErrorService.instance,
+          canWrite: _canWriteTile('internalErrors'),
+          canOverrideCapa: _portalIsQm || _isSuperuser || _portalRole == 'admin',
+          currentUser: _portalProfile?['email'] as String? ?? _portalProfile?['name'] as String?,
         );
       case AdminView.changeManagement:
         return ChangeManagementOverviewPage(
