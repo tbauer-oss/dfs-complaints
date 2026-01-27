@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/internal_error_model.dart';
@@ -23,7 +24,9 @@ class InternalErrorsPage extends StatefulWidget {
 }
 
 class _InternalErrorsPageState extends State<InternalErrorsPage> {
-  late Future<List<InternalError>> _future;
+  List<InternalError> _entries = const [];
+  Object? _loadError;
+  bool _isLoading = true;
   String _search = '';
   String _statusFilter = 'all';
   String _escalationFilter = 'all';
@@ -34,13 +37,32 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   @override
   void initState() {
     super.initState();
-    _future = widget.service.fetchAll();
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final entries = await widget.service.fetchAll();
+      if (!mounted) return;
+      setState(() {
+        _entries = entries;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
   }
 
   void _refresh() {
-    setState(() {
-      _future = widget.service.fetchAll();
-    });
+    _loadEntries();
   }
 
   List<InternalError> _filtered(List<InternalError> entries) {
@@ -242,6 +264,26 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     );
   }
 
+  String _stateLabel(_PageState state) {
+    switch (state) {
+      case _PageState.loading:
+        return 'loading';
+      case _PageState.error:
+        return 'error';
+      case _PageState.empty:
+        return 'empty';
+      case _PageState.data:
+        return 'data';
+    }
+  }
+
+  _PageState _resolveState(List<InternalError> filtered) {
+    if (_isLoading) return _PageState.loading;
+    if (_loadError != null) return _PageState.error;
+    if (filtered.isEmpty) return _PageState.empty;
+    return _PageState.data;
+  }
+
   Widget _buildTable(List<InternalError> entries, ColorScheme cs, DateFormat dateFormatter) {
     return Card(
       elevation: 0,
@@ -323,190 +365,203 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final dateFormatter = DateFormat('dd.MM.yyyy');
-    return FutureBuilder<List<InternalError>>(
-      future: _future,
-      builder: (context, snapshot) {
-        final entries = snapshot.data ?? const <InternalError>[];
-        final filtered = _filtered(entries);
-        final years = entries.map((e) => e.year).toSet().toList()..sort();
+    final filtered = _filtered(_entries);
+    final years = _entries.map((e) => e.year).toSet().toList()..sort();
+    final state = _resolveState(filtered);
+    final showDebug = !kReleaseMode;
 
-        late final Widget stateWidget;
-        var isCentered = false;
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          stateWidget = _buildLoadingState(theme.textTheme, cs);
-          isCentered = true;
-        } else if (snapshot.hasError) {
-          stateWidget = _buildErrorState(theme.textTheme, cs, snapshot.error!);
-          isCentered = true;
-        } else if (filtered.isEmpty) {
-          stateWidget = _buildEmptyState(theme.textTheme, cs);
-          isCentered = true;
-        } else {
-          stateWidget = _buildTable(filtered, cs, dateFormatter);
-        }
+    late final Widget stateWidget;
+    var isCentered = false;
+    switch (state) {
+      case _PageState.loading:
+        stateWidget = _buildLoadingState(theme.textTheme, cs);
+        isCentered = true;
+        break;
+      case _PageState.error:
+        stateWidget = _buildErrorState(theme.textTheme, cs, _loadError!);
+        isCentered = true;
+        break;
+      case _PageState.empty:
+        stateWidget = _buildEmptyState(theme.textTheme, cs);
+        isCentered = true;
+        break;
+      case _PageState.data:
+        stateWidget = _buildTable(filtered, cs, dateFormatter);
+        break;
+    }
 
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return CustomScrollView(
+      slivers: [
+        if (showDebug)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'state=${_stateLabel(state)}, items=${filtered.length}',
+                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Interne Fehlererfassung',
+                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Interne Fehler gemäß AA852 erfassen, bewerten und nachverfolgen.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurface.withOpacity(0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Interne Fehlererfassung',
-                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Interne Fehler gemäß AA852 erfassen, bewerten und nachverfolgen.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: cs.onSurface.withOpacity(0.75),
-                          ),
-                        ),
-                      ],
+                  TextButton.icon(
+                    onPressed: _refresh,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Neu laden'),
+                  ),
+                  const SizedBox(width: 8),
+                  if (widget.canWrite)
+                    FilledButton.icon(
+                      onPressed: () => _openEditor(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Neuer Fehler'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        SliverToBoxAdapter(
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 260,
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Suche',
+                        hintText: 'Code, Text, Verantwortliche',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onChanged: (value) => setState(() => _search = value),
                     ),
                   ),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: _refresh,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Neu laden'),
-                      ),
-                      const SizedBox(width: 8),
-                      if (widget.canWrite)
-                        FilledButton.icon(
-                          onPressed: () => _openEditor(),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Neuer Fehler'),
-                        ),
+                  _FilterDropdown(
+                    label: 'Status',
+                    value: _statusFilter,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Alle Status')),
+                      DropdownMenuItem(value: 'Draft', child: Text('Draft')),
+                      DropdownMenuItem(value: 'Open', child: Text('Open')),
+                      DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+                      DropdownMenuItem(value: 'Waiting Effectiveness', child: Text('Waiting Effectiveness')),
+                      DropdownMenuItem(value: 'Closed', child: Text('Closed')),
                     ],
+                    onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
+                  ),
+                  _FilterDropdown(
+                    label: 'Eskalation',
+                    value: _escalationFilter,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
+                      DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
+                      DropdownMenuItem(value: 'B', child: Text('B – mittel')),
+                      DropdownMenuItem(value: 'C', child: Text('C – hoch')),
+                      DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
+                    ],
+                    onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
+                  ),
+                  _FilterDropdown(
+                    label: 'CAPA',
+                    value: _capaFilter,
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('Alle')),
+                      DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
+                      DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
+                    ],
+                    onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
+                  ),
+                  _FilterDropdown<int?>(
+                    label: 'Jahr',
+                    value: _yearFilter,
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
+                      ...years.map(
+                        (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() => _yearFilter = value),
+                  ),
+                  _FilterDropdown(
+                    label: 'Sortierung',
+                    value: _sortOption.name,
+                    items: const [
+                      DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
+                      DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
+                      DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
+                      DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
+                    ],
+                    onChanged: (value) {
+                      final option =
+                          _SortOption.values.firstWhere((e) => e.name == value, orElse: () => _sortOption);
+                      setState(() => _sortOption = option);
+                    },
                   ),
                 ],
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            SliverToBoxAdapter(
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 260,
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            labelText: 'Suche',
-                            hintText: 'Code, Text, Verantwortliche',
-                            prefixIcon: Icon(Icons.search),
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          onChanged: (value) => setState(() => _search = value),
-                        ),
-                      ),
-                      _FilterDropdown(
-                        label: 'Status',
-                        value: _statusFilter,
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('Alle Status')),
-                          DropdownMenuItem(value: 'Draft', child: Text('Draft')),
-                          DropdownMenuItem(value: 'Open', child: Text('Open')),
-                          DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
-                          DropdownMenuItem(value: 'Waiting Effectiveness', child: Text('Waiting Effectiveness')),
-                          DropdownMenuItem(value: 'Closed', child: Text('Closed')),
-                        ],
-                        onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
-                      ),
-                      _FilterDropdown(
-                        label: 'Eskalation',
-                        value: _escalationFilter,
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
-                          DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
-                          DropdownMenuItem(value: 'B', child: Text('B – mittel')),
-                          DropdownMenuItem(value: 'C', child: Text('C – hoch')),
-                          DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
-                        ],
-                        onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
-                      ),
-                      _FilterDropdown(
-                        label: 'CAPA',
-                        value: _capaFilter,
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('Alle')),
-                          DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
-                          DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
-                        ],
-                        onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
-                      ),
-                      _FilterDropdown<int?>(
-                        label: 'Jahr',
-                        value: _yearFilter,
-                        items: [
-                          const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
-                          ...years.map(
-                            (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
-                          ),
-                        ],
-                        onChanged: (value) => setState(() => _yearFilter = value),
-                      ),
-                      _FilterDropdown(
-                        label: 'Sortierung',
-                        value: _sortOption.name,
-                        items: const [
-                          DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
-                          DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
-                          DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
-                          DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
-                        ],
-                        onChanged: (value) {
-                          final option = _SortOption.values
-                              .firstWhere((e) => e.name == value, orElse: () => _sortOption);
-                          setState(() => _sortOption = option);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        if (isCentered)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: stateWidget,
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            if (isCentered)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 640),
-                    child: stateWidget,
-                  ),
-                ),
-              )
-            else
-              SliverToBoxAdapter(child: stateWidget),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-            SliverToBoxAdapter(
-              child: Text(
-                'Einträge: ${filtered.length} • Gesamt: ${entries.length}',
-                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ),
-          ],
-        );
-      },
+          )
+        else
+          SliverToBoxAdapter(child: stateWidget),
+        const SliverToBoxAdapter(child: SizedBox(height: 12)),
+        SliverToBoxAdapter(
+          child: Text(
+            'Einträge: ${filtered.length} • Gesamt: ${_entries.length}',
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+      ],
     );
   }
 }
 
 enum _SortOption { dateDesc, dateAsc, pointsDesc, pointsAsc }
+
+enum _PageState { loading, error, empty, data }
 
 class _FilterDropdown<T> extends StatelessWidget {
   final String label;
