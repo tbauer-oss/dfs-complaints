@@ -152,24 +152,23 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   }
 
   Widget _buildLoadingState(TextTheme textTheme, ColorScheme cs) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 12),
-              Text(
-                'Daten werden geladen…',
-                style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 12),
+          Text(
+            'Daten werden geladen…',
+            style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -180,63 +179,65 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     Object error,
   ) {
     final message = error.toString().split('\n').first;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.error_outline, color: cs.error),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Fehler beim Laden',
-                    style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.error_outline, color: cs.error),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Fehler beim Laden',
+                  style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
                 ),
-                TextButton(onPressed: _refresh, child: const Text('Neu laden')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-            ),
-          ],
-        ),
+              ),
+              TextButton(onPressed: _refresh, child: const Text('Neu laden')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyState(TextTheme textTheme, ColorScheme cs) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Keine internen Fehler erfasst', style: textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(
-              'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
-              style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Keine internen Fehler erfasst', style: textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text(
+            'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
+            style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          if (widget.canWrite) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => _openEditor(),
+              icon: const Icon(Icons.add),
+              label: const Text('Neuen Fehler erfassen'),
             ),
-            if (widget.canWrite) ...[
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => _openEditor(),
-                icon: const Icon(Icons.add),
-                label: const Text('Neuen Fehler erfassen'),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
@@ -482,7 +483,12 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
             if (isCentered)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: Center(child: stateWidget),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: stateWidget,
+                  ),
+                ),
               )
             else
               SliverToBoxAdapter(child: stateWidget),
