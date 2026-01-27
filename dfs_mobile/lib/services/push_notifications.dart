@@ -217,7 +217,7 @@ class PushNotifications {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
     const settings = InitializationSettings(android: androidInit, iOS: iosInit);
-    await _localNotifications.initialize(settings);
+    await _localNotifications.initialize(initializationSettings: settings);
 
     const channel = AndroidNotificationChannel(
       'complaint-status',
@@ -275,10 +275,10 @@ class PushNotifications {
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
     _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      details,
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: details,
       payload: message.data.isEmpty ? null : jsonEncode(message.data),
     );
   }
