@@ -23,9 +23,7 @@ class InternalErrorsPage extends StatefulWidget {
 }
 
 class _InternalErrorsPageState extends State<InternalErrorsPage> {
-  bool _loading = false;
-  String? _error;
-  List<InternalError> _entries = const [];
+  late Future<List<InternalError>> _future;
   String _search = '';
   String _statusFilter = 'all';
   String _escalationFilter = 'all';
@@ -36,28 +34,17 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _future = widget.service.fetchAll();
   }
 
-  Future<void> _load() async {
+  void _refresh() {
     setState(() {
-      _loading = true;
-      _error = null;
+      _future = widget.service.fetchAll();
     });
-    try {
-      final list = await widget.service.fetchAll();
-      setState(() => _entries = list);
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    }
   }
 
-  List<InternalError> get _filtered {
-    var list = _entries;
+  List<InternalError> _filtered(List<InternalError> entries) {
+    var list = entries;
     final query = _search.trim().toLowerCase();
     if (query.isNotEmpty) {
       list = list.where((e) {
@@ -110,7 +97,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
       ),
     );
     if (saved != null) {
-      _load();
+      _refresh();
     }
   }
 
@@ -164,12 +151,176 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     );
   }
 
+  Widget _buildLoadingState(TextTheme textTheme, ColorScheme cs) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 12),
+              Text(
+                'Daten werden geladen…',
+                style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(
+    TextTheme textTheme,
+    ColorScheme cs,
+    Object error,
+  ) {
+    final message = error.toString().split('\n').first;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: cs.error),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Fehler beim Laden',
+                    style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
+                  ),
+                ),
+                TextButton(onPressed: _refresh, child: const Text('Neu laden')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(TextTheme textTheme, ColorScheme cs) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Keine internen Fehler erfasst', style: textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text(
+              'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
+              style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            if (widget.canWrite) ...[
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => _openEditor(),
+                icon: const Icon(Icons.add),
+                label: const Text('Neuen Fehler erfassen'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTable(List<InternalError> entries, ColorScheme cs, DateFormat dateFormatter) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 18,
+          headingRowHeight: 48,
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 72,
+          columns: const [
+            DataColumn(label: Text('Fehlercode')),
+            DataColumn(label: Text('Datum')),
+            DataColumn(label: Text('Bereich/Prozess')),
+            DataColumn(label: Text('Kurzbeschreibung')),
+            DataColumn(label: Text('Punkte')),
+            DataColumn(label: Text('Eskalation')),
+            DataColumn(label: Text('CAPA')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Verantwortlich')),
+            DataColumn(label: Text('Aktionen')),
+          ],
+          rows: entries.map((entry) {
+            return DataRow(
+              cells: [
+                DataCell(Text(entry.errorCode.isEmpty ? '–' : entry.errorCode)),
+                DataCell(Text(dateFormatter.format(entry.createdAt))),
+                DataCell(Text(entry.processArea.isEmpty ? '–' : entry.processArea)),
+                DataCell(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: Text(
+                      entry.description,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ),
+                DataCell(Text(entry.points.toString())),
+                DataCell(_buildBadge(entry.escalation)),
+                DataCell(
+                  Icon(
+                    entry.capaRequired
+                        ? Icons.assignment_turned_in_outlined
+                        : Icons.remove_circle_outline,
+                    color: entry.capaRequired ? cs.primary : cs.onSurfaceVariant,
+                  ),
+                ),
+                DataCell(Text(entry.status)),
+                DataCell(Text(entry.responsiblePerson.isEmpty ? '–' : entry.responsiblePerson)),
+                DataCell(
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Details anzeigen',
+                        icon: const Icon(Icons.visibility_outlined),
+                        onPressed: () => _openEditor(entry),
+                      ),
+                      if (widget.canWrite)
+                        IconButton(
+                          tooltip: 'Bearbeiten',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _openEditor(entry),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final filtered = _filtered;
-    final years = _entries.map((e) => e.year).toSet().toList()..sort();
     final dateFormatter = DateFormat('dd.MM.yyyy');
 
     return Container(
@@ -211,225 +362,140 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
                       ],
                     ),
                   ),
-                  if (widget.canWrite)
-                    FilledButton.icon(
-                      onPressed: _loading ? null : () => _openEditor(),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Neuer Fehler'),
-                    ),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: _refresh,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Neu laden'),
+                      ),
+                      const SizedBox(width: 8),
+                      if (widget.canWrite)
+                        FilledButton.icon(
+                          onPressed: () => _openEditor(),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Neuer Fehler'),
+                        ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Card(
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 260,
-                                child: TextField(
-                                  decoration: InputDecoration(
-                                    labelText: 'Suche',
-                                    hintText: 'Code, Text, Verantwortliche',
-                                    prefixIcon: const Icon(Icons.search),
-                                    border: const OutlineInputBorder(),
-                                    isDense: true,
-                                  ),
-                                  onChanged: (value) => setState(() => _search = value),
-                                ),
-                              ),
-                              _FilterDropdown(
-                                label: 'Status',
-                                value: _statusFilter,
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('Alle Status')),
-                                  DropdownMenuItem(value: 'Draft', child: Text('Draft')),
-                                  DropdownMenuItem(value: 'Open', child: Text('Open')),
-                                  DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
-                                  DropdownMenuItem(value: 'Waiting Effectiveness', child: Text('Waiting Effectiveness')),
-                                  DropdownMenuItem(value: 'Closed', child: Text('Closed')),
-                                ],
-                                onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
-                              ),
-                              _FilterDropdown(
-                                label: 'Eskalation',
-                                value: _escalationFilter,
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
-                                  DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
-                                  DropdownMenuItem(value: 'B', child: Text('B – mittel')),
-                                  DropdownMenuItem(value: 'C', child: Text('C – hoch')),
-                                  DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
-                                ],
-                                onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
-                              ),
-                              _FilterDropdown(
-                                label: 'CAPA',
-                                value: _capaFilter,
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('Alle')),
-                                  DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
-                                  DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
-                                ],
-                                onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
-                              ),
-                              _FilterDropdown<int?>(
-                                label: 'Jahr',
-                                value: _yearFilter,
-                                items: [
-                                  const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
-                                  ...years.map((year) => DropdownMenuItem(value: year, child: Text(year.toString()))),
-                                ],
-                                onChanged: (value) => setState(() => _yearFilter = value),
-                              ),
-                              _FilterDropdown(
-                                label: 'Sortierung',
-                                value: _sortOption.name,
-                                items: const [
-                                  DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
-                                  DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
-                                  DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
-                                  DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
-                                ],
-                                onChanged: (value) {
-                                  final option =
-                                      _SortOption.values.firstWhere((e) => e.name == value, orElse: () => _sortOption);
-                                  setState(() => _sortOption = option);
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (_loading)
-                        const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
-                      else if (_error != null)
+                child: FutureBuilder<List<InternalError>>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    final entries = snapshot.data ?? const <InternalError>[];
+                    final filtered = _filtered(entries);
+                    final years = entries.map((e) => e.year).toSet().toList()..sort();
+
+                    return ListView(
+                      children: [
                         Card(
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           child: Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Row(
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Icon(Icons.error_outline, color: cs.error),
-                                const SizedBox(width: 12),
-                                Expanded(child: Text(_error!)),
-                                TextButton(onPressed: _load, child: const Text('Neu laden')),
-                              ],
-                            ),
-                          ),
-                        )
-                      else if (filtered.isEmpty)
-                        Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Noch keine Einträge', style: theme.textTheme.titleMedium),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Erfassen Sie interne Fehler oder passen Sie die Filter an.',
-                                  style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                                SizedBox(
+                                  width: 260,
+                                  child: TextField(
+                                    decoration: const InputDecoration(
+                                      labelText: 'Suche',
+                                      hintText: 'Code, Text, Verantwortliche',
+                                      prefixIcon: Icon(Icons.search),
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    onChanged: (value) => setState(() => _search = value),
+                                  ),
+                                ),
+                                _FilterDropdown(
+                                  label: 'Status',
+                                  value: _statusFilter,
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('Alle Status')),
+                                    DropdownMenuItem(value: 'Draft', child: Text('Draft')),
+                                    DropdownMenuItem(value: 'Open', child: Text('Open')),
+                                    DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+                                    DropdownMenuItem(value: 'Waiting Effectiveness', child: Text('Waiting Effectiveness')),
+                                    DropdownMenuItem(value: 'Closed', child: Text('Closed')),
+                                  ],
+                                  onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
+                                ),
+                                _FilterDropdown(
+                                  label: 'Eskalation',
+                                  value: _escalationFilter,
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
+                                    DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
+                                    DropdownMenuItem(value: 'B', child: Text('B – mittel')),
+                                    DropdownMenuItem(value: 'C', child: Text('C – hoch')),
+                                    DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
+                                  ],
+                                  onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
+                                ),
+                                _FilterDropdown(
+                                  label: 'CAPA',
+                                  value: _capaFilter,
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('Alle')),
+                                    DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
+                                    DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
+                                  ],
+                                  onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
+                                ),
+                                _FilterDropdown<int?>(
+                                  label: 'Jahr',
+                                  value: _yearFilter,
+                                  items: [
+                                    const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
+                                    ...years.map(
+                                      (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
+                                    ),
+                                  ],
+                                  onChanged: (value) => setState(() => _yearFilter = value),
+                                ),
+                                _FilterDropdown(
+                                  label: 'Sortierung',
+                                  value: _sortOption.name,
+                                  items: const [
+                                    DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
+                                    DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
+                                    DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
+                                    DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
+                                  ],
+                                  onChanged: (value) {
+                                    final option = _SortOption.values
+                                        .firstWhere((e) => e.name == value, orElse: () => _sortOption);
+                                    setState(() => _sortOption = option);
+                                  },
                                 ),
                               ],
                             ),
                           ),
-                        )
-                      else
-                        Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              columnSpacing: 18,
-                              headingRowHeight: 48,
-                              dataRowMinHeight: 56,
-                              dataRowMaxHeight: 72,
-                              columns: const [
-                                DataColumn(label: Text('Fehlercode')),
-                                DataColumn(label: Text('Datum')),
-                                DataColumn(label: Text('Bereich/Prozess')),
-                                DataColumn(label: Text('Kurzbeschreibung')),
-                                DataColumn(label: Text('Punkte')),
-                                DataColumn(label: Text('Eskalation')),
-                                DataColumn(label: Text('CAPA')),
-                                DataColumn(label: Text('Status')),
-                                DataColumn(label: Text('Verantwortlich')),
-                                DataColumn(label: Text('Aktionen')),
-                              ],
-                              rows: filtered.map((entry) {
-                                return DataRow(
-                                  cells: [
-                                    DataCell(Text(entry.errorCode.isEmpty ? '–' : entry.errorCode)),
-                                    DataCell(Text(dateFormatter.format(entry.createdAt))),
-                                    DataCell(Text(entry.processArea.isEmpty ? '–' : entry.processArea)),
-                                    DataCell(
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(maxWidth: 260),
-                                        child: Text(
-                                          entry.description,
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(Text(entry.points.toString())),
-                                    DataCell(_buildBadge(entry.escalation)),
-                                    DataCell(
-                                      Icon(
-                                        entry.capaRequired
-                                            ? Icons.assignment_turned_in_outlined
-                                            : Icons.remove_circle_outline,
-                                        color: entry.capaRequired ? cs.primary : cs.onSurfaceVariant,
-                                      ),
-                                    ),
-                                    DataCell(Text(entry.status)),
-                                    DataCell(Text(entry.responsiblePerson.isEmpty ? '–' : entry.responsiblePerson)),
-                                    DataCell(
-                                      Row(
-                                        children: [
-                                          IconButton(
-                                            tooltip: 'Details anzeigen',
-                                            icon: const Icon(Icons.visibility_outlined),
-                                            onPressed: () => _openEditor(entry),
-                                          ),
-                                          if (widget.canWrite)
-                                            IconButton(
-                                              tooltip: 'Bearbeiten',
-                                              icon: const Icon(Icons.edit_outlined),
-                                              onPressed: () => _openEditor(entry),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ),
-                          ),
                         ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Einträge: ${filtered.length} • Gesamt: ${_entries.length}',
-                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: 16),
+                        if (snapshot.connectionState == ConnectionState.waiting)
+                          _buildLoadingState(theme.textTheme, cs)
+                        else if (snapshot.hasError)
+                          _buildErrorState(theme.textTheme, cs, snapshot.error!)
+                        else if (filtered.isEmpty)
+                          _buildEmptyState(theme.textTheme, cs)
+                        else
+                          _buildTable(filtered, cs, dateFormatter),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Einträge: ${filtered.length} • Gesamt: ${entries.length}',
+                          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ],
