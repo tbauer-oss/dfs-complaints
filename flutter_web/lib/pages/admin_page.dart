@@ -1416,6 +1416,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return _hasTileAccess('complaintList');
       case 'capas.read':
         return _hasTileAccess('capaReports');
+      case 'internalErrors.read':
+        return _hasTileAccess('internalErrors');
       case 'chat.read':
         return _hasTileAccess('internalChat');
       default:
@@ -10268,6 +10270,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case AdminView.internalErrors:
+        if (!_hasPerm('internalErrors.read')) return _noPermissionPanel();
         return InternalErrorsPage(
           service: InternalErrorService.instance,
           canWrite: _canWriteTile('internalErrors'),
