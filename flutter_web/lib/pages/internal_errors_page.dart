@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/internal_error_model.dart';
 import '../services/internal_error_service.dart';
+import '../widgets/app_error_view.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/skeletons.dart';
 import 'internal_error_detail.dart';
@@ -29,6 +30,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   List<InternalError> _entries = const [];
   Object? _loadError;
   bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
   String _search = '';
   String _statusFilter = 'all';
   String _escalationFilter = 'all';
@@ -40,6 +42,12 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   void initState() {
     super.initState();
     _loadEntries();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadEntries() async {
@@ -65,6 +73,26 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
 
   void _refresh() {
     _loadEntries();
+  }
+
+  bool get _filtersActive {
+    return _search.trim().isNotEmpty ||
+        _statusFilter != 'all' ||
+        _escalationFilter != 'all' ||
+        _capaFilter != 'all' ||
+        _yearFilter != null;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _search = '';
+      _searchController.text = '';
+      _statusFilter = 'all';
+      _escalationFilter = 'all';
+      _capaFilter = 'all';
+      _yearFilter = null;
+      _sortOption = _SortOption.dateDesc;
+    });
   }
 
   List<InternalError> _filtered(List<InternalError> entries) {
@@ -219,51 +247,40 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     );
   }
 
-  Widget _buildErrorState(
-    TextTheme textTheme,
-    ColorScheme cs,
-    Object error,
-  ) {
-    final message = error.toString().split('\n').first;
-    return _buildStateCard(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.error_outline, color: cs.error),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Fehler beim Laden',
-                  style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
-                ),
-              ),
-              TextButton(onPressed: _refresh, child: const Text('Neu laden')),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-      cs,
-    );
+  Widget _buildErrorState(Object error) {
+    return AppErrorView(error: error, onRetry: _refresh);
   }
 
   Widget _buildEmptyState() {
+    final hasEntries = _entries.isNotEmpty;
+    final hasFilters = _filtersActive;
+    final actionButtons = <Widget>[
+      if (hasFilters)
+        OutlinedButton.icon(
+          onPressed: _resetFilters,
+          icon: const Icon(Icons.filter_alt_off),
+          label: const Text('Filter zurücksetzen'),
+        ),
+      if (widget.canWrite)
+        FilledButton.icon(
+          onPressed: () => _openEditor(),
+          icon: const Icon(Icons.add),
+          label: const Text('Neuer Fehler'),
+        ),
+    ];
+
     return EmptyState(
-      message: 'Keine internen Fehler erfasst',
-      description: 'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
-      action: widget.canWrite
-          ? FilledButton.icon(
-              onPressed: () => _openEditor(),
-              icon: const Icon(Icons.add),
-              label: const Text('Neuer Fehler'),
-            )
-          : null,
+      message: 'Keine Einträge gefunden',
+      description: hasEntries
+          ? 'Passen Sie die Filter an oder setzen Sie diese zurück.'
+          : 'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
+      action: actionButtons.isEmpty
+          ? null
+          : Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: actionButtons,
+            ),
     );
   }
 
@@ -384,7 +401,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
         stateWidget = _buildLoadingState(theme.textTheme, cs);
         break;
       case _PageState.error:
-        stateWidget = _buildErrorState(theme.textTheme, cs, _loadError!);
+        stateWidget = _buildErrorState(_loadError!);
         break;
       case _PageState.empty:
         stateWidget = _buildEmptyState();
@@ -511,6 +528,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
                                           SizedBox(
                                             width: 260,
                                             child: TextField(
+                                              controller: _searchController,
                                               decoration: const InputDecoration(
                                                 labelText: 'Suche',
                                                 hintText: 'Code, Text, Verantwortliche',
