@@ -558,8 +558,24 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
                         style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                       ),
                     ],
+                    onChanged: (value) => setState(() => _yearFilter = value),
                   ),
-                ),
+                  _FilterDropdown(
+                    label: 'Sortierung',
+                    value: _sortOption.name,
+                    items: const [
+                      DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
+                      DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
+                      DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
+                      DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
+                    ],
+                    onChanged: (value) {
+                      final option =
+                          _SortOption.values.firstWhere((e) => e.name == value, orElse: () => _sortOption);
+                      setState(() => _sortOption = option);
+                    },
+                  ),
+                ],
               ),
             ),
           ],
