@@ -440,7 +440,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Future<void> _addAttachments(Complaint c) async {
     final t = AppLocalizations.of(context)!;
-    final res = await FilePicker.pickFiles(
+    final res = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       withData: true,
     );
