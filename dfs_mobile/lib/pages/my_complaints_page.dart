@@ -440,7 +440,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Future<void> _addAttachments(Complaint c) async {
     final t = AppLocalizations.of(context)!;
-    final res = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+    final res = await FilePicker().pickFiles(allowMultiple: true, withData: true);
     if (res == null || res.files.isEmpty) return;
 
     const limit = 8 * 1024 * 1024;
@@ -450,7 +450,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     for (final file in res.files) {
       final data = file.bytes;
       if (data == null || data.isEmpty) continue;
-      totalBytes += data.length;
+      totalBytes += data.length.toInt();
       if (totalBytes > limit) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
