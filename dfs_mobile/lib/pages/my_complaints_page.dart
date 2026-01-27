@@ -440,7 +440,10 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Future<void> _addAttachments(Complaint c) async {
     final t = AppLocalizations.of(context)!;
-    final res = await FilePicker.pickFiles(allowMultiple: true, withData: true);
+    final res = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+    );
     if (res == null || res.files.isEmpty) return;
 
     const limit = 8 * 1024 * 1024;
