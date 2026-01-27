@@ -565,7 +565,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }
 
   Future<void> _pickWithFilePicker() async {
-    final res = await FilePicker.platform.pickFiles(
+    final res = await FilePicker.pickFiles(
       allowMultiple: true,
       withData: true,
     );
