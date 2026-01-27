@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/internal_error_model.dart';
 import '../services/internal_error_service.dart';
+import '../widgets/skeletons.dart';
 import 'internal_error_detail.dart';
 
 class InternalErrorsPage extends StatefulWidget {
@@ -173,25 +174,31 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     );
   }
 
-  Widget _buildLoadingState(TextTheme textTheme, ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: cs.surface,
+  Widget _buildStateCard(Widget child, ColorScheme cs) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
+        side: BorderSide(color: cs.outlineVariant),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(TextTheme textTheme, ColorScheme cs) {
+    return _buildStateCard(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircularProgressIndicator(),
+          Text('Daten werden geladen…', style: textTheme.titleMedium),
           const SizedBox(height: 12),
-          Text(
-            'Daten werden geladen…',
-            style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
-          ),
+          const SkeletonTable(rows: 6, columns: 5, rowHeight: 16),
         ],
       ),
+      cs,
     );
   }
 
@@ -201,14 +208,8 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     Object error,
   ) {
     final message = error.toString().split('\n').first;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
+    return _buildStateCard(
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -231,18 +232,13 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
           ),
         ],
       ),
+      cs,
     );
   }
 
   Widget _buildEmptyState(TextTheme textTheme, ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
+    return _buildStateCard(
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Keine internen Fehler erfasst', style: textTheme.titleMedium),
@@ -261,6 +257,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
           ],
         ],
       ),
+      cs,
     );
   }
 
@@ -287,10 +284,15 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   Widget _buildTable(List<InternalError> entries, ColorScheme cs, DateFormat dateFormatter) {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cs.outlineVariant),
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
+          headingTextStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          dataTextStyle: Theme.of(context).textTheme.bodySmall,
           columnSpacing: 18,
           headingRowHeight: 48,
           dataRowMinHeight: 56,
@@ -393,176 +395,223 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stateSection = isCentered
-            ? ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight * 0.35),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 640),
-                    child: stateWidget,
-                  ),
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: stateWidget,
                 ),
               )
             : stateWidget;
 
-        return Column(
-          children: [
-            Expanded(
-              child: Scrollbar(
-                thumbVisibility: true,
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (showDebug)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            'state=${_stateLabel(state)}, items=${filtered.length}',
-                            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                          ),
-                        ),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
+        final errorLabel = _loadError != null ? _loadError.toString().split('\n').first : '–';
+
+        return Scaffold(
+          backgroundColor: cs.surface,
+          body: SafeArea(
+            child: Column(
+              children: [
+                Material(
+                  elevation: 2,
+                  color: cs.surface,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: LayoutBuilder(
+                      builder: (context, headerConstraints) {
+                        final compactHeader = headerConstraints.maxWidth < 980;
+
+                        final titleBlock = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Qualitätsmanagement > Interne Fehlererfassung',
+                              style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Interne Fehlererfassung',
+                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            Text(
+                              'Interne Fehler gemäß AA852 erfassen, bewerten und nachverfolgen.',
+                              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        );
+
+                        final actionWrap = Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _refresh,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Neu laden'),
+                            ),
+                            if (widget.canWrite)
+                              FilledButton.icon(
+                                onPressed: () => _openEditor(),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Neuer Fehler'),
+                              ),
+                          ],
+                        );
+
+                        if (compactHeader) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              titleBlock,
+                              const SizedBox(height: 12),
+                              Align(alignment: Alignment.centerLeft, child: actionWrap),
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: titleBlock),
+                            const SizedBox(width: 16),
+                            Align(alignment: Alignment.centerRight, child: actionWrap),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, bodyConstraints) {
+                      return Scrollbar(
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minHeight: bodyConstraints.maxHeight),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Interne Fehlererfassung',
-                                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Interne Fehler gemäß AA852 erfassen, bewerten und nachverfolgen.',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: cs.onSurface.withOpacity(0.75),
+                                if (showDebug)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      'IFR state=${_stateLabel(state)}, items=${filtered.length}, error=$errorLabel',
+                                      style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                                    ),
                                   ),
+                                Card(
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: BorderSide(color: cs.outlineVariant),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Wrap(
+                                      spacing: 12,
+                                      runSpacing: 12,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 260,
+                                          child: TextField(
+                                            decoration: const InputDecoration(
+                                              labelText: 'Suche',
+                                              hintText: 'Code, Text, Verantwortliche',
+                                              prefixIcon: Icon(Icons.search),
+                                              border: OutlineInputBorder(),
+                                              isDense: true,
+                                            ),
+                                            onChanged: (value) => setState(() => _search = value),
+                                          ),
+                                        ),
+                                        _FilterDropdown(
+                                          label: 'Status',
+                                          value: _statusFilter,
+                                          items: const [
+                                            DropdownMenuItem(value: 'all', child: Text('Alle Status')),
+                                            DropdownMenuItem(value: 'Draft', child: Text('Draft')),
+                                            DropdownMenuItem(value: 'Open', child: Text('Open')),
+                                            DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+                                            DropdownMenuItem(
+                                              value: 'Waiting Effectiveness',
+                                              child: Text('Waiting Effectiveness'),
+                                            ),
+                                            DropdownMenuItem(value: 'Closed', child: Text('Closed')),
+                                          ],
+                                          onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
+                                        ),
+                                        _FilterDropdown(
+                                          label: 'Eskalation',
+                                          value: _escalationFilter,
+                                          items: const [
+                                            DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
+                                            DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
+                                            DropdownMenuItem(value: 'B', child: Text('B – mittel')),
+                                            DropdownMenuItem(value: 'C', child: Text('C – hoch')),
+                                            DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
+                                          ],
+                                          onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
+                                        ),
+                                        _FilterDropdown(
+                                          label: 'CAPA',
+                                          value: _capaFilter,
+                                          items: const [
+                                            DropdownMenuItem(value: 'all', child: Text('Alle')),
+                                            DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
+                                            DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
+                                          ],
+                                          onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
+                                        ),
+                                        _FilterDropdown<int?>(
+                                          label: 'Jahr',
+                                          value: _yearFilter,
+                                          items: [
+                                            const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
+                                            ...years.map(
+                                              (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
+                                            ),
+                                          ],
+                                          onChanged: (value) => setState(() => _yearFilter = value),
+                                        ),
+                                        _FilterDropdown(
+                                          label: 'Sortierung',
+                                          value: _sortOption.name,
+                                          items: const [
+                                            DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
+                                            DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
+                                            DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
+                                            DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
+                                          ],
+                                          onChanged: (value) {
+                                            final option = _SortOption.values
+                                                .firstWhere((e) => e.name == value, orElse: () => _sortOption);
+                                            setState(() => _sortOption = option);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                stateSection,
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Einträge: ${filtered.length} • Gesamt: ${_entries.length}',
+                                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                                 ),
                               ],
                             ),
                           ),
-                          Row(
-                            children: [
-                              TextButton.icon(
-                                onPressed: _refresh,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Neu laden'),
-                              ),
-                              const SizedBox(width: 8),
-                              if (widget.canWrite)
-                                FilledButton.icon(
-                                  onPressed: () => _openEditor(),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Neuer Fehler'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Card(
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 260,
-                                child: TextField(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Suche',
-                                    hintText: 'Code, Text, Verantwortliche',
-                                    prefixIcon: Icon(Icons.search),
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                  ),
-                                  onChanged: (value) => setState(() => _search = value),
-                                ),
-                              ),
-                              _FilterDropdown(
-                                label: 'Status',
-                                value: _statusFilter,
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('Alle Status')),
-                                  DropdownMenuItem(value: 'Draft', child: Text('Draft')),
-                                  DropdownMenuItem(value: 'Open', child: Text('Open')),
-                                  DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
-                                  DropdownMenuItem(value: 'Waiting Effectiveness', child: Text('Waiting Effectiveness')),
-                                  DropdownMenuItem(value: 'Closed', child: Text('Closed')),
-                                ],
-                                onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
-                              ),
-                              _FilterDropdown(
-                                label: 'Eskalation',
-                                value: _escalationFilter,
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
-                                  DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
-                                  DropdownMenuItem(value: 'B', child: Text('B – mittel')),
-                                  DropdownMenuItem(value: 'C', child: Text('C – hoch')),
-                                  DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
-                                ],
-                                onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
-                              ),
-                              _FilterDropdown(
-                                label: 'CAPA',
-                                value: _capaFilter,
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('Alle')),
-                                  DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
-                                  DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
-                                ],
-                                onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
-                              ),
-                              _FilterDropdown<int?>(
-                                label: 'Jahr',
-                                value: _yearFilter,
-                                items: [
-                                  const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
-                                  ...years.map(
-                                    (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
-                                  ),
-                                ],
-                                onChanged: (value) => setState(() => _yearFilter = value),
-                              ),
-                              _FilterDropdown(
-                                label: 'Sortierung',
-                                value: _sortOption.name,
-                                items: const [
-                                  DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
-                                  DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
-                                  DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
-                                  DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
-                                ],
-                                onChanged: (value) {
-                                  final option = _SortOption.values
-                                      .firstWhere((e) => e.name == value, orElse: () => _sortOption);
-                                  setState(() => _sortOption = option);
-                                },
-                              ),
-                            ],
-                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      stateSection,
-                      const SizedBox(height: 12),
-                      Text(
-                        'Einträge: ${filtered.length} • Gesamt: ${_entries.length}',
-                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
