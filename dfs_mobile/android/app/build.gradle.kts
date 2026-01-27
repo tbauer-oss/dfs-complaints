@@ -64,6 +64,10 @@ android {
     }
 }
 
+flutter {
+    source = "../.."
+}
+
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
     implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
