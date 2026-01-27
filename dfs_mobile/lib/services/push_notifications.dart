@@ -217,7 +217,16 @@ class PushNotifications {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
     const settings = InitializationSettings(android: androidInit, iOS: iosInit);
-    await _localNotifications.initialize(settings);
+    final dynamic notifications = _localNotifications;
+    try {
+      await Function.apply(
+        notifications.initialize,
+        const [],
+        {#initializationSettings: settings},
+      );
+    } on NoSuchMethodError {
+      await Function.apply(notifications.initialize, [settings]);
+    }
 
     const channel = AndroidNotificationChannel(
       'complaint-status',
