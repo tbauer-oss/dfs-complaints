@@ -453,7 +453,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     for (final file in res.files) {
       final data = file.bytes;
       if (data == null || data.isEmpty) continue;
-      totalBytes += data.length;
+      totalBytes += data.length.toInt();
       if (totalBytes > limit) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

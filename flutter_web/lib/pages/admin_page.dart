@@ -46,6 +46,7 @@ import '../widgets/admin/avatar_cropper_dialog.dart';
 import '../widgets/admin/dashboard_onboarding_texts.dart';
 import '../widgets/admin/global_search_bar.dart';
 import '../widgets/admin/onboarding_tour.dart';
+import '../utils/admin_permission_evaluator.dart';
 import 'admin_stats_page.dart';
 import 'admin_capa_dashboard_page.dart';
 import 'product_catalog_page.dart';
@@ -1435,6 +1436,52 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _permissionLoadingPanel({String message = 'Berechtigungen werden geladen…'}) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            message,
+            style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+
+  AdminAccessDecision _evaluateViewAccess(AdminView view) {
+    final hasAuthToken = (widget.api.portalToken ?? '').trim().isNotEmpty ||
+        (widget.api.adminSecret ?? '').trim().isNotEmpty ||
+        (html.window.localStorage['dfs_admin'] ?? '').trim().isNotEmpty ||
+        (html.window.localStorage['dfs_portal_token'] ?? '').trim().isNotEmpty;
+    final hasProfile = _portalProfile != null || _portalRole.trim().isNotEmpty;
+    final isAllowed = _isViewAllowed(view);
+    final decision = evaluateAdminAccess(
+      hasAuthToken: hasAuthToken,
+      hasProfile: hasProfile,
+      isAllowed: isAllowed,
+    );
+
+    if (kDebugMode) {
+      final tileId = _viewToTileId(view) ?? 'n/a';
+      debugPrint(
+        'Admin access decision [$view/$tileId] -> $decision '
+        '(role=$_portalRole, isSuperuser=$_isSuperuser, isPrrc=$_portalIsPrrc, isQm=$_portalIsQm, '
+        'allowed=$isAllowed, hasProfile=$hasProfile, hasAuthToken=$hasAuthToken, tilePerms=$_portalTilePermissions)',
+      );
+    }
+
+    return decision;
+  }
+
   Set<String> _allowedTilesForActor() {
     final allowed = <String>{};
     final base = _visibleTilesForRole(_portalRole);
@@ -1779,6 +1826,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (_portalRole.isEmpty && portalTok.isEmpty && secret.isNotEmpty) {
       _portalRole = 'superuser';
     }
+
+    _api.setPortalRole(_portalRole);
 
     _loadRoleTileVisibility();
     _initMenuLayout();
@@ -10270,7 +10319,17 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case AdminView.internalErrors:
-        if (!_hasPerm('internalErrors.read')) return _noPermissionPanel();
+        final access = _evaluateViewAccess(AdminView.internalErrors);
+        if (access == AdminAccessDecision.loading) {
+          return _permissionLoadingPanel();
+        }
+        if (access == AdminAccessDecision.unauthenticated) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) Navigator.of(context).maybePop();
+          });
+          return _noPermissionPanel(message: 'Bitte melden Sie sich an, um diese Seite zu öffnen.');
+        }
+        if (access == AdminAccessDecision.deny) return _noPermissionPanel();
         return InternalErrorsPage(
           service: InternalErrorService.instance,
           canWrite: _canWriteTile('internalErrors'),
@@ -23986,8 +24045,10 @@ class AdminApi {
   late final CustomerNewsService _customerNewsService = CustomerNewsService(_request);
   String _secret = '';
   String _portalToken = '';
+  String _portalRole = '';
   void setSecret(String s) => _secret = s;
   void setPortalToken(String s) => _portalToken = s;
+  void setPortalRole(String role) => _portalRole = role.trim();
 
   String get baseUrl {
     final b = const String.fromEnvironment('API_BASE', defaultValue: '');
@@ -24041,6 +24102,13 @@ class AdminApi {
     debugPrint('API auth [$path]: $label');
   }
 
+  void _logApiResponse(String method, String path, int? status) {
+    if (!kDebugMode) return;
+    final lower = path.toLowerCase();
+    if (!lower.startsWith('/api/admin') && !lower.startsWith('/api/chat')) return;
+    debugPrint('API response [$method $path]: status=${status ?? 'n/a'}, role=$_portalRole');
+  }
+
   Uri _u(String path, [Map<String, String>? q]) {
     final uri = Uri.parse('$baseUrl$path');
     if (q == null || q.isEmpty) return uri;
@@ -24062,6 +24130,7 @@ class AdminApi {
         sendData: body is String ? body : (body == null ? null : jsonEncode(body)),
         withCredentials: true,
       );
+      _logApiResponse(method, path, res.status);
       return res;
     } catch (e) {
       if (e is html.ProgressEvent) {
