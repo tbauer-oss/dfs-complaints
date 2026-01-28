@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../models/internal_error_model.dart';
 import '../services/internal_error_service.dart';
 import '../widgets/app_error_view.dart';
-import '../widgets/empty_state.dart';
 import '../widgets/skeletons.dart';
 import 'internal_error_detail.dart';
 
@@ -31,6 +30,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   Object? _loadError;
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _search = '';
   String _statusFilter = 'all';
   String _escalationFilter = 'all';
@@ -47,6 +47,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -251,7 +252,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     return AppErrorView(error: error, onRetry: _refresh);
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(TextTheme textTheme, ColorScheme cs) {
     final hasEntries = _entries.isNotEmpty;
     final hasFilters = _filtersActive;
     final actionButtons = <Widget>[
@@ -269,18 +270,29 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
         ),
     ];
 
-    return EmptyState(
-      message: 'Keine Einträge gefunden',
-      description: hasEntries
-          ? 'Passen Sie die Filter an oder setzen Sie diese zurück.'
-          : 'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
-      action: actionButtons.isEmpty
-          ? null
-          : Wrap(
+    return _buildStateCard(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Keine Einträge gefunden', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text(
+            hasEntries
+                ? 'Passen Sie die Filter an oder setzen Sie diese zurück.'
+                : 'Legen Sie einen neuen Fehler an oder passen Sie die Filter an.',
+            style: textTheme.bodyMedium,
+          ),
+          if (actionButtons.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
               spacing: 8,
               runSpacing: 8,
               children: actionButtons,
             ),
+          ],
+        ],
+      ),
+      cs,
     );
   }
 
@@ -404,230 +416,220 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
         stateWidget = _buildErrorState(_loadError!);
         break;
       case _PageState.empty:
-        stateWidget = _buildEmptyState();
+        stateWidget = _buildEmptyState(theme.textTheme, cs);
         break;
       case _PageState.data:
         stateWidget = _buildTable(filtered, cs, dateFormatter);
         break;
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final errorLabel = _loadError != null ? _loadError.toString().split('\n').first : '–';
+    final errorLabel = _loadError != null ? _loadError.toString().split('\n').first : '–';
 
-        return Scaffold(
-          backgroundColor: cs.surface,
-          body: SafeArea(
-            child: Column(
-              children: [
-                Material(
-                  elevation: 2,
-                  color: cs.surface,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: LayoutBuilder(
-                      builder: (context, headerConstraints) {
-                        final compactHeader = headerConstraints.maxWidth < 980;
+    return Column(
+      children: [
+        Material(
+          elevation: 2,
+          color: cs.surface,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: LayoutBuilder(
+              builder: (context, headerConstraints) {
+                final compactHeader = headerConstraints.maxWidth < 980;
 
-                        final titleBlock = Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Qualitätsmanagement > Interne Fehlererfassung',
-                              style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Interne Fehlererfassung',
-                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            Text(
-                              'Interne Fehler gemäß AA852 erfassen, bewerten und nachverfolgen.',
-                              style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                            ),
-                          ],
-                        );
-
-                        final actionWrap = Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.end,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: _refresh,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Neu laden'),
-                            ),
-                            if (widget.canWrite)
-                              FilledButton.icon(
-                                onPressed: () => _openEditor(),
-                                icon: const Icon(Icons.add),
-                                label: const Text('Neuer Fehler'),
-                              ),
-                          ],
-                        );
-
-                        if (compactHeader) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              titleBlock,
-                              const SizedBox(height: 12),
-                              Align(alignment: Alignment.centerLeft, child: actionWrap),
-                            ],
-                          );
-                        }
-
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: titleBlock),
-                            const SizedBox(width: 16),
-                            Align(alignment: Alignment.centerRight, child: actionWrap),
-                          ],
-                        );
-                      },
+                final titleBlock = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Qualitätsmanagement > Interne Fehlererfassung',
+                      style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
                     ),
-                  ),
-                ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, bodyConstraints) {
-                      return ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: 0),
-                        child: Scrollbar(
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(20),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(minHeight: bodyConstraints.maxHeight),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (showDebug)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Text(
-                                        'IFR state=${_stateLabel(state)}, items=${filtered.length}, error=$errorLabel',
-                                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Interne Fehlererfassung',
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'Interne Fehler gemäß AA852 erfassen, bewerten und nachverfolgen.',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                );
+
+                final actionWrap = Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _refresh,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Neu laden'),
+                    ),
+                    if (widget.canWrite)
+                      FilledButton.icon(
+                        onPressed: () => _openEditor(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Neuer Fehler'),
+                      ),
+                  ],
+                );
+
+                if (compactHeader) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      titleBlock,
+                      const SizedBox(height: 12),
+                      Align(alignment: Alignment.centerLeft, child: actionWrap),
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: 16),
+                    Align(alignment: Alignment.centerRight, child: actionWrap),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, bodyConstraints) {
+              return Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(20),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: bodyConstraints.maxHeight),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (showDebug)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'IFR state=${_stateLabel(state)}, items=${filtered.length}, error=$errorLabel',
+                              style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                            ),
+                          ),
+                        Card(
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: cs.outlineVariant),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 260,
+                                  child: TextField(
+                                    controller: _searchController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Suche',
+                                      hintText: 'Code, Text, Verantwortliche',
+                                      prefixIcon: Icon(Icons.search),
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
                                     ),
-                                  Card(
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      side: BorderSide(color: cs.outlineVariant),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Wrap(
-                                        spacing: 12,
-                                        runSpacing: 12,
-                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 260,
-                                            child: TextField(
-                                              controller: _searchController,
-                                              decoration: const InputDecoration(
-                                                labelText: 'Suche',
-                                                hintText: 'Code, Text, Verantwortliche',
-                                                prefixIcon: Icon(Icons.search),
-                                                border: OutlineInputBorder(),
-                                                isDense: true,
-                                              ),
-                                              onChanged: (value) => setState(() => _search = value),
-                                            ),
-                                          ),
-                                          _FilterDropdown(
-                                            label: 'Status',
-                                            value: _statusFilter,
-                                            items: const [
-                                              DropdownMenuItem(value: 'all', child: Text('Alle Status')),
-                                              DropdownMenuItem(value: 'Draft', child: Text('Draft')),
-                                              DropdownMenuItem(value: 'Open', child: Text('Open')),
-                                              DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
-                                              DropdownMenuItem(
-                                                value: 'Waiting Effectiveness',
-                                                child: Text('Waiting Effectiveness'),
-                                              ),
-                                              DropdownMenuItem(value: 'Closed', child: Text('Closed')),
-                                            ],
-                                            onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
-                                          ),
-                                          _FilterDropdown(
-                                            label: 'Eskalation',
-                                            value: _escalationFilter,
-                                            items: const [
-                                              DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
-                                              DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
-                                              DropdownMenuItem(value: 'B', child: Text('B – mittel')),
-                                              DropdownMenuItem(value: 'C', child: Text('C – hoch')),
-                                              DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
-                                            ],
-                                            onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
-                                          ),
-                                          _FilterDropdown(
-                                            label: 'CAPA',
-                                            value: _capaFilter,
-                                            items: const [
-                                              DropdownMenuItem(value: 'all', child: Text('Alle')),
-                                              DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
-                                              DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
-                                            ],
-                                            onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
-                                          ),
-                                          _FilterDropdown<int?>(
-                                            label: 'Jahr',
-                                            value: _yearFilter,
-                                            items: [
-                                              const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
-                                              ...years.map(
-                                                (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
-                                              ),
-                                            ],
-                                            onChanged: (value) => setState(() => _yearFilter = value),
-                                          ),
-                                          _FilterDropdown(
-                                            label: 'Sortierung',
-                                            value: _sortOption.name,
-                                            items: const [
-                                              DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
-                                              DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
-                                              DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
-                                              DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
-                                            ],
-                                            onChanged: (value) {
-                                              final option = _SortOption.values
-                                                  .firstWhere((e) => e.name == value, orElse: () => _sortOption);
-                                              setState(() => _sortOption = option);
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                    onChanged: (value) => setState(() => _search = value),
                                   ),
-                                  const SizedBox(height: 16),
-                                  stateWidget,
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Einträge: ${filtered.length} • Gesamt: ${_entries.length}',
-                                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                                  ),
-                                ],
-                              ),
+                                ),
+                                _FilterDropdown(
+                                  label: 'Status',
+                                  value: _statusFilter,
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('Alle Status')),
+                                    DropdownMenuItem(value: 'Draft', child: Text('Draft')),
+                                    DropdownMenuItem(value: 'Open', child: Text('Open')),
+                                    DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+                                    DropdownMenuItem(
+                                      value: 'Waiting Effectiveness',
+                                      child: Text('Waiting Effectiveness'),
+                                    ),
+                                    DropdownMenuItem(value: 'Closed', child: Text('Closed')),
+                                  ],
+                                  onChanged: (value) => setState(() => _statusFilter = value ?? 'all'),
+                                ),
+                                _FilterDropdown(
+                                  label: 'Eskalation',
+                                  value: _escalationFilter,
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('Alle Stufen')),
+                                    DropdownMenuItem(value: 'A', child: Text('A – niedrig')),
+                                    DropdownMenuItem(value: 'B', child: Text('B – mittel')),
+                                    DropdownMenuItem(value: 'C', child: Text('C – hoch')),
+                                    DropdownMenuItem(value: 'D', child: Text('D – sehr hoch')),
+                                  ],
+                                  onChanged: (value) => setState(() => _escalationFilter = value ?? 'all'),
+                                ),
+                                _FilterDropdown(
+                                  label: 'CAPA',
+                                  value: _capaFilter,
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('Alle')),
+                                    DropdownMenuItem(value: 'required', child: Text('CAPA erforderlich')),
+                                    DropdownMenuItem(value: 'none', child: Text('Keine CAPA')),
+                                  ],
+                                  onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
+                                ),
+                                _FilterDropdown<int?>(
+                                  label: 'Jahr',
+                                  value: _yearFilter,
+                                  items: [
+                                    const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
+                                    ...years.map(
+                                      (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
+                                    ),
+                                  ],
+                                  onChanged: (value) => setState(() => _yearFilter = value),
+                                ),
+                                _FilterDropdown(
+                                  label: 'Sortierung',
+                                  value: _sortOption.name,
+                                  items: const [
+                                    DropdownMenuItem(value: 'dateDesc', child: Text('Datum (neu zuerst)')),
+                                    DropdownMenuItem(value: 'dateAsc', child: Text('Datum (alt zuerst)')),
+                                    DropdownMenuItem(value: 'pointsDesc', child: Text('Punkte (hoch)')),
+                                    DropdownMenuItem(value: 'pointsAsc', child: Text('Punkte (niedrig)')),
+                                  ],
+                                  onChanged: (value) {
+                                    final option = _SortOption.values
+                                        .firstWhere((e) => e.name == value, orElse: () => _sortOption);
+                                    setState(() => _sortOption = option);
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      );
-                    },
+                        const SizedBox(height: 16),
+                        stateWidget,
+                        const SizedBox(height: 12),
+                        Text(
+                          'Einträge: ${filtered.length} • Gesamt: ${_entries.length}',
+                          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }
