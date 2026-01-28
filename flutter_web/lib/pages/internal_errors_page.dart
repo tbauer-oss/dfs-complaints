@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../api/client.dart';
 import 'package:intl/intl.dart';
 import '../models/internal_error_model.dart';
 import '../services/internal_error_service.dart';
@@ -9,15 +10,21 @@ import 'internal_error_detail.dart';
 
 class InternalErrorsPage extends StatefulWidget {
   final InternalErrorService service;
+  final ApiClient api;
   final bool canWrite;
   final bool canOverrideCapa;
+  final bool canReadCapa;
+  final bool canWriteCapa;
   final String? currentUser;
 
   const InternalErrorsPage({
     super.key,
     required this.service,
+    required this.api,
     required this.canWrite,
     required this.canOverrideCapa,
+    required this.canReadCapa,
+    required this.canWriteCapa,
     this.currentUser,
   });
 
@@ -145,9 +152,12 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
       MaterialPageRoute(
         builder: (_) => InternalErrorDetailPage(
           service: widget.service,
+          api: widget.api,
           initialError: entry,
           canWrite: widget.canWrite,
           canOverrideCapa: widget.canOverrideCapa,
+          canReadCapa: widget.canReadCapa,
+          canWriteCapa: widget.canWriteCapa,
           currentUser: widget.currentUser,
         ),
       ),

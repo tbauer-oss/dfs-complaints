@@ -373,8 +373,42 @@ class _CapaDetailPageState extends State<CapaDetailPage> with SingleTickerProvid
                     icon: Icons.link,
                     color: cs.secondary,
                   ),
+                if (_report.internalErrorCode.isNotEmpty || _report.internalErrorId.isNotEmpty)
+                  _infoChip(
+                    label: 'Interner Fehler',
+                    value: _report.internalErrorCode.isNotEmpty
+                        ? _report.internalErrorCode
+                        : _report.internalErrorId,
+                    icon: Icons.report_gmailerrorred_outlined,
+                    color: cs.tertiary,
+                  ),
               ],
             ),
+            if (_report.internalErrorReference.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.secondaryContainer.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: cs.secondary.withOpacity(0.4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Referenz: Interner Fehler',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 6),
+                      Text(
+                        _report.internalErrorReference,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (_report.changeId.isNotEmpty)
               Align(
                 alignment: Alignment.centerLeft,

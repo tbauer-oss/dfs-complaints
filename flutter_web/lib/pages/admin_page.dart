@@ -10332,8 +10332,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         if (access == AdminAccessDecision.deny) return _noPermissionPanel();
         return InternalErrorsPage(
           service: InternalErrorService.instance,
+          api: widget.api,
           canWrite: _canWriteTile('internalErrors'),
           canOverrideCapa: _portalIsQm || _isSuperuser || _portalRole == 'admin',
+          canReadCapa: _hasPerm('capas.read'),
+          canWriteCapa: _canWriteTile('capaReports') && (_portalIsQm || _isSuperuser || _portalRole == 'admin'),
           currentUser: _portalProfile?['email'] as String? ?? _portalProfile?['name'] as String?,
         );
       case AdminView.changeManagement:

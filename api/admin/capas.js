@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
-import { capaAll, capaSave, capaUpdate, capaDelete, capaGet, nextCapaNumber } from '../_lib/store.js';
+import { capaAll, capaSave, capaUpdate, capaDelete, capaGet, nextCapaNumber, capaFindByInternalErrorId } from '../_lib/store.js';
 
 const CAPA_TILE = 'capaReports';
 
@@ -24,6 +24,10 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = readJson(req) || {};
       const payload = { ...body, createdBy: actor.email, updatedBy: actor.email };
+      if (payload.internalErrorId) {
+        const existing = await capaFindByInternalErrorId(payload.internalErrorId);
+        if (existing) return ok(res, { ok: true, report: existing });
+      }
       if (!payload.capaNumber) payload.capaNumber = await nextCapaNumber();
       const saved = await capaSave(payload);
       return ok(res, { ok: true, report: saved });
