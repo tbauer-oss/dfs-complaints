@@ -59,6 +59,7 @@ import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
+import 'admin_training_page.dart';
 import 'change_management_page.dart';
 import 'supplier_evaluation_page.dart';
 import 'approved_suppliers_page.dart';
@@ -119,6 +120,7 @@ enum AdminView {
   changeManagement,
   prrc,
   audits,
+  trainings,
   pending,
   portalUsers,
   users,
@@ -225,6 +227,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiArticles',
     'portalUsers',
     'audits',
+    'trainings',
     'approvedSuppliers',
     'supplierEvaluation',
   ],
@@ -258,6 +261,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiCategories',
     'wikiArticles',
     'audits',
+    'trainings',
   ],
   'readonly': [
     'open',
@@ -267,6 +271,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'fmea',
     'internalErrors',
     'audits',
+    'trainings',
     'stats',
     'pending',
     'appMeta',
@@ -287,6 +292,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'internalChat',
     'stats',
     'audits',
+    'trainings',
     'approvedSuppliers',
     'supplierEvaluation',
   ],
@@ -320,6 +326,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiCategories',
     'wikiArticles',
     'audits',
+    'trainings',
     'approvedSuppliers',
     'supplierEvaluation',
   ],
@@ -5878,6 +5885,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.changeManagement => 'Change Management',
       AdminView.prrc           => 'PRRC-Einstufungen',
       AdminView.audits         => 'Audits',
+      AdminView.trainings      => 'Schulungswesen',
       AdminView.pending        => 'Pending (Freigabe ausstehend)',
       AdminView.portalUsers    => 'User-Datenbank',
       AdminView.users          => 'Kundendatenbank',
@@ -7010,6 +7018,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'prrc';
       case AdminView.audits:
         return 'audits';
+      case AdminView.trainings:
+        return 'trainings';
       case AdminView.open:
         return 'open';
       case AdminView.all:
@@ -7400,6 +7410,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.prrc;
         case 'audits':
           return AdminView.audits;
+        case 'trainings':
+          return AdminView.trainings;
         case 'pending':
           return AdminView.pending;
         case 'portalUsers':
@@ -7455,7 +7467,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       const _AdminMenuSectionState(
         title: 'Connect+ Quality',
         subtitle: 'FMEA, CAPA / 8D-Reports und Change Control',
-        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'internalErrors', 'changeManagement', 'audits'],
+        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'internalErrors', 'changeManagement', 'audits', 'trainings'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Supplier Management',
@@ -7512,6 +7524,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('internalErrors');
     _ensureMenuTilePresent('changeManagement');
     _ensureMenuTilePresent('audits');
+    _ensureMenuTilePresent('trainings');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
     _ensureMenuTilePresent('internalChat');
@@ -7539,6 +7552,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
+        _ensureMenuTilePresent('trainings');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
       }
@@ -7818,6 +7832,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'Statistik & KPIs';
       case 'audits':
         return 'Interne Audits';
+      case 'trainings':
+        return 'Schulungswesen';
       case 'pending':
         return 'Anträge prüfen';
       case 'users':
@@ -9480,6 +9496,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'trainings':
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Schulungswesen',
+          subtitle: 'Bedarf, Planung, Wirksamkeit',
+          icon: Icons.school_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.trainings),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'approvedSuppliers':
         return _buildDashboardTile(
           tileId: tileId,
@@ -10349,6 +10380,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           api: widget.api,
           initialTab: widget.auditInitialTab,
           initialReportYear: widget.initialAuditReportYear,
+        );
+      case AdminView.trainings:
+        return AdminTrainingPage(
+          api: widget.api,
+          canWrite: _canWriteTile('trainings'),
         );
       case AdminView.prrc:
         return _buildPrrcPanel();

@@ -83,6 +83,12 @@ const KEY_PORTAL_NEWS = `${P}portal:news`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
 const KEY_CHANGE_COUNTER = (year) => `${P}change:counter:${year}`;
+const KEY_TRAINING_NEEDS = `${P}training:needs`;
+const KEY_TRAINING_PROGRAMS = `${P}training:programs`;
+const KEY_TRAININGS = `${P}training:records`;
+const KEY_TRAINING_TEMPLATES = `${P}training:questionnaire:templates`;
+const KEY_TRAINING_QUESTIONNAIRES = `${P}training:questionnaires`;
+const KEY_TRAINING_COUNTER = (year) => `${P}training:counter:${year}`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
 const mem = {
@@ -128,6 +134,12 @@ const mem = {
   supplierReportLetterLayout: null,
   supplierLookups: null,
   supplierApprovedSnapshots: new Map(),
+  trainingNeeds: [],
+  trainingPrograms: [],
+  trainingRecords: [],
+  trainingQuestionnaireTemplates: [],
+  trainingQuestionnaires: [],
+  trainingCounters: {},
 };
 
 export function normalizeTilePermission(value) {
@@ -6191,4 +6203,595 @@ export async function supplierApprovedSnapshotSave(record = {}) {
   const r = getRedis();
   if (r) await rset(key, normalized, r);
   return normalized;
+}
+
+// =======================================================
+// Schulungswesen – Trainingsmodul
+// =======================================================
+
+const TRAINING_NEED_STATUSES = ['draft', 'submitted', 'managerApproved', 'glApproved', 'scheduled'];
+const TRAINING_PROGRAM_STATUSES = ['draft', 'inReview', 'approved', 'archived'];
+const TRAINING_STATUSES = ['planned', 'scheduled', 'inProgress', 'completed', 'cancelled'];
+const TRAINING_PARTICIPANT_STATUSES = ['invited', 'attended', 'missed', 'retrainingRequired'];
+
+const DEFAULT_TRAINING_TEMPLATES = [
+  {
+    title: 'Wissenscheck',
+    description: 'Kurzer Wissenstest zur Überprüfung der Lerninhalte.',
+    questions: [
+      { label: 'Wie sicher fühlen Sie sich im Thema?', type: 'scale', scaleMin: 1, scaleMax: 5, required: true },
+      {
+        label: 'Welche Inhalte waren unklar?',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+  {
+    title: 'Feedback',
+    description: 'Feedback zur Durchführung und Relevanz der Schulung.',
+    questions: [
+      { label: 'Relevanz für den Arbeitsalltag', type: 'scale', scaleMin: 1, scaleMax: 5, required: true },
+      { label: 'Was hat Ihnen besonders gefallen?', type: 'text', required: false },
+      { label: 'Was sollten wir verbessern?', type: 'text', required: false },
+    ],
+  },
+  {
+    title: 'Compliance-Bestätigung',
+    description: 'Bestätigung von Richtlinien, SOPs oder regulatorischen Vorgaben.',
+    questions: [
+      {
+        label: 'Ich habe die Inhalte verstanden und werde sie im Alltag anwenden.',
+        type: 'checkbox',
+        required: true,
+      },
+      { label: 'Anmerkungen', type: 'text', required: false },
+    ],
+  },
+];
+
+function normalizeTrainingNeedItem(item = {}) {
+  return {
+    id: normalizeString(item.id || crypto.randomUUID()),
+    topic: normalizeString(item.topic || item.title || ''),
+    timeframe: normalizeString(item.timeframe || item.period || ''),
+    format: normalizeString(item.format || ''),
+    participants: Number(item.participants || item.participantCount || 0) || 0,
+    budget: Number(item.budget || 0) || 0,
+    requirements: normalizeString(item.requirements || item.notes || ''),
+  };
+}
+
+function normalizeTrainingNeed(record = {}) {
+  const year = Number(record.year || record.trainingYear || new Date().getFullYear());
+  const items = Array.isArray(record.items) ? record.items.map(normalizeTrainingNeedItem) : [];
+  const status = TRAINING_NEED_STATUSES.includes(record.status) ? record.status : 'draft';
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    year,
+    contactName: normalizeString(record.contactName || record.contact || record.requester || ''),
+    position: normalizeString(record.position || ''),
+    department: normalizeString(record.department || ''),
+    team: normalizeString(record.team || record.group || ''),
+    items,
+    comments: normalizeString(record.comments || record.notes || ''),
+    status,
+    noNeed: Boolean(record.noNeed),
+    approverChain: Array.isArray(record.approverChain) ? record.approverChain.map(normalizeString) : [],
+    auditLog: Array.isArray(record.auditLog) ? record.auditLog.map(normalizeTrainingAuditLog) : [],
+    createdAt: Number(record.createdAt || Date.now()),
+    updatedAt: Number(record.updatedAt || Date.now()),
+    createdBy: normalizeString(record.createdBy || ''),
+    updatedBy: normalizeString(record.updatedBy || ''),
+  };
+}
+
+function normalizeTrainingProgram(record = {}) {
+  const year = Number(record.year || record.trainingYear || new Date().getFullYear());
+  const status = TRAINING_PROGRAM_STATUSES.includes(record.status) ? record.status : 'draft';
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    year,
+    title: normalizeString(record.title || `Schulungsprogramm ${year}`),
+    status,
+    owner: normalizeString(record.owner || record.coordinator || ''),
+    department: normalizeString(record.department || ''),
+    needIds: Array.isArray(record.needIds) ? record.needIds.map(normalizeString) : [],
+    trainingIds: Array.isArray(record.trainingIds) ? record.trainingIds.map(normalizeString) : [],
+    budgetTotal: Number(record.budgetTotal || 0) || 0,
+    auditLog: Array.isArray(record.auditLog) ? record.auditLog.map(normalizeTrainingAuditLog) : [],
+    createdAt: Number(record.createdAt || Date.now()),
+    updatedAt: Number(record.updatedAt || Date.now()),
+    createdBy: normalizeString(record.createdBy || ''),
+    updatedBy: normalizeString(record.updatedBy || ''),
+  };
+}
+
+function normalizeTrainingParticipant(record = {}) {
+  const status = TRAINING_PARTICIPANT_STATUSES.includes(record.status) ? record.status : 'invited';
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    name: normalizeString(record.name || record.fullName || ''),
+    email: normalizeString(record.email || ''),
+    external: Boolean(record.external),
+    status,
+    evidence: Array.isArray(record.evidence)
+      ? record.evidence.map((entry = {}) => ({
+        id: normalizeString(entry.id || crypto.randomUUID()),
+        label: normalizeString(entry.label || entry.name || ''),
+        url: normalizeString(entry.url || ''),
+      }))
+      : [],
+    updatedAt: Number(record.updatedAt || Date.now()),
+  };
+}
+
+function normalizeTrainingAttachment(record = {}) {
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    name: normalizeString(record.name || record.filename || ''),
+    url: normalizeString(record.url || ''),
+    type: normalizeString(record.type || ''),
+    uploadedAt: Number(record.uploadedAt || Date.now()),
+  };
+}
+
+function normalizeTrainingAuditLog(entry = {}) {
+  return {
+    id: normalizeString(entry.id || crypto.randomUUID()),
+    action: normalizeString(entry.action || ''),
+    message: normalizeString(entry.message || ''),
+    at: Number(entry.at || Date.now()),
+    by: normalizeString(entry.by || entry.user || ''),
+  };
+}
+
+function normalizeTraining(record = {}) {
+  const status = TRAINING_STATUSES.includes(record.status) ? record.status : 'planned';
+  const participants = Array.isArray(record.participants)
+    ? record.participants.map(normalizeTrainingParticipant)
+    : [];
+  const attachments = Array.isArray(record.attachments)
+    ? record.attachments.map(normalizeTrainingAttachment)
+    : [];
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    trainingNumber: normalizeString(record.trainingNumber || record.number || ''),
+    year: Number(record.year || record.trainingYear || new Date().getFullYear()),
+    title: normalizeString(record.title || record.topic || ''),
+    category: normalizeString(record.category || ''),
+    type: normalizeString(record.type || ''),
+    format: normalizeString(record.format || ''),
+    startDate: normalizeString(record.startDate || record.date || ''),
+    endDate: normalizeString(record.endDate || ''),
+    durationMinutes: Number(record.durationMinutes || 0) || 0,
+    trainer: normalizeString(record.trainer || record.provider || ''),
+    location: normalizeString(record.location || record.link || ''),
+    departments: Array.isArray(record.departments) ? record.departments.map(normalizeString) : [],
+    targetGroup: normalizeString(record.targetGroup || ''),
+    reason: normalizeString(record.reason || record.basis || ''),
+    status,
+    owner: normalizeString(record.owner || ''),
+    linkedNeedId: normalizeString(record.linkedNeedId || ''),
+    linkedProgramId: normalizeString(record.linkedProgramId || ''),
+    requiredDocumentRef: normalizeString(record.requiredDocumentRef || ''),
+    isMandatory: Boolean(record.isMandatory),
+    isExternal: Boolean(record.isExternal || record.type === 'extern'),
+    defaultQuestionnaireTemplateId: normalizeString(record.defaultQuestionnaireTemplateId || ''),
+    participants,
+    attachments,
+    auditLog: Array.isArray(record.auditLog) ? record.auditLog.map(normalizeTrainingAuditLog) : [],
+    createdAt: Number(record.createdAt || Date.now()),
+    updatedAt: Number(record.updatedAt || Date.now()),
+    createdBy: normalizeString(record.createdBy || ''),
+    updatedBy: normalizeString(record.updatedBy || ''),
+    deletedAt: Number(record.deletedAt || 0) || null,
+    deletedBy: normalizeString(record.deletedBy || ''),
+  };
+}
+
+function normalizeTrainingQuestionnaireTemplate(record = {}) {
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    title: normalizeString(record.title || ''),
+    description: normalizeString(record.description || ''),
+    questions: Array.isArray(record.questions)
+      ? record.questions.map((q = {}) => ({
+        id: normalizeString(q.id || crypto.randomUUID()),
+        label: normalizeString(q.label || q.question || ''),
+        type: normalizeString(q.type || 'text'),
+        required: Boolean(q.required),
+        options: Array.isArray(q.options) ? q.options.map(normalizeString) : [],
+        scaleMin: Number(q.scaleMin || 1) || 1,
+        scaleMax: Number(q.scaleMax || 5) || 5,
+      }))
+      : [],
+    createdAt: Number(record.createdAt || Date.now()),
+    updatedAt: Number(record.updatedAt || Date.now()),
+    createdBy: normalizeString(record.createdBy || ''),
+    updatedBy: normalizeString(record.updatedBy || ''),
+  };
+}
+
+function normalizeTrainingQuestionnaire(record = {}) {
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    trainingId: normalizeString(record.trainingId || ''),
+    participantId: normalizeString(record.participantId || ''),
+    templateId: normalizeString(record.templateId || ''),
+    status: normalizeString(record.status || 'pending'),
+    deadline: normalizeString(record.deadline || ''),
+    score: Number(record.score || 0) || 0,
+    effective: record.effective === null || record.effective === undefined ? null : Boolean(record.effective),
+    summary: normalizeString(record.summary || ''),
+    answers: Array.isArray(record.answers)
+      ? record.answers.map((a = {}) => ({
+        id: normalizeString(a.id || crypto.randomUUID()),
+        questionId: normalizeString(a.questionId || ''),
+        value: a.value ?? '',
+        comment: normalizeString(a.comment || ''),
+      }))
+      : [],
+    auditLog: Array.isArray(record.auditLog) ? record.auditLog.map(normalizeTrainingAuditLog) : [],
+    createdAt: Number(record.createdAt || Date.now()),
+    updatedAt: Number(record.updatedAt || Date.now()),
+    createdBy: normalizeString(record.createdBy || ''),
+    updatedBy: normalizeString(record.updatedBy || ''),
+  };
+}
+
+function trainingAudit(entry = {}) {
+  return normalizeTrainingAuditLog(entry);
+}
+
+async function trainingNeedsRaw() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_TRAINING_NEEDS, r);
+    if (Array.isArray(raw)) return raw;
+  }
+  return mem.trainingNeeds;
+}
+
+async function trainingProgramsRaw() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_TRAINING_PROGRAMS, r);
+    if (Array.isArray(raw)) return raw;
+  }
+  return mem.trainingPrograms;
+}
+
+async function trainingRecordsRaw() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_TRAININGS, r);
+    if (Array.isArray(raw)) return raw;
+  }
+  return mem.trainingRecords;
+}
+
+async function trainingTemplatesRaw() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_TRAINING_TEMPLATES, r);
+    if (Array.isArray(raw)) return raw;
+  }
+  return mem.trainingQuestionnaireTemplates;
+}
+
+async function trainingQuestionnairesRaw() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_TRAINING_QUESTIONNAIRES, r);
+    if (Array.isArray(raw)) return raw;
+  }
+  return mem.trainingQuestionnaires;
+}
+
+async function persistTrainingList(key, list) {
+  const r = getRedis();
+  if (r) await rset(key, list, r);
+}
+
+function seedTrainingTemplates(list) {
+  if (Array.isArray(list) && list.length) return list.map(normalizeTrainingQuestionnaireTemplate);
+  return DEFAULT_TRAINING_TEMPLATES.map((entry) => normalizeTrainingQuestionnaireTemplate(entry));
+}
+
+export async function trainingNeedsAll() {
+  const list = (await trainingNeedsRaw()) || [];
+  const normalized = list.map(normalizeTrainingNeed);
+  mem.trainingNeeds = normalized;
+  await persistTrainingList(KEY_TRAINING_NEEDS, normalized);
+  return normalized;
+}
+
+export async function trainingNeedSave(record = {}) {
+  const list = await trainingNeedsAll();
+  const normalized = normalizeTrainingNeed(record);
+  normalized.auditLog = [
+    ...normalized.auditLog,
+    trainingAudit({ action: 'create', message: 'Schulungsbedarf angelegt', by: normalized.createdBy || normalized.updatedBy }),
+  ];
+  list.push(normalized);
+  mem.trainingNeeds = list;
+  await persistTrainingList(KEY_TRAINING_NEEDS, list);
+  return normalized;
+}
+
+export async function trainingNeedUpdate(id, update = {}) {
+  const list = await trainingNeedsAll();
+  const idx = list.findIndex((entry) => entry.id === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTrainingNeed({
+    ...current,
+    ...update,
+    updatedAt: Date.now(),
+    updatedBy: update.updatedBy || current.updatedBy,
+  });
+  if (update.status && update.status !== current.status) {
+    merged.auditLog = [
+      ...(merged.auditLog || []),
+      trainingAudit({ action: 'status', message: `Status: ${update.status}`, by: merged.updatedBy }),
+    ];
+  }
+  list[idx] = merged;
+  mem.trainingNeeds = list;
+  await persistTrainingList(KEY_TRAINING_NEEDS, list);
+  return merged;
+}
+
+export async function trainingNeedDelete(id) {
+  const list = await trainingNeedsAll();
+  const next = list.filter((entry) => entry.id !== id);
+  mem.trainingNeeds = next;
+  await persistTrainingList(KEY_TRAINING_NEEDS, next);
+}
+
+export async function trainingProgramsAll() {
+  const list = (await trainingProgramsRaw()) || [];
+  const normalized = list.map(normalizeTrainingProgram);
+  mem.trainingPrograms = normalized;
+  await persistTrainingList(KEY_TRAINING_PROGRAMS, normalized);
+  return normalized;
+}
+
+export async function trainingProgramSave(record = {}) {
+  const list = await trainingProgramsAll();
+  const normalized = normalizeTrainingProgram(record);
+  normalized.auditLog = [
+    ...normalized.auditLog,
+    trainingAudit({ action: 'create', message: 'Schulungsprogramm angelegt', by: normalized.createdBy || normalized.updatedBy }),
+  ];
+  list.push(normalized);
+  mem.trainingPrograms = list;
+  await persistTrainingList(KEY_TRAINING_PROGRAMS, list);
+  return normalized;
+}
+
+export async function trainingProgramUpdate(id, update = {}) {
+  const list = await trainingProgramsAll();
+  const idx = list.findIndex((entry) => entry.id === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTrainingProgram({
+    ...current,
+    ...update,
+    updatedAt: Date.now(),
+    updatedBy: update.updatedBy || current.updatedBy,
+  });
+  if (update.status && update.status !== current.status) {
+    merged.auditLog = [
+      ...(merged.auditLog || []),
+      trainingAudit({ action: 'status', message: `Status: ${update.status}`, by: merged.updatedBy }),
+    ];
+  }
+  list[idx] = merged;
+  mem.trainingPrograms = list;
+  await persistTrainingList(KEY_TRAINING_PROGRAMS, list);
+  return merged;
+}
+
+export async function trainingProgramDelete(id) {
+  const list = await trainingProgramsAll();
+  const next = list.filter((entry) => entry.id !== id);
+  mem.trainingPrograms = next;
+  await persistTrainingList(KEY_TRAINING_PROGRAMS, next);
+}
+
+async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') {
+  if (!training?.defaultQuestionnaireTemplateId) return;
+  const questionnaires = await trainingQuestionnairesAll();
+  const existing = new Set(questionnaires.map((q) => `${q.trainingId}:${q.participantId}`));
+  const toAdd = [];
+  for (const participant of training.participants || []) {
+    if (participant.status !== 'attended') continue;
+    const key = `${training.id}:${participant.id}`;
+    if (existing.has(key)) continue;
+    toAdd.push(
+      normalizeTrainingQuestionnaire({
+        trainingId: training.id,
+        participantId: participant.id,
+        templateId: training.defaultQuestionnaireTemplateId,
+        status: 'pending',
+        createdBy: updatedBy,
+        updatedBy: updatedBy,
+        auditLog: [trainingAudit({ action: 'assign', message: 'Fragebogen zugewiesen', by: updatedBy })],
+      }),
+    );
+  }
+  if (!toAdd.length) return;
+  const updated = [...questionnaires, ...toAdd];
+  mem.trainingQuestionnaires = updated;
+  await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, updated);
+}
+
+export async function nextTrainingNumber({ year, prefix = 'TRN', subtype = '' } = {}) {
+  const y = Number(year || new Date().getFullYear());
+  const r = getRedis();
+  let counter = 0;
+  if (r) {
+    counter = await rincr(KEY_TRAINING_COUNTER(y), r);
+  } else {
+    mem.trainingCounters[y] = (mem.trainingCounters[y] || 0) + 1;
+    counter = mem.trainingCounters[y];
+  }
+  const suffix = String(counter).padStart(4, '0');
+  const code = subtype ? `${prefix}-${subtype}-${y}-${suffix}` : `${prefix}-${y}-${suffix}`;
+  return code;
+}
+
+export async function trainingRecordsAll() {
+  const list = (await trainingRecordsRaw()) || [];
+  const normalized = list.map(normalizeTraining);
+  mem.trainingRecords = normalized;
+  await persistTrainingList(KEY_TRAININGS, normalized);
+  return normalized;
+}
+
+export async function trainingRecordGet(idOrNumber) {
+  const list = await trainingRecordsAll();
+  const key = normalizeString(idOrNumber || '');
+  return list.find((entry) => entry.id === key || entry.trainingNumber === key) || null;
+}
+
+export async function trainingRecordSave(record = {}) {
+  const list = await trainingRecordsAll();
+  const normalized = normalizeTraining(record);
+  if (!normalized.trainingNumber) {
+    normalized.trainingNumber = await nextTrainingNumber({ year: normalized.year, subtype: record.subtype || '' });
+  }
+  normalized.auditLog = [
+    ...normalized.auditLog,
+    trainingAudit({ action: 'create', message: 'Schulung angelegt', by: normalized.createdBy || normalized.updatedBy }),
+  ];
+  list.push(normalized);
+  mem.trainingRecords = list;
+  await persistTrainingList(KEY_TRAININGS, list);
+  await ensureTrainingQuestionnaireAssignments(normalized, normalized.updatedBy || normalized.createdBy);
+  return normalized;
+}
+
+export async function trainingRecordUpdate(id, update = {}) {
+  const list = await trainingRecordsAll();
+  const idx = list.findIndex((entry) => entry.id === id || entry.trainingNumber === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTraining({
+    ...current,
+    ...update,
+    updatedAt: Date.now(),
+    updatedBy: update.updatedBy || current.updatedBy,
+  });
+  if (update.status && update.status !== current.status) {
+    merged.auditLog = [
+      ...(merged.auditLog || []),
+      trainingAudit({ action: 'status', message: `Status: ${update.status}`, by: merged.updatedBy }),
+    ];
+  }
+  list[idx] = merged;
+  mem.trainingRecords = list;
+  await persistTrainingList(KEY_TRAININGS, list);
+  await ensureTrainingQuestionnaireAssignments(merged, merged.updatedBy);
+  return merged;
+}
+
+export async function trainingRecordDelete(id, { deletedBy = '' } = {}) {
+  const list = await trainingRecordsAll();
+  const idx = list.findIndex((entry) => entry.id === id || entry.trainingNumber === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTraining({
+    ...current,
+    deletedAt: Date.now(),
+    deletedBy,
+  });
+  list[idx] = merged;
+  mem.trainingRecords = list;
+  await persistTrainingList(KEY_TRAININGS, list);
+  return merged;
+}
+
+export async function trainingQuestionnaireTemplatesAll() {
+  const list = (await trainingTemplatesRaw()) || [];
+  const normalized = seedTrainingTemplates(list);
+  mem.trainingQuestionnaireTemplates = normalized;
+  await persistTrainingList(KEY_TRAINING_TEMPLATES, normalized);
+  return normalized;
+}
+
+export async function trainingQuestionnaireTemplateSave(record = {}) {
+  const list = await trainingQuestionnaireTemplatesAll();
+  const normalized = normalizeTrainingQuestionnaireTemplate(record);
+  list.push(normalized);
+  mem.trainingQuestionnaireTemplates = list;
+  await persistTrainingList(KEY_TRAINING_TEMPLATES, list);
+  return normalized;
+}
+
+export async function trainingQuestionnaireTemplateUpdate(id, update = {}) {
+  const list = await trainingQuestionnaireTemplatesAll();
+  const idx = list.findIndex((entry) => entry.id === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTrainingQuestionnaireTemplate({
+    ...current,
+    ...update,
+    updatedAt: Date.now(),
+    updatedBy: update.updatedBy || current.updatedBy,
+  });
+  list[idx] = merged;
+  mem.trainingQuestionnaireTemplates = list;
+  await persistTrainingList(KEY_TRAINING_TEMPLATES, list);
+  return merged;
+}
+
+export async function trainingQuestionnaireTemplateDelete(id) {
+  const list = await trainingQuestionnaireTemplatesAll();
+  const next = list.filter((entry) => entry.id !== id);
+  mem.trainingQuestionnaireTemplates = next;
+  await persistTrainingList(KEY_TRAINING_TEMPLATES, next);
+}
+
+export async function trainingQuestionnairesAll() {
+  const list = (await trainingQuestionnairesRaw()) || [];
+  const normalized = list.map(normalizeTrainingQuestionnaire);
+  mem.trainingQuestionnaires = normalized;
+  await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, normalized);
+  return normalized;
+}
+
+export async function trainingQuestionnaireSave(record = {}) {
+  const list = await trainingQuestionnairesAll();
+  const normalized = normalizeTrainingQuestionnaire(record);
+  list.push(normalized);
+  mem.trainingQuestionnaires = list;
+  await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, list);
+  return normalized;
+}
+
+export async function trainingQuestionnaireUpdate(id, update = {}) {
+  const list = await trainingQuestionnairesAll();
+  const idx = list.findIndex((entry) => entry.id === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTrainingQuestionnaire({
+    ...current,
+    ...update,
+    updatedAt: Date.now(),
+    updatedBy: update.updatedBy || current.updatedBy,
+  });
+  list[idx] = merged;
+  mem.trainingQuestionnaires = list;
+  await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, list);
+  return merged;
+}
+
+export async function trainingQuestionnaireDelete(id) {
+  const list = await trainingQuestionnairesAll();
+  const next = list.filter((entry) => entry.id !== id);
+  mem.trainingQuestionnaires = next;
+  await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, next);
 }
