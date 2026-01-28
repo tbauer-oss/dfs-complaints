@@ -91,6 +91,7 @@ const mem = {
   pending: new Map(),
   complaints: new Map(),
   capaReports: new Map(),
+  capaInternalErrors: new Map(),
   changeRecords: new Map(),
   fmeas: new Map(),
   auditors: new Map(),
@@ -3323,6 +3324,9 @@ function normalizeCapaRecord(data = {}) {
   normalized.responsibleUserId = normalizeString(normalized.responsibleUserId || '');
   normalized.complaintId = normalizeString(normalized.complaintId || '');
   normalized.changeId = normalizeString(normalized.changeId || '');
+  normalized.internalErrorId = normalizeString(normalized.internalErrorId || '');
+  normalized.internalErrorCode = normalizeString(normalized.internalErrorCode || '');
+  normalized.internalErrorReference = normalizeString(normalized.internalErrorReference || '');
   const linkedRisks = Array.isArray(normalized.fmeaRiskNumbers)
     ? normalized.fmeaRiskNumbers.map(v => normalizeString(v)).filter(Boolean)
     : [];
@@ -3336,6 +3340,10 @@ function normalizeCapaRecord(data = {}) {
 
 function capaKey(id) {
   return `${P}capa:${id}`;
+}
+
+function capaInternalErrorKey(internalErrorId) {
+  return `${P}capa:internal-error:${internalErrorId}`;
 }
 
 async function capaFindByNumber(capaNumber) {
@@ -3352,12 +3360,29 @@ async function capaFindByNumber(capaNumber) {
   return null;
 }
 
+export async function capaFindByInternalErrorId(internalErrorId) {
+  if (!internalErrorId) return null;
+  const r = getRedis();
+  if (r) {
+    const id = await rget(capaInternalErrorKey(internalErrorId));
+    if (!id) return null;
+    return await capaGet(id);
+  }
+  const id = mem.capaInternalErrors.get(internalErrorId);
+  if (!id) return null;
+  return await capaGet(id);
+}
+
 export async function capaSave(record) {
   const data = normalizeCapaRecord(record);
   if (!data.capaNumber) data.capaNumber = await nextCapaNumber();
   const key = capaKey(data.id);
   const r = getRedis();
   if (r) await rset(key, data); else mem.capaReports.set(data.id, data);
+  if (data.internalErrorId) {
+    if (r) await rset(capaInternalErrorKey(data.internalErrorId), data.id);
+    else mem.capaInternalErrors.set(data.internalErrorId, data.id);
+  }
   return data;
 }
 
@@ -3400,9 +3425,14 @@ export async function capaUpdate(id, patch) {
 
 export async function capaDelete(id) {
   if (!id) return false;
+  const current = await capaGet(id);
   const key = capaKey(id);
   const r = getRedis();
   if (r) await rdel(key); else mem.capaReports.delete(id);
+  if (current?.internalErrorId) {
+    if (r) await rdel(capaInternalErrorKey(current.internalErrorId));
+    else mem.capaInternalErrors.delete(current.internalErrorId);
+  }
   return true;
 }
 

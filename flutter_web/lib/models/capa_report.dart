@@ -386,6 +386,9 @@ class CapaReport {
   final String responsibleUserId;
   final String complaintId;
   final String changeId;
+  final String internalErrorId;
+  final String internalErrorCode;
+  final String internalErrorReference;
   final List<String> fmeaRiskNumbers;
   final CapaSections sections;
 
@@ -399,6 +402,9 @@ class CapaReport {
     this.responsibleUserId = '',
     this.complaintId = '',
     this.changeId = '',
+    this.internalErrorId = '',
+    this.internalErrorCode = '',
+    this.internalErrorReference = '',
     List<String>? fmeaRiskNumbers,
     this.sections = const CapaSections(),
   })  : createdAt = createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
@@ -415,6 +421,9 @@ class CapaReport {
         responsibleUserId: (json['responsibleUserId'] ?? '').toString(),
         complaintId: (json['complaintId'] ?? '').toString(),
         changeId: (json['changeId'] ?? '').toString(),
+        internalErrorId: (json['internalErrorId'] ?? '').toString(),
+        internalErrorCode: (json['internalErrorCode'] ?? '').toString(),
+        internalErrorReference: (json['internalErrorReference'] ?? '').toString(),
         fmeaRiskNumbers: _parseStringList(json['fmeaRiskNumbers']),
         sections: CapaSections.fromJson((json['sections'] as Map?)?.cast<String, dynamic>() ?? const {}),
       );
@@ -436,6 +445,9 @@ class CapaReport {
         'responsibleUserId': responsibleUserId,
         'complaintId': complaintId,
         'changeId': changeId,
+        'internalErrorId': internalErrorId,
+        'internalErrorCode': internalErrorCode,
+        'internalErrorReference': internalErrorReference,
         'fmeaRiskNumbers': fmeaRiskNumbers,
         'sections': sections.toJson(),
       }..removeWhere((key, value) => value == null);
@@ -450,6 +462,9 @@ class CapaReport {
     String? responsibleUserId,
     String? complaintId,
     String? changeId,
+    String? internalErrorId,
+    String? internalErrorCode,
+    String? internalErrorReference,
     List<String>? fmeaRiskNumbers,
     CapaSections? sections,
   }) =>
@@ -463,6 +478,9 @@ class CapaReport {
         responsibleUserId: responsibleUserId ?? this.responsibleUserId,
         complaintId: complaintId ?? this.complaintId,
         changeId: changeId ?? this.changeId,
+        internalErrorId: internalErrorId ?? this.internalErrorId,
+        internalErrorCode: internalErrorCode ?? this.internalErrorCode,
+        internalErrorReference: internalErrorReference ?? this.internalErrorReference,
         fmeaRiskNumbers: fmeaRiskNumbers ?? this.fmeaRiskNumbers,
         sections: sections ?? this.sections,
       );

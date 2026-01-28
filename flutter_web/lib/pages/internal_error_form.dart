@@ -5,13 +5,21 @@ import '../widgets/date_field.dart';
 class InternalErrorForm extends StatefulWidget {
   final InternalError initial;
   final bool canOverrideCapa;
+  final bool canReadCapa;
+  final bool canWriteCapa;
+  final bool capaBusy;
   final ValueChanged<InternalError>? onChanged;
+  final ValueChanged<InternalError>? onCapaAction;
 
   const InternalErrorForm({
     super.key,
     required this.initial,
     required this.canOverrideCapa,
+    this.canReadCapa = false,
+    this.canWriteCapa = false,
+    this.capaBusy = false,
     this.onChanged,
+    this.onCapaAction,
   });
 
   @override
@@ -60,22 +68,18 @@ class InternalErrorFormState extends State<InternalErrorForm> {
     _notesController = TextEditingController(text: widget.initial.notes);
     _capaNumberController = TextEditingController(text: widget.initial.capaNumber ?? '');
     _capaOverrideReasonController = TextEditingController(text: widget.initial.capaOverrideReason);
-    _customerRelated = widget.initial.customerRelated;
-    _supplierRelated = widget.initial.supplierRelated;
-    _dueDate = widget.initial.dueDate;
-    _effectivenessCheckDate = widget.initial.effectivenessCheckDate;
-    _effectivenessOk = widget.initial.effectivenessOk;
-    _severity = widget.initial.severity > 0 ? widget.initial.severity : null;
-    _occurrence = widget.initial.occurrence > 0 ? widget.initial.occurrence : null;
-    _status = widget.initial.status;
-    _capaRequired = widget.initial.capaRequired;
-    _capaOverride = widget.initial.capaOverride;
+    _syncFromInitial();
   }
 
   @override
   void didUpdateWidget(covariant InternalErrorForm oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initial.id != widget.initial.id) {
+    final shouldSync = oldWidget.initial.id != widget.initial.id ||
+        oldWidget.initial.capaNumber != widget.initial.capaNumber ||
+        oldWidget.initial.capaRequired != widget.initial.capaRequired ||
+        oldWidget.initial.capaOverride != widget.initial.capaOverride ||
+        oldWidget.initial.capaOverrideReason != widget.initial.capaOverrideReason;
+    if (shouldSync) {
       _processAreaController.text = widget.initial.processArea;
       _errorTypeController.text = widget.initial.errorType;
       _articleController.text = widget.initial.articleOrProduct;
@@ -88,17 +92,21 @@ class InternalErrorFormState extends State<InternalErrorForm> {
       _notesController.text = widget.initial.notes;
       _capaNumberController.text = widget.initial.capaNumber ?? '';
       _capaOverrideReasonController.text = widget.initial.capaOverrideReason;
-      _customerRelated = widget.initial.customerRelated;
-      _supplierRelated = widget.initial.supplierRelated;
-      _dueDate = widget.initial.dueDate;
-      _effectivenessCheckDate = widget.initial.effectivenessCheckDate;
-      _effectivenessOk = widget.initial.effectivenessOk;
-      _severity = widget.initial.severity > 0 ? widget.initial.severity : null;
-      _occurrence = widget.initial.occurrence > 0 ? widget.initial.occurrence : null;
-      _status = widget.initial.status;
-      _capaRequired = widget.initial.capaRequired;
-      _capaOverride = widget.initial.capaOverride;
+      _syncFromInitial();
     }
+  }
+
+  void _syncFromInitial() {
+    _customerRelated = widget.initial.customerRelated;
+    _supplierRelated = widget.initial.supplierRelated;
+    _dueDate = widget.initial.dueDate;
+    _effectivenessCheckDate = widget.initial.effectivenessCheckDate;
+    _effectivenessOk = widget.initial.effectivenessOk;
+    _severity = widget.initial.severity > 0 ? widget.initial.severity : null;
+    _occurrence = widget.initial.occurrence > 0 ? widget.initial.occurrence : null;
+    _status = widget.initial.status;
+    _capaRequired = widget.initial.capaRequired;
+    _capaOverride = widget.initial.capaOverride;
   }
 
   @override
@@ -204,6 +212,17 @@ class InternalErrorFormState extends State<InternalErrorForm> {
     if (notify) {
       _notifyChange();
     }
+  }
+
+  Widget _buildCapaActionButton(bool showButton, {required bool hasLink}) {
+    if (!showButton) return const SizedBox.shrink();
+    final label = hasLink ? 'Zur CAPA' : 'CAPA erstellen';
+    final canTap = widget.onCapaAction != null && !widget.capaBusy;
+    return FilledButton.icon(
+      onPressed: canTap ? () => widget.onCapaAction?.call(_buildValue()) : null,
+      icon: Icon(hasLink ? Icons.open_in_new : Icons.add_circle_outline),
+      label: Text(label),
+    );
   }
 
   Widget _buildSection({required String title, required Widget child}) {
@@ -391,6 +410,9 @@ class InternalErrorFormState extends State<InternalErrorForm> {
     final escalation = InternalError.escalationForPoints(points);
     final autoCapa = InternalError.capaRequiredForEscalation(escalation);
     final effectiveCapa = _capaOverride ? _capaRequired : autoCapa;
+    final overrideReasonFilled = _capaOverrideReasonController.text.trim().isNotEmpty;
+    final hasCapaLink = _capaNumberController.text.trim().isNotEmpty;
+    final showCapaAction = effectiveCapa || (_capaOverride && overrideReasonFilled) || hasCapaLink;
 
     final processAreas = [
       'Wareneingang',
@@ -725,6 +747,18 @@ class InternalErrorFormState extends State<InternalErrorForm> {
                     ],
                   ),
                 ),
+                if (showCapaAction) ...[
+                  const SizedBox(height: 12),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 520;
+                      return Align(
+                        alignment: isNarrow ? Alignment.centerLeft : Alignment.centerRight,
+                        child: _buildCapaActionButton(showCapaAction, hasLink: hasCapaLink),
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (_capaOverride && widget.canOverrideCapa)
                   Align(
@@ -808,7 +842,10 @@ class InternalErrorFormState extends State<InternalErrorForm> {
                       if (!_capaOverride) return null;
                       return (value == null || value.trim().isEmpty) ? 'Pflichtfeld' : null;
                     },
-                    onChanged: (_) => _notifyChange(),
+                    onChanged: (_) {
+                      setState(() {});
+                      _notifyChange();
+                    },
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -820,7 +857,10 @@ class InternalErrorFormState extends State<InternalErrorForm> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    onChanged: (_) => _notifyChange(),
+                    onChanged: (_) {
+                      setState(() {});
+                      _notifyChange();
+                    },
                   ),
               ],
             ),

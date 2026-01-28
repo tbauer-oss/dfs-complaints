@@ -1,21 +1,31 @@
 import 'package:flutter/material.dart';
 import '../models/internal_error_model.dart';
 import '../services/internal_error_service.dart';
+import '../services/internal_error_capa_service.dart';
+import '../api/client.dart';
+import '../models/capa_report.dart';
 import 'internal_error_form.dart';
+import 'capa_detail_page.dart';
 
 class InternalErrorDetailPage extends StatefulWidget {
   final InternalErrorService service;
+  final ApiClient api;
   final InternalError? initialError;
   final bool canWrite;
   final bool canOverrideCapa;
+  final bool canReadCapa;
+  final bool canWriteCapa;
   final String? currentUser;
 
   const InternalErrorDetailPage({
     super.key,
     required this.service,
+    required this.api,
     this.initialError,
     required this.canWrite,
     required this.canOverrideCapa,
+    required this.canReadCapa,
+    required this.canWriteCapa,
     this.currentUser,
   });
 
@@ -26,6 +36,7 @@ class InternalErrorDetailPage extends StatefulWidget {
 class _InternalErrorDetailPageState extends State<InternalErrorDetailPage> {
   final _formKey = GlobalKey<InternalErrorFormState>();
   bool _saving = false;
+  bool _capaBusy = false;
   String? _error;
   late InternalError _draft;
 
@@ -71,6 +82,68 @@ class _InternalErrorDetailPageState extends State<InternalErrorDetailPage> {
         backgroundColor: isError ? theme.colorScheme.error : null,
       ),
     );
+  }
+
+  Future<void> _openCapaById(String capaId) async {
+    try {
+      final list = await widget.api.adminCapas();
+      final report = list.firstWhere(
+        (c) => c.id == capaId || c.capaNumber == capaId,
+        orElse: () => CapaReport(id: ''),
+      );
+      if (!mounted) return;
+      if (report.id.isEmpty) {
+        _showMessage('CAPA $capaId nicht gefunden.', isError: true);
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CapaDetailPage(
+            api: widget.api,
+            canWrite: widget.canWriteCapa,
+            initialReport: report,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('CAPA $capaId konnte nicht geöffnet werden.', isError: true);
+    }
+  }
+
+  Future<void> _handleCapaAction(InternalError entry) async {
+    if (_capaBusy) return;
+    if (entry.id.isEmpty) {
+      _showMessage('Bitte den internen Fehler zuerst speichern.', isError: true);
+      return;
+    }
+    final existing = entry.capaNumber?.trim() ?? '';
+    if (!widget.canReadCapa) {
+      _showMessage('Keine Berechtigung für CAPA.', isError: true);
+      return;
+    }
+    if (existing.isNotEmpty) {
+      await _openCapaById(existing);
+      return;
+    }
+    if (!widget.canWriteCapa) {
+      _showMessage('Keine Berechtigung zum Erstellen einer CAPA.', isError: true);
+      return;
+    }
+    setState(() => _capaBusy = true);
+    try {
+      final prefill = buildCapaFromInternalError(entry);
+      final saved = await widget.api.adminSaveCapa(prefill);
+      final updated = entry.copyWith(capaNumber: saved.effectiveNumber);
+      final persisted = await widget.service.update(updated);
+      if (!mounted) return;
+      setState(() => _draft = persisted);
+      await _openCapaById(saved.effectiveNumber);
+    } catch (e) {
+      if (mounted) _showMessage('CAPA konnte nicht erstellt werden: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _capaBusy = false);
+    }
   }
 
   @override
@@ -144,7 +217,11 @@ class _InternalErrorDetailPageState extends State<InternalErrorDetailPage> {
                     key: _formKey,
                     initial: _draft,
                     canOverrideCapa: widget.canOverrideCapa,
+                    canReadCapa: widget.canReadCapa,
+                    canWriteCapa: widget.canWriteCapa,
+                    capaBusy: _capaBusy,
                     onChanged: (value) => setState(() => _draft = value),
+                    onCapaAction: _handleCapaAction,
                   ),
                 ],
               ),
