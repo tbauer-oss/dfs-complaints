@@ -761,7 +761,7 @@ class _AuditorMatrixTabState extends State<_AuditorMatrixTab> {
         Future<void> pickFile() async {
           setModalState(() => uploading = true);
           try {
-            final res = await FilePicker.pickFiles(withData: true, allowMultiple: false);
+            final res = await FilePicker.platform.pickFiles(withData: true, allowMultiple: false);
             if (res == null || res.files.isEmpty) {
               setModalState(() => uploading = false);
               return;
@@ -1576,7 +1576,7 @@ class _AuditDetailPageState extends State<_AuditDetailPage> with SingleTickerPro
       _evidenceUploadFiles = const [];
     });
     try {
-      final res = await FilePicker.pickFiles(withData: true, allowMultiple: true);
+      final res = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true);
       if (res == null || res.files.isEmpty) {
         setState(() => _evidenceLoading = false);
         return;

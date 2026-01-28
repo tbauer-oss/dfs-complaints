@@ -218,7 +218,7 @@ class _ComplaintChatPageState extends State<ComplaintChatPage> {
 
   Future<void> _pickAttachments() async {
     try {
-      final result = await FilePicker.pickFiles(allowMultiple: true);
+      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
       if (result == null) return;
       if (!mounted) return;
       setState(() {
