@@ -6,10 +6,16 @@ import '../api/client.dart';
 import '../models/training.dart';
 
 class AdminTrainingPage extends StatefulWidget {
-  const AdminTrainingPage({super.key, required this.api, required this.canWrite});
+  const AdminTrainingPage({
+    super.key,
+    required this.api,
+    required this.canWrite,
+    this.initialTab = 0,
+  });
 
   final ApiClient api;
   final bool canWrite;
+  final int initialTab;
 
   @override
   State<AdminTrainingPage> createState() => _AdminTrainingPageState();
@@ -428,8 +434,14 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final initialIndex = widget.initialTab < 0
+        ? 0
+        : widget.initialTab > 5
+            ? 5
+            : widget.initialTab;
     return DefaultTabController(
       length: 6,
+      initialIndex: initialIndex,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
