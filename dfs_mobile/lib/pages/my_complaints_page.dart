@@ -5,7 +5,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models/complaint.dart';
@@ -440,7 +440,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Future<void> _addAttachments(Complaint c) async {
     final t = AppLocalizations.of(context)!;
-    final res = await FilePicker.platform.pickFiles(
+    final res = await fp.FilePicker.platform.pickFiles(
       allowMultiple: true,
       withData: true,
     );
@@ -453,7 +453,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     for (final file in res.files) {
       final data = file.bytes;
       if (data == null || data.isEmpty) continue;
-      totalBytes += data.length.toInt();
+      final int dataLen = data.length;
+      totalBytes = totalBytes + dataLen;
       if (totalBytes > limit) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
