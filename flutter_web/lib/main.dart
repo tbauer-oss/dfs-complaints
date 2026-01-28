@@ -17,6 +17,7 @@ import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/help_center_page.dart';
+import 'pages/training_admin_section.dart';
 import 'pages/rep_login_page.dart';
 import 'pages/rep_dashboard_page.dart' hide ThemeAction;
 import 'pages/legal_privacy_page.dart';
@@ -719,6 +720,23 @@ class _MyAppState extends State<MyApp> {
                   builder: (_) => HelpCenterPage(
                     initialSectionId: section,
                     initialTopicId: topic,
+                  ),
+                  settings: settings,
+                );
+              }
+
+              if (name.startsWith('/admin/training')) {
+                final uri = Uri.tryParse(name);
+                final segments = uri?.pathSegments ?? const [];
+                final segment = segments.length > 2 ? segments[2] : null;
+                final trainingSection = trainingAdminSectionFromPathSegment(segment);
+                return MaterialPageRoute(
+                  builder: (_) => AdminPage(
+                    api: api,
+                    portalProfile: api.portalProfile,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                    initialView: AdminView.trainings,
+                    trainingSection: trainingSection,
                   ),
                   settings: settings,
                 );
