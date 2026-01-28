@@ -648,7 +648,7 @@ enum _PageState { loading, error, empty, data }
 
 class _FilterDropdown<T> extends StatelessWidget {
   final String label;
-  final T value;
+  final T? value;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?> onChanged;
 
@@ -661,10 +661,11 @@ class _FilterDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedValue = items.any((item) => item.value == value) ? value : null;
     return SizedBox(
       width: 190,
       child: DropdownButtonFormField<T>(
-        value: value,
+        value: resolvedValue,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
