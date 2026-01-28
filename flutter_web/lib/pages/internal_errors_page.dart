@@ -61,6 +61,9 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
       if (!mounted) return;
       setState(() {
         _entries = entries;
+        if (_yearFilter != null && !_entries.any((e) => e.year == _yearFilter)) {
+          _yearFilter = null;
+        }
         _isLoading = false;
       });
     } catch (error) {
@@ -404,6 +407,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
     final dateFormatter = DateFormat('dd.MM.yyyy');
     final filtered = _filtered(_entries);
     final years = _entries.map((e) => e.year).toSet().toList()..sort();
+    final resolvedYearFilter = years.contains(_yearFilter) ? _yearFilter : null;
     final state = _resolveState(filtered);
     final showDebug = !kReleaseMode;
 
@@ -587,13 +591,13 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
                                       ],
                                       onChanged: (value) => setState(() => _capaFilter = value ?? 'all'),
                                     ),
-                                    _FilterDropdown<int?>(
-                                      label: 'Jahr',
-                                      value: _yearFilter,
-                                      items: [
-                                        const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
-                                        ...years.map(
-                                          (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
+                                      _FilterDropdown<int?>(
+                                        label: 'Jahr',
+                                        value: resolvedYearFilter,
+                                        items: [
+                                          const DropdownMenuItem(value: null, child: Text('Alle Jahre')),
+                                          ...years.map(
+                                            (year) => DropdownMenuItem(value: year, child: Text(year.toString())),
                                         ),
                                       ],
                                       onChanged: (value) => setState(() => _yearFilter = value),
