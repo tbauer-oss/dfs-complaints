@@ -105,6 +105,31 @@ class DashboardOnboardingTexts {
       body:
           'Hier erfassen Sie Schulungsbedarfe, koordinieren Jahresprogramme, dokumentieren Einzelmaßnahmen und prüfen die Wirksamkeit. Der Bereich bildet den gesamten Schulungsprozess inkl. Audit-Trail, Teilnehmerverwaltung und PDF-Export ab.',
     ),
+    'trainingNeeds': DashboardOnboardingText(
+      title: 'Schulungsbedarf',
+      body:
+          'Hier erfassen und prüfen Sie neue Schulungsbedarfe. Nutzen Sie die Kachel, um eingehende Bedarfe zu sichten, Fristen einzuhalten und die Freigabe vorzubereiten.',
+    ),
+    'trainingProgram': DashboardOnboardingText(
+      title: 'Schulungsprogramm',
+      body:
+          'Im Schulungsprogramm planen und genehmigen Sie die Maßnahmen des laufenden Jahres. Die Kachel führt direkt zur Programmübersicht und Statuskontrolle.',
+    ),
+    'trainingSessions': DashboardOnboardingText(
+      title: 'Schulungen',
+      body:
+          'Hier verwalten Sie einzelne Schulungen, Termine und Teilnehmer. Nutzen Sie die Kachel für den schnellen Einstieg in geplante und laufende Maßnahmen.',
+    ),
+    'trainingEffectiveness': DashboardOnboardingText(
+      title: 'Wirksamkeitskontrolle',
+      body:
+          'Dieser Bereich bündelt offene Fragebögen und Wirksamkeitsbewertungen. So behalten Sie den Status der Nachverfolgung im Blick.',
+    ),
+    'trainingArchive': DashboardOnboardingText(
+      title: 'Archiv & Auswertungen',
+      body:
+          'Hier finden Sie abgeschlossene Schulungen sowie Auswertungen und Jahresübersichten. Ideal für Reports und Reviews.',
+    ),
     'push': DashboardOnboardingText(
       title: 'Push-Mitteilungen',
       body:

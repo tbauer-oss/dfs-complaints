@@ -1589,6 +1589,18 @@ class ApiClient {
     return const <String, dynamic>{};
   }
 
+  Future<Map<String, dynamic>> adminTrainingDashboardMetrics() async {
+    final r = await http.get(_u('/api/training/dashboard-metrics'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final txt = r.body.trim();
+    if (txt.isEmpty) return const <String, dynamic>{};
+    final decoded = jsonDecode(txt);
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    return const <String, dynamic>{};
+  }
+
   Future<Map<String, dynamic>?> adminActivity({required String email, String kind = 'auto'}) async {
     final trimmed = email.trim();
     if (trimmed.isEmpty) return null;

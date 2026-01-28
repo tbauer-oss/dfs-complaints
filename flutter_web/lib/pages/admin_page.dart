@@ -228,6 +228,11 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'portalUsers',
     'audits',
     'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
     'approvedSuppliers',
     'supplierEvaluation',
   ],
@@ -262,6 +267,11 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiArticles',
     'audits',
     'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
   ],
   'readonly': [
     'open',
@@ -272,6 +282,11 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'internalErrors',
     'audits',
     'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
     'stats',
     'pending',
     'appMeta',
@@ -293,6 +308,11 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'stats',
     'audits',
     'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
     'approvedSuppliers',
     'supplierEvaluation',
   ],
@@ -327,6 +347,11 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wikiArticles',
     'audits',
     'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
     'approvedSuppliers',
     'supplierEvaluation',
   ],
@@ -351,11 +376,26 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'internalChat',
     'stats',
     'audits',
+    'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
   ],
   'auditor': [
     'audits',
     'stats',
   ],
+};
+
+const Set<String> _TRAINING_TILE_IDS = {
+  'trainings',
+  'trainingNeeds',
+  'trainingProgram',
+  'trainingSessions',
+  'trainingEffectiveness',
+  'trainingArchive',
 };
 
 String _internalNumberPrefix({DateTime? now}) {
@@ -1277,6 +1317,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   Map<String, dynamic> _changeSummary = const {};
   bool _changeSummaryLoading = false;
   String? _changeSummaryErr;
+  Map<String, dynamic> _trainingDashboard = const {};
+  bool _trainingDashboardLoading = false;
+  String? _trainingDashboardErr;
 
   // Email -> detaillierte Reklamationen (für Users/Pending)
   final Map<String, _ComplaintsResult> _complaints = {};
@@ -1386,7 +1429,45 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     return result;
   }
 
+  bool _trainingTileVisibleForRole(String tileId) {
+    final role = _portalRole.trim().toLowerCase();
+    final isAdmin = _isSuperuser || _portalIsQm || _portalIsPrrc || role == 'admin';
+    if (isAdmin) return true;
+
+    const leadershipRoles = {
+      'gl',
+      'geschaeftsleitung',
+      'geschäftsleitung',
+      'leitung',
+      'management',
+    };
+    const teamLeadRoles = {
+      'teamlead',
+      'team_lead',
+      'team-lead',
+      'teamleiter',
+    };
+
+    if (leadershipRoles.contains(role)) {
+      return tileId == 'trainings' ||
+          tileId == 'trainingProgram' ||
+          tileId == 'trainingEffectiveness' ||
+          tileId == 'trainingArchive';
+    }
+
+    if (teamLeadRoles.contains(role)) {
+      return tileId == 'trainings' || tileId == 'trainingNeeds' || tileId == 'trainingSessions';
+    }
+
+    return false;
+  }
+
   bool _tileVisibleForActor(String tileId) {
+    if (_TRAINING_TILE_IDS.contains(tileId)) {
+      final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
+      if (override != null) return override != 'none';
+      return _trainingTileVisibleForRole(tileId);
+    }
     if (_isSuperuser && tileId == 'capaReports') return true;
     if (tileId == 'prrc' && !_portalIsPrrc) return false;
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
@@ -1648,6 +1729,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   // Ansicht (Menü / Bereich)
   AdminView _view = AdminView.menu;
+  int _trainingInitialTab = 0;
 
   Country get _defaultCountry => kCountries.firstWhere(
         (c) => c.code == 'DE',
@@ -1863,6 +1945,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
     _refreshCapaDashboard();
     _refreshChangeSummary();
+    _refreshTrainingDashboard();
     if (_hasPerm('capas.read')) {
       _refreshCapaReports();
     }
@@ -2504,6 +2587,25 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } finally {
       if (!mounted) return;
       setState(() => _changeSummaryLoading = false);
+    }
+  }
+
+  Future<void> _refreshTrainingDashboard() async {
+    if (!_allowedTilesForActor().any(_TRAINING_TILE_IDS.contains)) return;
+    setState(() {
+      _trainingDashboardLoading = true;
+      _trainingDashboardErr = null;
+    });
+    try {
+      final data = await widget.api.adminTrainingDashboardMetrics();
+      if (!mounted) return;
+      setState(() => _trainingDashboard = data);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _trainingDashboardErr = '$e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _trainingDashboardLoading = false);
     }
   }
 
@@ -6595,6 +6697,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (view == AdminView.supplierEvaluation) {
       _supplierEvaluationFocusId = null;
     }
+    if (view == AdminView.trainings) {
+      _trainingInitialTab = 0;
+    }
 
     if (_view != view) {
       setState(() => _view = view);
@@ -7411,6 +7516,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         case 'audits':
           return AdminView.audits;
         case 'trainings':
+        case 'trainingNeeds':
+        case 'trainingProgram':
+        case 'trainingSessions':
+        case 'trainingEffectiveness':
+        case 'trainingArchive':
           return AdminView.trainings;
         case 'pending':
           return AdminView.pending;
@@ -7467,7 +7577,20 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       const _AdminMenuSectionState(
         title: 'Connect+ Quality',
         subtitle: 'FMEA, CAPA / 8D-Reports und Change Control',
-        tileIds: ['capaDashboard', 'capaReports', 'fmea', 'internalErrors', 'changeManagement', 'audits', 'trainings'],
+        tileIds: [
+          'capaDashboard',
+          'capaReports',
+          'fmea',
+          'internalErrors',
+          'changeManagement',
+          'audits',
+          'trainings',
+          'trainingNeeds',
+          'trainingProgram',
+          'trainingSessions',
+          'trainingEffectiveness',
+          'trainingArchive',
+        ],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Supplier Management',
@@ -7525,6 +7648,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('changeManagement');
     _ensureMenuTilePresent('audits');
     _ensureMenuTilePresent('trainings');
+    _ensureMenuTilePresent('trainingNeeds');
+    _ensureMenuTilePresent('trainingProgram');
+    _ensureMenuTilePresent('trainingSessions');
+    _ensureMenuTilePresent('trainingEffectiveness');
+    _ensureMenuTilePresent('trainingArchive');
     _ensureMenuTilePresent('portalUsers');
     _ensureMenuTilePresent('complaintList');
     _ensureMenuTilePresent('internalChat');
@@ -7553,6 +7681,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
         _ensureMenuTilePresent('trainings');
+        _ensureMenuTilePresent('trainingNeeds');
+        _ensureMenuTilePresent('trainingProgram');
+        _ensureMenuTilePresent('trainingSessions');
+        _ensureMenuTilePresent('trainingEffectiveness');
+        _ensureMenuTilePresent('trainingArchive');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
       }
@@ -7572,8 +7705,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
+        _ensureMenuTilePresent('trainings');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
+        _ensureMenuTilePresent('trainingNeeds');
+        _ensureMenuTilePresent('trainingProgram');
+        _ensureMenuTilePresent('trainingSessions');
+        _ensureMenuTilePresent('trainingEffectiveness');
+        _ensureMenuTilePresent('trainingArchive');
       }
 
       final navOrder = config['navOrder'];
@@ -7834,6 +7973,16 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'Interne Audits';
       case 'trainings':
         return 'Schulungswesen';
+      case 'trainingNeeds':
+        return 'Schulungsbedarf';
+      case 'trainingProgram':
+        return 'Schulungsprogramm';
+      case 'trainingSessions':
+        return 'Schulungen';
+      case 'trainingEffectiveness':
+        return 'Wirksamkeitskontrolle';
+      case 'trainingArchive':
+        return 'Archiv & Auswertungen';
       case 'pending':
         return 'Anträge prüfen';
       case 'users':
@@ -9095,6 +9244,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     required Color colorA,
     required Color colorB,
     int? count,
+    Color? badgeColor,
     required bool compact,
     required VoidCallback onTap,
     bool registerOnboarding = true,
@@ -9116,6 +9266,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       colorA: colorA,
       colorB: colorB,
       count: count,
+      badgeColor: badgeColor,
       compact: compact,
       onTap: onTap,
       actionLabel: actionLabel,
@@ -9148,6 +9299,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         onActionTap == null ? null : (actionLabel ?? 'Kachel einblenden');
     final resolvedActionIcon = onActionTap == null ? null : (actionIcon ?? Icons.unarchive_outlined);
     final registerOnboarding = !isPreview;
+    int? trainingMetric(String key) =>
+        (_trainingDashboard[key] is num) ? (_trainingDashboard[key] as num).toInt() : null;
     switch (tileId) {
       case 'open':
         return _buildDashboardTile(
@@ -9497,15 +9650,177 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           onActionTap: onActionTap,
         );
       case 'trainings':
+        final overdueChecks = trainingMetric('overdueEffectivenessChecks') ?? 0;
+        final openNeeds = trainingMetric('openNeeds') ?? 0;
+        final planned = trainingMetric('plannedTrainingsThisYear') ?? 0;
+        final subtitle = _trainingDashboardErr != null
+            ? 'Daten konnten nicht geladen werden'
+            : _trainingDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : '🔴 $overdueChecks überfällig · 🟠 $openNeeds Bedarfe · 🔵 $planned geplant';
         return _buildDashboardTile(
           tileId: tileId,
           label: 'Schulungswesen',
-          subtitle: 'Bedarf, Planung, Wirksamkeit',
+          subtitle: subtitle,
           icon: Icons.school_outlined,
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
+          count: trainingMetric('overdueEffectivenessChecks'),
+          badgeColor: overdueChecks > 0 ? AdminPalette.redB : null,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.trainings),
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _trainingInitialTab = 0;
+                    _view = AdminView.trainings;
+                  }),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'trainingNeeds':
+        final overdueNeeds = trainingMetric('overdueNeeds') ?? 0;
+        final needsSubtitle = _trainingDashboardErr != null
+            ? 'Daten konnten nicht geladen werden'
+            : _trainingDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : overdueNeeds > 0
+                    ? '🔴 Freigabe überfällig'
+                    : 'Neu eingereichte Bedarfe';
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Schulungsbedarf',
+          subtitle: needsSubtitle,
+          icon: Icons.note_alt_outlined,
+          colorA: AdminPalette.amberA,
+          colorB: AdminPalette.amberB,
+          count: trainingMetric('newNeeds'),
+          badgeColor: overdueNeeds > 0 ? AdminPalette.redB : null,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _trainingInitialTab = 1;
+                    _view = AdminView.trainings;
+                  }),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'trainingProgram':
+        final programYear = trainingMetric('activeProgramYear');
+        final programApproved = _trainingDashboard['programApproved'] == true;
+        final programSubtitle = _trainingDashboardErr != null
+            ? 'Daten konnten nicht geladen werden'
+            : _trainingDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : programApproved
+                    ? 'Programm freigegeben'
+                    : '⚠️ Programm nicht freigegeben';
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Schulungsprogramm',
+          subtitle: programSubtitle,
+          icon: Icons.event_note_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          count: programYear,
+          badgeColor: programApproved ? null : AdminPalette.amberB,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _trainingInitialTab = 2;
+                    _view = AdminView.trainings;
+                  }),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'trainingSessions':
+        final trainingsToday = trainingMetric('trainingsToday') ?? 0;
+        final trainingsWeek = trainingMetric('trainingsThisWeek') ?? 0;
+        final openTrainings = trainingMetric('openTrainings') ?? 0;
+        final completedTrainings = trainingMetric('completedTrainings') ?? 0;
+        final trainingsSubtitle = _trainingDashboardErr != null
+            ? 'Daten konnten nicht geladen werden'
+            : _trainingDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : 'Heute: $trainingsToday · Woche: $trainingsWeek · Offen: $openTrainings / ${completedTrainings} erledigt';
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Schulungen',
+          subtitle: trainingsSubtitle,
+          icon: Icons.school_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          count: trainingMetric('trainingsThisWeek'),
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _trainingInitialTab = 3;
+                    _view = AdminView.trainings;
+                  }),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'trainingEffectiveness':
+        final openChecks = trainingMetric('openEffectivenessChecks') ?? 0;
+        final ineffective = trainingMetric('ineffectiveTrainings') ?? 0;
+        final effSubtitle = _trainingDashboardErr != null
+            ? 'Daten konnten nicht geladen werden'
+            : _trainingDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : '🔴 $ineffective nicht wirksam';
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Wirksamkeitskontrolle',
+          subtitle: effSubtitle,
+          icon: Icons.fact_check_outlined,
+          colorA: AdminPalette.greenA,
+          colorB: AdminPalette.greenB,
+          count: trainingMetric('openEffectivenessChecks'),
+          badgeColor: openChecks > 0 ? AdminPalette.redB : null,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _trainingInitialTab = 4;
+                    _view = AdminView.trainings;
+                  }),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'trainingArchive':
+        final trainingYear = trainingMetric('trainingsThisYear') ?? 0;
+        final archiveSubtitle = _trainingDashboardErr != null
+            ? 'Daten konnten nicht geladen werden'
+            : _trainingDashboardLoading
+                ? 'Lade Kennzahlen...'
+                : 'Schulungen im Jahr: $trainingYear';
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Archiv & Auswertungen',
+          subtitle: archiveSubtitle,
+          icon: Icons.bar_chart_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          count: trainingMetric('trainingsThisYear'),
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _trainingInitialTab = 5;
+                    _view = AdminView.trainings;
+                  }),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -10383,8 +10698,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         );
       case AdminView.trainings:
         return AdminTrainingPage(
+          key: ValueKey(_trainingInitialTab),
           api: widget.api,
           canWrite: _canWriteTile('trainings'),
+          initialTab: _trainingInitialTab,
         );
       case AdminView.prrc:
         return _buildPrrcPanel();
@@ -25280,6 +25597,7 @@ class AdminTilePro extends StatefulWidget {
   final Color colorA;
   final Color colorB;
   final int? count;
+  final Color? badgeColor;
   final bool compact;
   final VoidCallback onTap;
 
@@ -25296,6 +25614,7 @@ class AdminTilePro extends StatefulWidget {
     required this.colorA,
     required this.colorB,
     this.count,
+    this.badgeColor,
     this.compact = false,
     required this.onTap,
     this.actionLabel,
@@ -25324,7 +25643,7 @@ class _AdminTileProState extends State<AdminTilePro> {
     final titleColor = cs.onSurface;
     final subtitleColor = cs.onSurfaceVariant;
 
-    final badgeBg = accent;
+    final badgeBg = widget.badgeColor ?? accent;
     final badgeFg = _bestOnColor(badgeBg);
 
     final br = BorderRadius.circular(14);
