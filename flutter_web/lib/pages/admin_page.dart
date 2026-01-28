@@ -1413,6 +1413,15 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
     });
 
+    for (final role in ['superuser', 'admin']) {
+      final tiles = _roleTileVisibility.putIfAbsent(role, () => <String>{});
+      var changed = false;
+      for (final tile in _TRAINING_TILE_IDS) {
+        if (tiles.add(tile)) changed = true;
+      }
+      if (changed) addedDefaults = true;
+    }
+
     return addedDefaults;
   }
 
@@ -1590,6 +1599,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (_isSuperuser) {
       allowed.add('capaReports');
       allowed.add('capaDashboard');
+    }
+    if (_isSuperuser || _portalRole == 'admin') {
+      allowed.addAll(_TRAINING_TILE_IDS);
     }
     if (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser) {
       allowed.add('supplierEvaluation');
