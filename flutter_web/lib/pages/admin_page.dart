@@ -1748,6 +1748,17 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   double _menuTileScale = 1.0;
 
   static const double _sectionReorderHeight = 40;
+  static const String _trainingSectionTitle = 'Connect+ Training';
+  static const String _trainingSectionSubtitle =
+      'Schulungsplanung, Bedarf, Durchführung, Wirksamkeitskontrolle & Archiv';
+  static const List<String> _trainingTileIds = [
+    'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
+  ];
 
   // Ansicht (Menü / Bereich)
   AdminView _view = AdminView.menu;
@@ -7676,13 +7687,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           'internalErrors',
           'changeManagement',
           'audits',
-          'trainings',
-          'trainingNeeds',
-          'trainingProgram',
-          'trainingSessions',
-          'trainingEffectiveness',
-          'trainingArchive',
         ],
+      ),
+      const _AdminMenuSectionState(
+        title: _trainingSectionTitle,
+        subtitle: _trainingSectionSubtitle,
+        tileIds: _trainingTileIds,
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Supplier Management',
@@ -7921,6 +7931,37 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             .toList();
         used.addAll(filtered);
         sections.add(_AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: filtered));
+      }
+
+      _AdminMenuSectionState? trainingSection;
+      _AdminMenuSectionState? qualitySection;
+      for (final section in sections) {
+        if (section.title == _trainingSectionTitle) {
+          trainingSection = section;
+        } else if (section.title == 'Connect+ Quality') {
+          qualitySection = section;
+        }
+      }
+
+      if (qualitySection != null) {
+        final movedTiles = qualitySection.tileIds.where(_trainingTileIds.contains).toList();
+        if (movedTiles.isNotEmpty) {
+          qualitySection.tileIds.removeWhere(_trainingTileIds.contains);
+          trainingSection ??= _AdminMenuSectionState(
+            title: _trainingSectionTitle,
+            subtitle: _trainingSectionSubtitle,
+            tileIds: <String>[],
+          );
+          if (!sections.contains(trainingSection)) {
+            final insertIndex = sections.indexOf(qualitySection) + 1;
+            sections.insert(insertIndex, trainingSection);
+          }
+          for (final id in _trainingTileIds) {
+            if (movedTiles.contains(id) && !trainingSection.tileIds.contains(id)) {
+              trainingSection.tileIds.add(id);
+            }
+          }
+        }
       }
 
       if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
