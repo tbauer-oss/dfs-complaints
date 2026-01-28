@@ -59,11 +59,12 @@ import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
-import 'admin_training_page.dart';
 import 'change_management_page.dart';
 import 'supplier_evaluation_page.dart';
 import 'approved_suppliers_page.dart';
 import 'internal_errors_page.dart';
+import 'training_admin_pages.dart';
+import 'training_admin_section.dart';
 
 String _formatError(Object error) {
   final message = AppErrorMapper.map(error);
@@ -80,6 +81,7 @@ class AdminPage extends StatefulWidget {
   final AdminView initialView;
   final int auditInitialTab;
   final int? initialAuditReportYear;
+  final TrainingAdminSection trainingSection;
   const AdminPage({
     super.key,
     required this.api,
@@ -88,22 +90,26 @@ class AdminPage extends StatefulWidget {
     this.initialView = AdminView.menu,
     this.auditInitialTab = 0,
     this.initialAuditReportYear,
+    this.trainingSection = TrainingAdminSection.overview,
   });
 
   const AdminPage.wiki({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
       : initialView = AdminView.wiki,
         auditInitialTab = 0,
-        initialAuditReportYear = null;
+        initialAuditReportYear = null,
+        trainingSection = TrainingAdminSection.overview;
 
   const AdminPage.wikiCategories({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
       : initialView = AdminView.wikiCategories,
         auditInitialTab = 0,
-        initialAuditReportYear = null;
+        initialAuditReportYear = null,
+        trainingSection = TrainingAdminSection.overview;
 
   const AdminPage.wikiArticles({super.key, required this.api, this.portalProfile, this.onMetaUpdated})
       : initialView = AdminView.wikiArticles,
         auditInitialTab = 0,
-        initialAuditReportYear = null;
+        initialAuditReportYear = null,
+        trainingSection = TrainingAdminSection.overview;
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -550,6 +556,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   OverlayEntry? _onboardingOverlayEntry;
   bool _onboardingScrollInProgress = false;
   final ScrollController _menuScrollController = ScrollController();
+  bool _menuTilesLogged = false;
   String _portalRole = '';
   String? _supplierEvaluationFocusId;
   bool _portalIsSales = false;
@@ -1459,6 +1466,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       return tileId == 'trainings' || tileId == 'trainingNeeds' || tileId == 'trainingSessions';
     }
 
+    if (kDebugMode) {
+      debugPrint('Training tile hidden [$tileId] - missing role (role=$_portalRole)');
+    }
     return false;
   }
 
@@ -1730,6 +1740,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   // Ansicht (Menü / Bereich)
   AdminView _view = AdminView.menu;
   int _trainingInitialTab = 0;
+  TrainingAdminSection _trainingSection = TrainingAdminSection.overview;
 
   Country get _defaultCountry => kCountries.firstWhere(
         (c) => c.code == 'DE',
@@ -1892,6 +1903,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _portalTilePermissions
       ..clear()
       ..addAll(_sanitizeTilePermissionMap(profileTilePermissions));
+
+    if (kDebugMode) {
+      debugPrint(
+        'Admin role snapshot: role=$_portalRole, isSuperuser=$_isSuperuser, '
+        'isQm=$_portalIsQm, isPrrc=$_portalIsPrrc, isSales=$_portalIsSales, '
+        'tilePerms=$_portalTilePermissions',
+      );
+    }
     _custCountry = _defaultCountry;
     _bulkInternalAllCtrl.text = _internalNumberPrefix();
     _bulkInternalOpenCtrl.text = _internalNumberPrefix();
@@ -1924,6 +1943,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _loadNavOrder();
     _loadAdminUiConfigFromServer();
     _view = widget.initialView;
+    _trainingSection = widget.trainingSection;
+    _trainingInitialTab = _trainingTabForSection(_trainingSection);
 
     if (portalTok.isEmpty && secret.isEmpty) {
       _fatalErr =
@@ -6698,7 +6719,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       _supplierEvaluationFocusId = null;
     }
     if (view == AdminView.trainings) {
-      _trainingInitialTab = 0;
+      _openTrainingSection(TrainingAdminSection.overview);
+      return;
     }
 
     if (_view != view) {
@@ -6711,6 +6733,51 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
     if (shouldRefreshComplaints) {
       _reloadComplaintList();
+    }
+  }
+
+  int _trainingTabForSection(TrainingAdminSection section) {
+    switch (section) {
+      case TrainingAdminSection.overview:
+        return 0;
+      case TrainingAdminSection.needs:
+        return 1;
+      case TrainingAdminSection.program:
+        return 2;
+      case TrainingAdminSection.list:
+        return 3;
+      case TrainingAdminSection.effectiveness:
+        return 4;
+      case TrainingAdminSection.archive:
+        return 5;
+    }
+  }
+
+  void _updateTrainingRoute(TrainingAdminSection section) {
+    final path = trainingAdminSectionPath(section);
+    final current = html.window.location.pathname;
+    if (current == path) return;
+    html.window.history.pushState(null, 'Schulungswesen', path);
+    if (kDebugMode) {
+      debugPrint('Admin route updated -> $path');
+    }
+  }
+
+  void _openTrainingSection(
+    TrainingAdminSection section, {
+    bool updateRoute = true,
+  }) {
+    final tab = _trainingTabForSection(section);
+    if (_view != AdminView.trainings || _trainingSection != section || _trainingInitialTab != tab) {
+      setState(() {
+        _view = AdminView.trainings;
+        _trainingSection = section;
+        _trainingInitialTab = tab;
+      });
+    }
+
+    if (updateRoute) {
+      _updateTrainingRoute(section);
     }
   }
 
@@ -7179,6 +7246,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         AdminView.fmea,
         AdminView.internalErrors,
         AdminView.audits,
+        AdminView.trainings,
         AdminView.pending,
         AdminView.activity,
         AdminView.systemHealth,
@@ -7197,6 +7265,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.internalErrors,
       AdminView.changeManagement,
       AdminView.prrc,
+      AdminView.trainings,
       AdminView.pending,
       AdminView.users,
       AdminView.reps,
@@ -7222,6 +7291,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final allowed = _baseViewsForRole(_portalRole);
     final isSupplierView = view == AdminView.supplierEvaluation || view == AdminView.approvedSuppliers;
     if (!allowed.contains(view)) {
+      if (kDebugMode) {
+        debugPrint(
+          'Admin view denied [$view] - missing role or permission '
+          '(role=$_portalRole, isSuperuser=$_isSuperuser, isQm=$_portalIsQm, isPrrc=$_portalIsPrrc)',
+        );
+      }
       if (!(isSupplierView && (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser))) {
         return false;
       }
@@ -7300,6 +7375,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             label: 'Audits',
             icon: Icons.assignment_turned_in_outlined,
             view: AdminView.audits,
+          ),
+          _AdminNavItem(
+            label: 'Schulungswesen',
+            icon: Icons.school_outlined,
+            view: AdminView.trainings,
           ),
         ],
       ),
@@ -8675,6 +8755,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       _loadPortalFeed();
     }
 
+    if (kDebugMode && !_menuTilesLogged) {
+      final registeredTiles = _menuSections.expand((section) => section.tileIds).toSet().toList()..sort();
+      debugPrint('Admin dashboard rendered: sections=${_menuSections.length}, tiles=$registeredTiles');
+      _menuTilesLogged = true;
+    }
+
     return CustomScrollView(
       controller: _menuScrollController,
       slivers: [
@@ -9670,10 +9756,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           onTap: isPreview
               ? () {}
-              : () => setState(() {
-                    _trainingInitialTab = 0;
-                    _view = AdminView.trainings;
-                  }),
+              : () => _openTrainingSection(TrainingAdminSection.overview),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -9700,10 +9783,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           onTap: isPreview
               ? () {}
-              : () => setState(() {
-                    _trainingInitialTab = 1;
-                    _view = AdminView.trainings;
-                  }),
+              : () => _openTrainingSection(TrainingAdminSection.needs),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -9731,10 +9811,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           onTap: isPreview
               ? () {}
-              : () => setState(() {
-                    _trainingInitialTab = 2;
-                    _view = AdminView.trainings;
-                  }),
+              : () => _openTrainingSection(TrainingAdminSection.program),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -9761,10 +9838,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           onTap: isPreview
               ? () {}
-              : () => setState(() {
-                    _trainingInitialTab = 3;
-                    _view = AdminView.trainings;
-                  }),
+              : () => _openTrainingSection(TrainingAdminSection.list),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -9790,10 +9864,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           onTap: isPreview
               ? () {}
-              : () => setState(() {
-                    _trainingInitialTab = 4;
-                    _view = AdminView.trainings;
-                  }),
+              : () => _openTrainingSection(TrainingAdminSection.effectiveness),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -9817,10 +9888,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           compact: compact,
           onTap: isPreview
               ? () {}
-              : () => setState(() {
-                    _trainingInitialTab = 5;
-                    _view = AdminView.trainings;
-                  }),
+              : () => _openTrainingSection(TrainingAdminSection.archive),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -10697,12 +10765,36 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           initialReportYear: widget.initialAuditReportYear,
         );
       case AdminView.trainings:
-        return AdminTrainingPage(
-          key: ValueKey(_trainingInitialTab),
-          api: widget.api,
-          canWrite: _canWriteTile('trainings'),
-          initialTab: _trainingInitialTab,
-        );
+        if (!_isViewAllowed(AdminView.trainings)) return _noPermissionPanel();
+        switch (_trainingSection) {
+          case TrainingAdminSection.overview:
+            return TrainingAdminOverviewPage(
+              api: widget.api,
+              onSectionSelected: (section) => _openTrainingSection(section),
+            );
+          case TrainingAdminSection.needs:
+            return TrainingNeedsPage(
+              api: widget.api,
+              canWrite: _canWriteTile('trainings'),
+            );
+          case TrainingAdminSection.program:
+            return TrainingProgramPage(
+              api: widget.api,
+              canWrite: _canWriteTile('trainings'),
+            );
+          case TrainingAdminSection.list:
+            return TrainingListPage(
+              api: widget.api,
+              canWrite: _canWriteTile('trainings'),
+            );
+          case TrainingAdminSection.effectiveness:
+            return const TrainingEffectivenessPage();
+          case TrainingAdminSection.archive:
+            return TrainingArchivePage(
+              api: widget.api,
+              canWrite: _canWriteTile('trainings'),
+            );
+        }
       case AdminView.prrc:
         return _buildPrrcPanel();
       case AdminView.pending:
