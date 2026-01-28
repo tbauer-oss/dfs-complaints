@@ -100,7 +100,7 @@ class _InternalErrorsPageState extends State<InternalErrorsPage> {
   }
 
   List<InternalError> _filtered(List<InternalError> entries) {
-    var list = entries;
+    var list = List<InternalError>.from(entries);
     final query = _search.trim().toLowerCase();
     if (query.isNotEmpty) {
       list = list.where((e) {
