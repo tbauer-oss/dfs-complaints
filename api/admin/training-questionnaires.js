@@ -1,0 +1,63 @@
+// /api/admin/training-questionnaires.js – Fragebogen-Instanzen
+export const config = { runtime: 'nodejs' };
+
+import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { requirePortalAccess } from './_guard.js';
+import {
+  trainingQuestionnairesAll,
+  trainingQuestionnaireSave,
+  trainingQuestionnaireUpdate,
+  trainingQuestionnaireDelete,
+} from '../_lib/store.js';
+
+const TRAINING_TILE = 'trainings';
+
+export default async function handler(req, res) {
+  if (handlePreflight(req, res)) return;
+  setCors(req, res);
+
+  const wantsWrite = ['POST', 'PATCH', 'DELETE'].includes(req.method);
+  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: wantsWrite });
+  if (!actor) return;
+
+  try {
+    if (req.method === 'GET') {
+      const list = await trainingQuestionnairesAll();
+      const trainingId = (req.query?.trainingId || '').toString();
+      const participantId = (req.query?.participantId || '').toString();
+      const filtered = list.filter((entry) => {
+        if (trainingId && entry.trainingId !== trainingId) return false;
+        if (participantId && entry.participantId !== participantId) return false;
+        return true;
+      });
+      return ok(res, { ok: true, list: filtered });
+    }
+
+    if (req.method === 'POST') {
+      const body = readJson(req) || {};
+      const saved = await trainingQuestionnaireSave({ ...body, createdBy: actor.email, updatedBy: actor.email });
+      return ok(res, { ok: true, questionnaire: saved });
+    }
+
+    if (req.method === 'PATCH') {
+      const body = readJson(req) || {};
+      const id = body.id || req.query?.id;
+      if (!id) return bad(res, 'id missing', 400);
+      const updated = await trainingQuestionnaireUpdate(id, { ...body, updatedBy: actor.email });
+      if (!updated) return bad(res, 'not found', 404);
+      return ok(res, { ok: true, questionnaire: updated });
+    }
+
+    if (req.method === 'DELETE') {
+      const id = req.query?.id || readJson(req)?.id;
+      if (!id) return bad(res, 'id missing', 400);
+      await trainingQuestionnaireDelete(id);
+      return ok(res, { ok: true });
+    }
+
+    return methodNotAllowed(res);
+  } catch (err) {
+    console.error('[admin/training-questionnaires] error', err);
+    return bad(res, 'server error', 500);
+  }
+}

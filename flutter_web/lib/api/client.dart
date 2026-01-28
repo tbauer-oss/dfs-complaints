@@ -20,6 +20,7 @@ import '../models/change_management.dart';
 import '../models/portal_user.dart';
 import '../models/fmea.dart';
 import '../models/supplier_evaluation.dart';
+import '../models/training.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -2586,6 +2587,269 @@ class ApiClient {
         .whereType<Map>()
         .map((e) => DownloadCategory.fromJson(e.cast<String, dynamic>()))
         .toList(growable: false);
+  }
+
+  // ---------- Admin: Schulungswesen ----------
+  Future<List<TrainingNeed>> adminTrainingNeeds({int? year}) async {
+    final path = year == null ? '/api/admin/training-needs' : '/api/admin/training-needs?year=$year';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['list'] is List ? decoded['list'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => TrainingNeed.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<TrainingNeed> adminCreateTrainingNeed(TrainingNeed need) async {
+    final r = await http.post(
+      _u('/api/admin/training-needs'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(need.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['need'] is Map ? decoded['need'] as Map : decoded;
+    if (map is Map) return TrainingNeed.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Schulungsbedarf-Antwort');
+  }
+
+  Future<TrainingNeed> adminUpdateTrainingNeed(TrainingNeed need) async {
+    final r = await http.patch(
+      _u('/api/admin/training-needs'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(need.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['need'] is Map ? decoded['need'] as Map : decoded;
+    if (map is Map) return TrainingNeed.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Schulungsbedarf-Antwort');
+  }
+
+  Future<void> adminDeleteTrainingNeed(String id) async {
+    final path = Uri(path: '/api/admin/training-needs', queryParameters: {'id': id}).toString();
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<TrainingProgram>> adminTrainingPrograms({int? year}) async {
+    final path = year == null ? '/api/admin/training-programs' : '/api/admin/training-programs?year=$year';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['list'] is List ? decoded['list'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => TrainingProgram.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<TrainingProgram> adminCreateTrainingProgram(TrainingProgram program) async {
+    final r = await http.post(
+      _u('/api/admin/training-programs'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(program.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['program'] is Map ? decoded['program'] as Map : decoded;
+    if (map is Map) return TrainingProgram.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Schulungsprogramm-Antwort');
+  }
+
+  Future<TrainingProgram> adminUpdateTrainingProgram(TrainingProgram program) async {
+    final r = await http.patch(
+      _u('/api/admin/training-programs'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(program.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['program'] is Map ? decoded['program'] as Map : decoded;
+    if (map is Map) return TrainingProgram.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Schulungsprogramm-Antwort');
+  }
+
+  Future<void> adminDeleteTrainingProgram(String id) async {
+    final path = Uri(path: '/api/admin/training-programs', queryParameters: {'id': id}).toString();
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<TrainingRecord>> adminTrainings({int? year, bool includeDeleted = false}) async {
+    final params = <String, String>{};
+    if (year != null) params['year'] = '$year';
+    if (includeDeleted) params['includeDeleted'] = 'true';
+    final path = Uri(path: '/api/admin/trainings', queryParameters: params.isEmpty ? null : params).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['list'] is List ? decoded['list'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => TrainingRecord.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> adminTrainingSummary({int? year}) async {
+    final params = <String, String>{'summary': '1'};
+    if (year != null) params['year'] = '$year';
+    final path = Uri(path: '/api/admin/trainings', queryParameters: params).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map && decoded['summary'] is Map) {
+      return (decoded['summary'] as Map).cast<String, dynamic>();
+    }
+    return const {};
+  }
+
+  Future<TrainingRecord> adminCreateTraining(TrainingRecord record) async {
+    final r = await http.post(
+      _u('/api/admin/trainings'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(record.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Schulungs-Antwort');
+  }
+
+  Future<TrainingRecord> adminUpdateTraining(TrainingRecord record) async {
+    final r = await http.patch(
+      _u('/api/admin/trainings'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(record.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Schulungs-Antwort');
+  }
+
+  Future<void> adminDeleteTraining(String id) async {
+    final path = Uri(path: '/api/admin/trainings', queryParameters: {'id': id}).toString();
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<TrainingQuestionnaireTemplate>> adminTrainingTemplates() async {
+    final r = await http.get(_u('/api/admin/training-questionnaire-templates'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final list = decoded is Map && decoded['list'] is List ? decoded['list'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => TrainingQuestionnaireTemplate.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<TrainingQuestionnaireTemplate> adminCreateTrainingTemplate(TrainingQuestionnaireTemplate template) async {
+    final r = await http.post(
+      _u('/api/admin/training-questionnaire-templates'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(template.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['template'] is Map ? decoded['template'] as Map : decoded;
+    if (map is Map) return TrainingQuestionnaireTemplate.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Template-Antwort');
+  }
+
+  Future<TrainingQuestionnaireTemplate> adminUpdateTrainingTemplate(TrainingQuestionnaireTemplate template) async {
+    final r = await http.patch(
+      _u('/api/admin/training-questionnaire-templates'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(template.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['template'] is Map ? decoded['template'] as Map : decoded;
+    if (map is Map) return TrainingQuestionnaireTemplate.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Template-Antwort');
+  }
+
+  Future<void> adminDeleteTrainingTemplate(String id) async {
+    final path = Uri(path: '/api/admin/training-questionnaire-templates', queryParameters: {'id': id}).toString();
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> adminTrainingQuestionnaires({String? trainingId}) async {
+    final path = Uri(
+      path: '/api/admin/training-questionnaires',
+      queryParameters: trainingId == null ? null : {'trainingId': trainingId},
+    ).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Uint8List> adminTrainingPdf(String id) async {
+    final path = Uri(path: '/api/admin/training-pdf', queryParameters: {'id': id}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.bodyBytes;
+  }
+
+  Future<Uint8List> adminTrainingProgramPdf(int year) async {
+    final path = Uri(path: '/api/admin/training-program-pdf', queryParameters: {'year': '$year'}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    return r.bodyBytes;
   }
 
   Future<Map<String, Map<String, String>>> translateFaqDraft({

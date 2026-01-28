@@ -100,6 +100,11 @@ class DashboardOnboardingTexts {
       body:
           'Hier planen, dokumentieren und verfolgen Sie interne Audits. Der Bereich unterstützt die Auditvorbereitung, Maßnahmenverfolgung und Nachweisführung. Ein zentrales Werkzeug für das Qualitätsmanagementsystem.',
     ),
+    'trainings': DashboardOnboardingText(
+      title: 'Schulungswesen',
+      body:
+          'Hier erfassen Sie Schulungsbedarfe, koordinieren Jahresprogramme, dokumentieren Einzelmaßnahmen und prüfen die Wirksamkeit. Der Bereich bildet den gesamten Schulungsprozess inkl. Audit-Trail, Teilnehmerverwaltung und PDF-Export ab.',
+    ),
     'push': DashboardOnboardingText(
       title: 'Push-Mitteilungen',
       body:

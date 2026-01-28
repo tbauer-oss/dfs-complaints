@@ -22,3 +22,10 @@
 - REST-APIs unter `/api/admin/auditors`, `/api/admin/audit-programs`, `/api/admin/audits`, `/api/admin/audit-findings`, `/api/admin/audit-actions`, `/api/admin/audit-annual-reports` mit Portal-Guarding (`tile: audits`).
 - Standardisierte Fristlogik: automatische Due-Dates je Einstufung (Minor/Major/Critical), Eskalationslevel, Overdue-Erkennung und Wirksamkeitsprüfung-Flags.
 - Node-Testabdeckung für Unabhängigkeitsblock, Re-Qual-Check, Fristberechnung und Nachaudit-Trigger (`node --test api/tests/audit.test.js`).
+
+## Schulungswesen (DFS Connect+ Admin)
+- Neuer Admin-Bereich „Schulungswesen“ inkl. Kachel im Admin-Dashboard und Tab-UI für Bedarfserhebung, Schulungsprogramm, Einzelmaßnahmen, Fragebogen-Templates und Archiv.
+- REST-APIs unter `/api/admin/training-needs`, `/api/admin/training-programs`, `/api/admin/trainings`, `/api/admin/training-questionnaire-templates`, `/api/admin/training-questionnaires` mit Portal-Guarding (`tile: trainings`).
+- Nummernlogik für Trainings (`TRN-YYYY-####`) über Redis-/In-Memory-Counter, Soft-Delete der Trainingsdatensätze und automatisches Zuweisen von Fragebögen bei Teilnehmerstatus „attended“.
+- PDF-Exporte für Einzel-Schulungen (`/api/admin/training-pdf?id=...`) und Jahresprogramme (`/api/admin/training-program-pdf?year=...`).
+- Tests für Nummern- und Fragebogen-Zuweisung (`node --test api/tests/training.test.js`).
