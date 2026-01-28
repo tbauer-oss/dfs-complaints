@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -565,7 +565,7 @@ class _ComplaintFormPageState extends State<ComplaintFormPage> {
   }
 
   Future<void> _pickWithFilePicker() async {
-    final res = await FilePicker.platform.pickFiles(
+    final res = await fp.FilePicker.platform.pickFiles(
       allowMultiple: true,
       withData: true,
     );
