@@ -6604,7 +6604,7 @@ function normalizeTrainingQuestionnaire(record = {}) {
     thresholdPercent: Number(record.thresholdPercent ?? record.wkThresholdPercent ?? 0) || null,
     dueAt: Number(record.dueAt || 0) || null,
     submittedAt: Number(record.submittedAt || 0) || null,
-    scorePercent: Number(record.scorePercent ?? record.score || 0) || 0,
+    scorePercent: Number(record.scorePercent ?? record.score ?? 0) || 0,
     maxPoints: Number(record.maxPoints || 0) || 0,
     achievedPoints: Number(record.achievedPoints || 0) || 0,
     needsRetraining: Boolean(record.needsRetraining),
