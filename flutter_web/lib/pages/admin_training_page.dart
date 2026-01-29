@@ -392,30 +392,6 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       return '$y-$m-$d';
     }
 
-    void syncPlannedPeriodValue() {
-      plannedPeriodValue = buildPlannedPeriodValue();
-      if (plannedPeriodValue != null) {
-        errorPlannedPeriod = null;
-      }
-    }
-
-    void syncPlannedPeriodYear() {
-      final yearText = controllerYear.text.trim();
-      if (!RegExp(r'^\\d{4}$').hasMatch(yearText)) return;
-      controllerMonthYear.text = yearText;
-      controllerQuarterYear.text = yearText;
-      controllerHalfYearYear.text = yearText;
-      final plannedText = controllerPlannedDate.text.trim();
-      if (plannedText.isEmpty) return;
-      final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(plannedText);
-      if (match == null) return;
-      final month = int.tryParse(match.group(2) ?? '');
-      final day = int.tryParse(match.group(3) ?? '');
-      if (month == null || day == null) return;
-      final updated = DateTime(int.parse(yearText), month, day);
-      controllerPlannedDate.text = formatDate(updated);
-    }
-
     String? buildPlannedPeriodValue() {
       if (plannedPeriodType == 'date') {
         final planned = controllerPlannedDate.text.trim();
@@ -456,6 +432,30 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           return 'Halbjahr: ${value.split('-').last} ${value.split('-').first}';
       }
       return value;
+    }
+
+    void syncPlannedPeriodValue() {
+      plannedPeriodValue = buildPlannedPeriodValue();
+      if (plannedPeriodValue != null) {
+        errorPlannedPeriod = null;
+      }
+    }
+
+    void syncPlannedPeriodYear() {
+      final yearText = controllerYear.text.trim();
+      if (!RegExp(r'^\\d{4}$').hasMatch(yearText)) return;
+      controllerMonthYear.text = yearText;
+      controllerQuarterYear.text = yearText;
+      controllerHalfYearYear.text = yearText;
+      final plannedText = controllerPlannedDate.text.trim();
+      if (plannedText.isEmpty) return;
+      final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(plannedText);
+      if (match == null) return;
+      final month = int.tryParse(match.group(2) ?? '');
+      final day = int.tryParse(match.group(3) ?? '');
+      if (month == null || day == null) return;
+      final updated = DateTime(int.parse(yearText), month, day);
+      controllerPlannedDate.text = formatDate(updated);
     }
 
     final result = await showDialog<TrainingNeed>(
