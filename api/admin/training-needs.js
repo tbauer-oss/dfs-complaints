@@ -6,71 +6,15 @@ import { requirePortalAccess } from './_guard.js';
 import { isAdminUser } from '../_lib/portalAuth.js';
 import {
   trainingNeedsAll,
+  trainingNeedGet,
   trainingNeedSave,
   trainingNeedUpdate,
   trainingNeedDelete,
 } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
+import { normalizePeriodValue, periodYear, trim, validateTrainingNeed } from '../_lib/trainingValidation.js';
 
 const TRAINING_TILE = 'trainings';
-const TRAINING_NEED_DEPARTMENTS = [
-  'Gesamte Organisation',
-  'Gesamte Produktion',
-  'Produktion 1',
-  'Produktion 2',
-  'Abt. Schleiferei',
-  'Abt. Chemie / Logistik',
-  'Abt. Sinterei',
-  'Abt. Bürstenproduktion',
-  'Abt. Sonderwerkzeuge',
-  'Abt. Galvanik',
-  'Abt. Galvanik Vor-/Nachbereitung',
-  'Abt. Dreherei',
-  'Abt. Werkzeugbau',
-  'Versand',
-  'Vertrieb',
-  'Einkauf',
-  'Geschäftsleitung',
-  'Human Ressources / Personal',
-  'Finanzen',
-  'Sonstiges...',
-];
-const TRAINING_FORMATS = ['praesenz', 'online'];
-const PLANNED_PERIOD_TYPES = ['date', 'month', 'quarter', 'halfYear'];
-const INTERVAL_TYPES = ['once', 'recurring'];
-const INTERVAL_OPTIONS = [
-  'vierteljährlich',
-  'halbjährlich',
-  'jährlich',
-  'alle 2 Jahre',
-  'alle 3 Jahre',
-  'alle 4 Jahre',
-  'alle 5 Jahre',
-  'Sonstiges...',
-];
-
-function trim(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function isValidYear(value) {
-  return /^\d{4}$/.test(value);
-}
-
-function normalizePeriodValue(type, value) {
-  const val = trim(value);
-  if (!val) return null;
-  if (type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-  if (type === 'month' && /^\d{4}-\d{2}$/.test(val)) return val;
-  if (type === 'quarter' && /^\d{4}-Q[1-4]$/.test(val)) return val;
-  if (type === 'halfYear' && /^\d{4}-H[1-2]$/.test(val)) return val;
-  return null;
-}
-
-function periodYear(value) {
-  if (!value || value.length < 4) return '';
-  return value.slice(0, 4);
-}
 
 function plannedPeriodLabel(type, value) {
   if (!value) return '';
@@ -137,76 +81,6 @@ function buildNeedEmailHtml({ need, resolvedDepartment, plannedPeriodLabelText, 
     </div>`;
 }
 
-function validateTrainingNeed(body = {}) {
-  const errors = {};
-  const yearValue = String(body.year || '').trim();
-  if (!isValidYear(yearValue)) errors.year = 'Bitte ein gültiges Schulungsjahr (YYYY) angeben.';
-  if (!trim(body.contactName)) errors.contactName = 'Ansprechpartner ist erforderlich.';
-
-  const deptSelected = trim(body.departmentTeamSelected);
-  if (!deptSelected) {
-    errors.departmentTeamSelected = 'Abteilung/Team ist erforderlich.';
-  } else if (!TRAINING_NEED_DEPARTMENTS.includes(deptSelected)) {
-    errors.departmentTeamSelected = 'Bitte gültige Abteilung/Team Auswahl treffen.';
-  }
-  if (deptSelected === 'Sonstiges...') {
-    const freeText = trim(body.departmentTeamFreeText);
-    if (freeText.length < 2) errors.departmentTeamFreeText = 'Bitte Abteilung/Team angeben (mind. 2 Zeichen).';
-  }
-
-  const periodType = trim(body.plannedPeriodType);
-  if (!PLANNED_PERIOD_TYPES.includes(periodType)) {
-    errors.plannedPeriodType = 'Bitte Zeitraumstyp auswählen.';
-  }
-  const normalizedPeriod = normalizePeriodValue(periodType, body.plannedPeriodValue);
-  if (!normalizedPeriod) {
-    errors.plannedPeriodValue = 'Bitte Zeitraum vollständig angeben.';
-  } else if (yearValue && periodYear(normalizedPeriod) !== yearValue) {
-    errors.plannedPeriodValue = 'Bitte Zeitraum vollständig angeben.';
-  }
-
-  const format = trim(body.trainingFormat);
-  if (!TRAINING_FORMATS.includes(format)) {
-    errors.trainingFormat = 'Bitte Format auswählen.';
-  }
-
-  const intervalType = trim(body.intervalType);
-  if (!INTERVAL_TYPES.includes(intervalType)) {
-    errors.intervalType = 'Bitte Schulungsintervall auswählen.';
-  }
-  if (intervalType === 'recurring') {
-    const intervalValue = trim(body.intervalValue);
-    if (!intervalValue) {
-      errors.intervalValue = 'Bitte Intervall auswählen.';
-    } else if (!INTERVAL_OPTIONS.includes(intervalValue)) {
-      errors.intervalValue = 'Bitte gültiges Intervall auswählen.';
-    }
-    if (intervalValue === 'Sonstiges...') {
-      const intervalFree = trim(body.intervalValueFreeText);
-      if (intervalFree.length < 2) errors.intervalValueFreeText = 'Bitte Intervall angeben (mind. 2 Zeichen).';
-    }
-  }
-
-  const items = Array.isArray(body.items) ? body.items : [];
-  const primaryItem = items[0] || {};
-  if (!trim(primaryItem.topic)) {
-    errors.topic = 'Schulungsthema ist erforderlich.';
-  }
-  const participants = Number(primaryItem.participants || 0);
-  if (!Number.isFinite(participants) || participants <= 0) {
-    errors.participants = 'Teilnehmer muss eine gültige Zahl sein.';
-  }
-
-  const budgetRaw = body.plannedBudget;
-  if (budgetRaw !== null && budgetRaw !== undefined && budgetRaw !== '') {
-    const budget = Number(budgetRaw);
-    if (!Number.isFinite(budget) || budget < 0) {
-      errors.plannedBudget = 'Geplantes Budget muss eine gültige Zahl sein.';
-    }
-  }
-
-  return { errors, normalizedPeriod };
-}
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -278,7 +152,20 @@ export default async function handler(req, res) {
       if (patchYear && patchPeriodValue && periodYear(patchPeriodValue) !== patchYear) {
         return bad(res, 'Der geplante Zeitraum muss im Schulungsjahr liegen.', 400);
       }
-      const updated = await trainingNeedUpdate(id, { ...body, updatedBy: actor.email });
+      const { errors, normalizedPeriod } = validateTrainingNeed(body);
+      if (Object.keys(errors).length > 0) {
+        return bad(res, 'Validierung fehlgeschlagen.', 400, { errors });
+      }
+      const current = await trainingNeedGet(id);
+      if (!current) return bad(res, 'not found', 404);
+      if (body.updatedAt && Number(body.updatedAt) !== Number(current.updatedAt)) {
+        return bad(res, 'conflict', 409, { message: 'Datensatz wurde zwischenzeitlich geändert.' });
+      }
+      const updated = await trainingNeedUpdate(id, {
+        ...body,
+        plannedPeriodValue: normalizedPeriod || body.plannedPeriodValue,
+        updatedBy: actor.email,
+      });
       if (!updated) return bad(res, 'not found', 404);
       return ok(res, { ok: true, need: updated });
     }
