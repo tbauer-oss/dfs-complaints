@@ -365,6 +365,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     String? selectedMonth;
     String? selectedQuarter;
     String? selectedHalfYear;
+    String? plannedPeriodValue;
     String? selectedFormat;
     String? selectedIntervalType;
     String? selectedIntervalValue;
@@ -389,6 +390,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       final m = date.month.toString().padLeft(2, '0');
       final d = date.day.toString().padLeft(2, '0');
       return '$y-$m-$d';
+    }
+
+    void syncPlannedPeriodValue() {
+      plannedPeriodValue = buildPlannedPeriodValue();
+      if (plannedPeriodValue != null) {
+        errorPlannedPeriod = null;
+      }
     }
 
     void syncPlannedPeriodYear() {
@@ -475,6 +483,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         onChanged: (_) => setState(() {
                           syncPlannedPeriodYear();
+                          syncPlannedPeriodValue();
                         }),
                         decoration: InputDecoration(
                           labelText: 'Schulungsjahr',
@@ -536,22 +545,34 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                           ChoiceChip(
                             label: const Text('Datum'),
                             selected: plannedPeriodType == 'date',
-                            onSelected: (_) => setState(() => plannedPeriodType = 'date'),
+                            onSelected: (_) => setState(() {
+                              plannedPeriodType = 'date';
+                              syncPlannedPeriodValue();
+                            }),
                           ),
                           ChoiceChip(
                             label: const Text('Monat'),
                             selected: plannedPeriodType == 'month',
-                            onSelected: (_) => setState(() => plannedPeriodType = 'month'),
+                            onSelected: (_) => setState(() {
+                              plannedPeriodType = 'month';
+                              syncPlannedPeriodValue();
+                            }),
                           ),
                           ChoiceChip(
                             label: const Text('Quartal'),
                             selected: plannedPeriodType == 'quarter',
-                            onSelected: (_) => setState(() => plannedPeriodType = 'quarter'),
+                            onSelected: (_) => setState(() {
+                              plannedPeriodType = 'quarter';
+                              syncPlannedPeriodValue();
+                            }),
                           ),
                           ChoiceChip(
                             label: const Text('Halbjahr'),
                             selected: plannedPeriodType == 'halfYear',
-                            onSelected: (_) => setState(() => plannedPeriodType = 'halfYear'),
+                            onSelected: (_) => setState(() {
+                              plannedPeriodType = 'halfYear';
+                              syncPlannedPeriodValue();
+                            }),
                           ),
                         ],
                       ),
@@ -577,7 +598,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                               lastDate: DateTime(year, 12, 31),
                             );
                             if (picked != null) {
-                              setState(() => controllerPlannedDate.text = formatDate(picked));
+                              setState(() {
+                                controllerPlannedDate.text = formatDate(picked);
+                                syncPlannedPeriodValue();
+                              });
                             }
                           },
                           decoration: InputDecoration(
@@ -599,7 +623,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                     return DropdownMenuItem(value: month, child: Text(month));
                                   },
                                 ),
-                                onChanged: (value) => setState(() => selectedMonth = value),
+                                onChanged: (value) => setState(() {
+                                  selectedMonth = value;
+                                  syncPlannedPeriodValue();
+                                }),
                                 decoration: const InputDecoration(labelText: 'Monat'),
                               ),
                             ),
@@ -627,7 +654,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                   DropdownMenuItem(value: 'Q3', child: Text('Q3')),
                                   DropdownMenuItem(value: 'Q4', child: Text('Q4')),
                                 ],
-                                onChanged: (value) => setState(() => selectedQuarter = value),
+                                onChanged: (value) => setState(() {
+                                  selectedQuarter = value;
+                                  syncPlannedPeriodValue();
+                                }),
                                 decoration: const InputDecoration(labelText: 'Quartal'),
                               ),
                             ),
@@ -653,7 +683,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                   DropdownMenuItem(value: 'H1', child: Text('H1')),
                                   DropdownMenuItem(value: 'H2', child: Text('H2')),
                                 ],
-                                onChanged: (value) => setState(() => selectedHalfYear = value),
+                                onChanged: (value) => setState(() {
+                                  selectedHalfYear = value;
+                                  syncPlannedPeriodValue();
+                                }),
                                 decoration: const InputDecoration(labelText: 'Halbjahr'),
                               ),
                             ),
@@ -879,7 +912,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                         ? (departmentOtherText.length < 2 ? 'Bitte mindestens 2 Zeichen eingeben.' : null)
                                         : null;
                                     errorTopic = topicText.isEmpty ? 'Pflichtfeld' : null;
-                                    final plannedPeriodValue = buildPlannedPeriodValue();
+                                    plannedPeriodValue = buildPlannedPeriodValue();
                                     if (plannedPeriodValue == null) {
                                       final yearText = controllerYear.text.trim();
                                       final plannedText = controllerPlannedDate.text.trim();

@@ -160,7 +160,7 @@ function validateTrainingNeed(body = {}) {
   }
   const normalizedPeriod = normalizePeriodValue(periodType, body.plannedPeriodValue);
   if (!normalizedPeriod) {
-    errors.plannedPeriodValue = 'Geplanter Zeitraum ist erforderlich.';
+    errors.plannedPeriodValue = 'Bitte Zeitraum vollständig angeben.';
   } else if (yearValue && periodYear(normalizedPeriod) !== yearValue) {
     errors.plannedPeriodValue = 'Der geplante Zeitraum muss im Schulungsjahr liegen.';
   }
