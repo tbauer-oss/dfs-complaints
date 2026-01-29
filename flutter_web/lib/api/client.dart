@@ -2824,6 +2824,70 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Template-Antwort');
   }
 
+  Future<TrainingQuestionnaireTemplate> adminDuplicateTrainingTemplate(String id) async {
+    final path = Uri(path: '/api/questionnaires/templates/$id/duplicate').toString();
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['template'] is Map ? decoded['template'] as Map : decoded;
+    if (map is Map) return TrainingQuestionnaireTemplate.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Template-Antwort');
+  }
+
+  Future<List<Map<String, dynamic>>> myQuestionnaires() async {
+    final r = await http.get(_u('/api/questionnaires/my'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map && decoded['list'] is List) {
+      return (decoded['list'] as List)
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>> questionnaireAssignment(String id) async {
+    final path = Uri(path: '/api/questionnaires/assignments/$id').toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    throw ApiError(r.statusCode, 'Ungültige Fragebogen-Antwort');
+  }
+
+  Future<Map<String, dynamic>> questionnaireSubmit(String id, List<Map<String, dynamic>> answers) async {
+    final path = Uri(path: '/api/questionnaires/assignments/$id/submit').toString();
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'answers': answers}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    throw ApiError(r.statusCode, 'Ungültige Fragebogen-Antwort');
+  }
+
+  Future<Map<String, dynamic>> questionnaireTrainingResults(String trainingId) async {
+    final path = Uri(path: '/api/questionnaires/training/$trainingId/results').toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    throw ApiError(r.statusCode, 'Ungültige Ergebnis-Antwort');
+  }
+
   Future<void> adminDeleteTrainingTemplate(String id) async {
     final path = Uri(path: '/api/training/templates/$id').toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
@@ -2971,6 +3035,7 @@ class ApiClient {
     String? wkResponsibleId,
     String? wkQuestionnaireTemplateId,
     List<String>? wkTargetParticipantIds,
+    int? wkThresholdPercent,
   }) async {
     final path = Uri(path: '/api/training/sessions/$trainingId/wk/configure').toString();
     final payload = {
@@ -2979,6 +3044,7 @@ class ApiClient {
       'wkResponsibleId': wkResponsibleId,
       'wkQuestionnaireTemplateId': wkQuestionnaireTemplateId,
       'wkTargetParticipantIds': wkTargetParticipantIds ?? const [],
+      'wkThresholdPercent': wkThresholdPercent,
     };
     final r = await http.post(
       _u(path),

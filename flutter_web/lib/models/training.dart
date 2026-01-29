@@ -437,6 +437,7 @@ class TrainingRecord {
     this.wkCompletedAt,
     this.wkResponsibleId,
     this.wkQuestionnaireTemplateId,
+    this.wkThresholdPercent,
     this.wkTargetParticipantIds,
     this.auditLog = const [],
     this.linkedProgramId,
@@ -491,6 +492,7 @@ class TrainingRecord {
   final int? wkCompletedAt;
   final String? wkResponsibleId;
   final String? wkQuestionnaireTemplateId;
+  final int? wkThresholdPercent;
   final List<String>? wkTargetParticipantIds;
   final List<TrainingAuditLogEntry> auditLog;
   final String? linkedProgramId;
@@ -551,6 +553,7 @@ class TrainingRecord {
       wkQuestionnaireTemplateId: (json['wkQuestionnaireTemplateId'] ?? '').toString().isEmpty
           ? null
           : (json['wkQuestionnaireTemplateId'] ?? '').toString(),
+      wkThresholdPercent: json['wkThresholdPercent'] == null ? null : _parseInt(json['wkThresholdPercent']),
       wkTargetParticipantIds: (json['wkTargetParticipantIds'] as List? ?? []).map((e) => e.toString()).toList(),
       auditLog: (json['auditLog'] as List? ?? [])
           .whereType<Map>()
@@ -611,6 +614,7 @@ class TrainingRecord {
         'wkCompletedAt': wkCompletedAt,
         'wkResponsibleId': wkResponsibleId,
         'wkQuestionnaireTemplateId': wkQuestionnaireTemplateId,
+        'wkThresholdPercent': wkThresholdPercent,
         'wkTargetParticipantIds': wkTargetParticipantIds,
         'auditLog': auditLog.map((entry) => entry.toJson()).toList(),
         'intervalType': intervalType,
@@ -705,22 +709,49 @@ class TrainingQuestionnaireTemplate {
     required this.id,
     required this.title,
     required this.description,
+    required this.category,
+    required this.tags,
+    required this.estimatedDurationMinutes,
+    required this.defaultThresholdPercent,
+    required this.isActive,
+    required this.createdBy,
+    required this.updatedBy,
+    required this.createdAt,
+    required this.updatedAt,
     required this.questions,
   });
 
   final String id;
   final String title;
   final String description;
-  final List<Map<String, dynamic>> questions;
+  final String category;
+  final List<String> tags;
+  final int? estimatedDurationMinutes;
+  final int defaultThresholdPercent;
+  final bool isActive;
+  final String createdBy;
+  final String updatedBy;
+  final int? createdAt;
+  final int? updatedAt;
+  final List<QuestionnaireQuestion> questions;
 
   factory TrainingQuestionnaireTemplate.fromJson(Map<String, dynamic> json) {
     return TrainingQuestionnaireTemplate(
       id: (json['id'] ?? '').toString(),
       title: (json['title'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
+      category: (json['category'] ?? '').toString(),
+      tags: (json['tags'] as List? ?? []).map((e) => e.toString()).where((e) => e.isNotEmpty).toList(),
+      estimatedDurationMinutes: json['estimatedDurationMinutes'] == null ? null : _parseOptionalInt(json['estimatedDurationMinutes']),
+      defaultThresholdPercent: json['defaultThresholdPercent'] == null ? 0 : _parseInt(json['defaultThresholdPercent']),
+      isActive: json['isActive'] != false,
+      createdBy: (json['createdBy'] ?? '').toString(),
+      updatedBy: (json['updatedBy'] ?? '').toString(),
+      createdAt: json['createdAt'] == null ? null : _parseOptionalInt(json['createdAt']),
+      updatedAt: json['updatedAt'] == null ? null : _parseOptionalInt(json['updatedAt']),
       questions: (json['questions'] as List? ?? [])
           .whereType<Map>()
-          .map((item) => item.cast<String, dynamic>())
+          .map((item) => QuestionnaireQuestion.fromJson(item.cast<String, dynamic>()))
           .toList(),
     );
   }
@@ -729,6 +760,86 @@ class TrainingQuestionnaireTemplate {
         'id': id,
         'title': title,
         'description': description,
-        'questions': questions,
+        'category': category,
+        'tags': tags,
+        'estimatedDurationMinutes': estimatedDurationMinutes,
+        'defaultThresholdPercent': defaultThresholdPercent,
+        'isActive': isActive,
+        'createdBy': createdBy,
+        'updatedBy': updatedBy,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
+        'questions': questions.map((q) => q.toJson()).toList(),
+      };
+}
+
+class QuestionnaireQuestion {
+  QuestionnaireQuestion({
+    required this.id,
+    required this.orderIndex,
+    required this.type,
+    required this.text,
+    required this.points,
+    required this.explanation,
+    required this.options,
+  });
+
+  final String id;
+  final int orderIndex;
+  final String type;
+  final String text;
+  final int points;
+  final String explanation;
+  final List<QuestionnaireOption> options;
+
+  factory QuestionnaireQuestion.fromJson(Map<String, dynamic> json) => QuestionnaireQuestion(
+        id: (json['id'] ?? '').toString(),
+        orderIndex: json['orderIndex'] == null ? 0 : _parseInt(json['orderIndex']),
+        type: (json['type'] ?? '').toString(),
+        text: (json['text'] ?? json['label'] ?? '').toString(),
+        points: json['points'] == null ? 1 : _parseInt(json['points']),
+        explanation: (json['explanation'] ?? '').toString(),
+        options: (json['options'] as List? ?? [])
+            .whereType<Map>()
+            .map((item) => QuestionnaireOption.fromJson(item.cast<String, dynamic>()))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'orderIndex': orderIndex,
+        'type': type,
+        'text': text,
+        'points': points,
+        'explanation': explanation,
+        'options': options.map((o) => o.toJson()).toList(),
+      };
+}
+
+class QuestionnaireOption {
+  QuestionnaireOption({
+    required this.id,
+    required this.orderIndex,
+    required this.text,
+    required this.isCorrect,
+  });
+
+  final String id;
+  final int orderIndex;
+  final String text;
+  final bool isCorrect;
+
+  factory QuestionnaireOption.fromJson(Map<String, dynamic> json) => QuestionnaireOption(
+        id: (json['id'] ?? '').toString(),
+        orderIndex: json['orderIndex'] == null ? 0 : _parseInt(json['orderIndex']),
+        text: (json['text'] ?? '').toString(),
+        isCorrect: json['isCorrect'] == true,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'orderIndex': orderIndex,
+        'text': text,
+        'isCorrect': isCorrect,
       };
 }
