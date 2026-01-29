@@ -322,35 +322,89 @@ class TrainingProgram {
 class TrainingParticipant {
   TrainingParticipant({
     required this.id,
+    required this.userId,
     required this.name,
     required this.email,
     required this.status,
     required this.external,
+    this.departmentTeam,
+    this.signedAt,
+    this.signedByUserId,
+    this.signatureBase64,
+    this.signatureUrl,
+    this.signatureHash,
+    this.signatureNote,
+    this.overrideNoSignature = false,
+    this.overrideReason,
+    this.overriddenByUserId,
+    this.overriddenAt,
   });
 
   final String id;
+  final String userId;
   final String name;
   final String email;
   final String status;
   final bool external;
+  final String? departmentTeam;
+  final int? signedAt;
+  final String? signedByUserId;
+  final String? signatureBase64;
+  final String? signatureUrl;
+  final String? signatureHash;
+  final String? signatureNote;
+  final bool overrideNoSignature;
+  final String? overrideReason;
+  final String? overriddenByUserId;
+  final int? overriddenAt;
 
   factory TrainingParticipant.fromJson(Map<String, dynamic> json) {
     return TrainingParticipant(
       id: (json['id'] ?? '').toString(),
+      userId: (json['userId'] ?? json['participantUserId'] ?? json['email'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
       external: json['external'] == true,
+      departmentTeam: (json['departmentTeam'] ?? '').toString().isEmpty ? null : (json['departmentTeam'] ?? '').toString(),
+      signedAt: json['signedAt'] == null ? null : _parseInt(json['signedAt']),
+      signedByUserId: (json['signedByUserId'] ?? json['signedBy'] ?? '').toString().isEmpty
+          ? null
+          : (json['signedByUserId'] ?? json['signedBy'] ?? '').toString(),
+      signatureBase64: (json['signatureBase64'] ?? '').toString().isEmpty ? null : (json['signatureBase64'] ?? '').toString(),
+      signatureUrl: (json['signatureUrl'] ?? '').toString().isEmpty ? null : (json['signatureUrl'] ?? '').toString(),
+      signatureHash: (json['signatureHash'] ?? '').toString().isEmpty ? null : (json['signatureHash'] ?? '').toString(),
+      signatureNote: (json['signatureNote'] ?? '').toString().isEmpty ? null : (json['signatureNote'] ?? '').toString(),
+      overrideNoSignature: json['overrideNoSignature'] == true,
+      overrideReason: (json['overrideReason'] ?? '').toString().isEmpty ? null : (json['overrideReason'] ?? '').toString(),
+      overriddenByUserId: (json['overriddenByUserId'] ?? '').toString().isEmpty
+          ? null
+          : (json['overriddenByUserId'] ?? '').toString(),
+      overriddenAt: json['overriddenAt'] == null ? null : _parseInt(json['overriddenAt']),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'userId': userId,
         'name': name,
         'email': email,
         'status': status,
         'external': external,
+        'departmentTeam': departmentTeam,
+        'signedAt': signedAt,
+        'signedByUserId': signedByUserId,
+        'signatureBase64': signatureBase64,
+        'signatureUrl': signatureUrl,
+        'signatureHash': signatureHash,
+        'signatureNote': signatureNote,
+        'overrideNoSignature': overrideNoSignature,
+        'overrideReason': overrideReason,
+        'overriddenByUserId': overriddenByUserId,
+        'overriddenAt': overriddenAt,
       };
+
+  bool get isSigned => signedAt != null || overrideNoSignature;
 }
 
 class TrainingRecord {
@@ -375,6 +429,16 @@ class TrainingRecord {
     required this.isExternal,
     required this.participants,
     required this.defaultQuestionnaireTemplateId,
+    this.completedAt,
+    this.wkMethod,
+    this.wkDelayDays,
+    this.wkDueAt,
+    this.wkStatus,
+    this.wkCompletedAt,
+    this.wkResponsibleId,
+    this.wkQuestionnaireTemplateId,
+    this.wkTargetParticipantIds,
+    this.auditLog = const [],
     this.linkedProgramId,
     this.intervalType,
     this.intervalValue,
@@ -410,6 +474,16 @@ class TrainingRecord {
   final bool isExternal;
   final List<TrainingParticipant> participants;
   final String defaultQuestionnaireTemplateId;
+  final int? completedAt;
+  final String? wkMethod;
+  final int? wkDelayDays;
+  final int? wkDueAt;
+  final String? wkStatus;
+  final int? wkCompletedAt;
+  final String? wkResponsibleId;
+  final String? wkQuestionnaireTemplateId;
+  final List<String>? wkTargetParticipantIds;
+  final List<TrainingAuditLogEntry> auditLog;
   final String? linkedProgramId;
   final String? intervalType;
   final String? intervalValue;
@@ -449,6 +523,21 @@ class TrainingRecord {
           .map((item) => TrainingParticipant.fromJson(item.cast<String, dynamic>()))
           .toList(),
       defaultQuestionnaireTemplateId: (json['defaultQuestionnaireTemplateId'] ?? '').toString(),
+      completedAt: json['completedAt'] == null ? null : _parseInt(json['completedAt']),
+      wkMethod: (json['wkMethod'] ?? '').toString().isEmpty ? null : (json['wkMethod'] ?? '').toString(),
+      wkDelayDays: json['wkDelayDays'] == null ? null : _parseInt(json['wkDelayDays']),
+      wkDueAt: json['wkDueAt'] == null ? null : _parseInt(json['wkDueAt']),
+      wkStatus: (json['wkStatus'] ?? '').toString().isEmpty ? null : (json['wkStatus'] ?? '').toString(),
+      wkCompletedAt: json['wkCompletedAt'] == null ? null : _parseInt(json['wkCompletedAt']),
+      wkResponsibleId: (json['wkResponsibleId'] ?? '').toString().isEmpty ? null : (json['wkResponsibleId'] ?? '').toString(),
+      wkQuestionnaireTemplateId: (json['wkQuestionnaireTemplateId'] ?? '').toString().isEmpty
+          ? null
+          : (json['wkQuestionnaireTemplateId'] ?? '').toString(),
+      wkTargetParticipantIds: (json['wkTargetParticipantIds'] as List? ?? []).map((e) => e.toString()).toList(),
+      auditLog: (json['auditLog'] as List? ?? [])
+          .whereType<Map>()
+          .map((entry) => TrainingAuditLogEntry.fromJson(entry.cast<String, dynamic>()))
+          .toList(),
       intervalType: (json['intervalType'] ?? '').toString().isEmpty ? null : (json['intervalType'] ?? '').toString(),
       intervalValue: (json['intervalValue'] ?? '').toString().isEmpty ? null : (json['intervalValue'] ?? '').toString(),
       recurrenceIntervalMonths: _parseOptionalInt(json['recurrenceIntervalMonths']),
@@ -487,6 +576,16 @@ class TrainingRecord {
         'isExternal': isExternal,
         'participants': participants.map((p) => p.toJson()).toList(),
         'defaultQuestionnaireTemplateId': defaultQuestionnaireTemplateId,
+        'completedAt': completedAt,
+        'wkMethod': wkMethod,
+        'wkDelayDays': wkDelayDays,
+        'wkDueAt': wkDueAt,
+        'wkStatus': wkStatus,
+        'wkCompletedAt': wkCompletedAt,
+        'wkResponsibleId': wkResponsibleId,
+        'wkQuestionnaireTemplateId': wkQuestionnaireTemplateId,
+        'wkTargetParticipantIds': wkTargetParticipantIds,
+        'auditLog': auditLog.map((entry) => entry.toJson()).toList(),
         'intervalType': intervalType,
         'intervalValue': intervalValue,
         'recurrenceIntervalMonths': recurrenceIntervalMonths,
@@ -500,6 +599,68 @@ class TrainingRecord {
         'executionNotes': executionNotes,
         'effectivenessResult': effectivenessResult,
         'updatedAt': updatedAt,
+      };
+}
+
+class TrainingWkAssessment {
+  TrainingWkAssessment({
+    required this.id,
+    required this.trainingSessionId,
+    required this.assessmentType,
+    required this.performedAt,
+    required this.performedByUserId,
+    required this.result,
+    this.notes,
+  });
+
+  final String id;
+  final String trainingSessionId;
+  final String assessmentType;
+  final int? performedAt;
+  final String performedByUserId;
+  final String result;
+  final String? notes;
+
+  factory TrainingWkAssessment.fromJson(Map<String, dynamic> json) => TrainingWkAssessment(
+        id: (json['id'] ?? '').toString(),
+        trainingSessionId: (json['trainingSessionId'] ?? json['trainingId'] ?? '').toString(),
+        assessmentType: (json['assessmentType'] ?? '').toString(),
+        performedAt: json['performedAt'] == null ? null : _parseInt(json['performedAt']),
+        performedByUserId: (json['performedByUserId'] ?? '').toString(),
+        result: (json['result'] ?? '').toString(),
+        notes: (json['notes'] ?? '').toString().isEmpty ? null : (json['notes'] ?? '').toString(),
+      );
+}
+
+class TrainingAuditLogEntry {
+  TrainingAuditLogEntry({
+    required this.id,
+    required this.action,
+    required this.message,
+    required this.by,
+    required this.at,
+  });
+
+  final String id;
+  final String action;
+  final String message;
+  final String by;
+  final int? at;
+
+  factory TrainingAuditLogEntry.fromJson(Map<String, dynamic> json) => TrainingAuditLogEntry(
+        id: (json['id'] ?? '').toString(),
+        action: (json['action'] ?? '').toString(),
+        message: (json['message'] ?? '').toString(),
+        by: (json['by'] ?? json['user'] ?? '').toString(),
+        at: json['at'] == null ? null : _parseInt(json['at']),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'action': action,
+        'message': message,
+        'by': by,
+        'at': at,
       };
 }
 

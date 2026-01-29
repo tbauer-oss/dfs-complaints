@@ -247,6 +247,19 @@ class TrainingListPage extends StatelessWidget {
   }
 }
 
+class TrainingEffectivenessPage extends StatelessWidget {
+  const TrainingEffectivenessPage({super.key, required this.api, required this.canWrite, this.canDelete = false});
+
+  final ApiClient api;
+  final bool canWrite;
+  final bool canDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 4);
+  }
+}
+
 class TrainingArchivePage extends StatelessWidget {
   const TrainingArchivePage({super.key, required this.api, required this.canWrite, this.canDelete = false});
 
@@ -256,56 +269,10 @@ class TrainingArchivePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 5);
+    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 6);
   }
 }
 
-class TrainingEffectivenessPage extends StatelessWidget {
-  const TrainingEffectivenessPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Wirksamkeitskontrolle', style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text(
-            'Dieser Bereich ist vorbereitet, die Datenintegration fehlt jedoch noch.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceVariant,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: cs.outlineVariant),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Setup incomplete: Bitte Wirksamkeitskriterien und Datenquellen hinterlegen.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _QuickLinkCard extends StatelessWidget {
   const _QuickLinkCard({

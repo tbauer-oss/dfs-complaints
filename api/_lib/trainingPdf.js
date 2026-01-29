@@ -148,7 +148,40 @@ export function createTrainingPdf(training, { questionnaires = [], templates = [
     });
   }
 
+  drawSectionTitle(doc, 'Unterschriften');
+  if (!training.participants?.length) {
+    doc.text('Keine Teilnehmer erfasst.');
+  } else {
+    training.participants.forEach((participant, idx) => {
+      const signedAt = participant.signedAt ? new Date(participant.signedAt).toLocaleString('de-DE') : 'offen';
+      doc.text(`${idx + 1}. ${safeText(participant.name)} · ${signedAt}`);
+      if (participant.signatureBase64) {
+        try {
+          const imageBuffer = Buffer.from(participant.signatureBase64, 'base64');
+          const imageWidth = 160;
+          const imageHeight = 50;
+          const x = doc.x + 12;
+          const y = doc.y + 4;
+          doc.image(imageBuffer, x, y, { width: imageWidth, height: imageHeight });
+          doc.moveDown(3);
+        } catch {
+          doc.moveDown(1);
+        }
+      }
+    });
+  }
+
   drawSectionTitle(doc, 'Wirksamkeitskontrolle');
+  if (training.wkMethod) {
+    doc.text(`Methode: ${safeText(training.wkMethod)}`);
+    doc.text(`Status: ${safeText(training.wkStatus)}`);
+    if (training.wkDueAt) {
+      doc.text(`Fällig am: ${new Date(training.wkDueAt).toLocaleString('de-DE')}`);
+    }
+    if (training.wkCompletedAt) {
+      doc.text(`Abgeschlossen am: ${new Date(training.wkCompletedAt).toLocaleString('de-DE')}`);
+    }
+  }
   if (!questionnaires.length) {
     doc.text('Keine Fragebögen dokumentiert.');
   } else {

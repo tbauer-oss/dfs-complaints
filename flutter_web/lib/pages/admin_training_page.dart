@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:signature/signature.dart';
 import '../api/client.dart';
+import '../models/portal_user.dart';
 import '../models/training.dart';
 
 class _DeleteDecision {
@@ -38,6 +41,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   List<TrainingProgram> _programs = const [];
   List<TrainingRecord> _trainings = const [];
   List<TrainingQuestionnaireTemplate> _templates = const [];
+  List<PortalUserSummary> _staffUsers = const [];
+  Map<String, dynamic> _wkReminders = const {};
   Map<String, dynamic> _summary = const {};
   bool _loading = false;
   String? _error;
@@ -73,6 +78,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         widget.api.adminTrainings(),
         widget.api.adminTrainingTemplates(),
         widget.api.adminTrainingSummary(),
+        widget.api.adminStaffUsers(includeInactive: false),
+        widget.api.trainingWkReminders(),
       ]);
       setState(() {
         _needs = results[0] as List<TrainingNeed>;
@@ -80,6 +87,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         _trainings = results[2] as List<TrainingRecord>;
         _templates = results[3] as List<TrainingQuestionnaireTemplate>;
         _summary = results[4] as Map<String, dynamic>;
+        _staffUsers = results[5] as List<PortalUserSummary>;
+        _wkReminders = results[6] as Map<String, dynamic>;
         if (_programs.isNotEmpty) {
           final years = _programs.map((entry) => entry.year).toSet();
           if (!years.contains(_programYearFilter)) {
@@ -100,6 +109,16 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final anchor = html.AnchorElement(href: url)..download = filename;
     anchor.click();
     html.Url.revokeObjectUrl(url);
+  }
+
+  Future<void> _reloadWkReminders() async {
+    try {
+      final data = await widget.api.trainingWkReminders();
+      if (!mounted) return;
+      setState(() => _wkReminders = data);
+    } catch (_) {
+      // Ignore reminder refresh errors
+    }
   }
 
   Future<void> _downloadTrainingPdf(TrainingRecord record) async {
@@ -128,6 +147,73 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Programm-PDF konnte nicht erstellt werden: $err')),
       );
+    }
+  }
+
+  String get _currentUserEmail {
+    final profile = widget.api.portalProfile;
+    return (profile?['email'] ?? '').toString().toLowerCase();
+  }
+
+  bool get _isAdminUser {
+    final role = (widget.api.portalProfile?['role'] ?? '').toString().toLowerCase();
+    return role == 'admin' || role == 'superuser';
+  }
+
+  PortalUserSummary? _staffByEmail(String? email) {
+    if (email == null || email.isEmpty) return null;
+    for (final user in _staffUsers) {
+      if (user.email.toLowerCase() == email.toLowerCase()) return user;
+    }
+    return null;
+  }
+
+  String _trainingStatusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Entwurf';
+      case 'planned':
+        return 'Geplant';
+      case 'scheduled':
+        return 'Terminiert';
+      case 'inProgress':
+        return 'In Durchführung';
+      case 'conducted':
+        return 'Durchgeführt';
+      case 'completed':
+        return 'Abgeschlossen';
+      case 'cancelled':
+        return 'Abgesagt';
+      default:
+        return status;
+    }
+  }
+
+  String _wkMethodLabel(String? method) {
+    switch (method) {
+      case 'questionnaire':
+        return 'Fragebogen (digital)';
+      case 'direct':
+        return 'Direkte Messung (Befragung)';
+      case 'indirect':
+        return 'Indirekte Messung (Überprüfung der Arbeitsergebnisse)';
+      default:
+        return '—';
+    }
+  }
+
+  String _wkStatusLabel(String? status) {
+    switch (status) {
+      case 'pending':
+        return 'offen';
+      case 'in_progress':
+        return 'in Arbeit';
+      case 'done':
+        return 'abgeschlossen';
+      case 'overdue':
+        return 'überfällig';
+      default:
+        return '—';
     }
   }
 
@@ -1479,6 +1565,212 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
+  Future<TrainingParticipant?> _openExternalParticipantDialog() async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final result = await showDialog<TrainingParticipant>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Externe Teilnehmer hinzufügen'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+                TextField(controller: emailController, decoration: const InputDecoration(labelText: 'E-Mail (optional)')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isEmpty) return;
+                final email = emailController.text.trim();
+                final userId = email.isNotEmpty ? email : name;
+                final participant = TrainingParticipant(
+                  id: '',
+                  userId: userId,
+                  name: name,
+                  email: email,
+                  status: 'invited',
+                  external: true,
+                );
+                Navigator.of(context).pop(participant);
+              },
+              child: const Text('Hinzufügen'),
+            ),
+          ],
+        );
+      },
+    );
+    return result;
+  }
+
+  Future<List<TrainingParticipant>?> _openParticipantsDialog({
+    required List<TrainingParticipant> initial,
+  }) async {
+    final selected = <String, TrainingParticipant>{
+      for (final p in initial)
+        (p.userId.isNotEmpty ? p.userId : (p.email.isNotEmpty ? p.email : p.name)): p,
+    };
+    final searchController = TextEditingController();
+    return showDialog<List<TrainingParticipant>>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filtered = _staffUsers.where((user) {
+              final label = user.label.toLowerCase();
+              return query.isEmpty || label.contains(query) || user.email.toLowerCase().contains(query);
+            }).toList();
+            return AlertDialog(
+              title: const Text('Teilnehmer auswählen'),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchController,
+                      decoration: const InputDecoration(labelText: 'Suche'),
+                      onChanged: (_) => setModalState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 300,
+                      child: ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final user = filtered[index];
+                          final key = user.email;
+                          final isSelected = selected.containsKey(key);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            title: Text(user.label),
+                            subtitle: Text(user.email),
+                            onChanged: (value) {
+                              setModalState(() {
+                                if (value == true) {
+                                  selected[key] = TrainingParticipant(
+                                    id: selected[key]?.id ?? '',
+                                    userId: user.email,
+                                    name: user.label,
+                                    email: user.email,
+                                    status: selected[key]?.status ?? 'invited',
+                                    external: false,
+                                    departmentTeam: user.assignedDepartments.isNotEmpty
+                                        ? user.assignedDepartments.first
+                                        : null,
+                                  );
+                                } else {
+                                  selected.remove(key);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    final external = await _openExternalParticipantDialog();
+                    if (external == null) return;
+                    setModalState(() {
+                      final key = external.userId.isNotEmpty ? external.userId : external.name;
+                      selected[key] = external;
+                    });
+                  },
+                  child: const Text('Extern hinzufügen'),
+                ),
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(selected.values.toList()),
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<String?> _openSignatureDialog({required String participantName}) async {
+    final controller = SignatureController(
+      penStrokeWidth: 3,
+      penColor: Colors.black87,
+      exportBackgroundColor: Colors.white,
+    );
+    bool confirmed = false;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: Text('Unterschrift von $participantName'),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Signature(controller: controller, backgroundColor: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: confirmed,
+                      title: const Text('Ich bestätige die Teilnahme an der Schulung.'),
+                      onChanged: (value) => setModalState(() => confirmed = value ?? false),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    controller.clear();
+                    setModalState(() {});
+                  },
+                  child: const Text('Löschen'),
+                ),
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: confirmed && controller.isNotEmpty
+                      ? () async {
+                          final data = await controller.toPngBytes();
+                          if (data == null) return;
+                          final base64 = base64Encode(data);
+                          Navigator.of(context).pop(base64);
+                        }
+                      : null,
+                  child: const Text('Speichern'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
   Future<TrainingRecord?> _openTrainingDialog({TrainingRecord? initial}) async {
     if (!widget.canWrite) return null;
     final controllerTitle = TextEditingController(text: initial?.title ?? '');
@@ -1489,78 +1781,120 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final controllerTrainer = TextEditingController(text: initial?.trainer ?? '');
     final controllerLocation = TextEditingController(text: initial?.location ?? '');
     final controllerOwner = TextEditingController(text: initial?.owner ?? '');
-    const trainingStatusOptions = {
-      'planned': 'Geplant',
-      'scheduled': 'Terminiert',
-      'inProgress': 'In Arbeit',
-      'completed': 'Abgeschlossen',
-      'cancelled': 'Abgesagt',
-    };
-    String selectedStatus = initial?.status ?? 'planned';
+    var selectedParticipants = [...(initial?.participants ?? const [])];
     final result = await showDialog<TrainingRecord>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(initial == null ? 'Neue Schulung' : 'Schulung bearbeiten'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(controller: controllerTitle, decoration: const InputDecoration(labelText: 'Titel')),
-                  TextField(controller: controllerCategory, decoration: const InputDecoration(labelText: 'Kategorie')),
-                  TextField(controller: controllerType, decoration: const InputDecoration(labelText: 'Typ (intern/extern)')),
-                  TextField(controller: controllerFormat, decoration: const InputDecoration(labelText: 'Format')),
-                  TextField(controller: controllerDate, decoration: const InputDecoration(labelText: 'Datum')),
-                  TextField(controller: controllerTrainer, decoration: const InputDecoration(labelText: 'Trainer/Anbieter')),
-                  TextField(controller: controllerLocation, decoration: const InputDecoration(labelText: 'Ort/Link')),
-                  TextField(controller: controllerOwner, decoration: const InputDecoration(labelText: 'Owner')),
-                  DropdownButtonFormField<String>(
-                    value: selectedStatus,
-                    items: trainingStatusOptions.entries
-                        .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
-                        .toList(),
-                    onChanged: (value) => setState(() => selectedStatus = value ?? 'planned'),
-                    decoration: const InputDecoration(labelText: 'Status'),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: Text(initial == null ? 'Neue Schulung' : 'Schulung bearbeiten'),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(controller: controllerTitle, decoration: const InputDecoration(labelText: 'Titel')),
+                      TextField(controller: controllerCategory, decoration: const InputDecoration(labelText: 'Kategorie')),
+                      TextField(controller: controllerType, decoration: const InputDecoration(labelText: 'Typ (intern/extern)')),
+                      TextField(controller: controllerFormat, decoration: const InputDecoration(labelText: 'Format')),
+                      TextField(controller: controllerDate, decoration: const InputDecoration(labelText: 'Datum')),
+                      TextField(controller: controllerTrainer, decoration: const InputDecoration(labelText: 'Trainer/Anbieter')),
+                      TextField(controller: controllerLocation, decoration: const InputDecoration(labelText: 'Ort/Link')),
+                      TextField(controller: controllerOwner, decoration: const InputDecoration(labelText: 'Owner')),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Teilnehmer', style: Theme.of(context).textTheme.titleSmall),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: selectedParticipants.isEmpty
+                            ? [const Text('Noch keine Teilnehmer ausgewählt.')]
+                            : selectedParticipants.map((participant) {
+                                return InputChip(
+                                  label: Text(participant.name),
+                                  onDeleted: () {
+                                    setModalState(() {
+                                      selectedParticipants = selectedParticipants
+                                          .where((entry) => entry.id != participant.id && entry.userId != participant.userId)
+                                          .toList();
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            final updated = await _openParticipantsDialog(initial: selectedParticipants);
+                            if (updated == null) return;
+                            setModalState(() => selectedParticipants = updated);
+                          },
+                          icon: const Icon(Icons.group_add_outlined),
+                          label: const Text('Teilnehmer hinzufügen'),
+                        ),
+                      ),
+                      if (initial != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Status: ${_trainingStatusLabel(initial.status)}',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
-            ElevatedButton(
-              onPressed: () {
-                final record = TrainingRecord(
-                  id: initial?.id ?? '',
-                  trainingNumber: initial?.trainingNumber ?? '',
-                  year: initial?.year ?? DateTime.now().year,
-                  title: controllerTitle.text.trim(),
-                  category: controllerCategory.text.trim(),
-                  type: controllerType.text.trim(),
-                  format: controllerFormat.text.trim(),
-                  startDate: controllerDate.text.trim(),
-                  endDate: '',
-                  trainer: controllerTrainer.text.trim(),
-                  location: controllerLocation.text.trim(),
-                  status: selectedStatus,
-                  owner: controllerOwner.text.trim(),
-                  targetGroup: '',
-                  reason: '',
-                  departments: const [],
-                  isMandatory: false,
-                  isExternal: controllerType.text.trim().toLowerCase() == 'extern',
-                  participants: const [],
-                  defaultQuestionnaireTemplateId: _templates.isNotEmpty ? _templates.first.id : '',
-                  linkedProgramId: initial?.linkedProgramId,
-                  updatedAt: initial?.updatedAt,
-                );
-                Navigator.of(context).pop(record);
-              },
-              child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
-            ),
-          ],
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: () {
+                    final record = TrainingRecord(
+                      id: initial?.id ?? '',
+                      trainingNumber: initial?.trainingNumber ?? '',
+                      year: initial?.year ?? DateTime.now().year,
+                      title: controllerTitle.text.trim(),
+                      category: controllerCategory.text.trim(),
+                      type: controllerType.text.trim(),
+                      format: controllerFormat.text.trim(),
+                      startDate: controllerDate.text.trim(),
+                      endDate: '',
+                      trainer: controllerTrainer.text.trim(),
+                      location: controllerLocation.text.trim(),
+                      status: initial?.status ?? 'planned',
+                      owner: controllerOwner.text.trim(),
+                      targetGroup: '',
+                      reason: '',
+                      departments: const [],
+                      isMandatory: false,
+                      isExternal: controllerType.text.trim().toLowerCase() == 'extern',
+                      participants: selectedParticipants,
+                      defaultQuestionnaireTemplateId: _templates.isNotEmpty ? _templates.first.id : '',
+                      linkedProgramId: initial?.linkedProgramId,
+                      updatedAt: initial?.updatedAt,
+                      completedAt: initial?.completedAt,
+                      wkMethod: initial?.wkMethod,
+                      wkDelayDays: initial?.wkDelayDays,
+                      wkDueAt: initial?.wkDueAt,
+                      wkStatus: initial?.wkStatus,
+                      wkCompletedAt: initial?.wkCompletedAt,
+                      wkResponsibleId: initial?.wkResponsibleId,
+                      wkQuestionnaireTemplateId: initial?.wkQuestionnaireTemplateId,
+                      wkTargetParticipantIds: initial?.wkTargetParticipantIds,
+                    );
+                    Navigator.of(context).pop(record);
+                  },
+                  child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1578,15 +1912,432 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
+  void _updateTrainingRecord(TrainingRecord updated) {
+    setState(() => _trainings = _trainings.map((entry) => entry.id == updated.id ? updated : entry).toList());
+  }
+
   Future<void> _editTraining(TrainingRecord record) async {
     final result = await _openTrainingDialog(initial: record);
     if (result == null) return;
     try {
       final saved = await widget.api.adminUpdateTraining(result);
-      setState(() => _trainings = _trainings.map((entry) => entry.id == saved.id ? saved : entry).toList());
+      _updateTrainingRecord(saved);
     } catch (err) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualisieren fehlgeschlagen: $err')));
     }
+  }
+
+  Future<void> _openTrainingDetailDialog(TrainingRecord record) async {
+    final currentUser = _currentUserEmail;
+    final canManage = _isAdminUser;
+    var current = record;
+    final wkMethod = ValueNotifier<String>(current.wkMethod ?? '');
+    final wkDelayDays = ValueNotifier<int>(current.wkDelayDays ?? 0);
+    final wkResponsible = ValueNotifier<String>(current.wkResponsibleId ?? currentUser);
+    final wkTemplateId = ValueNotifier<String>(current.wkQuestionnaireTemplateId ?? '');
+    final wkCustomDelay = TextEditingController();
+    final wkResult = TextEditingController();
+    final wkNotes = TextEditingController();
+    DateTime? wkPerformedAt;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final participants = current.participants;
+            return AlertDialog(
+              title: Text('${current.trainingNumber.isEmpty ? 'Schulung' : current.trainingNumber} · ${current.title}'),
+              content: SizedBox(
+                width: 640,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Status: ${_trainingStatusLabel(current.status)}'),
+                      if (current.completedAt != null)
+                        Text('Durchgeführt am: ${DateTime.fromMillisecondsSinceEpoch(current.completedAt!).toLocal()}'),
+                      const SizedBox(height: 12),
+                      Text('Unterschriften', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      if (participants.isEmpty)
+                        const Text('Noch keine Teilnehmer erfasst.')
+                      else
+                        ...participants.map((participant) {
+                          final isSigned = participant.isSigned;
+                          final canSign = (participant.userId.toLowerCase() == currentUser) || canManage;
+                          final signedAt = participant.signedAt == null
+                              ? null
+                              : DateTime.fromMillisecondsSinceEpoch(participant.signedAt!).toLocal();
+                          return Card(
+                            elevation: 0,
+                            color: Colors.grey.shade50,
+                            child: ListTile(
+                              title: Text(participant.name),
+                              subtitle: Text(isSigned ? 'unterschrieben ${signedAt ?? ''}' : 'offen'),
+                              trailing: Wrap(
+                                spacing: 8,
+                                children: [
+                                  if (!isSigned)
+                                    ElevatedButton(
+                                      onPressed: canSign
+                                          ? () async {
+                                              final signature = await _openSignatureDialog(participantName: participant.name);
+                                              if (signature == null) return;
+                                              try {
+                                                final updated = await widget.api.trainingSignParticipant(
+                                                  trainingId: current.id,
+                                                  participantId: participant.id,
+                                                  signatureBase64: signature,
+                                                );
+                                                _updateTrainingRecord(updated);
+                                                setModalState(() => current = updated);
+                                                await _reloadWkReminders();
+                                              } catch (err) {
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(SnackBar(content: Text('Unterschrift fehlgeschlagen: $err')));
+                                              }
+                                            }
+                                          : null,
+                                      child: const Text('Unterschreiben'),
+                                    ),
+                                  if (canManage)
+                                    PopupMenuButton<String>(
+                                      tooltip: 'Weitere Aktionen',
+                                      onSelected: (value) async {
+                                        if (value == 'reset') {
+                                          final reasonController = TextEditingController();
+                                          final reason = await showDialog<String>(
+                                            context: context,
+                                            builder: (context) {
+                                              return AlertDialog(
+                                                title: const Text('Unterschrift zurücksetzen'),
+                                                content: TextField(
+                                                  controller: reasonController,
+                                                  decoration: const InputDecoration(labelText: 'Begründung'),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.of(context).pop(),
+                                                    child: const Text('Abbrechen'),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () => Navigator.of(context).pop(reasonController.text.trim()),
+                                                    child: const Text('Bestätigen'),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                          );
+                                          if (reason == null || reason.isEmpty) return;
+                                          try {
+                                            final updated = await widget.api.trainingResetParticipantSignature(
+                                              trainingId: current.id,
+                                              participantId: participant.id,
+                                              reason: reason,
+                                            );
+                                            _updateTrainingRecord(updated);
+                                            setModalState(() => current = updated);
+                                            await _reloadWkReminders();
+                                          } catch (err) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(SnackBar(content: Text('Reset fehlgeschlagen: $err')));
+                                          }
+                                        }
+                                        if (value == 'override') {
+                                          final reasonController = TextEditingController();
+                                          final reason = await showDialog<String>(
+                                            context: context,
+                                            builder: (context) {
+                                              return AlertDialog(
+                                                title: const Text('Teilnahme ohne Signatur bestätigen'),
+                                                content: TextField(
+                                                  controller: reasonController,
+                                                  decoration: const InputDecoration(labelText: 'Begründung'),
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () => Navigator.of(context).pop(),
+                                                    child: const Text('Abbrechen'),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () => Navigator.of(context).pop(reasonController.text.trim()),
+                                                    child: const Text('Bestätigen'),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                          );
+                                          if (reason == null || reason.isEmpty) return;
+                                          try {
+                                            final updated = await widget.api.trainingOverrideParticipantSignature(
+                                              trainingId: current.id,
+                                              participantId: participant.id,
+                                              reason: reason,
+                                            );
+                                            _updateTrainingRecord(updated);
+                                            setModalState(() => current = updated);
+                                            await _reloadWkReminders();
+                                          } catch (err) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(SnackBar(content: Text('Override fehlgeschlagen: $err')));
+                                          }
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(value: 'reset', child: Text('Unterschrift zurücksetzen')),
+                                        const PopupMenuItem(value: 'override', child: Text('Teilnahme ohne Signatur bestätigen')),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 16),
+                      Text('Wirksamkeitskontrolle', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      ValueListenableBuilder<String>(
+                        valueListenable: wkMethod,
+                        builder: (context, value, _) {
+                          return DropdownButtonFormField<String>(
+                            value: value.isEmpty ? null : value,
+                            decoration: const InputDecoration(labelText: 'WK Methode'),
+                            items: const [
+                              DropdownMenuItem(value: 'questionnaire', child: Text('Fragebogen (digital)')),
+                              DropdownMenuItem(value: 'direct', child: Text('Direkte Messung (Befragung)')),
+                              DropdownMenuItem(value: 'indirect', child: Text('Indirekte Messung (Überprüfung der Arbeitsergebnisse)')),
+                            ],
+                            onChanged: (method) => wkMethod.value = method ?? '',
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      ValueListenableBuilder<int>(
+                        valueListenable: wkDelayDays,
+                        builder: (context, value, _) {
+                          return DropdownButtonFormField<int>(
+                            value: value > 0 ? value : null,
+                            decoration: const InputDecoration(labelText: 'WK erforderlich nach'),
+                            items: const [
+                              DropdownMenuItem(value: 7, child: Text('1 Woche')),
+                              DropdownMenuItem(value: 14, child: Text('2 Wochen')),
+                              DropdownMenuItem(value: 30, child: Text('1 Monat')),
+                              DropdownMenuItem(value: 60, child: Text('2 Monate')),
+                              DropdownMenuItem(value: 90, child: Text('3 Monate')),
+                              DropdownMenuItem(value: 180, child: Text('6 Monate')),
+                            ],
+                            onChanged: (delay) => wkDelayDays.value = delay ?? 0,
+                          );
+                        },
+                      ),
+                      TextField(
+                        controller: wkCustomDelay,
+                        decoration: const InputDecoration(labelText: 'Custom Delay (Tage)', helperText: 'Optional'),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 8),
+                      ValueListenableBuilder<String>(
+                        valueListenable: wkResponsible,
+                        builder: (context, value, _) {
+                          return DropdownButtonFormField<String>(
+                            value: value.isNotEmpty ? value : null,
+                            decoration: const InputDecoration(labelText: 'WK Verantwortlich'),
+                            items: _staffUsers
+                                .map((user) => DropdownMenuItem(value: user.email, child: Text(user.label)))
+                                .toList(),
+                            onChanged: (selection) => wkResponsible.value = selection ?? '',
+                          );
+                        },
+                      ),
+                      ValueListenableBuilder<String>(
+                        valueListenable: wkMethod,
+                        builder: (context, method, _) {
+                          if (method != 'questionnaire') return const SizedBox.shrink();
+                          return DropdownButtonFormField<String>(
+                            value: wkTemplateId.value.isNotEmpty ? wkTemplateId.value : null,
+                            decoration: const InputDecoration(labelText: 'Fragebogen-Template'),
+                            items: _templates
+                                .map((template) => DropdownMenuItem(value: template.id, child: Text(template.title)))
+                                .toList(),
+                            onChanged: (selection) => wkTemplateId.value = selection ?? '',
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      if (current.wkDueAt != null)
+                        Text('Fällig am: ${DateTime.fromMillisecondsSinceEpoch(current.wkDueAt!).toLocal()}'),
+                      Text('Status: ${_wkStatusLabel(current.wkStatus)}'),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: canManage
+                            ? () async {
+                                final customDelay = int.tryParse(wkCustomDelay.text.trim());
+                                final delay = customDelay != null && customDelay > 0 ? customDelay : wkDelayDays.value;
+                                if (wkMethod.value.isEmpty || delay <= 0) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('WK Methode und Verzögerung sind erforderlich.')),
+                                  );
+                                  return;
+                                }
+                                try {
+                                  final updated = await widget.api.trainingConfigureWk(
+                                    trainingId: current.id,
+                                    wkMethod: wkMethod.value,
+                                    wkDelayDays: delay,
+                                    wkResponsibleId: wkResponsible.value,
+                                    wkQuestionnaireTemplateId: wkTemplateId.value,
+                                  );
+                                  _updateTrainingRecord(updated);
+                                  setModalState(() {
+                                    current = updated;
+                                    wkMethod.value = updated.wkMethod ?? '';
+                                    wkDelayDays.value = updated.wkDelayDays ?? 0;
+                                    wkResponsible.value = updated.wkResponsibleId ?? currentUser;
+                                    wkTemplateId.value = updated.wkQuestionnaireTemplateId ?? '';
+                                  });
+                                  await _reloadWkReminders();
+                                } catch (err) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('WK Konfiguration fehlgeschlagen: $err')));
+                                }
+                              }
+                            : null,
+                        child: const Text('WK speichern'),
+                      ),
+                      const SizedBox(height: 16),
+                      if (current.wkMethod == 'direct' || current.wkMethod == 'indirect') ...[
+                        Text('WK Dokumentation', style: Theme.of(context).textTheme.titleSmall),
+                        TextField(
+                          controller: wkResult,
+                          decoration: const InputDecoration(labelText: 'Ergebnis (wirksam/teilweise/nicht wirksam)'),
+                        ),
+                        TextField(
+                          controller: wkNotes,
+                          decoration: const InputDecoration(labelText: 'Notizen'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(DateTime.now().year - 2),
+                              lastDate: DateTime(DateTime.now().year + 2),
+                            );
+                            if (picked != null) {
+                              setModalState(() => wkPerformedAt = picked);
+                            }
+                          },
+                          icon: const Icon(Icons.event),
+                          label: Text(wkPerformedAt == null ? 'Datum wählen' : wkPerformedAt!.toLocal().toString()),
+                        ),
+                        ElevatedButton(
+                          onPressed: canManage
+                              ? () async {
+                                  if (wkResult.text.trim().isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Bitte Ergebnis angeben.')),
+                                    );
+                                    return;
+                                  }
+                                  try {
+                                    final updated = await widget.api.trainingCompleteWk(
+                                      trainingId: current.id,
+                                      result: wkResult.text.trim(),
+                                      notes: wkNotes.text.trim(),
+                                      performedAt: wkPerformedAt,
+                                    );
+                                    _updateTrainingRecord(updated);
+                                    setModalState(() => current = updated);
+                                    await _reloadWkReminders();
+                                  } catch (err) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(content: Text('WK Abschluss fehlgeschlagen: $err')));
+                                  }
+                                }
+                              : null,
+                          child: const Text('WK abschließen'),
+                        ),
+                      ] else if (current.wkMethod == 'questionnaire') ...[
+                        Text('WK Fragebogen', style: Theme.of(context).textTheme.titleSmall),
+                        const Text('Fragebogen-Auswertung erfolgt über die Teilnehmerantworten.'),
+                        if (canManage)
+                          TextButton(
+                            onPressed: () async {
+                              final reasonController = TextEditingController();
+                              final reason = await showDialog<String>(
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                    title: const Text('WK als ausreichend markieren'),
+                                    content: TextField(
+                                      controller: reasonController,
+                                      decoration: const InputDecoration(labelText: 'Begründung'),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(context).pop(),
+                                        child: const Text('Abbrechen'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () => Navigator.of(context).pop(reasonController.text.trim()),
+                                        child: const Text('Bestätigen'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                              if (reason == null || reason.isEmpty) return;
+                              try {
+                                final updated = await widget.api.trainingCompleteWk(
+                                  trainingId: current.id,
+                                  result: 'override',
+                                  override: true,
+                                  reason: reason,
+                                );
+                                _updateTrainingRecord(updated);
+                                setModalState(() => current = updated);
+                                await _reloadWkReminders();
+                              } catch (err) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text('WK Abschluss fehlgeschlagen: $err')));
+                              }
+                            },
+                            child: const Text('WK als ausreichend markieren'),
+                          ),
+                      ],
+                      const SizedBox(height: 16),
+                      Text('Audit-Log', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      if (current.auditLog.isEmpty)
+                        const Text('Keine Audit-Einträge vorhanden.')
+                      else
+                        ...current.auditLog.map((entry) {
+                          final timestamp =
+                              entry.at == null ? '—' : DateTime.fromMillisecondsSinceEpoch(entry.at!).toLocal().toString();
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(entry.message),
+                            subtitle: Text('${entry.action} · ${entry.by} · $timestamp'),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+              ],
+            );
+          },
+        );
+      },
+    );
+    wkCustomDelay.dispose();
+    wkResult.dispose();
+    wkNotes.dispose();
   }
 
   Future<TrainingQuestionnaireTemplate?> _openTemplateDialog({TrainingQuestionnaireTemplate? initial}) async {
@@ -1699,11 +2450,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final theme = Theme.of(context);
     final initialIndex = widget.initialTab < 0
         ? 0
-        : widget.initialTab > 5
-            ? 5
+        : widget.initialTab > 6
+            ? 6
             : widget.initialTab;
     return DefaultTabController(
-      length: 6,
+      length: 7,
       initialIndex: initialIndex,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1728,6 +2479,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
               Tab(text: 'Schulungsbedarf'),
               Tab(text: 'Schulungsprogramm'),
               Tab(text: 'Schulungen'),
+              Tab(text: 'Wirksamkeitskontrolle'),
               Tab(text: 'Fragebogen-Templates'),
               Tab(text: 'Archiv'),
             ],
@@ -1742,6 +2494,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       _buildNeedsTab(theme),
                       _buildProgramsTab(theme),
                       _buildTrainingsTab(theme),
+                      _buildEffectivenessTab(theme),
                       _buildTemplatesTab(theme),
                       _buildArchiveTab(theme),
                     ],
@@ -1757,6 +2510,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final planned = _summary['planned'] ?? _trainings.where((t) => t.status != 'completed').length;
     final completed = _summary['completed'] ?? _trainings.where((t) => t.status == 'completed').length;
     final participation = _summary['participationRate'] ?? 0;
+    final dueSoon = (_wkReminders['dueSoon'] as List? ?? const []).length;
+    final overdue = (_wkReminders['overdue'] as List? ?? const []).length;
     return ListView(
       children: [
         Wrap(
@@ -1767,6 +2522,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             _metricCard('Durchgeführt', completed.toString(), Icons.verified_outlined, Colors.green.shade700),
             _metricCard('Teilnahmequote', '$participation%', Icons.people_outline, Colors.orange.shade700),
             _metricCard('Summe (Datensätze)', total.toString(), Icons.list_alt_outlined, Colors.purple.shade700),
+            _metricCard('WK fällig (14 Tage)', dueSoon.toString(), Icons.fact_check_outlined, Colors.indigo.shade700),
+            _metricCard('WK überfällig', overdue.toString(), Icons.warning_amber_outlined, Colors.red.shade700),
           ],
         ),
         const SizedBox(height: 16),
@@ -2377,7 +3134,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           return Card(
             child: ListTile(
               title: Text('${training.trainingNumber.isEmpty ? 'Neu' : training.trainingNumber} · ${training.title}'),
-              subtitle: Text('${training.category} · ${training.startDate} · ${training.status}'),
+              subtitle: Text('${training.category} · ${training.startDate} · ${_trainingStatusLabel(training.status)}'),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2387,6 +3144,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                     tooltip: 'PDF Export',
                     icon: const Icon(Icons.picture_as_pdf_outlined),
                     onPressed: () => _downloadTrainingPdf(training),
+                  ),
+                  IconButton(
+                    tooltip: 'Details',
+                    icon: const Icon(Icons.fact_check_outlined),
+                    onPressed: () => _openTrainingDetailDialog(training),
                   ),
                   if (widget.canWrite)
                     IconButton(
@@ -2405,6 +3167,60 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             ),
           );
         }),
+      ],
+    );
+  }
+
+  Widget _buildEffectivenessTab(ThemeData theme) {
+    final dueSoon = (_wkReminders['dueSoon'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final overdue = (_wkReminders['overdue'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    return ListView(
+      children: [
+        Text('Wirksamkeitskontrolle', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (dueSoon.isEmpty && overdue.isEmpty)
+          const Text('Keine fälligen Wirksamkeitskontrollen.'),
+        if (overdue.isNotEmpty) ...[
+          Text('Überfällig', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...overdue.map((item) {
+            final title = (item['title'] ?? '').toString();
+            final number = (item['trainingNumber'] ?? '').toString();
+            final dueRaw = item['wkDueAt'];
+            final dueAt = dueRaw is num ? DateTime.fromMillisecondsSinceEpoch(dueRaw.toInt()).toLocal() : null;
+            return Card(
+              child: ListTile(
+                leading: Icon(Icons.warning_amber_outlined, color: Colors.red.shade400),
+                title: Text('$number · $title'),
+                subtitle: Text(dueAt == null ? 'Fällig: —' : 'Fällig: ${dueAt.toString()}'),
+              ),
+            );
+          }),
+        ],
+        if (dueSoon.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Fällig in den nächsten 14 Tagen', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...dueSoon.map((item) {
+            final title = (item['title'] ?? '').toString();
+            final number = (item['trainingNumber'] ?? '').toString();
+            final dueRaw = item['wkDueAt'];
+            final dueAt = dueRaw is num ? DateTime.fromMillisecondsSinceEpoch(dueRaw.toInt()).toLocal() : null;
+            return Card(
+              child: ListTile(
+                leading: Icon(Icons.calendar_today_outlined, color: Colors.orange.shade600),
+                title: Text('$number · $title'),
+                subtitle: Text(dueAt == null ? 'Fällig: —' : 'Fällig: ${dueAt.toString()}'),
+              ),
+            );
+          }),
+        ],
       ],
     );
   }
@@ -2490,7 +3306,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           return Card(
             child: ListTile(
               title: Text('${training.trainingNumber} · ${training.title}'),
-              subtitle: Text('${training.category} · ${training.status}'),
+              subtitle: Text('${training.category} · ${_trainingStatusLabel(training.status)}'),
               trailing: Wrap(
                 spacing: 6,
                 children: [
@@ -2498,6 +3314,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                     tooltip: 'PDF Export',
                     icon: const Icon(Icons.picture_as_pdf_outlined),
                     onPressed: () => _downloadTrainingPdf(training),
+                  ),
+                  IconButton(
+                    tooltip: 'Details',
+                    icon: const Icon(Icons.fact_check_outlined),
+                    onPressed: () => _openTrainingDetailDialog(training),
                   ),
                   if (widget.canWrite)
                     IconButton(
