@@ -392,34 +392,16 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       return '$y-$m-$d';
     }
 
-    void syncPlannedPeriodValue() {
-      plannedPeriodValue = buildPlannedPeriodValue();
-      if (plannedPeriodValue != null) {
-        errorPlannedPeriod = null;
-      }
-    }
-
-    void syncPlannedPeriodYear() {
-      final yearText = controllerYear.text.trim();
-      if (!RegExp(r'^\\d{4}$').hasMatch(yearText)) return;
-      controllerMonthYear.text = yearText;
-      controllerQuarterYear.text = yearText;
-      controllerHalfYearYear.text = yearText;
-      final plannedText = controllerPlannedDate.text.trim();
-      if (plannedText.isEmpty) return;
-      final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(plannedText);
-      if (match == null) return;
-      final month = int.tryParse(match.group(2) ?? '');
-      final day = int.tryParse(match.group(3) ?? '');
-      if (month == null || day == null) return;
-      final updated = DateTime(int.parse(yearText), month, day);
-      controllerPlannedDate.text = formatDate(updated);
-    }
-
     String? buildPlannedPeriodValue() {
       if (plannedPeriodType == 'date') {
         final planned = controllerPlannedDate.text.trim();
-        if (planned.isEmpty) return null;
+        if (planned.isEmpty) {
+          final year = controllerYear.text.trim();
+          if (RegExp(r'^\\d{4}$').hasMatch(year)) {
+            return '$year-01-01';
+          }
+          return null;
+        }
         final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(planned);
         if (match == null) return null;
         final year = controllerYear.text.trim();
@@ -456,6 +438,40 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           return 'Halbjahr: ${value.split('-').last} ${value.split('-').first}';
       }
       return value;
+    }
+
+    void syncPlannedPeriodValue() {
+      plannedPeriodValue = buildPlannedPeriodValue();
+      if (plannedPeriodValue != null) {
+        errorPlannedPeriod = null;
+      }
+    }
+
+    void syncPlannedDateFromYear() {
+      final yearText = controllerYear.text.trim();
+      if (!RegExp(r'^\\d{4}$').hasMatch(yearText)) return;
+      if (controllerPlannedDate.text.trim().isNotEmpty) return;
+      controllerPlannedDate.text = formatDate(DateTime(int.parse(yearText), 1, 1));
+    }
+
+    void syncPlannedPeriodYear() {
+      final yearText = controllerYear.text.trim();
+      if (!RegExp(r'^\\d{4}$').hasMatch(yearText)) return;
+      controllerMonthYear.text = yearText;
+      controllerQuarterYear.text = yearText;
+      controllerHalfYearYear.text = yearText;
+      final plannedText = controllerPlannedDate.text.trim();
+      if (plannedText.isEmpty) {
+        syncPlannedDateFromYear();
+        return;
+      }
+      final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(plannedText);
+      if (match == null) return;
+      final month = int.tryParse(match.group(2) ?? '');
+      final day = int.tryParse(match.group(3) ?? '');
+      if (month == null || day == null) return;
+      final updated = DateTime(int.parse(yearText), month, day);
+      controllerPlannedDate.text = formatDate(updated);
     }
 
     final result = await showDialog<TrainingNeed>(
@@ -547,6 +563,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             selected: plannedPeriodType == 'date',
                             onSelected: (_) => setState(() {
                               plannedPeriodType = 'date';
+                              syncPlannedDateFromYear();
                               syncPlannedPeriodValue();
                             }),
                           ),
