@@ -17,7 +17,7 @@ const TRAINING_TILE = 'trainings';
 function summarize(list) {
   const total = list.length;
   const completed = list.filter((entry) => entry.status === 'completed').length;
-  const planned = list.filter((entry) => entry.status === 'planned' || entry.status === 'scheduled').length;
+  const planned = list.filter((entry) => ['draft', 'planned', 'scheduled', 'inProgress'].includes(entry.status)).length;
   const participants = list.flatMap((entry) => entry.participants || []);
   const attended = participants.filter((p) => p.status === 'attended').length;
   const invited = participants.length;

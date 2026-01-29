@@ -88,6 +88,7 @@ const KEY_TRAINING_PROGRAMS = `${P}training:programs`;
 const KEY_TRAININGS = `${P}training:records`;
 const KEY_TRAINING_TEMPLATES = `${P}training:questionnaire:templates`;
 const KEY_TRAINING_QUESTIONNAIRES = `${P}training:questionnaires`;
+const KEY_TRAINING_WK_ASSESSMENTS = `${P}training:wk:assessments`;
 const KEY_TRAINING_COUNTER = (year) => `${P}training:counter:${year}`;
 
 // ===== In-Memory Fallback (Preview / Dev) =====
@@ -139,6 +140,7 @@ const mem = {
   trainingRecords: [],
   trainingQuestionnaireTemplates: [],
   trainingQuestionnaires: [],
+  trainingWkAssessments: [],
   trainingCounters: {},
 };
 
@@ -6223,8 +6225,10 @@ const TRAINING_PROGRAM_STATUSES = [
   'approved',
   'archived',
 ];
-const TRAINING_STATUSES = ['planned', 'scheduled', 'inProgress', 'completed', 'cancelled'];
+const TRAINING_STATUSES = ['draft', 'planned', 'scheduled', 'inProgress', 'conducted', 'completed', 'cancelled'];
 const TRAINING_PARTICIPANT_STATUSES = ['invited', 'attended', 'missed', 'retrainingRequired'];
+const TRAINING_WK_METHODS = ['questionnaire', 'direct', 'indirect'];
+const TRAINING_WK_STATUSES = ['pending', 'in_progress', 'done', 'overdue'];
 
 const DEFAULT_TRAINING_TEMPLATES = [
   {
@@ -6390,10 +6394,22 @@ function normalizeTrainingParticipant(record = {}) {
   const status = TRAINING_PARTICIPANT_STATUSES.includes(record.status) ? record.status : 'invited';
   return {
     id: normalizeString(record.id || crypto.randomUUID()),
+    userId: normalizeString(record.userId || record.participantUserId || record.userEmail || ''),
     name: normalizeString(record.name || record.fullName || ''),
     email: normalizeString(record.email || ''),
+    departmentTeam: normalizeString(record.departmentTeam || record.department || record.team || ''),
     external: Boolean(record.external),
     status,
+    signedAt: Number(record.signedAt || 0) || null,
+    signedByUserId: normalizeString(record.signedByUserId || record.signedBy || ''),
+    signatureBase64: normalizeString(record.signatureBase64 || record.signatureImageBase64 || ''),
+    signatureUrl: normalizeString(record.signatureUrl || record.signatureImageUrl || ''),
+    signatureHash: normalizeString(record.signatureHash || ''),
+    signatureNote: normalizeString(record.signatureNote || record.note || ''),
+    overrideNoSignature: Boolean(record.overrideNoSignature),
+    overrideReason: normalizeString(record.overrideReason || ''),
+    overriddenByUserId: normalizeString(record.overriddenByUserId || ''),
+    overriddenAt: Number(record.overriddenAt || 0) || null,
     evidence: Array.isArray(record.evidence)
       ? record.evidence.map((entry = {}) => ({
         id: normalizeString(entry.id || crypto.randomUUID()),
@@ -6450,6 +6466,7 @@ function normalizeTraining(record = {}) {
     targetGroup: normalizeString(record.targetGroup || ''),
     reason: normalizeString(record.reason || record.basis || ''),
     status,
+    completedAt: Number(record.completedAt || 0) || null,
     owner: normalizeString(record.owner || ''),
     linkedNeedId: normalizeString(record.linkedNeedId || ''),
     linkedProgramId: normalizeString(record.linkedProgramId || ''),
@@ -6468,6 +6485,16 @@ function normalizeTraining(record = {}) {
     actualParticipants: Number(record.actualParticipants || record.actualParticipantCount || 0) || null,
     executionNotes: normalizeString(record.executionNotes || record.executionNote || ''),
     effectivenessResult: normalizeString(record.effectivenessResult || record.effectivenessCheck || ''),
+    wkMethod: normalizeString(record.wkMethod || ''),
+    wkDelayDays: Number(record.wkDelayDays || 0) || null,
+    wkDueAt: Number(record.wkDueAt || 0) || null,
+    wkStatus: normalizeString(record.wkStatus || ''),
+    wkCompletedAt: Number(record.wkCompletedAt || 0) || null,
+    wkResponsibleId: normalizeString(record.wkResponsibleId || record.wkResponsible || ''),
+    wkQuestionnaireTemplateId: normalizeString(record.wkQuestionnaireTemplateId || record.questionnaireTemplateId || ''),
+    wkTargetParticipantIds: Array.isArray(record.wkTargetParticipantIds)
+      ? record.wkTargetParticipantIds.map(normalizeString)
+      : [],
     participants,
     attachments,
     auditLog: Array.isArray(record.auditLog) ? record.auditLog.map(normalizeTrainingAuditLog) : [],
@@ -6509,6 +6536,7 @@ function normalizeTrainingQuestionnaire(record = {}) {
     trainingId: normalizeString(record.trainingId || ''),
     participantId: normalizeString(record.participantId || ''),
     templateId: normalizeString(record.templateId || ''),
+    purpose: normalizeString(record.purpose || ''),
     status: normalizeString(record.status || 'pending'),
     deadline: normalizeString(record.deadline || ''),
     score: Number(record.score || 0) || 0,
@@ -6532,6 +6560,33 @@ function normalizeTrainingQuestionnaire(record = {}) {
 
 function trainingAudit(entry = {}) {
   return normalizeTrainingAuditLog(entry);
+}
+
+function normalizeTrainingWkAssessment(record = {}) {
+  const type = TRAINING_WK_METHODS.includes(record.assessmentType) ? record.assessmentType : 'direct';
+  const result = normalizeString(record.result || '');
+  return {
+    id: normalizeString(record.id || crypto.randomUUID()),
+    trainingSessionId: normalizeString(record.trainingSessionId || record.trainingId || ''),
+    assessmentType: type,
+    performedAt: Number(record.performedAt || 0) || null,
+    performedByUserId: normalizeString(record.performedByUserId || ''),
+    result,
+    notes: normalizeString(record.notes || ''),
+    attachments: Array.isArray(record.attachments)
+      ? record.attachments.map((att = {}) => ({
+        id: normalizeString(att.id || crypto.randomUUID()),
+        name: normalizeString(att.name || att.filename || ''),
+        url: normalizeString(att.url || ''),
+        type: normalizeString(att.type || ''),
+        uploadedAt: Number(att.uploadedAt || Date.now()),
+      }))
+      : [],
+    createdAt: Number(record.createdAt || Date.now()),
+    updatedAt: Number(record.updatedAt || Date.now()),
+    createdBy: normalizeString(record.createdBy || ''),
+    updatedBy: normalizeString(record.updatedBy || ''),
+  };
 }
 
 async function trainingNeedsRaw() {
@@ -6579,6 +6634,15 @@ async function trainingQuestionnairesRaw() {
   return mem.trainingQuestionnaires;
 }
 
+async function trainingWkAssessmentsRaw() {
+  const r = getRedis();
+  if (r) {
+    const raw = await rget(KEY_TRAINING_WK_ASSESSMENTS, r);
+    if (Array.isArray(raw)) return raw;
+  }
+  return mem.trainingWkAssessments;
+}
+
 async function persistTrainingList(key, list) {
   const r = getRedis();
   if (r) await rset(key, list, r);
@@ -6587,6 +6651,47 @@ async function persistTrainingList(key, list) {
 function seedTrainingTemplates(list) {
   if (Array.isArray(list) && list.length) return list.map(normalizeTrainingQuestionnaireTemplate);
   return DEFAULT_TRAINING_TEMPLATES.map((entry) => normalizeTrainingQuestionnaireTemplate(entry));
+}
+
+function isParticipantSigned(participant) {
+  if (!participant) return false;
+  if (participant.overrideNoSignature) return true;
+  return Boolean(participant.signedAt);
+}
+
+function resolveTrainingWkStatus(training) {
+  if (!training) return '';
+  const current = normalizeString(training.wkStatus || '');
+  if (training.wkCompletedAt) return 'done';
+  if (!training.wkDueAt) return current || 'pending';
+  const now = Date.now();
+  if (training.wkDueAt < now) return 'overdue';
+  return current || 'pending';
+}
+
+function applyTrainingCompletion(training, { actor = '' } = {}) {
+  if (!training) return training;
+  const participants = Array.isArray(training.participants) ? training.participants : [];
+  const hasParticipants = participants.length > 0;
+  const allSigned = hasParticipants && participants.every(isParticipantSigned);
+  const next = { ...training };
+  if (allSigned && !next.completedAt) {
+    next.completedAt = Date.now();
+    next.auditLog = [
+      ...(next.auditLog || []),
+      trainingAudit({ action: 'completed', message: 'Schulung durchgeführt (alle Unterschriften erfasst)', by: actor }),
+    ];
+  }
+  if (next.completedAt && next.wkDelayDays && !next.wkDueAt) {
+    next.wkDueAt = next.completedAt + next.wkDelayDays * 24 * 60 * 60 * 1000;
+  }
+  next.wkStatus = resolveTrainingWkStatus(next);
+  if (next.wkStatus === 'done') {
+    next.status = 'completed';
+  } else if (allSigned && next.status !== 'cancelled') {
+    next.status = 'conducted';
+  }
+  return next;
 }
 
 export async function trainingNeedsAll() {
@@ -6709,26 +6814,56 @@ export async function trainingProgramDelete(id) {
 }
 
 async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') {
-  if (!training?.defaultQuestionnaireTemplateId) return;
+  if (!training) return;
   const questionnaires = await trainingQuestionnairesAll();
-  const existing = new Set(questionnaires.map((q) => `${q.trainingId}:${q.participantId}`));
+  const existing = new Set(questionnaires.map((q) => `${q.trainingId}:${q.participantId}:${q.purpose || 'default'}`));
   const toAdd = [];
-  for (const participant of training.participants || []) {
-    if (participant.status !== 'attended') continue;
-    const key = `${training.id}:${participant.id}`;
-    if (existing.has(key)) continue;
-    toAdd.push(
-      normalizeTrainingQuestionnaire({
-        trainingId: training.id,
-        participantId: participant.id,
-        templateId: training.defaultQuestionnaireTemplateId,
-        status: 'pending',
-        createdBy: updatedBy,
-        updatedBy: updatedBy,
-        auditLog: [trainingAudit({ action: 'assign', message: 'Fragebogen zugewiesen', by: updatedBy })],
-      }),
-    );
+  const participants = training.participants || [];
+
+  if (training.defaultQuestionnaireTemplateId) {
+    for (const participant of participants) {
+      if (participant.status !== 'attended') continue;
+      const key = `${training.id}:${participant.id}:default`;
+      if (existing.has(key)) continue;
+      toAdd.push(
+        normalizeTrainingQuestionnaire({
+          trainingId: training.id,
+          participantId: participant.id,
+          templateId: training.defaultQuestionnaireTemplateId,
+          purpose: 'default',
+          status: 'pending',
+          createdBy: updatedBy,
+          updatedBy: updatedBy,
+          auditLog: [trainingAudit({ action: 'assign', message: 'Fragebogen zugewiesen', by: updatedBy })],
+        }),
+      );
+    }
   }
+
+  if (training.wkMethod === 'questionnaire' && training.wkQuestionnaireTemplateId) {
+    const targetIds =
+      Array.isArray(training.wkTargetParticipantIds) && training.wkTargetParticipantIds.length
+        ? training.wkTargetParticipantIds
+        : participants.map((p) => p.id);
+    for (const participant of participants) {
+      if (!targetIds.includes(participant.id)) continue;
+      const key = `${training.id}:${participant.id}:wk`;
+      if (existing.has(key)) continue;
+      toAdd.push(
+        normalizeTrainingQuestionnaire({
+          trainingId: training.id,
+          participantId: participant.id,
+          templateId: training.wkQuestionnaireTemplateId,
+          purpose: 'wk',
+          status: 'pending',
+          createdBy: updatedBy,
+          updatedBy: updatedBy,
+          auditLog: [trainingAudit({ action: 'assign', message: 'WK-Fragebogen zugewiesen', by: updatedBy })],
+        }),
+      );
+    }
+  }
+
   if (!toAdd.length) return;
   const updated = [...questionnaires, ...toAdd];
   mem.trainingQuestionnaires = updated;
@@ -6752,7 +6887,7 @@ export async function nextTrainingNumber({ year, prefix = 'TRN', subtype = '' } 
 
 export async function trainingRecordsAll() {
   const list = (await trainingRecordsRaw()) || [];
-  const normalized = list.map(normalizeTraining);
+  const normalized = list.map(normalizeTraining).map((entry) => applyTrainingCompletion(entry, { actor: entry.updatedBy || entry.createdBy }));
   mem.trainingRecords = normalized;
   await persistTrainingList(KEY_TRAININGS, normalized);
   return normalized;
@@ -6766,7 +6901,7 @@ export async function trainingRecordGet(idOrNumber) {
 
 export async function trainingRecordSave(record = {}) {
   const list = await trainingRecordsAll();
-  const normalized = normalizeTraining(record);
+  let normalized = normalizeTraining(record);
   if (!normalized.trainingNumber) {
     normalized.trainingNumber = await nextTrainingNumber({ year: normalized.year, subtype: record.subtype || '' });
   }
@@ -6774,6 +6909,7 @@ export async function trainingRecordSave(record = {}) {
     ...normalized.auditLog,
     trainingAudit({ action: 'create', message: 'Schulung angelegt', by: normalized.createdBy || normalized.updatedBy }),
   ];
+  normalized = applyTrainingCompletion(normalized, { actor: normalized.updatedBy || normalized.createdBy });
   list.push(normalized);
   mem.trainingRecords = list;
   await persistTrainingList(KEY_TRAININGS, list);
@@ -6786,7 +6922,7 @@ export async function trainingRecordUpdate(id, update = {}) {
   const idx = list.findIndex((entry) => entry.id === id || entry.trainingNumber === id);
   if (idx < 0) return null;
   const current = list[idx];
-  const merged = normalizeTraining({
+  let merged = normalizeTraining({
     ...current,
     ...update,
     updatedAt: Date.now(),
@@ -6798,6 +6934,7 @@ export async function trainingRecordUpdate(id, update = {}) {
       trainingAudit({ action: 'status', message: `Status: ${update.status}`, by: merged.updatedBy }),
     ];
   }
+  merged = applyTrainingCompletion(merged, { actor: merged.updatedBy });
   list[idx] = merged;
   mem.trainingRecords = list;
   await persistTrainingList(KEY_TRAININGS, list);
@@ -6870,6 +7007,13 @@ export async function trainingQuestionnairesPurge() {
   return { removed: list.length };
 }
 
+export async function trainingWkAssessmentsPurge() {
+  const list = await trainingWkAssessmentsAll();
+  mem.trainingWkAssessments = [];
+  await persistTrainingList(KEY_TRAINING_WK_ASSESSMENTS, []);
+  return { removed: list.length };
+}
+
 export async function trainingQuestionnaireTemplatesAll() {
   const list = (await trainingTemplatesRaw()) || [];
   const normalized = seedTrainingTemplates(list);
@@ -6917,6 +7061,40 @@ export async function trainingQuestionnairesAll() {
   mem.trainingQuestionnaires = normalized;
   await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, normalized);
   return normalized;
+}
+
+export async function trainingWkAssessmentsAll() {
+  const list = (await trainingWkAssessmentsRaw()) || [];
+  const normalized = list.map(normalizeTrainingWkAssessment);
+  mem.trainingWkAssessments = normalized;
+  await persistTrainingList(KEY_TRAINING_WK_ASSESSMENTS, normalized);
+  return normalized;
+}
+
+export async function trainingWkAssessmentSave(record = {}) {
+  const list = await trainingWkAssessmentsAll();
+  const normalized = normalizeTrainingWkAssessment(record);
+  list.push(normalized);
+  mem.trainingWkAssessments = list;
+  await persistTrainingList(KEY_TRAINING_WK_ASSESSMENTS, list);
+  return normalized;
+}
+
+export async function trainingWkAssessmentUpdate(id, update = {}) {
+  const list = await trainingWkAssessmentsAll();
+  const idx = list.findIndex((entry) => entry.id === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const merged = normalizeTrainingWkAssessment({
+    ...current,
+    ...update,
+    updatedAt: Date.now(),
+    updatedBy: update.updatedBy || current.updatedBy,
+  });
+  list[idx] = merged;
+  mem.trainingWkAssessments = list;
+  await persistTrainingList(KEY_TRAINING_WK_ASSESSMENTS, list);
+  return merged;
 }
 
 export async function trainingQuestionnaireSave(record = {}) {

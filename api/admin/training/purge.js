@@ -10,6 +10,7 @@ import {
   trainingRecordsPurge,
   trainingTemplatesPurge,
   trainingQuestionnairesPurge,
+  trainingWkAssessmentsPurge,
 } from '../../_lib/store.js';
 
 const TRAINING_TILE = 'trainings';
@@ -41,6 +42,7 @@ export default async function handler(req, res) {
     if (scope === 'all' || scope === 'sessions') {
       results.sessions = await trainingRecordsPurge();
       results.questionnaires = await trainingQuestionnairesPurge();
+      results.wkAssessments = await trainingWkAssessmentsPurge();
     }
     if (scope === 'all' || scope === 'templates') {
       results.templates = await trainingTemplatesPurge();

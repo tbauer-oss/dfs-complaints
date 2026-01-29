@@ -123,16 +123,17 @@ export default async function handler(req, res) {
       }
     }
 
-    const openEffectivenessChecks = questionnaires.filter((q) => {
-      const status = (q.status || '').toString().trim().toLowerCase();
-      return status !== 'completed' && status !== 'done' && status !== 'closed';
+    const openEffectivenessChecks = trainingsThisYear.filter((t) => {
+      const status = (t.wkStatus || '').toString().trim().toLowerCase();
+      if (!t.wkMethod || !t.wkDueAt) return false;
+      return status && status !== 'done';
     }).length;
 
-    const overdueEffectivenessChecks = questionnaires.filter((q) => {
-      const status = (q.status || '').toString().trim().toLowerCase();
-      if (status === 'completed' || status === 'done' || status === 'closed') return false;
-      const deadline = parseDateValue(q.deadline);
-      return deadline ? deadline.getTime() < todayStart : false;
+    const overdueEffectivenessChecks = trainingsThisYear.filter((t) => {
+      const status = (t.wkStatus || '').toString().trim().toLowerCase();
+      if (!t.wkMethod || !t.wkDueAt) return false;
+      if (!status || status === 'done') return false;
+      return Number(t.wkDueAt) < Date.now();
     }).length;
 
     const ineffectiveTrainings = questionnaires.filter((q) => q.effective === false).length;

@@ -2893,6 +2893,136 @@ class ApiClient {
     return r.bodyBytes;
   }
 
+  Future<Map<String, dynamic>> trainingWkReminders() async {
+    final r = await http.get(_u('/api/training/wk/reminders'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+    return const {};
+  }
+
+  Future<TrainingRecord> trainingSignParticipant({
+    required String trainingId,
+    required String participantId,
+    required String signatureBase64,
+    String? note,
+  }) async {
+    final path = Uri(path: '/api/training/sessions/$trainingId/participants/$participantId/sign').toString();
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'signatureBase64': signatureBase64, 'note': note}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Unterschrift-Antwort');
+  }
+
+  Future<TrainingRecord> trainingResetParticipantSignature({
+    required String trainingId,
+    required String participantId,
+    required String reason,
+  }) async {
+    final path = Uri(path: '/api/training/sessions/$trainingId/participants/$participantId/sign').toString();
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'action': 'reset', 'reason': reason}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Reset-Antwort');
+  }
+
+  Future<TrainingRecord> trainingOverrideParticipantSignature({
+    required String trainingId,
+    required String participantId,
+    required String reason,
+  }) async {
+    final path = Uri(path: '/api/training/sessions/$trainingId/participants/$participantId/sign').toString();
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'action': 'override', 'reason': reason}),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Override-Antwort');
+  }
+
+  Future<TrainingRecord> trainingConfigureWk({
+    required String trainingId,
+    required String wkMethod,
+    required int wkDelayDays,
+    String? wkResponsibleId,
+    String? wkQuestionnaireTemplateId,
+    List<String>? wkTargetParticipantIds,
+  }) async {
+    final path = Uri(path: '/api/training/sessions/$trainingId/wk/configure').toString();
+    final payload = {
+      'wkMethod': wkMethod,
+      'wkDelayDays': wkDelayDays,
+      'wkResponsibleId': wkResponsibleId,
+      'wkQuestionnaireTemplateId': wkQuestionnaireTemplateId,
+      'wkTargetParticipantIds': wkTargetParticipantIds ?? const [],
+    };
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige WK-Antwort');
+  }
+
+  Future<TrainingRecord> trainingCompleteWk({
+    required String trainingId,
+    required String result,
+    String? notes,
+    DateTime? performedAt,
+    bool override = false,
+    String? reason,
+  }) async {
+    final path = Uri(path: '/api/training/sessions/$trainingId/wk/complete').toString();
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({
+        'result': result,
+        'notes': notes,
+        'performedAt': performedAt?.millisecondsSinceEpoch,
+        'override': override,
+        'reason': reason,
+      }),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige WK-Abschluss-Antwort');
+  }
+
   Future<Map<String, Map<String, String>>> translateFaqDraft({
     String? sourceLang,
     required List<String> targetLangs,
