@@ -2,6 +2,7 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../api/client.dart';
 import '../models/training.dart';
 
@@ -104,111 +105,657 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     if (!widget.canWrite) return;
     final controllerYear = TextEditingController(text: DateTime.now().year.toString());
     final controllerContact = TextEditingController();
-    final controllerDepartment = TextEditingController();
     final controllerTopic = TextEditingController();
-    final controllerTimeframe = TextEditingController();
-    final controllerFormat = TextEditingController();
     final controllerParticipants = TextEditingController();
     final controllerBudget = TextEditingController();
     final controllerComments = TextEditingController();
+    final controllerDepartmentOther = TextEditingController();
+    final controllerPlannedDate = TextEditingController();
+    final controllerMonthYear = TextEditingController();
+    final controllerQuarterYear = TextEditingController();
+    final controllerHalfYearYear = TextEditingController();
+    final controllerIntervalOther = TextEditingController();
+    final controllerTopicPriorities = TextEditingController();
+    final controllerPreferredTrainers = TextEditingController();
+    final controllerSpecialRequirements = TextEditingController();
+
+    const departmentOptions = [
+      'Gesamte Organisation',
+      'Gesamte Produktion',
+      'Produktion 1',
+      'Produktion 2',
+      'Abt. Schleiferei',
+      'Abt. Chemie / Logistik',
+      'Abt. Sinterei',
+      'Abt. Bürstenproduktion',
+      'Abt. Sonderwerkzeuge',
+      'Abt. Galvanik',
+      'Abt. Galvanik Vor-/Nachbereitung',
+      'Abt. Dreherei',
+      'Abt. Werkzeugbau',
+      'Versand',
+      'Vertrieb',
+      'Einkauf',
+      'Geschäftsleitung',
+      'Human Ressources / Personal',
+      'Finanzen',
+      'Sonstiges...',
+    ];
+    const intervalOptions = [
+      'vierteljährlich',
+      'halbjährlich',
+      'jährlich',
+      'alle 2 Jahre',
+      'alle 3 Jahre',
+      'alle 4 Jahre',
+      'alle 5 Jahre',
+      'Sonstiges...',
+    ];
+    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
+    const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
+
+    String? selectedDepartment = departmentOptions.first;
+    String plannedPeriodType = plannedPeriodTypes.first;
+    String? selectedMonth;
+    String? selectedQuarter;
+    String? selectedHalfYear;
+    String? selectedFormat;
+    String? selectedIntervalType;
+    String? selectedIntervalValue;
+    bool confirmationChecked = false;
+
+    String? errorYear;
+    String? errorContact;
+    String? errorDepartment;
+    String? errorDepartmentOther;
+    String? errorTopic;
+    String? errorPlannedPeriod;
+    String? errorFormat;
+    String? errorIntervalType;
+    String? errorIntervalValue;
+    String? errorIntervalOther;
+    String? errorParticipants;
+    String? errorBudget;
+
+    String formatDate(DateTime date) {
+      final y = date.year.toString().padLeft(4, '0');
+      final m = date.month.toString().padLeft(2, '0');
+      final d = date.day.toString().padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+
+    String? buildPlannedPeriodValue() {
+      if (plannedPeriodType == 'date') {
+        return controllerPlannedDate.text.trim().isEmpty ? null : controllerPlannedDate.text.trim();
+      }
+      if (plannedPeriodType == 'month') {
+        final year = controllerMonthYear.text.trim();
+        if (year.isEmpty || selectedMonth == null) return null;
+        if (!RegExp(r'^\\d{4}$').hasMatch(year)) return null;
+        return '$year-$selectedMonth';
+      }
+      if (plannedPeriodType == 'quarter') {
+        final year = controllerQuarterYear.text.trim();
+        if (year.isEmpty || selectedQuarter == null) return null;
+        if (!RegExp(r'^\\d{4}$').hasMatch(year)) return null;
+        return '$year-$selectedQuarter';
+      }
+      final year = controllerHalfYearYear.text.trim();
+      if (year.isEmpty || selectedHalfYear == null) return null;
+      if (!RegExp(r'^\\d{4}$').hasMatch(year)) return null;
+      return '$year-$selectedHalfYear';
+    }
+
+    String buildPlannedPeriodLabel(String value) {
+      switch (plannedPeriodType) {
+        case 'date':
+          return 'Datum: $value';
+        case 'month':
+          return 'Monat: $value';
+        case 'quarter':
+          return 'Quartal: ${value.split('-').last} ${value.split('-').first}';
+        case 'halfYear':
+          return 'Halbjahr: ${value.split('-').last} ${value.split('-').first}';
+      }
+      return value;
+    }
+
     final result = await showDialog<TrainingNeed>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Neuer Schulungsbedarf'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controllerYear,
-                    decoration: const InputDecoration(labelText: 'Schulungsjahr'),
-                  ),
-                  TextField(
-                    controller: controllerContact,
-                    decoration: const InputDecoration(labelText: 'Ansprechpartner'),
-                  ),
-                  TextField(
-                    controller: controllerDepartment,
-                    decoration: const InputDecoration(labelText: 'Abteilung/Team'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controllerTopic,
-                    decoration: const InputDecoration(labelText: 'Schulungsthema'),
-                  ),
-                  TextField(
-                    controller: controllerTimeframe,
-                    decoration: const InputDecoration(labelText: 'Zeitraum'),
-                  ),
-                  TextField(
-                    controller: controllerFormat,
-                    decoration: const InputDecoration(labelText: 'Format'),
-                  ),
-                  Row(
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final selectedDepartmentIsOther = selectedDepartment == 'Sonstiges...';
+            final intervalIsRecurring = selectedIntervalType == 'recurring';
+            final intervalIsOther = selectedIntervalValue == 'Sonstiges...';
+
+            return AlertDialog(
+              title: const Text('Neuer Schulungsbedarf'),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: controllerParticipants,
-                          decoration: const InputDecoration(labelText: 'Teilnehmer'),
+                      TextField(
+                        controller: controllerYear,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: 'Schulungsjahr',
+                          errorText: errorYear,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: controllerBudget,
-                          decoration: const InputDecoration(labelText: 'Budget'),
+                      TextField(
+                        controller: controllerContact,
+                        decoration: InputDecoration(
+                          labelText: 'Ansprechpartner',
+                          errorText: errorContact,
+                        ),
+                      ),
+                      DropdownButtonFormField<String>(
+                        value: selectedDepartment,
+                        items: departmentOptions
+                            .map((option) => DropdownMenuItem(value: option, child: Text(option)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          selectedDepartment = value;
+                          if (selectedDepartment != 'Sonstiges...') {
+                            controllerDepartmentOther.clear();
+                          }
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'Abteilung/Team',
+                          errorText: errorDepartment,
+                        ),
+                      ),
+                      if (selectedDepartmentIsOther)
+                        TextField(
+                          controller: controllerDepartmentOther,
+                          decoration: InputDecoration(
+                            labelText: 'Bitte Abteilung/Team angeben',
+                            errorText: errorDepartmentOther,
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controllerTopic,
+                        decoration: InputDecoration(
+                          labelText: 'Schulungsthema',
+                          errorText: errorTopic,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Geplanter Zeitraum',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Datum'),
+                            selected: plannedPeriodType == 'date',
+                            onSelected: (_) => setState(() => plannedPeriodType = 'date'),
+                          ),
+                          ChoiceChip(
+                            label: const Text('Monat'),
+                            selected: plannedPeriodType == 'month',
+                            onSelected: (_) => setState(() => plannedPeriodType = 'month'),
+                          ),
+                          ChoiceChip(
+                            label: const Text('Quartal'),
+                            selected: plannedPeriodType == 'quarter',
+                            onSelected: (_) => setState(() => plannedPeriodType = 'quarter'),
+                          ),
+                          ChoiceChip(
+                            label: const Text('Halbjahr'),
+                            selected: plannedPeriodType == 'halfYear',
+                            onSelected: (_) => setState(() => plannedPeriodType = 'halfYear'),
+                          ),
+                        ],
+                      ),
+                      if (plannedPeriodType == 'date')
+                        TextField(
+                          controller: controllerPlannedDate,
+                          readOnly: true,
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(DateTime.now().year - 1),
+                              lastDate: DateTime(DateTime.now().year + 5),
+                            );
+                            if (picked != null) {
+                              setState(() => controllerPlannedDate.text = formatDate(picked));
+                            }
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Datum',
+                            hintText: 'YYYY-MM-DD',
+                            errorText: errorPlannedPeriod,
+                          ),
+                        ),
+                      if (plannedPeriodType == 'month')
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: selectedMonth,
+                                items: List.generate(
+                                  12,
+                                  (idx) {
+                                    final month = (idx + 1).toString().padLeft(2, '0');
+                                    return DropdownMenuItem(value: month, child: Text(month));
+                                  },
+                                ),
+                                onChanged: (value) => setState(() => selectedMonth = value),
+                                decoration: const InputDecoration(labelText: 'Monat'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: controllerMonthYear,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                decoration: InputDecoration(
+                                  labelText: 'Jahr',
+                                  errorText: errorPlannedPeriod,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (plannedPeriodType == 'quarter')
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: selectedQuarter,
+                                items: const [
+                                  DropdownMenuItem(value: 'Q1', child: Text('Q1')),
+                                  DropdownMenuItem(value: 'Q2', child: Text('Q2')),
+                                  DropdownMenuItem(value: 'Q3', child: Text('Q3')),
+                                  DropdownMenuItem(value: 'Q4', child: Text('Q4')),
+                                ],
+                                onChanged: (value) => setState(() => selectedQuarter = value),
+                                decoration: const InputDecoration(labelText: 'Quartal'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: controllerQuarterYear,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                decoration: InputDecoration(
+                                  labelText: 'Jahr',
+                                  errorText: errorPlannedPeriod,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (plannedPeriodType == 'halfYear')
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: selectedHalfYear,
+                                items: const [
+                                  DropdownMenuItem(value: 'H1', child: Text('H1')),
+                                  DropdownMenuItem(value: 'H2', child: Text('H2')),
+                                ],
+                                onChanged: (value) => setState(() => selectedHalfYear = value),
+                                decoration: const InputDecoration(labelText: 'Halbjahr'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: controllerHalfYearYear,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                decoration: InputDecoration(
+                                  labelText: 'Jahr',
+                                  errorText: errorPlannedPeriod,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (plannedPeriodType != 'date' && errorPlannedPeriod != null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              errorPlannedPeriod!,
+                              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Format',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: trainingFormats.entries
+                            .map(
+                              (entry) => ChoiceChip(
+                                label: Text(entry.value),
+                                selected: selectedFormat == entry.key,
+                                onSelected: (_) => setState(() => selectedFormat = entry.key),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      if (errorFormat != null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              errorFormat!,
+                              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Schulungsintervall',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: intervalTypes.entries
+                            .map(
+                              (entry) => ChoiceChip(
+                                label: Text(entry.value),
+                                selected: selectedIntervalType == entry.key,
+                                onSelected: (_) => setState(() {
+                                  selectedIntervalType = entry.key;
+                                  if (selectedIntervalType != 'recurring') {
+                                    selectedIntervalValue = null;
+                                    controllerIntervalOther.clear();
+                                  }
+                                }),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      if (errorIntervalType != null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              errorIntervalType!,
+                              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                            ),
+                          ),
+                        ),
+                      if (intervalIsRecurring)
+                        DropdownButtonFormField<String>(
+                          value: selectedIntervalValue,
+                          items: intervalOptions
+                              .map((option) => DropdownMenuItem(value: option, child: Text(option)))
+                              .toList(),
+                          onChanged: (value) => setState(() {
+                            selectedIntervalValue = value;
+                            if (selectedIntervalValue != 'Sonstiges...') {
+                              controllerIntervalOther.clear();
+                            }
+                          }),
+                          decoration: InputDecoration(
+                            labelText: 'Intervall',
+                            errorText: errorIntervalValue,
+                          ),
+                        ),
+                      if (intervalIsRecurring && intervalIsOther)
+                        TextField(
+                          controller: controllerIntervalOther,
+                          decoration: InputDecoration(
+                            labelText: 'Intervall (frei)',
+                            errorText: errorIntervalOther,
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controllerParticipants,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              decoration: InputDecoration(
+                                labelText: 'Teilnehmer',
+                                errorText: errorParticipants,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: controllerBudget,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                              ],
+                              decoration: InputDecoration(
+                                labelText: 'Geplantes Budget',
+                                suffixText: '€',
+                                errorText: errorBudget,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextField(
+                        controller: controllerComments,
+                        maxLines: 3,
+                        decoration: const InputDecoration(labelText: 'Zusätzliche Hinweise / Kommentare'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controllerTopicPriorities,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Welche Themen / Fachgebiete sind für Ihre Abteilung besonders wichtig?',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controllerPreferredTrainers,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Gibt es spezifische Trainer oder Schulungsanbieter, die Sie bevorzugen?',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controllerSpecialRequirements,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText:
+                              'Gibt es besondere Anforderungen (z. B. barrierefreie Schulung, Sprachbarrieren, spezifische Inhalte)?',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      CheckboxListTile(
+                        value: confirmationChecked,
+                        onChanged: (value) => setState(() => confirmationChecked = value ?? false),
+                        title: const Text('Ich bestätige die Angaben.'),
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Abbrechen'),
+                          ),
+                          const Spacer(),
+                          ElevatedButton(
+                            onPressed: confirmationChecked
+                                ? () {
+                                    final yearText = controllerYear.text.trim();
+                                    final contactText = controllerContact.text.trim();
+                                    final topicText = controllerTopic.text.trim();
+                                    final participantsText = controllerParticipants.text.trim();
+                                    final departmentOtherText = controllerDepartmentOther.text.trim();
+                                    final intervalOtherText = controllerIntervalOther.text.trim();
+                                    final budgetText = controllerBudget.text.trim();
+
+                                    errorYear = yearText.isEmpty ? 'Pflichtfeld' : null;
+                                    errorContact = contactText.isEmpty ? 'Pflichtfeld' : null;
+                                    errorDepartment =
+                                        (selectedDepartment == null || selectedDepartment!.isEmpty) ? 'Pflichtfeld' : null;
+                                    errorDepartmentOther = selectedDepartmentIsOther
+                                        ? (departmentOtherText.length < 2 ? 'Bitte mindestens 2 Zeichen eingeben.' : null)
+                                        : null;
+                                    errorTopic = topicText.isEmpty ? 'Pflichtfeld' : null;
+                                    final plannedPeriodValue = buildPlannedPeriodValue();
+                                    errorPlannedPeriod = plannedPeriodValue == null ? 'Bitte Zeitraum vollständig angeben.' : null;
+                                    errorFormat = selectedFormat == null ? 'Bitte Format auswählen.' : null;
+                                    errorIntervalType = selectedIntervalType == null ? 'Bitte auswählen.' : null;
+                                    errorIntervalValue = intervalIsRecurring && (selectedIntervalValue == null || selectedIntervalValue!.isEmpty)
+                                        ? 'Bitte Intervall auswählen.'
+                                        : null;
+                                    errorIntervalOther = intervalIsRecurring && intervalIsOther
+                                        ? (intervalOtherText.length < 2 ? 'Bitte mindestens 2 Zeichen eingeben.' : null)
+                                        : null;
+                                    final participants = int.tryParse(participantsText);
+                                    errorParticipants = participants == null || participants <= 0
+                                        ? 'Bitte eine gültige Anzahl angeben.'
+                                        : null;
+                                    double? plannedBudget;
+                                    if (budgetText.isNotEmpty) {
+                                      plannedBudget = double.tryParse(budgetText.replaceAll(',', '.'));
+                                      if (plannedBudget == null || plannedBudget < 0) {
+                                        errorBudget = 'Bitte gültigen Betrag eingeben.';
+                                      } else {
+                                        errorBudget = null;
+                                      }
+                                    } else {
+                                      errorBudget = null;
+                                    }
+                                    if ([
+                                      errorYear,
+                                      errorContact,
+                                      errorDepartment,
+                                      errorDepartmentOther,
+                                      errorTopic,
+                                      errorPlannedPeriod,
+                                      errorFormat,
+                                      errorIntervalType,
+                                      errorIntervalValue,
+                                      errorIntervalOther,
+                                      errorParticipants,
+                                      errorBudget,
+                                    ].any((entry) => entry != null)) {
+                                      setState(() {});
+                                      return;
+                                    }
+
+                                    final resolvedDepartment = selectedDepartmentIsOther ? departmentOtherText : selectedDepartment!;
+                                    final periodValue = plannedPeriodValue!;
+                                    final item = TrainingNeedItem(
+                                      id: '',
+                                      topic: topicText,
+                                      timeframe: buildPlannedPeriodLabel(periodValue),
+                                      format: trainingFormats[selectedFormat] ?? '',
+                                      participants: participants ?? 0,
+                                      budget: plannedBudget ?? 0,
+                                      requirements: '',
+                                    );
+                                    final need = TrainingNeed(
+                                      id: '',
+                                      year: int.tryParse(yearText) ?? DateTime.now().year,
+                                      contactName: contactText,
+                                      position: '',
+                                      department: resolvedDepartment,
+                                      team: '',
+                                      items: [item],
+                                      comments: controllerComments.text.trim(),
+                                      departmentTeamSelected: selectedDepartment!,
+                                      departmentTeamFreeText: selectedDepartmentIsOther ? departmentOtherText : null,
+                                      plannedPeriodType: plannedPeriodType,
+                                      plannedPeriodValue: periodValue,
+                                      trainingFormat: selectedFormat ?? '',
+                                      intervalType: selectedIntervalType ?? '',
+                                      intervalValue: intervalIsRecurring ? selectedIntervalValue : null,
+                                      intervalValueFreeText: intervalIsRecurring && intervalIsOther ? intervalOtherText : null,
+                                      plannedBudget: plannedBudget,
+                                      additionalNotes: controllerComments.text.trim().isEmpty
+                                          ? null
+                                          : controllerComments.text.trim(),
+                                      topicPriorities: controllerTopicPriorities.text.trim().isEmpty
+                                          ? null
+                                          : controllerTopicPriorities.text.trim(),
+                                      preferredTrainers: controllerPreferredTrainers.text.trim().isEmpty
+                                          ? null
+                                          : controllerPreferredTrainers.text.trim(),
+                                      specialRequirements: controllerSpecialRequirements.text.trim().isEmpty
+                                          ? null
+                                          : controllerSpecialRequirements.text.trim(),
+                                      status: 'draft',
+                                      noNeed: false,
+                                    );
+                                    Navigator.of(context).pop(need);
+                                  }
+                                : null,
+                            child: const Text('Absenden'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Hiermit bestätige ich, dass auf Grundlage der oben genannten Angaben ein Schulungsbedarf '
+                          'für das Schulungsjahr ${controllerYear.text.trim().isEmpty ? 'JJJJ' : controllerYear.text.trim()} '
+                          'in unserer Abteilung besteht. Die relevanten Themen, Zielgruppen, Zeiträume und Formate '
+                          'wurden erfasst und dienen einer zielgerichteten und bedarfsgerechten Schulungsplanung.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).hintColor),
                         ),
                       ),
                     ],
                   ),
-                  TextField(
-                    controller: controllerComments,
-                    decoration: const InputDecoration(labelText: 'Kommentare'),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
-            ElevatedButton(
-              onPressed: () {
-                final item = TrainingNeedItem(
-                  id: '',
-                  topic: controllerTopic.text.trim(),
-                  timeframe: controllerTimeframe.text.trim(),
-                  format: controllerFormat.text.trim(),
-                  participants: int.tryParse(controllerParticipants.text.trim()) ?? 0,
-                  budget: double.tryParse(controllerBudget.text.trim()) ?? 0,
-                  requirements: '',
-                );
-                final need = TrainingNeed(
-                  id: '',
-                  year: int.tryParse(controllerYear.text.trim()) ?? DateTime.now().year,
-                  contactName: controllerContact.text.trim(),
-                  position: '',
-                  department: controllerDepartment.text.trim(),
-                  team: '',
-                  items: [item],
-                  comments: controllerComments.text.trim(),
-                  status: 'draft',
-                  noNeed: false,
-                );
-                Navigator.of(context).pop(need);
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
     if (result == null) return;
     try {
       final saved = await widget.api.adminCreateTrainingNeed(result);
-      setState(() => _needs = [..._needs, saved]);
+      setState(() => _needs = [..._needs, saved.need]);
+      if (saved.warning != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(saved.warning!)),
+        );
+      }
     } catch (err) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $err')));
     }
