@@ -66,10 +66,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   ];
   final _searchController = TextEditingController();
   final _programSearchController = TextEditingController();
+  final _templateSearchController = TextEditingController();
   List<TrainingNeed> _needs = const [];
   List<TrainingProgram> _programs = const [];
   List<TrainingRecord> _trainings = const [];
   List<TrainingQuestionnaireTemplate> _templates = const [];
+  List<Map<String, dynamic>> _questionnaires = const [];
+  List<Map<String, dynamic>> _myQuestionnaires = const [];
   List<PortalUserSummary> _staffUsers = const [];
   Map<String, dynamic> _wkReminders = const {};
   Map<String, dynamic> _summary = const {};
@@ -81,6 +84,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   String? _programFormatFilter;
   String _programSort = 'plannedPeriod';
   bool _programSortAsc = true;
+  String? _templateCategoryFilter;
+  String? _templateStatusFilter;
+  String? _templateCreatorFilter;
+  String _templateSort = 'title';
+  bool _templateSortAsc = true;
+  bool _myQuestionnairesLoading = false;
 
   @override
   void initState() {
@@ -92,6 +101,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   void dispose() {
     _searchController.dispose();
     _programSearchController.dispose();
+    _templateSearchController.dispose();
     super.dispose();
   }
 
@@ -109,6 +119,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         widget.api.adminTrainingSummary(),
         widget.api.adminStaffUsers(includeInactive: false),
         widget.api.trainingWkReminders(),
+        widget.api.myQuestionnaires(),
+        widget.api.adminTrainingQuestionnaires(),
       ]);
       setState(() {
         _needs = results[0] as List<TrainingNeed>;
@@ -118,6 +130,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         _summary = results[4] as Map<String, dynamic>;
         _staffUsers = results[5] as List<PortalUserSummary>;
         _wkReminders = results[6] as Map<String, dynamic>;
+        _myQuestionnaires = results[7] as List<Map<String, dynamic>>;
+        _questionnaires = results[8] as List<Map<String, dynamic>>;
         if (_programs.isNotEmpty) {
           final years = _programs.map((entry) => entry.year).toSet();
           if (!years.contains(_programYearFilter)) {
@@ -147,6 +161,19 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       setState(() => _wkReminders = data);
     } catch (_) {
       // Ignore reminder refresh errors
+    }
+  }
+
+  Future<void> _reloadMyQuestionnaires() async {
+    setState(() => _myQuestionnairesLoading = true);
+    try {
+      final list = await widget.api.myQuestionnaires();
+      if (!mounted) return;
+      setState(() => _myQuestionnaires = list);
+    } catch (_) {
+      // Ignore errors for personal list
+    } finally {
+      if (mounted) setState(() => _myQuestionnairesLoading = false);
     }
   }
 
@@ -2485,10 +2512,16 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final wkDelayDays = ValueNotifier<int>(current.wkDelayDays ?? 0);
     final wkResponsible = ValueNotifier<String>(current.wkResponsibleId ?? currentUser);
     final wkTemplateId = ValueNotifier<String>(current.wkQuestionnaireTemplateId ?? '');
+    final wkTargetParticipants = ValueNotifier<List<String>>(current.wkTargetParticipantIds ?? []);
+    final wkThreshold = TextEditingController(
+      text: (current.wkThresholdPercent ?? _templateThresholdById(current.wkQuestionnaireTemplateId)).toString(),
+    );
     final wkCustomDelay = TextEditingController();
     final wkResult = TextEditingController();
     final wkNotes = TextEditingController();
     DateTime? wkPerformedAt;
+    Map<String, dynamic>? wkResults;
+    bool wkResultsLoading = false;
 
     await showDialog<void>(
       context: context,
@@ -2718,13 +2751,72 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                         valueListenable: wkMethod,
                         builder: (context, method, _) {
                           if (method != 'questionnaire') return const SizedBox.shrink();
-                          return DropdownButtonFormField<String>(
-                            value: wkTemplateId.value.isNotEmpty ? wkTemplateId.value : null,
-                            decoration: const InputDecoration(labelText: 'Fragebogen-Template'),
-                            items: _templates
-                                .map((template) => DropdownMenuItem(value: template.id, child: Text(template.title)))
-                                .toList(),
-                            onChanged: (selection) => wkTemplateId.value = selection ?? '',
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      value: wkTemplateId.value.isNotEmpty ? wkTemplateId.value : null,
+                                      decoration: const InputDecoration(labelText: 'Fragebogen-Template'),
+                                      items: _templates
+                                          .map((template) =>
+                                              DropdownMenuItem(value: template.id, child: Text(template.title)))
+                                          .toList(),
+                                      onChanged: (selection) {
+                                        wkTemplateId.value = selection ?? '';
+                                        wkThreshold.text = _templateThresholdById(selection).toString();
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (widget.canWrite)
+                                    TextButton.icon(
+                                      onPressed: _createTemplate,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Template erstellen'),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: wkThreshold,
+                                decoration: const InputDecoration(
+                                  labelText: 'Bestehensgrenze (%)',
+                                  helperText: 'Vorgabe aus Template, hier überschreibbar.',
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                              const SizedBox(height: 8),
+                              ValueListenableBuilder<List<String>>(
+                                valueListenable: wkTargetParticipants,
+                                builder: (context, value, _) {
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          value.isEmpty
+                                              ? 'Zuweisung: Alle Teilnehmer'
+                                              : 'Zuweisung: ${value.length} Teilnehmer ausgewählt',
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () async {
+                                          final selected = await _selectParticipantsDialog(
+                                            participants,
+                                            value,
+                                          );
+                                          if (selected == null) return;
+                                          wkTargetParticipants.value = selected;
+                                        },
+                                        child: const Text('Teilnehmer auswählen'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -2744,6 +2836,14 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                   );
                                   return;
                                 }
+                                final thresholdValue = int.tryParse(wkThreshold.text.trim());
+                                if (wkMethod.value == 'questionnaire' &&
+                                    (thresholdValue == null || thresholdValue < 0 || thresholdValue > 100)) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Bitte eine Bestehensgrenze zwischen 0 und 100 angeben.')),
+                                  );
+                                  return;
+                                }
                                 try {
                                   final updated = await widget.api.trainingConfigureWk(
                                     trainingId: current.id,
@@ -2751,6 +2851,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                     wkDelayDays: delay,
                                     wkResponsibleId: wkResponsible.value,
                                     wkQuestionnaireTemplateId: wkTemplateId.value,
+                                    wkTargetParticipantIds: wkTargetParticipants.value,
+                                    wkThresholdPercent: thresholdValue,
                                   );
                                   _updateTrainingRecord(updated);
                                   setModalState(() {
@@ -2759,6 +2861,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                     wkDelayDays.value = updated.wkDelayDays ?? 0;
                                     wkResponsible.value = updated.wkResponsibleId ?? currentUser;
                                     wkTemplateId.value = updated.wkQuestionnaireTemplateId ?? '';
+                                    wkThreshold.text = (updated.wkThresholdPercent ?? _templateThresholdById(updated.wkQuestionnaireTemplateId)).toString();
+                                    wkTargetParticipants.value = updated.wkTargetParticipantIds ?? [];
                                   });
                                   await _reloadWkReminders();
                                 } catch (err) {
@@ -2825,6 +2929,71 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       ] else if (current.wkMethod == 'questionnaire') ...[
                         Text('WK Fragebogen', style: Theme.of(context).textTheme.titleSmall),
                         const Text('Fragebogen-Auswertung erfolgt über die Teilnehmerantworten.'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                setModalState(() => wkResultsLoading = true);
+                                try {
+                                  final results = await widget.api.questionnaireTrainingResults(current.id);
+                                  setModalState(() => wkResults = results);
+                                } catch (err) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Ergebnisse konnten nicht geladen werden: $err')));
+                                } finally {
+                                  setModalState(() => wkResultsLoading = false);
+                                }
+                              },
+                              icon: const Icon(Icons.insights_outlined),
+                              label: const Text('Ergebnisse laden'),
+                            ),
+                            if (wkResultsLoading) ...[
+                              const SizedBox(width: 12),
+                              const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                            ],
+                          ],
+                        ),
+                        if (wkResults != null) ...[
+                          const SizedBox(height: 12),
+                          Builder(builder: (context) {
+                            final summary = (wkResults?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+                            final list = (wkResults?['list'] as List? ?? []).whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+                            final participantMap = {for (final p in participants) p.id: p.name};
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 8,
+                                  children: [
+                                    _infoChip(Icons.people_outline, 'Teilnehmer: ${summary['total'] ?? 0}'),
+                                    _infoChip(Icons.check_circle_outline, 'Bestanden: ${summary['passed'] ?? 0}'),
+                                    _infoChip(Icons.cancel_outlined, 'Nicht bestanden: ${summary['failed'] ?? 0}'),
+                                    _infoChip(Icons.star_border, 'Ø Ergebnis: ${summary['averageScore'] ?? 0}%'),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (list.isEmpty)
+                                  const Text('Keine Fragebogen-Ergebnisse vorhanden.')
+                                else
+                                  ...list.map((item) {
+                                    final score = item['scorePercent'];
+                                    final status = item['status'];
+                                    final needsRetraining = item['needsRetraining'] == true;
+                                    final participantLabel = participantMap[item['participantId']] ?? item['participantId']?.toString() ?? 'Teilnehmer';
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(participantLabel),
+                                      subtitle: Text('Ergebnis: ${score ?? '—'}% · Status: ${status ?? '—'}'),
+                                      trailing: needsRetraining ? const Text('Nachschulung erforderlich') : null,
+                                    );
+                                  }),
+                              ],
+                            );
+                          }),
+                        ],
                         if (canManage)
                           TextButton(
                             onPressed: () async {
@@ -2901,53 +3070,615 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     wkCustomDelay.dispose();
     wkResult.dispose();
     wkNotes.dispose();
+    wkThreshold.dispose();
   }
 
   Future<TrainingQuestionnaireTemplate?> _openTemplateDialog({TrainingQuestionnaireTemplate? initial}) async {
     if (!widget.canWrite) return null;
     final controllerTitle = TextEditingController(text: initial?.title ?? '');
     final controllerDescription = TextEditingController(text: initial?.description ?? '');
-    final controllerQuestion = TextEditingController(
-      text: initial?.questions.isNotEmpty == true ? initial!.questions.first['label']?.toString() ?? '' : '',
+    final controllerTags = TextEditingController(text: initial?.tags.join(', ') ?? '');
+    final controllerDuration = TextEditingController(
+      text: initial?.estimatedDurationMinutes == null ? '' : initial!.estimatedDurationMinutes.toString(),
     );
+    final controllerThreshold = TextEditingController(
+      text: (initial?.defaultThresholdPercent ?? 70).toString(),
+    );
+    String category = initial?.category ?? '';
+    bool isActive = initial?.isActive ?? true;
+    int selectedIndex = 0;
+
+    final questions = initial?.questions.map((q) => QuestionnaireQuestion(
+              id: q.id,
+              orderIndex: q.orderIndex,
+              type: q.type,
+              text: q.text,
+              points: q.points,
+              explanation: q.explanation,
+              options: q.options.map((o) => QuestionnaireOption(
+                    id: o.id,
+                    orderIndex: o.orderIndex,
+                    text: o.text,
+                    isCorrect: o.isCorrect,
+                  )).toList(),
+            )).toList() ??
+        <QuestionnaireQuestion>[];
+
+    if (questions.isEmpty) {
+      questions.add(QuestionnaireQuestion(
+        id: UniqueKey().toString(),
+        orderIndex: 0,
+        type: 'single_choice',
+        text: 'Neue Frage',
+        points: 1,
+        explanation: '',
+        options: [
+          QuestionnaireOption(id: UniqueKey().toString(), orderIndex: 0, text: 'Option 1', isCorrect: true),
+          QuestionnaireOption(id: UniqueKey().toString(), orderIndex: 1, text: 'Option 2', isCorrect: false),
+        ],
+      ));
+    }
+
+    TrainingQuestionnaireTemplate buildTemplate() {
+      final tags = controllerTags.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final duration = int.tryParse(controllerDuration.text.trim());
+      final threshold = int.tryParse(controllerThreshold.text.trim()) ?? 70;
+      final normalizedQuestions = questions
+          .asMap()
+          .entries
+          .map((entry) => QuestionnaireQuestion(
+                id: entry.value.id,
+                orderIndex: entry.key,
+                type: entry.value.type,
+                text: entry.value.text,
+                points: entry.value.points,
+                explanation: entry.value.explanation,
+                options: entry.value.options
+                    .asMap()
+                    .entries
+                    .map((optEntry) => QuestionnaireOption(
+                          id: optEntry.value.id,
+                          orderIndex: optEntry.key,
+                          text: optEntry.value.text,
+                          isCorrect: optEntry.value.isCorrect,
+                        ))
+                    .toList(),
+              ))
+          .toList();
+      return TrainingQuestionnaireTemplate(
+        id: initial?.id ?? '',
+        title: controllerTitle.text.trim(),
+        description: controllerDescription.text.trim(),
+        category: category,
+        tags: tags,
+        estimatedDurationMinutes: duration,
+        defaultThresholdPercent: threshold,
+        isActive: isActive,
+        createdBy: initial?.createdBy ?? _currentUserEmail,
+        updatedBy: _currentUserEmail,
+        createdAt: initial?.createdAt,
+        updatedAt: initial?.updatedAt,
+        questions: normalizedQuestions,
+      );
+    }
+
+    bool validateTemplate(TrainingQuestionnaireTemplate template) {
+      if (template.title.trim().isEmpty) return false;
+      for (final question in template.questions) {
+        if (question.text.trim().isEmpty) return false;
+        if (question.type == 'single_choice' || question.type == 'multi_choice') {
+          final options = question.options.where((o) => o.text.trim().isNotEmpty).toList();
+          if (options.length < 2) return false;
+          final correctCount = options.where((o) => o.isCorrect).length;
+          if (correctCount < 1) return false;
+        }
+      }
+      return true;
+    }
+
     final result = await showDialog<TrainingQuestionnaireTemplate>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(initial == null ? 'Neues Template' : 'Template bearbeiten'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: controllerTitle, decoration: const InputDecoration(labelText: 'Titel')),
-                TextField(controller: controllerDescription, decoration: const InputDecoration(labelText: 'Beschreibung')),
-                TextField(controller: controllerQuestion, decoration: const InputDecoration(labelText: 'Frage')),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
-            ElevatedButton(
-              onPressed: () {
-                final template = TrainingQuestionnaireTemplate(
-                  id: initial?.id ?? '',
-                  title: controllerTitle.text.trim(),
-                  description: controllerDescription.text.trim(),
-                  questions: [
-                    {
-                      'id': initial?.questions.isNotEmpty == true ? initial!.questions.first['id'] : null,
-                      'label': controllerQuestion.text.trim(),
-                      'type': 'text',
-                      'required': true,
-                    },
+        return Dialog(
+          insetPadding: const EdgeInsets.all(24),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) {
+              final theme = Theme.of(context);
+              final templatePreview = buildTemplate();
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 720),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Text(initial == null ? 'Neues Template erstellen' : 'Template bearbeiten',
+                              style: theme.textTheme.titleLarge),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () => _showTemplatePreview(templatePreview),
+                            icon: const Icon(Icons.preview_outlined),
+                            label: const Text('Vorschau'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => setDialogState(() => isActive = !isActive),
+                            icon: Icon(isActive ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                            label: Text(isActive ? 'Aktiv' : 'Deaktiviert'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: [
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                SizedBox(
+                                  width: 240,
+                                  child: TextField(
+                                    controller: controllerTitle,
+                                    decoration: const InputDecoration(labelText: 'Titel *'),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 260,
+                                  child: TextField(
+                                    controller: controllerDescription,
+                                    decoration: const InputDecoration(labelText: 'Beschreibung'),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 200,
+                                  child: DropdownButtonFormField<String>(
+                                    value: category.isNotEmpty ? category : null,
+                                    decoration: const InputDecoration(labelText: 'Kategorie'),
+                                    items: _trainingCategoryOptions
+                                        .map((entry) => DropdownMenuItem(value: entry['value'], child: Text(entry['label']!)))
+                                        .toList(),
+                                    onChanged: (value) => setDialogState(() => category = value ?? ''),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 200,
+                                  child: TextField(
+                                    controller: controllerTags,
+                                    decoration: const InputDecoration(labelText: 'Tags (Komma getrennt)'),
+                                    onChanged: (_) => setDialogState(() {}),
+                                  ),
+                                ),
+                                Wrap(
+                                  spacing: 6,
+                                  children: controllerTags.text
+                                      .split(',')
+                                      .map((e) => e.trim())
+                                      .where((e) => e.isNotEmpty)
+                                      .map((tag) => Chip(label: Text(tag)))
+                                      .toList(),
+                                ),
+                                SizedBox(
+                                  width: 180,
+                                  child: TextField(
+                                    controller: controllerDuration,
+                                    decoration: const InputDecoration(labelText: 'Dauer (Min.)'),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 200,
+                                  child: TextField(
+                                    controller: controllerThreshold,
+                                    decoration: const InputDecoration(labelText: 'Standard-Bestehensgrenze (%)'),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 320,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text('Fragen', style: theme.textTheme.titleSmall),
+                                            const Spacer(),
+                                            TextButton.icon(
+                                              onPressed: () {
+                                                setDialogState(() {
+                                                  questions.add(QuestionnaireQuestion(
+                                                    id: UniqueKey().toString(),
+                                                    orderIndex: questions.length,
+                                                    type: 'single_choice',
+                                                    text: 'Neue Frage',
+                                                    points: 1,
+                                                    explanation: '',
+                                                    options: [
+                                                      QuestionnaireOption(
+                                                        id: UniqueKey().toString(),
+                                                        orderIndex: 0,
+                                                        text: 'Option 1',
+                                                        isCorrect: true,
+                                                      ),
+                                                      QuestionnaireOption(
+                                                        id: UniqueKey().toString(),
+                                                        orderIndex: 1,
+                                                        text: 'Option 2',
+                                                        isCorrect: false,
+                                                      ),
+                                                    ],
+                                                  ));
+                                                  selectedIndex = questions.length - 1;
+                                                });
+                                              },
+                                              icon: const Icon(Icons.add),
+                                              label: const Text('Frage hinzufügen'),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: ReorderableListView(
+                                            onReorder: (oldIndex, newIndex) {
+                                              setDialogState(() {
+                                                if (newIndex > oldIndex) newIndex -= 1;
+                                                final item = questions.removeAt(oldIndex);
+                                                questions.insert(newIndex, item);
+                                                if (selectedIndex == oldIndex) {
+                                                  selectedIndex = newIndex;
+                                                }
+                                              });
+                                            },
+                                            children: [
+                                              for (int i = 0; i < questions.length; i++)
+                                                Card(
+                                                  key: ValueKey(questions[i].id),
+                                                  color: i == selectedIndex
+                                                      ? theme.colorScheme.primary.withOpacity(0.08)
+                                                      : null,
+                                                  child: ListTile(
+                                                    title: Text(
+                                                      questions[i].text.isEmpty ? 'Frage ${i + 1}' : questions[i].text,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    subtitle: Text(_questionTypeLabel(questions[i].type)),
+                                                    onTap: () => setDialogState(() => selectedIndex = i),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Builder(
+                                      builder: (context) {
+                                        if (questions.isEmpty) {
+                                          return const Center(child: Text('Fügen Sie eine Frage hinzu.'));
+                                        }
+                                        final question = questions[selectedIndex];
+                                        final isChoice = question.type == 'single_choice' || question.type == 'multi_choice';
+                                        return SingleChildScrollView(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Frageinstellungen', style: theme.textTheme.titleSmall),
+                                              const SizedBox(height: 8),
+                                              TextField(
+                                                controller: TextEditingController(text: question.text)
+                                                  ..selection = TextSelection.collapsed(offset: question.text.length),
+                                                decoration: const InputDecoration(labelText: 'Frage-Text'),
+                                                onChanged: (value) => setDialogState(
+                                                  () => questions[selectedIndex] = QuestionnaireQuestion(
+                                                    id: question.id,
+                                                    orderIndex: question.orderIndex,
+                                                    type: question.type,
+                                                    text: value,
+                                                    points: question.points,
+                                                    explanation: question.explanation,
+                                                    options: question.options,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              DropdownButtonFormField<String>(
+                                                value: question.type,
+                                                decoration: const InputDecoration(labelText: 'Fragetyp'),
+                                                items: const [
+                                                  DropdownMenuItem(value: 'single_choice', child: Text('Multiple Choice (eine Antwort)')),
+                                                  DropdownMenuItem(value: 'multi_choice', child: Text('Multiple Choice (mehrere Antworten)')),
+                                                  DropdownMenuItem(value: 'text', child: Text('Freitext')),
+                                                ],
+                                                onChanged: (value) {
+                                                  if (value == null) return;
+                                                  setDialogState(() {
+                                                    questions[selectedIndex] = QuestionnaireQuestion(
+                                                      id: question.id,
+                                                      orderIndex: question.orderIndex,
+                                                      type: value,
+                                                      text: question.text,
+                                                      points: question.points,
+                                                      explanation: question.explanation,
+                                                      options: value == 'text'
+                                                          ? []
+                                                          : question.options.isEmpty
+                                                              ? [
+                                                                  QuestionnaireOption(
+                                                                    id: UniqueKey().toString(),
+                                                                    orderIndex: 0,
+                                                                    text: 'Option 1',
+                                                                    isCorrect: true,
+                                                                  ),
+                                                                  QuestionnaireOption(
+                                                                    id: UniqueKey().toString(),
+                                                                    orderIndex: 1,
+                                                                    text: 'Option 2',
+                                                                    isCorrect: false,
+                                                                  ),
+                                                                ]
+                                                              : question.options,
+                                                    );
+                                                  });
+                                                },
+                                              ),
+                                              const SizedBox(height: 8),
+                                              TextField(
+                                                controller: TextEditingController(text: question.points.toString())
+                                                  ..selection = TextSelection.collapsed(offset: question.points.toString().length),
+                                                decoration: const InputDecoration(labelText: 'Punkte'),
+                                                keyboardType: TextInputType.number,
+                                                onChanged: (value) => setDialogState(
+                                                  () => questions[selectedIndex] = QuestionnaireQuestion(
+                                                    id: question.id,
+                                                    orderIndex: question.orderIndex,
+                                                    type: question.type,
+                                                    text: question.text,
+                                                    points: int.tryParse(value) ?? 1,
+                                                    explanation: question.explanation,
+                                                    options: question.options,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              TextField(
+                                                controller: TextEditingController(text: question.explanation)
+                                                  ..selection = TextSelection.collapsed(offset: question.explanation.length),
+                                                decoration: const InputDecoration(labelText: 'Erklärung (optional)'),
+                                                onChanged: (value) => setDialogState(
+                                                  () => questions[selectedIndex] = QuestionnaireQuestion(
+                                                    id: question.id,
+                                                    orderIndex: question.orderIndex,
+                                                    type: question.type,
+                                                    text: question.text,
+                                                    points: question.points,
+                                                    explanation: value,
+                                                    options: question.options,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 16),
+                                              if (isChoice) ...[
+                                                Text('Antwortmöglichkeiten', style: theme.textTheme.titleSmall),
+                                                const SizedBox(height: 8),
+                                                ...question.options.asMap().entries.map((entry) {
+                                                  final idx = entry.key;
+                                                  final opt = entry.value;
+                                                  final correctId = question.options.firstWhere(
+                                                    (o) => o.isCorrect,
+                                                    orElse: () => QuestionnaireOption(id: '', orderIndex: 0, text: '', isCorrect: false),
+                                                  ).id;
+                                                  return Row(
+                                                    children: [
+                                                      if (question.type == 'single_choice')
+                                                        Radio<String>(
+                                                          value: opt.id,
+                                                          groupValue: correctId.isEmpty ? null : correctId,
+                                                          onChanged: (_) {
+                                                            setDialogState(() {
+                                                              final updatedOptions = question.options
+                                                                  .map((o) => QuestionnaireOption(
+                                                                        id: o.id,
+                                                                        orderIndex: o.orderIndex,
+                                                                        text: o.text,
+                                                                        isCorrect: o.id == opt.id,
+                                                                      ))
+                                                                  .toList();
+                                                              questions[selectedIndex] = QuestionnaireQuestion(
+                                                                id: question.id,
+                                                                orderIndex: question.orderIndex,
+                                                                type: question.type,
+                                                                text: question.text,
+                                                                points: question.points,
+                                                                explanation: question.explanation,
+                                                                options: updatedOptions,
+                                                              );
+                                                            });
+                                                          },
+                                                        )
+                                                      else
+                                                        Checkbox(
+                                                          value: opt.isCorrect,
+                                                          onChanged: (value) {
+                                                            setDialogState(() {
+                                                              final updatedOptions = question.options
+                                                                  .map((o) => QuestionnaireOption(
+                                                                        id: o.id,
+                                                                        orderIndex: o.orderIndex,
+                                                                        text: o.text,
+                                                                        isCorrect: o.id == opt.id ? (value ?? false) : o.isCorrect,
+                                                                      ))
+                                                                  .toList();
+                                                              questions[selectedIndex] = QuestionnaireQuestion(
+                                                                id: question.id,
+                                                                orderIndex: question.orderIndex,
+                                                                type: question.type,
+                                                                text: question.text,
+                                                                points: question.points,
+                                                                explanation: question.explanation,
+                                                                options: updatedOptions,
+                                                              );
+                                                            });
+                                                          },
+                                                        ),
+                                                      Expanded(
+                                                        child: TextField(
+                                                          controller: TextEditingController(text: opt.text)
+                                                            ..selection = TextSelection.collapsed(offset: opt.text.length),
+                                                          decoration: InputDecoration(labelText: 'Option ${idx + 1}'),
+                                                          onChanged: (value) {
+                                                            setDialogState(() {
+                                                              final updatedOptions = question.options.asMap().entries.map((oEntry) {
+                                                                if (oEntry.key != idx) return oEntry.value;
+                                                                return QuestionnaireOption(
+                                                                  id: opt.id,
+                                                                  orderIndex: opt.orderIndex,
+                                                                  text: value,
+                                                                  isCorrect: opt.isCorrect,
+                                                                );
+                                                              }).toList();
+                                                              questions[selectedIndex] = QuestionnaireQuestion(
+                                                                id: question.id,
+                                                                orderIndex: question.orderIndex,
+                                                                type: question.type,
+                                                                text: question.text,
+                                                                points: question.points,
+                                                                explanation: question.explanation,
+                                                                options: updatedOptions,
+                                                              );
+                                                            });
+                                                          },
+                                                        ),
+                                                      ),
+                                                      IconButton(
+                                                        tooltip: 'Option entfernen',
+                                                        icon: const Icon(Icons.delete_outline),
+                                                        onPressed: () {
+                                                          setDialogState(() {
+                                                            final updatedOptions = [...question.options]..removeAt(idx);
+                                                            questions[selectedIndex] = QuestionnaireQuestion(
+                                                              id: question.id,
+                                                              orderIndex: question.orderIndex,
+                                                              type: question.type,
+                                                              text: question.text,
+                                                              points: question.points,
+                                                              explanation: question.explanation,
+                                                              options: updatedOptions,
+                                                            );
+                                                          });
+                                                        },
+                                                      ),
+                                                    ],
+                                                  );
+                                                }),
+                                                Align(
+                                                  alignment: Alignment.centerLeft,
+                                                  child: TextButton.icon(
+                                                    onPressed: () {
+                                                      setDialogState(() {
+                                                        final updatedOptions = [
+                                                          ...question.options,
+                                                          QuestionnaireOption(
+                                                            id: UniqueKey().toString(),
+                                                            orderIndex: question.options.length,
+                                                            text: 'Neue Option',
+                                                            isCorrect: false,
+                                                          ),
+                                                        ];
+                                                        questions[selectedIndex] = QuestionnaireQuestion(
+                                                          id: question.id,
+                                                          orderIndex: question.orderIndex,
+                                                          type: question.type,
+                                                          text: question.text,
+                                                          points: question.points,
+                                                          explanation: question.explanation,
+                                                          options: updatedOptions,
+                                                        );
+                                                      });
+                                                    },
+                                                    icon: const Icon(Icons.add_circle_outline),
+                                                    label: const Text('Option hinzufügen'),
+                                                  ),
+                                                ),
+                                              ],
+                                              const SizedBox(height: 12),
+                                              Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: TextButton.icon(
+                                                  onPressed: () {
+                                                    setDialogState(() {
+                                                      questions.removeAt(selectedIndex);
+                                                      if (selectedIndex >= questions.length) {
+                                                        selectedIndex = questions.isEmpty ? 0 : questions.length - 1;
+                                                      }
+                                                    });
+                                                  },
+                                                  icon: const Icon(Icons.delete_outline),
+                                                  label: const Text('Frage löschen'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Abbrechen'),
+                          ),
+                          const Spacer(),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              final template = buildTemplate();
+                              final validThreshold = template.defaultThresholdPercent >= 0 && template.defaultThresholdPercent <= 100;
+                              if (!validThreshold || !validateTemplate(template)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Bitte Pflichtfelder, Optionen und Bestehensgrenze prüfen.')),
+                                );
+                                return;
+                              }
+                              Navigator.of(context).pop(template);
+                            },
+                            icon: const Icon(Icons.save_outlined),
+                            label: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                );
-                Navigator.of(context).pop(template);
-              },
-              child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
-            ),
-          ],
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -2976,6 +3707,181 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
+  String _questionTypeLabel(String type) {
+    switch (type) {
+      case 'single_choice':
+        return 'Multiple Choice (eine Antwort)';
+      case 'multi_choice':
+        return 'Multiple Choice (mehrere Antworten)';
+      case 'text':
+      default:
+        return 'Freitext';
+    }
+  }
+
+  String _questionnaireStatusLabel(String status) {
+    switch (status) {
+      case 'open':
+        return 'Offen';
+      case 'in_progress':
+        return 'In Bearbeitung';
+      case 'submitted':
+        return 'Eingereicht';
+      case 'evaluated':
+        return 'Bewertet';
+      case 'failed':
+        return 'Nicht bestanden';
+      case 'passed':
+        return 'Bestanden';
+      default:
+        return status;
+    }
+  }
+
+  String _formatDateTime(int? millis) {
+    if (millis == null || millis <= 0) return '—';
+    return DateTime.fromMillisecondsSinceEpoch(millis).toLocal().toString();
+  }
+
+  Future<void> _showTemplatePreview(TrainingQuestionnaireTemplate template) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Vorschau: ${template.title}'),
+          content: SizedBox(
+            width: 520,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                if (template.description.isNotEmpty) Text(template.description),
+                const SizedBox(height: 12),
+                ...template.questions.map((q) {
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(q.text, style: Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 8),
+                          if (q.type == 'text')
+                            const TextField(
+                              decoration: InputDecoration(labelText: 'Antwort'),
+                            )
+                          else
+                            ...q.options.map((opt) => Row(
+                                  children: [
+                                    Icon(
+                                      q.type == 'single_choice' ? Icons.radio_button_unchecked : Icons.check_box_outline_blank,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(opt.text)),
+                                  ],
+                                )),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showTemplateHelpDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('So funktionieren Fragebogen-Templates'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text('1) Erstellen Sie hier ein Template mit Fragen und Bestehensgrenze.'),
+                SizedBox(height: 6),
+                Text('2) In einer Schulung wählen Sie bei Wirksamkeitskontrolle die Methode „Fragebogen“.'),
+                SizedBox(height: 6),
+                Text('3) Teilnehmer erhalten automatisch ihren Fragebogen in „Meine Fragebögen“.'),
+                SizedBox(height: 6),
+                Text('4) Die Ergebnisse werden im Trainings-Detail mit Pass/Fail und Nachschulung angezeigt.'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<List<String>?> _selectParticipantsDialog(
+    List<TrainingParticipant> participants,
+    List<String> initialSelection,
+  ) async {
+    final selected = initialSelection.toSet();
+    return showDialog<List<String>>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Teilnehmer auswählen'),
+              content: SizedBox(
+                width: 360,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: participants.map((participant) {
+                    final isChecked = selected.contains(participant.id);
+                    return CheckboxListTile(
+                      value: isChecked,
+                      title: Text(participant.name),
+                      subtitle: Text(participant.department),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          if (value == true) {
+                            selected.add(participant.id);
+                          } else {
+                            selected.remove(participant.id);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                TextButton(
+                  onPressed: () {
+                    selected.clear();
+                    Navigator.of(context).pop(<String>[]);
+                  },
+                  child: const Text('Alle'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(selected.toList()),
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   List<TrainingRecord> _filteredTrainings() {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return _trainings;
@@ -2986,6 +3892,80 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           training.category.toLowerCase().contains(query) ||
           categoryLabel.contains(query);
     }).toList();
+  }
+
+  Map<String, Map<String, int>> _templateUsageStats() {
+    final usage = <String, int>{};
+    final lastUsed = <String, int>{};
+    for (final entry in _questionnaires) {
+      final templateId = (entry['templateId'] ?? '').toString();
+      if (templateId.isEmpty) continue;
+      usage[templateId] = (usage[templateId] ?? 0) + 1;
+      final candidate = (entry['submittedAt'] ?? entry['updatedAt'] ?? entry['createdAt']);
+      if (candidate is num) {
+        final current = lastUsed[templateId] ?? 0;
+        if (candidate.toInt() > current) lastUsed[templateId] = candidate.toInt();
+      }
+    }
+    return {'usage': usage, 'lastUsed': lastUsed};
+  }
+
+  int _templateThresholdById(String? id) {
+    if (id == null || id.isEmpty) return 70;
+    final match = _templates.firstWhere(
+      (template) => template.id == id,
+      orElse: () => TrainingQuestionnaireTemplate(
+        id: '',
+        title: '',
+        description: '',
+        category: '',
+        tags: const [],
+        estimatedDurationMinutes: null,
+        defaultThresholdPercent: 70,
+        isActive: true,
+        createdBy: '',
+        updatedBy: '',
+        createdAt: null,
+        updatedAt: null,
+        questions: const [],
+      ),
+    );
+    return match.defaultThresholdPercent == 0 ? 70 : match.defaultThresholdPercent;
+  }
+
+  List<TrainingQuestionnaireTemplate> _filteredTemplates() {
+    final query = _templateSearchController.text.trim().toLowerCase();
+    final stats = _templateUsageStats();
+    final lastUsedMap = stats['lastUsed'] ?? {};
+    final list = _templates.where((template) {
+      if (_templateCategoryFilter != null && _templateCategoryFilter!.isNotEmpty) {
+        if (template.category != _templateCategoryFilter) return false;
+      }
+      if (_templateStatusFilter != null && _templateStatusFilter!.isNotEmpty) {
+        if (_templateStatusFilter == 'active' && !template.isActive) return false;
+        if (_templateStatusFilter == 'inactive' && template.isActive) return false;
+      }
+      if (_templateCreatorFilter != null && _templateCreatorFilter!.isNotEmpty) {
+        if (template.createdBy.toLowerCase() != _templateCreatorFilter!.toLowerCase()) return false;
+      }
+      if (query.isEmpty) return true;
+      final tagMatch = template.tags.any((tag) => tag.toLowerCase().contains(query));
+      return template.title.toLowerCase().contains(query) ||
+          template.category.toLowerCase().contains(query) ||
+          tagMatch;
+    }).toList();
+    list.sort((a, b) {
+      int result;
+      if (_templateSort == 'lastUsed') {
+        result = (lastUsedMap[a.id] ?? 0).compareTo(lastUsedMap[b.id] ?? 0);
+      } else if (_templateSort == 'updatedAt') {
+        result = (a.updatedAt ?? 0).compareTo(b.updatedAt ?? 0);
+      } else {
+        result = a.title.compareTo(b.title);
+      }
+      return _templateSortAsc ? result : -result;
+    });
+    return list;
   }
 
   Widget _buildErrorBanner() {
@@ -3015,11 +3995,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final theme = Theme.of(context);
     final initialIndex = widget.initialTab < 0
         ? 0
-        : widget.initialTab > 6
-            ? 6
+        : widget.initialTab > 7
+            ? 7
             : widget.initialTab;
     return DefaultTabController(
-      length: 7,
+      length: 8,
       initialIndex: initialIndex,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3045,6 +4025,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
               Tab(text: 'Schulungsprogramm'),
               Tab(text: 'Schulungen'),
               Tab(text: 'Wirksamkeitskontrolle'),
+              Tab(text: 'Meine Fragebögen'),
               Tab(text: 'Fragebogen-Templates'),
               Tab(text: 'Archiv'),
             ],
@@ -3060,6 +4041,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       _buildProgramsTab(theme),
                       _buildTrainingsTab(theme),
                       _buildEffectivenessTab(theme),
+                      _buildMyQuestionnairesTab(theme),
                       _buildTemplatesTab(theme),
                       _buildArchiveTab(theme),
                     ],
@@ -3122,6 +4104,24 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           const SizedBox(height: 8),
           Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(height: 4),
+          Text(label),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.blueGrey),
+          const SizedBox(width: 6),
           Text(label),
         ],
       ),
@@ -3756,11 +4756,23 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         .whereType<Map>()
         .map((e) => e.cast<String, dynamic>())
         .toList();
+    final questionnaireDueSoon = (_wkReminders['questionnaireDueSoon'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final questionnaireOverdue = (_wkReminders['questionnaireOverdue'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final retraining = (_wkReminders['retraining'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
     return ListView(
       children: [
         Text('Wirksamkeitskontrolle', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
-        if (dueSoon.isEmpty && overdue.isEmpty)
+        if (dueSoon.isEmpty && overdue.isEmpty && questionnaireDueSoon.isEmpty && questionnaireOverdue.isEmpty && retraining.isEmpty)
           const Text('Keine fälligen Wirksamkeitskontrollen.'),
         if (overdue.isNotEmpty) ...[
           Text('Überfällig', style: theme.textTheme.titleSmall),
@@ -3797,11 +4809,337 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             );
           }),
         ],
+        if (questionnaireOverdue.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Fragebögen überfällig', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...questionnaireOverdue.map((item) {
+            final title = (item['trainingTitle'] ?? '').toString();
+            final number = (item['trainingNumber'] ?? '').toString();
+            final dueRaw = item['dueAt'];
+            final dueAt = dueRaw is num ? DateTime.fromMillisecondsSinceEpoch(dueRaw.toInt()).toLocal() : null;
+            return Card(
+              child: ListTile(
+                leading: Icon(Icons.warning_amber_outlined, color: Colors.red.shade400),
+                title: Text('$number · $title'),
+                subtitle: Text(dueAt == null ? 'Fällig: —' : 'Fällig: ${dueAt.toString()}'),
+              ),
+            );
+          }),
+        ],
+        if (questionnaireDueSoon.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Fragebögen fällig (14 Tage)', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...questionnaireDueSoon.map((item) {
+            final title = (item['trainingTitle'] ?? '').toString();
+            final number = (item['trainingNumber'] ?? '').toString();
+            final dueRaw = item['dueAt'];
+            final dueAt = dueRaw is num ? DateTime.fromMillisecondsSinceEpoch(dueRaw.toInt()).toLocal() : null;
+            return Card(
+              child: ListTile(
+                leading: Icon(Icons.fact_check_outlined, color: Colors.indigo.shade400),
+                title: Text('$number · $title'),
+                subtitle: Text(dueAt == null ? 'Fällig: —' : 'Fällig: ${dueAt.toString()}'),
+              ),
+            );
+          }),
+        ],
+        if (retraining.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Nachschulung erforderlich', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ...retraining.map((item) {
+            final title = (item['trainingTitle'] ?? '').toString();
+            final number = (item['trainingNumber'] ?? '').toString();
+            final score = item['scorePercent'];
+            return Card(
+              child: ListTile(
+                leading: Icon(Icons.school_outlined, color: Colors.red.shade400),
+                title: Text('$number · $title'),
+                subtitle: Text('Ergebnis: ${score ?? '—'}%'),
+              ),
+            );
+          }),
+        ],
       ],
     );
   }
 
+  Widget _buildMyQuestionnairesTab(ThemeData theme) {
+    final list = _myQuestionnaires;
+    return RefreshIndicator(
+      onRefresh: _reloadMyQuestionnaires,
+      child: ListView(
+        children: [
+          Row(
+            children: [
+              Text('Meine Fragebögen', style: theme.textTheme.titleMedium),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Aktualisieren',
+                onPressed: _reloadMyQuestionnaires,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_myQuestionnairesLoading) const LinearProgressIndicator(),
+          const SizedBox(height: 8),
+          if (list.isEmpty)
+            const Text('Aktuell sind keine Fragebögen zugewiesen.')
+          else
+            ...list.map((entry) {
+              final training = entry['training'] as Map<String, dynamic>?;
+              final template = entry['template'] as Map<String, dynamic>?;
+              final title = (training?['title'] ?? template?['title'] ?? 'Fragebogen').toString();
+              final trainingNumber = (training?['trainingNumber'] ?? '').toString();
+              final dueRaw = entry['dueAt'];
+              final dueAt = dueRaw is num ? DateTime.fromMillisecondsSinceEpoch(dueRaw.toInt()).toLocal() : null;
+              final status = (entry['status'] ?? 'open').toString();
+              final statusLabel = _questionnaireStatusLabel(status);
+              final score = entry['scorePercent'];
+              return Card(
+                child: ListTile(
+                  title: Text(trainingNumber.isEmpty ? title : '$trainingNumber · $title'),
+                  subtitle: Text(
+                    [
+                      if (template != null) '${template['questions'] is List ? (template['questions'] as List).length : ''} Fragen',
+                      if (dueAt != null) 'Fällig: ${dueAt.toString()}',
+                      'Status: $statusLabel',
+                      if (score != null && score.toString().isNotEmpty) 'Ergebnis: $score%',
+                    ].where((e) => e.toString().isNotEmpty).join(' · '),
+                  ),
+                  trailing: status == 'passed' || status == 'failed'
+                      ? const Icon(Icons.check_circle_outline)
+                      : ElevatedButton(
+                          onPressed: () => _openQuestionnaireRunner(entry),
+                          child: const Text('Starten'),
+                        ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openQuestionnaireRunner(Map<String, dynamic> entry) async {
+    final assignmentId = (entry['id'] ?? '').toString();
+    if (assignmentId.isEmpty) return;
+    try {
+      final data = await widget.api.questionnaireAssignment(assignmentId);
+      final assignment = (data['assignment'] as Map?)?.cast<String, dynamic>() ?? {};
+      final templateMap = (data['template'] as Map?)?.cast<String, dynamic>() ?? {};
+      final template = TrainingQuestionnaireTemplate.fromJson(templateMap);
+      if (template.questions.isEmpty) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Dieses Template enthält keine Fragen.')));
+        return;
+      }
+      int currentIndex = 0;
+      final answers = <String, Map<String, dynamic>>{};
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              final question = template.questions[currentIndex];
+              final progress = template.questions.isEmpty ? 0.0 : (currentIndex + 1) / template.questions.length;
+              final answer = answers[question.id] ?? {'selectedOptionIds': <String>[], 'freeText': ''};
+
+              Widget buildQuestion() {
+                if (question.type == 'text') {
+                  return TextField(
+                    controller: TextEditingController(text: answer['freeText']?.toString() ?? '')
+                      ..selection = TextSelection.collapsed(offset: (answer['freeText']?.toString() ?? '').length),
+                    decoration: const InputDecoration(labelText: 'Antwort'),
+                    maxLines: 4,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        answers[question.id] = {
+                          'questionId': question.id,
+                          'freeText': value,
+                          'selectedOptionIds': <String>[],
+                        };
+                      });
+                    },
+                  );
+                }
+                if (question.type == 'multi_choice') {
+                  final selected = Set<String>.from(answer['selectedOptionIds'] as List? ?? []);
+                  return Column(
+                    children: question.options.map((opt) {
+                      return CheckboxListTile(
+                        value: selected.contains(opt.id),
+                        title: Text(opt.text),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            if (value == true) {
+                              selected.add(opt.id);
+                            } else {
+                              selected.remove(opt.id);
+                            }
+                            answers[question.id] = {
+                              'questionId': question.id,
+                              'freeText': '',
+                              'selectedOptionIds': selected.toList(),
+                            };
+                          });
+                        },
+                      );
+                    }).toList(),
+                  );
+                }
+                final selectedId = (answer['selectedOptionIds'] as List?)?.cast<String>().firstWhere(
+                      (id) => id.isNotEmpty,
+                      orElse: () => '',
+                    ) ??
+                    '';
+                return Column(
+                  children: question.options.map((opt) {
+                    return RadioListTile<String>(
+                      value: opt.id,
+                      groupValue: selectedId.isEmpty ? null : selectedId,
+                      title: Text(opt.text),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          answers[question.id] = {
+                            'questionId': question.id,
+                            'freeText': '',
+                            'selectedOptionIds': value == null ? [] : [value],
+                          };
+                        });
+                      },
+                    );
+                  }).toList(),
+                );
+              }
+
+              return Dialog(
+                insetPadding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(template.title, style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(value: progress),
+                        const SizedBox(height: 16),
+                        Text('Frage ${currentIndex + 1} von ${template.questions.length}',
+                            style: Theme.of(context).textTheme.labelLarge),
+                        const SizedBox(height: 8),
+                        Text(question.text, style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 12),
+                        buildQuestion(),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Abbrechen'),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: currentIndex == 0
+                                  ? null
+                                  : () => setDialogState(() => currentIndex -= 1),
+                              child: const Text('Zurück'),
+                            ),
+                            const Spacer(),
+                            if (currentIndex < template.questions.length - 1)
+                              ElevatedButton(
+                                onPressed: () => setDialogState(() => currentIndex += 1),
+                                child: const Text('Weiter'),
+                              )
+                            else
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.check),
+                                onPressed: () async {
+                                  final payload = answers.values
+                                      .map((e) => e..['questionId'] = e['questionId'] ?? '')
+                                      .toList();
+                                  try {
+                                    final response = await widget.api.questionnaireSubmit(assignmentId, payload);
+                                    if (!mounted) return;
+                                    final result = (response['result'] as Map?)?.cast<String, dynamic>() ?? {};
+                                    final passed = result['passed'] == true;
+                                    final hasScore = result['hasScore'] == true;
+                                    if (context.mounted) {
+                                      await showDialog<void>(
+                                        context: context,
+                                        builder: (context) {
+                                          return AlertDialog(
+                                            title: Text(!hasScore ? 'Antwort gespeichert' : (passed ? 'Bestanden' : 'Nachschulung erforderlich')),
+                                            content: SizedBox(
+                                              width: 480,
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Ergebnis: ${result['scorePercent'] ?? '—'}% · Bestehensgrenze: ${result['thresholdPercent'] ?? '—'}%',
+                                                  ),
+                                                  if (template.questions.any((q) => q.explanation.isNotEmpty)) ...[
+                                                    const SizedBox(height: 12),
+                                                    Text('Erläuterungen', style: Theme.of(context).textTheme.titleSmall),
+                                                    const SizedBox(height: 8),
+                                                    ...template.questions.where((q) => q.explanation.isNotEmpty).map(
+                                                          (q) => Padding(
+                                                            padding: const EdgeInsets.only(bottom: 8),
+                                                            child: Text('${q.text}: ${q.explanation}'),
+                                                          ),
+                                                        ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+                                            ],
+                                          );
+                                        },
+                                      );
+                                    }
+                                    Navigator.of(context).pop();
+                                    await _reloadMyQuestionnaires();
+                                  } catch (err) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Senden fehlgeschlagen: $err')),
+                                    );
+                                  }
+                                },
+                                label: const Text('Abschicken'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fragebogen konnte nicht geladen werden: $err')));
+    }
+  }
+
   Widget _buildTemplatesTab(ThemeData theme) {
+    final filtered = _filteredTemplates();
+    final stats = _templateUsageStats();
+    final usageMap = stats['usage'] ?? {};
+    final lastUsedMap = stats['lastUsed'] ?? {};
+    final categoryOptions = _templates.map((t) => t.category).where((e) => e.isNotEmpty).toSet().toList()..sort();
+    final creatorOptions = _templates.map((t) => t.createdBy).where((e) => e.isNotEmpty).toSet().toList()..sort();
     return ListView(
       children: [
         Row(
@@ -3818,45 +5156,237 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
               ElevatedButton.icon(
                 onPressed: _createTemplate,
                 icon: const Icon(Icons.add),
-                label: const Text('Neues Template'),
+                label: const Text('+ Neues Template'),
               ),
           ],
         ),
         const SizedBox(height: 12),
+        Card(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+          child: ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Templates werden für Wirksamkeitskontrollen nach Schulungen genutzt.'),
+            subtitle: const Text('Wählen Sie das Template in einer Schulung unter „Wirksamkeitskontrolle → Fragebogen“.'),
+            trailing: TextButton(
+              onPressed: _showTemplateHelpDialog,
+              child: const Text('So funktioniert’s'),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (_templates.isEmpty)
-          const Text('Noch keine Templates verfügbar.'),
-        ..._templates.map((template) {
-          return Card(
-            child: ListTile(
-              title: Text(template.title),
-              subtitle: Text('${template.questions.length} Fragen'),
-              trailing: widget.canDelete
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (widget.canWrite)
-                          IconButton(
-                            tooltip: 'Bearbeiten',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _editTemplate(template),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Templates werden für Wirksamkeitskontrollen nach Schulungen genutzt.'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _createTemplate,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Template erstellen'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _showTemplateHelpDialog,
+                        icon: const Icon(Icons.lightbulb_outline),
+                        label: const Text('So funktioniert’s'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          )
+        else ...[
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              SizedBox(
+                width: 240,
+                child: TextField(
+                  controller: _templateSearchController,
+                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search), labelText: 'Suche nach Titel/Tag/Kategorie'),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<String?>(
+                  value: _templateCategoryFilter,
+                  items: [
+                    const DropdownMenuItem<String?>(value: null, child: Text('Alle Kategorien')),
+                    ...categoryOptions.map((c) => DropdownMenuItem<String?>(value: c, child: Text(c))),
+                  ],
+                  onChanged: (value) => setState(() => _templateCategoryFilter = value),
+                  decoration: const InputDecoration(labelText: 'Kategorie'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: DropdownButtonFormField<String?>(
+                  value: _templateStatusFilter,
+                  items: const [
+                    DropdownMenuItem<String?>(value: null, child: Text('Alle Status')),
+                    DropdownMenuItem<String?>(value: 'active', child: Text('Aktiv')),
+                    DropdownMenuItem<String?>(value: 'inactive', child: Text('Inaktiv')),
+                  ],
+                  onChanged: (value) => setState(() => _templateStatusFilter = value),
+                  decoration: const InputDecoration(labelText: 'Status'),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<String?>(
+                  value: _templateCreatorFilter,
+                  items: [
+                    const DropdownMenuItem<String?>(value: null, child: Text('Alle Ersteller')),
+                    ...creatorOptions.map((c) => DropdownMenuItem<String?>(value: c, child: Text(c))),
+                  ],
+                  onChanged: (value) => setState(() => _templateCreatorFilter = value),
+                  decoration: const InputDecoration(labelText: 'Erstellt von'),
+                ),
+              ),
+              SizedBox(
+                width: 200,
+                child: DropdownButtonFormField<String>(
+                  value: _templateSort,
+                  items: const [
+                    DropdownMenuItem(value: 'title', child: Text('Sortieren: Titel')),
+                    DropdownMenuItem(value: 'lastUsed', child: Text('Sortieren: zuletzt genutzt')),
+                    DropdownMenuItem(value: 'updatedAt', child: Text('Sortieren: zuletzt geändert')),
+                  ],
+                  onChanged: (value) => setState(() => _templateSort = value ?? 'title'),
+                  decoration: const InputDecoration(labelText: 'Sortierung'),
+                ),
+              ),
+              IconButton(
+                tooltip: _templateSortAsc ? 'Aufsteigend' : 'Absteigend',
+                onPressed: () => setState(() => _templateSortAsc = !_templateSortAsc),
+                icon: Icon(_templateSortAsc ? Icons.arrow_upward : Icons.arrow_downward),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (filtered.isEmpty)
+            const Text('Keine Templates für die Filter gefunden.')
+          else
+            ...filtered.map((template) {
+              final usageCount = usageMap[template.id] ?? 0;
+              final lastUsed = lastUsedMap[template.id];
+              final statusLabel = template.isActive ? 'Aktiv' : 'Inaktiv';
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(template.title, style: theme.textTheme.titleMedium),
                           ),
-                        IconButton(
-                          tooltip: 'Löschen',
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () => _deleteTemplate(template),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: template.isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(statusLabel),
+                          ),
+                          const SizedBox(width: 8),
+                          if (widget.canWrite)
+                            IconButton(
+                              tooltip: 'Bearbeiten',
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => _editTemplate(template),
+                            ),
+                          if (widget.canWrite)
+                            IconButton(
+                              tooltip: 'Duplizieren',
+                              icon: const Icon(Icons.copy_outlined),
+                              onPressed: () async {
+                                try {
+                                  final duplicated = await widget.api.adminDuplicateTrainingTemplate(template.id);
+                                  setState(() => _templates = [..._templates, duplicated]);
+                                } catch (err) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Duplizieren fehlgeschlagen: $err')));
+                                }
+                              },
+                            ),
+                          if (widget.canWrite)
+                            IconButton(
+                              tooltip: template.isActive ? 'Deaktivieren' : 'Aktivieren',
+                              icon: Icon(template.isActive ? Icons.archive_outlined : Icons.unarchive_outlined),
+                              onPressed: () async {
+                                try {
+                                  final updated = await widget.api.adminUpdateTrainingTemplate(
+                                    TrainingQuestionnaireTemplate(
+                                      id: template.id,
+                                      title: template.title,
+                                      description: template.description,
+                                      category: template.category,
+                                      tags: template.tags,
+                                      estimatedDurationMinutes: template.estimatedDurationMinutes,
+                                      defaultThresholdPercent: template.defaultThresholdPercent,
+                                      isActive: !template.isActive,
+                                      createdBy: template.createdBy,
+                                      updatedBy: _currentUserEmail,
+                                      createdAt: template.createdAt,
+                                      updatedAt: template.updatedAt,
+                                      questions: template.questions,
+                                    ),
+                                  );
+                                  setState(() => _templates = _templates.map((e) => e.id == updated.id ? updated : e).toList());
+                                } catch (err) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(content: Text('Status konnte nicht geändert werden: $err')));
+                                }
+                              },
+                            ),
+                          if (widget.canDelete)
+                            IconButton(
+                              tooltip: 'Löschen',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => _deleteTemplate(template),
+                            ),
+                        ],
+                      ),
+                      if (template.description.isNotEmpty) Text(template.description),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          _infoChip(Icons.help_outline, '${template.questions.length} Fragen'),
+                          _infoChip(Icons.schedule_outlined,
+                              template.estimatedDurationMinutes == null ? 'Dauer: —' : 'Dauer: ${template.estimatedDurationMinutes} Min.'),
+                          _infoChip(Icons.flag_outlined, 'Bestehen: ${template.defaultThresholdPercent}%'),
+                          _infoChip(Icons.history, 'Zuletzt genutzt: ${_formatDateTime(lastUsed)}'),
+                          _infoChip(Icons.repeat, 'Einsätze: $usageCount'),
+                        ],
+                      ),
+                      if (template.tags.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          children: template.tags.map((tag) => Chip(label: Text(tag))).toList(),
                         ),
                       ],
-                    )
-                  : widget.canWrite
-                      ? IconButton(
-                          tooltip: 'Bearbeiten',
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => _editTemplate(template),
-                        )
-                      : null,
-            ),
-          );
-        }),
+                      const SizedBox(height: 8),
+                      Text('Kategorie: ${template.category.isEmpty ? '—' : template.category}'),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
       ],
     );
   }

@@ -136,7 +136,7 @@ export default async function handler(req, res) {
       return Number(t.wkDueAt) < Date.now();
     }).length;
 
-    const ineffectiveTrainings = questionnaires.filter((q) => q.effective === false).length;
+    const ineffectiveTrainings = questionnaires.filter((q) => q.needsRetraining).length;
 
     const activeProgram = programs
       .filter((p) => p && p.year)

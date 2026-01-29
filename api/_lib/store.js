@@ -6229,39 +6229,55 @@ const TRAINING_STATUSES = ['draft', 'planned', 'scheduled', 'inProgress', 'condu
 const TRAINING_PARTICIPANT_STATUSES = ['invited', 'attended', 'missed', 'retrainingRequired'];
 const TRAINING_WK_METHODS = ['questionnaire', 'direct', 'indirect'];
 const TRAINING_WK_STATUSES = ['pending', 'in_progress', 'done', 'overdue'];
+const TRAINING_QUESTIONNAIRE_STATUSES = ['open', 'in_progress', 'submitted', 'evaluated', 'failed', 'passed'];
 
 const DEFAULT_TRAINING_TEMPLATES = [
   {
     title: 'Wissenscheck',
     description: 'Kurzer Wissenstest zur Überprüfung der Lerninhalte.',
+    category: 'allgemein',
+    tags: ['Wirksamkeit', 'Wissen'],
+    defaultThresholdPercent: 70,
+    estimatedDurationMinutes: 5,
     questions: [
-      { label: 'Wie sicher fühlen Sie sich im Thema?', type: 'scale', scaleMin: 1, scaleMax: 5, required: true },
       {
-        label: 'Welche Inhalte waren unklar?',
-        type: 'text',
-        required: false,
+        text: 'Was ist das Ziel der Schulung?',
+        type: 'single_choice',
+        points: 1,
+        options: [
+          { text: 'Qualitätswissen vertiefen', isCorrect: true },
+          { text: 'Urlaubsplanung optimieren', isCorrect: false },
+          { text: 'Preise vergleichen', isCorrect: false },
+        ],
       },
     ],
   },
   {
     title: 'Feedback',
     description: 'Feedback zur Durchführung und Relevanz der Schulung.',
+    category: 'feedback',
+    tags: ['Feedback'],
+    defaultThresholdPercent: 70,
+    estimatedDurationMinutes: 4,
     questions: [
-      { label: 'Relevanz für den Arbeitsalltag', type: 'scale', scaleMin: 1, scaleMax: 5, required: true },
-      { label: 'Was hat Ihnen besonders gefallen?', type: 'text', required: false },
-      { label: 'Was sollten wir verbessern?', type: 'text', required: false },
+      { text: 'Relevanz für den Arbeitsalltag', type: 'text' },
+      { text: 'Was hat Ihnen besonders gefallen?', type: 'text' },
+      { text: 'Was sollten wir verbessern?', type: 'text' },
     ],
   },
   {
     title: 'Compliance-Bestätigung',
     description: 'Bestätigung von Richtlinien, SOPs oder regulatorischen Vorgaben.',
+    category: 'compliance',
+    tags: ['Compliance'],
+    defaultThresholdPercent: 80,
+    estimatedDurationMinutes: 3,
     questions: [
       {
-        label: 'Ich habe die Inhalte verstanden und werde sie im Alltag anwenden.',
-        type: 'checkbox',
-        required: true,
+        text: 'Ich habe die Inhalte verstanden und werde sie im Alltag anwenden.',
+        type: 'text',
       },
-      { label: 'Anmerkungen', type: 'text', required: false },
+      { text: 'Anmerkungen', type: 'text' },
     ],
   },
 ];
@@ -6501,6 +6517,7 @@ function normalizeTraining(record = {}) {
     wkCompletedAt: Number(record.wkCompletedAt || 0) || null,
     wkResponsibleId: normalizeString(record.wkResponsibleId || record.wkResponsible || ''),
     wkQuestionnaireTemplateId: normalizeString(record.wkQuestionnaireTemplateId || record.questionnaireTemplateId || ''),
+    wkThresholdPercent: Number(record.wkThresholdPercent ?? record.wkPassThresholdPercent ?? 0) || null,
     wkTargetParticipantIds: Array.isArray(record.wkTargetParticipantIds)
       ? record.wkTargetParticipantIds.map(normalizeString)
       : [],
@@ -6517,20 +6534,51 @@ function normalizeTraining(record = {}) {
 }
 
 function normalizeTrainingQuestionnaireTemplate(record = {}) {
+  const tagSource = Array.isArray(record.tags)
+    ? record.tags
+    : typeof record.tags === 'string'
+      ? record.tags.split(',').map((t) => t.trim())
+      : [];
   return {
     id: normalizeString(record.id || crypto.randomUUID()),
     title: normalizeString(record.title || ''),
     description: normalizeString(record.description || ''),
+    category: normalizeString(record.category || ''),
+    tags: tagSource.filter(Boolean).map(normalizeString),
+    estimatedDurationMinutes: Number(record.estimatedDurationMinutes || record.estimatedDuration || 0) || null,
+    defaultThresholdPercent: Math.min(100, Math.max(0, Number(record.defaultThresholdPercent ?? record.defaultThreshold ?? 70))),
+    isActive: record.isActive === false ? false : true,
     questions: Array.isArray(record.questions)
-      ? record.questions.map((q = {}) => ({
-        id: normalizeString(q.id || crypto.randomUUID()),
-        label: normalizeString(q.label || q.question || ''),
-        type: normalizeString(q.type || 'text'),
-        required: Boolean(q.required),
-        options: Array.isArray(q.options) ? q.options.map(normalizeString) : [],
-        scaleMin: Number(q.scaleMin || 1) || 1,
-        scaleMax: Number(q.scaleMax || 5) || 5,
-      }))
+      ? record.questions.map((q = {}, index) => {
+        const rawOptions = Array.isArray(q.options) ? q.options : [];
+        const normalizedOptions = rawOptions.map((opt = {}, optIndex) => {
+          if (typeof opt === 'string') {
+            return {
+              id: crypto.randomUUID(),
+              text: normalizeString(opt),
+              isCorrect: false,
+              orderIndex: optIndex,
+            };
+          }
+          return {
+            id: normalizeString(opt.id || crypto.randomUUID()),
+            text: normalizeString(opt.text || opt.label || ''),
+            isCorrect: Boolean(opt.isCorrect),
+            orderIndex: Number(opt.orderIndex ?? optIndex),
+          };
+        });
+        const rawType = normalizeString(q.type || 'text');
+        const type = ['single_choice', 'multi_choice', 'text'].includes(rawType) ? rawType : 'text';
+        return {
+          id: normalizeString(q.id || crypto.randomUUID()),
+          orderIndex: Number(q.orderIndex ?? index),
+          text: normalizeString(q.text || q.label || q.question || ''),
+          type,
+          points: Number(q.points ?? q.score ?? 1) || 1,
+          explanation: normalizeString(q.explanation || ''),
+          options: normalizedOptions,
+        };
+      })
       : [],
     createdAt: Number(record.createdAt || Date.now()),
     updatedAt: Number(record.updatedAt || Date.now()),
@@ -6543,20 +6591,33 @@ function normalizeTrainingQuestionnaire(record = {}) {
   return {
     id: normalizeString(record.id || crypto.randomUUID()),
     trainingId: normalizeString(record.trainingId || ''),
-    participantId: normalizeString(record.participantId || ''),
+    participantId: normalizeString(record.participantId || record.assignedToUserId || ''),
     templateId: normalizeString(record.templateId || ''),
     purpose: normalizeString(record.purpose || ''),
-    status: normalizeString(record.status || 'pending'),
+    status: normalizeString(record.status || 'open'),
     deadline: normalizeString(record.deadline || ''),
     score: Number(record.score || 0) || 0,
     effective: record.effective === null || record.effective === undefined ? null : Boolean(record.effective),
     summary: normalizeString(record.summary || ''),
+    assignedToUserId: normalizeString(record.assignedToUserId || record.participantId || ''),
+    assignedByUserId: normalizeString(record.assignedByUserId || record.assignedBy || ''),
+    thresholdPercent: Number(record.thresholdPercent ?? record.wkThresholdPercent ?? 0) || null,
+    dueAt: Number(record.dueAt || 0) || null,
+    submittedAt: Number(record.submittedAt || 0) || null,
+    scorePercent: Number(record.scorePercent ?? record.score ?? 0) || 0,
+    maxPoints: Number(record.maxPoints || 0) || 0,
+    achievedPoints: Number(record.achievedPoints || 0) || 0,
+    needsRetraining: Boolean(record.needsRetraining),
     answers: Array.isArray(record.answers)
       ? record.answers.map((a = {}) => ({
         id: normalizeString(a.id || crypto.randomUUID()),
         questionId: normalizeString(a.questionId || ''),
         value: a.value ?? '',
         comment: normalizeString(a.comment || ''),
+        selectedOptionIds: Array.isArray(a.selectedOptionIds) ? a.selectedOptionIds.map(normalizeString) : [],
+        freeText: normalizeString(a.freeText || a.value || ''),
+        isCorrect: a.isCorrect === null || a.isCorrect === undefined ? null : Boolean(a.isCorrect),
+        pointsAchieved: Number(a.pointsAchieved || 0) || 0,
       }))
       : [],
     auditLog: Array.isArray(record.auditLog) ? record.auditLog.map(normalizeTrainingAuditLog) : [],
@@ -6828,8 +6889,11 @@ async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') 
   const existing = new Set(questionnaires.map((q) => `${q.trainingId}:${q.participantId}:${q.purpose || 'default'}`));
   const toAdd = [];
   const participants = training.participants || [];
+  let shouldUpdateExisting = false;
 
   if (training.defaultQuestionnaireTemplateId) {
+    const template = await trainingTemplateGet(training.defaultQuestionnaireTemplateId);
+    const templateThreshold = template?.defaultThresholdPercent ?? null;
     for (const participant of participants) {
       if (participant.status !== 'attended') continue;
       const key = `${training.id}:${participant.id}:default`;
@@ -6838,9 +6902,12 @@ async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') 
         normalizeTrainingQuestionnaire({
           trainingId: training.id,
           participantId: participant.id,
+          assignedToUserId: participant.id,
+          assignedByUserId: updatedBy,
           templateId: training.defaultQuestionnaireTemplateId,
           purpose: 'default',
-          status: 'pending',
+          status: 'open',
+          thresholdPercent: templateThreshold,
           createdBy: updatedBy,
           updatedBy: updatedBy,
           auditLog: [trainingAudit({ action: 'assign', message: 'Fragebogen zugewiesen', by: updatedBy })],
@@ -6850,6 +6917,11 @@ async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') 
   }
 
   if (training.wkMethod === 'questionnaire' && training.wkQuestionnaireTemplateId) {
+    const template = await trainingTemplateGet(training.wkQuestionnaireTemplateId);
+    const templateThreshold = template?.defaultThresholdPercent ?? null;
+    const thresholdSnapshot =
+      Number(training.wkThresholdPercent ?? templateThreshold ?? 0) || templateThreshold || 0;
+    const dueAt = training.wkDueAt || null;
     const targetIds =
       Array.isArray(training.wkTargetParticipantIds) && training.wkTargetParticipantIds.length
         ? training.wkTargetParticipantIds
@@ -6862,18 +6934,33 @@ async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') 
         normalizeTrainingQuestionnaire({
           trainingId: training.id,
           participantId: participant.id,
+          assignedToUserId: participant.id,
+          assignedByUserId: updatedBy,
           templateId: training.wkQuestionnaireTemplateId,
           purpose: 'wk',
-          status: 'pending',
+          status: 'open',
+          thresholdPercent: thresholdSnapshot,
+          dueAt,
           createdBy: updatedBy,
           updatedBy: updatedBy,
           auditLog: [trainingAudit({ action: 'assign', message: 'WK-Fragebogen zugewiesen', by: updatedBy })],
         }),
       );
     }
+    for (const entry of questionnaires) {
+      if (entry.trainingId !== training.id || entry.purpose !== 'wk') continue;
+      if (dueAt && !entry.dueAt) {
+        entry.dueAt = dueAt;
+        shouldUpdateExisting = true;
+      }
+      if (thresholdSnapshot && !entry.thresholdPercent) {
+        entry.thresholdPercent = thresholdSnapshot;
+        shouldUpdateExisting = true;
+      }
+    }
   }
 
-  if (!toAdd.length) return;
+  if (!toAdd.length && !shouldUpdateExisting) return;
   const updated = [...questionnaires, ...toAdd];
   mem.trainingQuestionnaires = updated;
   await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, updated);
@@ -7064,12 +7151,37 @@ export async function trainingQuestionnaireTemplateDelete(id) {
   await persistTrainingList(KEY_TRAINING_TEMPLATES, next);
 }
 
+export async function trainingQuestionnaireTemplateDuplicate(id, { createdBy = '', updatedBy = '' } = {}) {
+  const list = await trainingQuestionnaireTemplatesAll();
+  const source = list.find((entry) => entry.id === id);
+  if (!source) return null;
+  const duplicate = normalizeTrainingQuestionnaireTemplate({
+    ...source,
+    id: crypto.randomUUID(),
+    title: `${source.title} (Kopie)`,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    createdBy,
+    updatedBy,
+  });
+  list.push(duplicate);
+  mem.trainingQuestionnaireTemplates = list;
+  await persistTrainingList(KEY_TRAINING_TEMPLATES, list);
+  return duplicate;
+}
+
 export async function trainingQuestionnairesAll() {
   const list = (await trainingQuestionnairesRaw()) || [];
   const normalized = list.map(normalizeTrainingQuestionnaire);
   mem.trainingQuestionnaires = normalized;
   await persistTrainingList(KEY_TRAINING_QUESTIONNAIRES, normalized);
   return normalized;
+}
+
+export async function trainingQuestionnaireGet(id) {
+  const list = await trainingQuestionnairesAll();
+  const key = normalizeString(id || '');
+  return list.find((entry) => entry.id === key) || null;
 }
 
 export async function trainingWkAssessmentsAll() {

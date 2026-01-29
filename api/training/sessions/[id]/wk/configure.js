@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../../_lib/http.js';
 import { requirePortalAccess } from '../../../admin/_guard.js';
 import { isAdminUser } from '../../../_lib/portalAuth.js';
-import { trainingRecordGet, trainingRecordUpdate } from '../../../_lib/store.js';
+import { trainingRecordGet, trainingRecordUpdate, trainingTemplateGet } from '../../../_lib/store.js';
 
 const TRAINING_TILE = 'trainings';
 const WK_METHODS = new Set(['questionnaire', 'direct', 'indirect']);
@@ -36,11 +36,23 @@ export default async function handler(req, res) {
       return bad(res, 'questionnaireTemplateId required', 400);
     }
 
+    let wkThresholdPercent = Number(body.wkThresholdPercent ?? body.thresholdPercent ?? 0);
+    if (method === 'questionnaire') {
+      const templateId = (body.wkQuestionnaireTemplateId || body.questionnaireTemplateId || '').toString();
+      const template = await trainingTemplateGet(templateId);
+      const defaultThreshold = Number(template?.defaultThresholdPercent ?? 70);
+      if (!wkThresholdPercent && wkThresholdPercent !== 0) wkThresholdPercent = defaultThreshold;
+      if (!Number.isFinite(wkThresholdPercent) || wkThresholdPercent < 0 || wkThresholdPercent > 100) {
+        return bad(res, 'wkThresholdPercent invalid', 400);
+      }
+    }
+
     const updated = await trainingRecordUpdate(training.id, {
       wkMethod: method,
       wkDelayDays: delayDays,
       wkResponsibleId: (body.wkResponsibleId || actor.email || '').toString(),
       wkQuestionnaireTemplateId: (body.wkQuestionnaireTemplateId || body.questionnaireTemplateId || '').toString(),
+      wkThresholdPercent: wkThresholdPercent || null,
       wkTargetParticipantIds: Array.isArray(body.wkTargetParticipantIds)
         ? body.wkTargetParticipantIds.map((entry) => entry.toString())
         : [],
