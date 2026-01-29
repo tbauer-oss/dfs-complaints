@@ -1781,7 +1781,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final controllerTrainer = TextEditingController(text: initial?.trainer ?? '');
     final controllerLocation = TextEditingController(text: initial?.location ?? '');
     final controllerOwner = TextEditingController(text: initial?.owner ?? '');
-    var selectedParticipants = [...(initial?.participants ?? const [])];
+    List<TrainingParticipant> selectedParticipants =
+        List<TrainingParticipant>.from(initial?.participants ?? const []);
     final result = await showDialog<TrainingRecord>(
       context: context,
       builder: (context) {
