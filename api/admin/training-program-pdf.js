@@ -21,14 +21,14 @@ export default async function handler(req, res) {
   if (!year) return bad(res, 'year missing', 400);
 
   const programs = await trainingProgramsAll();
-  const program = programs.find((entry) => entry.year === year);
-  if (!program) return bad(res, 'not found', 404);
+  const items = programs.filter((entry) => entry.year === year);
+  if (!items.length) return bad(res, 'not found', 404);
 
   try {
     const trainings = (await trainingRecordsAll()).filter((entry) => entry.year === year && !entry.deletedAt);
     const filename = `Schulungsprogramm-${year}.pdf`;
     const chunks = [];
-    const doc = createTrainingProgramPdf(program, trainings, { finalize: false });
+    const doc = createTrainingProgramPdf(items, trainings, { year, finalize: false });
 
     await new Promise((resolve, reject) => {
       doc.on('data', (chunk) => chunks.push(chunk));

@@ -33,6 +33,7 @@ class AdminTrainingPage extends StatefulWidget {
 
 class _AdminTrainingPageState extends State<AdminTrainingPage> {
   final _searchController = TextEditingController();
+  final _programSearchController = TextEditingController();
   List<TrainingNeed> _needs = const [];
   List<TrainingProgram> _programs = const [];
   List<TrainingRecord> _trainings = const [];
@@ -40,6 +41,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   Map<String, dynamic> _summary = const {};
   bool _loading = false;
   String? _error;
+  int _programYearFilter = DateTime.now().year;
+  String? _programDepartmentFilter;
+  String? _programStatusFilter;
+  String? _programFormatFilter;
+  String _programSort = 'plannedPeriod';
+  bool _programSortAsc = true;
 
   @override
   void initState() {
@@ -50,6 +57,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _programSearchController.dispose();
     super.dispose();
   }
 
@@ -72,6 +80,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         _trainings = results[2] as List<TrainingRecord>;
         _templates = results[3] as List<TrainingQuestionnaireTemplate>;
         _summary = results[4] as Map<String, dynamic>;
+        if (_programs.isNotEmpty) {
+          final years = _programs.map((entry) => entry.year).toSet();
+          if (!years.contains(_programYearFilter)) {
+            _programYearFilter = years.reduce((a, b) => a > b ? a : b);
+          }
+        }
       });
     } catch (err) {
       setState(() => _error = err.toString());
@@ -99,10 +113,17 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
-  Future<void> _downloadProgramPdf(TrainingProgram program) async {
+  Future<void> _downloadProgramPdf(int year) async {
     try {
-      final bytes = await widget.api.adminTrainingProgramPdf(program.year);
-      _downloadBytes(bytes, 'Schulungsprogramm-${program.year}.pdf', 'application/pdf');
+      final bytes = await widget.api.adminTrainingProgramPdf(
+        year,
+        department: _programDepartmentFilter,
+        status: _programStatusFilter,
+        format: _programFormatFilter,
+        search: _programSearchController.text.trim(),
+        sort: _programSort,
+      );
+      _downloadBytes(bytes, 'Schulungsprogramm-$year.pdf', 'application/pdf');
     } catch (err) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Programm-PDF konnte nicht erstellt werden: $err')),
@@ -302,20 +323,24 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     );
   }
 
-  Future<void> _createNeed() async {
-    if (!widget.canWrite) return;
-    final controllerYear = TextEditingController(text: DateTime.now().year.toString());
-    final controllerContact = TextEditingController();
-    final controllerTopic = TextEditingController();
-    final controllerParticipants = TextEditingController();
-    final controllerBudget = TextEditingController();
-    final controllerComments = TextEditingController();
-    final controllerDepartmentOther = TextEditingController();
+  Future<TrainingNeed?> _openNeedDialog({TrainingNeed? initial}) async {
+    if (!widget.canWrite) return null;
+    final controllerYear = TextEditingController(text: (initial?.year ?? DateTime.now().year).toString());
+    final controllerContact = TextEditingController(text: initial?.contactName ?? '');
+    final controllerTopic = TextEditingController(text: initial?.items.isNotEmpty == true ? initial!.items.first.topic : '');
+    final controllerParticipants = TextEditingController(
+      text: initial?.items.isNotEmpty == true ? initial!.items.first.participants.toString() : '',
+    );
+    final controllerBudget = TextEditingController(
+      text: initial?.plannedBudget == null ? '' : initial!.plannedBudget!.toStringAsFixed(0),
+    );
+    final controllerComments = TextEditingController(text: initial?.comments ?? '');
+    final controllerDepartmentOther = TextEditingController(text: initial?.departmentTeamFreeText ?? '');
     final controllerPlannedDate = TextEditingController();
-    final controllerIntervalOther = TextEditingController();
-    final controllerTopicPriorities = TextEditingController();
-    final controllerPreferredTrainers = TextEditingController();
-    final controllerSpecialRequirements = TextEditingController();
+    final controllerIntervalOther = TextEditingController(text: initial?.intervalValueFreeText ?? '');
+    final controllerTopicPriorities = TextEditingController(text: initial?.topicPriorities ?? '');
+    final controllerPreferredTrainers = TextEditingController(text: initial?.preferredTrainers ?? '');
+    final controllerSpecialRequirements = TextEditingController(text: initial?.specialRequirements ?? '');
 
     const departmentOptions = [
       'Gesamte Organisation',
@@ -353,18 +378,20 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
     const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
 
-    String? selectedDepartment = departmentOptions.first;
-    String plannedPeriodType = plannedPeriodTypes.first;
+    String? selectedDepartment = initial?.departmentTeamSelected.isNotEmpty == true
+        ? initial!.departmentTeamSelected
+        : departmentOptions.first;
+    String plannedPeriodType = initial?.plannedPeriodType.isNotEmpty == true ? initial!.plannedPeriodType : plannedPeriodTypes.first;
     String? selectedMonth;
     String? selectedQuarter;
     String? selectedHalfYear;
     DateTime? selectedPlannedDate;
-    String? plannedPeriodValue;
-    String? selectedFormat;
-    String? selectedIntervalType;
-    String? selectedIntervalValue;
-    bool confirmationChecked = false;
-    bool recurrenceActive = true;
+    String? plannedPeriodValue = initial?.plannedPeriodValue;
+    String? selectedFormat = initial?.trainingFormat.isNotEmpty == true ? initial!.trainingFormat : null;
+    String? selectedIntervalType = initial?.intervalType.isNotEmpty == true ? initial!.intervalType : null;
+    String? selectedIntervalValue = initial?.intervalValue;
+    bool confirmationChecked = initial != null;
+    bool recurrenceActive = initial?.recurrenceActive ?? true;
 
     String? errorYear;
     String? errorContact;
@@ -436,6 +463,19 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       controllerPlannedDate.text = formatDate(updated);
     }
 
+    if (plannedPeriodValue != null) {
+      if (plannedPeriodType == 'date' && plannedPeriodValue!.length >= 10) {
+        controllerPlannedDate.text = plannedPeriodValue!;
+        selectedPlannedDate = DateTime.tryParse(plannedPeriodValue!);
+      } else if (plannedPeriodType == 'month') {
+        selectedMonth = plannedPeriodValue!.split('-').last;
+      } else if (plannedPeriodType == 'quarter') {
+        selectedQuarter = plannedPeriodValue!.split('-').last;
+      } else if (plannedPeriodType == 'halfYear') {
+        selectedHalfYear = plannedPeriodValue!.split('-').last;
+      }
+    }
+
     final result = await showDialog<TrainingNeed>(
       context: context,
       builder: (context) {
@@ -446,7 +486,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             final intervalIsOther = selectedIntervalValue == 'Sonstiges...';
 
             return AlertDialog(
-              title: const Text('Neuer Schulungsbedarf'),
+              title: Text(initial == null ? 'Neuer Schulungsbedarf' : 'Schulungsbedarf bearbeiten'),
               content: SizedBox(
                 width: 520,
                 child: Padding(
@@ -865,9 +905,9 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             child: const Text('Abbrechen'),
                           ),
                           const Spacer(),
-                          ElevatedButton(
-                            onPressed: confirmationChecked
-                                ? () {
+                        ElevatedButton(
+                          onPressed: confirmationChecked
+                              ? () {
                                     final yearText = controllerYear.text.trim();
                                     final contactText = controllerContact.text.trim();
                                     final topicText = controllerTopic.text.trim();
@@ -934,7 +974,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                     final resolvedDepartment = selectedDepartmentIsOther ? departmentOtherText : selectedDepartment!;
                                     final periodValue = plannedPeriodValue!;
                                     final item = TrainingNeedItem(
-                                      id: '',
+                                      id: initial?.items.isNotEmpty == true ? initial!.items.first.id : '',
                                       topic: topicText,
                                       timeframe: buildPlannedPeriodLabel(periodValue),
                                       format: trainingFormats[selectedFormat] ?? '',
@@ -943,7 +983,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                       requirements: '',
                                     );
                                     final need = TrainingNeed(
-                                      id: '',
+                                      id: initial?.id ?? '',
                                       year: int.tryParse(yearText) ?? DateTime.now().year,
                                       contactName: contactText,
                                       position: '',
@@ -972,14 +1012,15 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                       specialRequirements: controllerSpecialRequirements.text.trim().isEmpty
                                           ? null
                                           : controllerSpecialRequirements.text.trim(),
-                                      status: 'draft',
+                                      status: initial?.status ?? 'draft',
                                       noNeed: false,
                                       recurrenceActive: recurrenceActive,
+                                      updatedAt: initial?.updatedAt,
                                     );
                                     Navigator.of(context).pop(need);
                                   }
                                 : null,
-                            child: const Text('Absenden'),
+                            child: Text(initial == null ? 'Absenden' : 'Speichern'),
                           ),
                         ],
                       ),
@@ -1004,6 +1045,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         );
       },
     );
+    return result;
+  }
+
+  Future<void> _createNeed() async {
+    final result = await _openNeedDialog();
     if (result == null) return;
     try {
       final saved = await widget.api.adminCreateTrainingNeed(result);
@@ -1018,52 +1064,401 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
-  Future<void> _createProgram() async {
-    if (!widget.canWrite) return;
-    final controllerYear = TextEditingController(text: DateTime.now().year.toString());
-    final controllerTitle = TextEditingController();
-    final controllerOwner = TextEditingController();
-    final controllerBudget = TextEditingController();
+  Future<void> _editNeed(TrainingNeed need) async {
+    final result = await _openNeedDialog(initial: need);
+    if (result == null) return;
+    try {
+      final saved = await widget.api.adminUpdateTrainingNeed(result);
+      setState(() {
+        _needs = _needs.map((entry) => entry.id == saved.id ? saved : entry).toList();
+      });
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualisieren fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<TrainingProgram?> _openProgramDialog({TrainingProgram? initial}) async {
+    if (!widget.canWrite) return null;
+    final controllerYear = TextEditingController(text: (initial?.year ?? _programYearFilter).toString());
+    final controllerTitle = TextEditingController(text: initial?.title ?? '');
+    final controllerTargetGroup = TextEditingController(text: initial?.targetGroup ?? '');
+    final controllerDepartmentOther = TextEditingController();
+    final controllerResponsible = TextEditingController(text: initial?.responsiblePerson ?? '');
+    final controllerParticipants = TextEditingController(text: initial?.participantsPlanned ?? '');
+    final controllerTrainer = TextEditingController(text: initial?.trainerProvider ?? '');
+    final controllerLocation = TextEditingController(text: initial?.location ?? '');
+    final controllerDuration = TextEditingController(text: initial?.duration ?? '');
+    final controllerNotes = TextEditingController(text: initial?.notes ?? '');
+    final controllerCancellationReason = TextEditingController(text: initial?.cancellationReason ?? '');
+    final controllerPlannedDate = TextEditingController();
+
+    const departmentOptions = [
+      'Gesamte Organisation',
+      'Gesamte Produktion',
+      'Produktion 1',
+      'Produktion 2',
+      'Abt. Schleiferei',
+      'Abt. Chemie / Logistik',
+      'Abt. Sinterei',
+      'Abt. Bürstenproduktion',
+      'Abt. Sonderwerkzeuge',
+      'Abt. Galvanik',
+      'Abt. Galvanik Vor-/Nachbereitung',
+      'Abt. Dreherei',
+      'Abt. Werkzeugbau',
+      'Versand',
+      'Vertrieb',
+      'Einkauf',
+      'Geschäftsleitung',
+      'Human Ressources / Personal',
+      'Finanzen',
+      'Sonstiges...',
+    ];
+    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
+    const statusOptions = {
+      'planned': 'Geplant',
+      'inProgress': 'In Arbeit',
+      'completed': 'Abgeschlossen',
+      'cancelled': 'Abgesagt',
+      'notOccurred': 'Nicht erfolgt',
+      'removed': 'Entfernt',
+      'abgebrochen': 'Abgebrochen',
+    };
+
+    String? selectedDepartment =
+        initial?.department.isNotEmpty == true ? initial!.department : departmentOptions.first;
+    if (selectedDepartment != null && !departmentOptions.contains(selectedDepartment)) {
+      controllerDepartmentOther.text = selectedDepartment!;
+      selectedDepartment = 'Sonstiges...';
+    }
+    String plannedPeriodType =
+        initial?.plannedPeriodType.isNotEmpty == true ? initial!.plannedPeriodType : plannedPeriodTypes.first;
+    String? selectedMonth;
+    String? selectedQuarter;
+    String? selectedHalfYear;
+    DateTime? selectedPlannedDate;
+    String? plannedPeriodValue = initial?.plannedPeriodValue;
+    String? selectedFormat = initial?.format.isNotEmpty == true ? initial!.format : null;
+    String selectedStatus = initial?.status.isNotEmpty == true ? initial!.status : 'planned';
+
+    final hasExecutions = initial != null && _trainings.any((t) => t.linkedProgramId == initial.id);
+
+    String? errorYear;
+    String? errorTitle;
+    String? errorDepartment;
+    String? errorTargetGroup;
+    String? errorPlannedPeriod;
+    String? errorFormat;
+    String? errorResponsible;
+    String? errorParticipants;
+    String? errorStatus;
+    String? errorCancellationReason;
+
+    String formatDate(DateTime date) {
+      final y = date.year.toString().padLeft(4, '0');
+      final m = date.month.toString().padLeft(2, '0');
+      final d = date.day.toString().padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+
+    String? buildPlannedPeriodValue() {
+      final trainingYear = int.tryParse(controllerYear.text.trim());
+      if (trainingYear == null) return null;
+      final yearText = trainingYear.toString().padLeft(4, '0');
+      if (plannedPeriodType == 'date') {
+        if (selectedPlannedDate == null) return null;
+        final forcedDate = DateTime(trainingYear, selectedPlannedDate!.month, selectedPlannedDate!.day);
+        return formatDate(forcedDate);
+      }
+      if (plannedPeriodType == 'month') {
+        if (selectedMonth == null) return null;
+        return '$yearText-$selectedMonth';
+      }
+      if (plannedPeriodType == 'quarter') {
+        if (selectedQuarter == null) return null;
+        return '$yearText-$selectedQuarter';
+      }
+      if (selectedHalfYear == null) return null;
+      return '$yearText-$selectedHalfYear';
+    }
+
+    void syncPlannedPeriodValue() {
+      plannedPeriodValue = buildPlannedPeriodValue();
+      if (plannedPeriodValue != null) {
+        errorPlannedPeriod = null;
+      }
+    }
+
+    if (plannedPeriodValue != null) {
+      if (plannedPeriodType == 'date' && plannedPeriodValue!.length >= 10) {
+        controllerPlannedDate.text = plannedPeriodValue!;
+        selectedPlannedDate = DateTime.tryParse(plannedPeriodValue!);
+      } else if (plannedPeriodType == 'month') {
+        selectedMonth = plannedPeriodValue!.split('-').last;
+      } else if (plannedPeriodType == 'quarter') {
+        selectedQuarter = plannedPeriodValue!.split('-').last;
+      } else if (plannedPeriodType == 'halfYear') {
+        selectedHalfYear = plannedPeriodValue!.split('-').last;
+      }
+    }
+
     final result = await showDialog<TrainingProgram>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Neues Schulungsprogramm'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: controllerYear, decoration: const InputDecoration(labelText: 'Jahr')),
-                TextField(controller: controllerTitle, decoration: const InputDecoration(labelText: 'Titel')),
-                TextField(controller: controllerOwner, decoration: const InputDecoration(labelText: 'Koordinator')),
-                TextField(controller: controllerBudget, decoration: const InputDecoration(labelText: 'Budget (Summe)')),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final selectedDepartmentIsOther = selectedDepartment == 'Sonstiges...';
+            final statusNeedsReason = ['cancelled', 'notOccurred', 'removed', 'abgebrochen'].contains(selectedStatus);
+            return AlertDialog(
+              title: Text(initial == null ? 'Neue geplante Schulung' : 'Geplante Schulung bearbeiten'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: controllerYear,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        decoration: InputDecoration(labelText: 'Programmjahr', errorText: errorYear),
+                        onChanged: (_) => setState(syncPlannedPeriodValue),
+                      ),
+                      TextField(
+                        controller: controllerTitle,
+                        decoration: InputDecoration(labelText: 'Thema', errorText: errorTitle),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedDepartment,
+                        items: departmentOptions
+                            .map((entry) => DropdownMenuItem(value: entry, child: Text(entry)))
+                            .toList(),
+                        onChanged: (value) => setState(() => selectedDepartment = value),
+                        decoration: InputDecoration(labelText: 'Abteilung/Team', errorText: errorDepartment),
+                      ),
+                      if (selectedDepartmentIsOther)
+                        TextField(
+                          controller: controllerDepartmentOther,
+                          decoration: const InputDecoration(labelText: 'Abteilung/Team (Sonstiges)'),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      TextField(
+                        controller: controllerTargetGroup,
+                        decoration: InputDecoration(labelText: 'Zielgruppe', errorText: errorTargetGroup),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Geplanter Zeitraum', style: Theme.of(context).textTheme.titleSmall),
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: plannedPeriodTypes.map((type) {
+                          final label = {
+                            'date': 'Datum',
+                            'month': 'Monat',
+                            'quarter': 'Quartal',
+                            'halfYear': 'Halbjahr',
+                          }[type];
+                          return ChoiceChip(
+                            label: Text(label ?? type),
+                            selected: plannedPeriodType == type,
+                            onSelected: (_) => setState(() {
+                              plannedPeriodType = type;
+                              syncPlannedPeriodValue();
+                            }),
+                          );
+                        }).toList(),
+                      ),
+                      if (plannedPeriodType == 'date')
+                        TextField(
+                          controller: controllerPlannedDate,
+                          decoration: InputDecoration(labelText: 'Datum (YYYY-MM-DD)', errorText: errorPlannedPeriod),
+                          onChanged: (value) => setState(() {
+                            selectedPlannedDate = DateTime.tryParse(value);
+                            syncPlannedPeriodValue();
+                          }),
+                        ),
+                      if (plannedPeriodType == 'month')
+                        DropdownButtonFormField<String>(
+                          value: selectedMonth,
+                          items: List.generate(12, (index) => (index + 1).toString().padLeft(2, '0'))
+                              .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                              .toList(),
+                          onChanged: (value) => setState(() {
+                            selectedMonth = value;
+                            syncPlannedPeriodValue();
+                          }),
+                          decoration: InputDecoration(labelText: 'Monat', errorText: errorPlannedPeriod),
+                        ),
+                      if (plannedPeriodType == 'quarter')
+                        DropdownButtonFormField<String>(
+                          value: selectedQuarter,
+                          items: const ['Q1', 'Q2', 'Q3', 'Q4']
+                              .map((q) => DropdownMenuItem(value: q, child: Text(q)))
+                              .toList(),
+                          onChanged: (value) => setState(() {
+                            selectedQuarter = value;
+                            syncPlannedPeriodValue();
+                          }),
+                          decoration: InputDecoration(labelText: 'Quartal', errorText: errorPlannedPeriod),
+                        ),
+                      if (plannedPeriodType == 'halfYear')
+                        DropdownButtonFormField<String>(
+                          value: selectedHalfYear,
+                          items: const ['H1', 'H2']
+                              .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                              .toList(),
+                          onChanged: (value) => setState(() {
+                            selectedHalfYear = value;
+                            syncPlannedPeriodValue();
+                          }),
+                          decoration: InputDecoration(labelText: 'Halbjahr', errorText: errorPlannedPeriod),
+                        ),
+                      DropdownButtonFormField<String>(
+                        value: selectedFormat,
+                        items: trainingFormats.entries
+                            .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                            .toList(),
+                        onChanged: (value) => setState(() => selectedFormat = value),
+                        decoration: InputDecoration(labelText: 'Format', errorText: errorFormat),
+                      ),
+                      TextField(
+                        controller: controllerResponsible,
+                        decoration: InputDecoration(labelText: 'Verantwortlich', errorText: errorResponsible),
+                      ),
+                      TextField(
+                        controller: controllerParticipants,
+                        decoration: InputDecoration(labelText: 'Teilnehmer (geplant)', errorText: errorParticipants),
+                      ),
+                      DropdownButtonFormField<String>(
+                        value: selectedStatus,
+                        items: statusOptions.entries
+                            .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                            .toList(),
+                        onChanged: (value) => setState(() => selectedStatus = value ?? 'planned'),
+                        decoration: InputDecoration(labelText: 'Status', errorText: errorStatus),
+                      ),
+                      if (!hasExecutions && selectedStatus == 'completed')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Hinweis: Für den Status "Abgeschlossen" muss mindestens eine Durchführung erfasst sein.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.orange.shade300),
+                          ),
+                        ),
+                      if (statusNeedsReason)
+                        TextField(
+                          controller: controllerCancellationReason,
+                          decoration: InputDecoration(
+                            labelText: 'Begründung (Pflichtfeld bei Abbruch/Nicht erfolgt)',
+                            errorText: errorCancellationReason,
+                          ),
+                        ),
+                      TextField(
+                        controller: controllerTrainer,
+                        decoration: const InputDecoration(labelText: 'Trainer/Anbieter (optional)'),
+                      ),
+                      TextField(
+                        controller: controllerLocation,
+                        decoration: const InputDecoration(labelText: 'Ort/Meeting-Link (optional)'),
+                      ),
+                      TextField(
+                        controller: controllerDuration,
+                        decoration: const InputDecoration(labelText: 'Dauer (optional)'),
+                      ),
+                      TextField(
+                        controller: controllerNotes,
+                        decoration: const InputDecoration(labelText: 'Notizen (optional)'),
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: () {
+                    errorYear =
+                        controllerYear.text.trim().length == 4 ? null : 'Bitte gültiges Jahr eingeben.';
+                    errorTitle = controllerTitle.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorDepartment = (selectedDepartment == null || selectedDepartment!.isEmpty) ? 'Pflichtfeld' : null;
+                    if (selectedDepartment == 'Sonstiges...' && controllerDepartmentOther.text.trim().length < 2) {
+                      errorDepartment = 'Bitte Abteilung/Team angeben.';
+                    }
+                    errorTargetGroup = controllerTargetGroup.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    plannedPeriodValue = buildPlannedPeriodValue();
+                    errorPlannedPeriod = plannedPeriodValue == null ? 'Bitte Zeitraum auswählen.' : null;
+                    errorFormat = selectedFormat == null ? 'Bitte Format auswählen.' : null;
+                    errorResponsible = controllerResponsible.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorParticipants = controllerParticipants.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorStatus = selectedStatus.isEmpty ? 'Pflichtfeld' : null;
+                    errorCancellationReason = statusNeedsReason &&
+                            controllerCancellationReason.text.trim().length < 5
+                        ? 'Mindestens 5 Zeichen erforderlich.'
+                        : null;
+                    if (!hasExecutions && selectedStatus == 'completed') {
+                      errorStatus = 'Mind. eine Durchführung erforderlich.';
+                    }
+                    if ([
+                      errorYear,
+                      errorTitle,
+                      errorDepartment,
+                      errorTargetGroup,
+                      errorPlannedPeriod,
+                      errorFormat,
+                      errorResponsible,
+                      errorParticipants,
+                      errorStatus,
+                      errorCancellationReason,
+                    ].any((entry) => entry != null)) {
+                      setState(() {});
+                      return;
+                    }
+
+                    final resolvedDepartment =
+                        selectedDepartment == 'Sonstiges...' ? controllerDepartmentOther.text.trim() : selectedDepartment ?? '';
+                    final program = TrainingProgram(
+                      id: initial?.id ?? '',
+                      year: int.tryParse(controllerYear.text.trim()) ?? DateTime.now().year,
+                      title: controllerTitle.text.trim(),
+                      status: selectedStatus,
+                      owner: controllerResponsible.text.trim(),
+                      department: resolvedDepartment,
+                      targetGroup: controllerTargetGroup.text.trim(),
+                      plannedPeriodType: plannedPeriodType,
+                      plannedPeriodValue: plannedPeriodValue!,
+                      format: selectedFormat ?? '',
+                      responsiblePerson: controllerResponsible.text.trim(),
+                      participantsPlanned: controllerParticipants.text.trim(),
+                      trainerProvider: controllerTrainer.text.trim(),
+                      location: controllerLocation.text.trim(),
+                      duration: controllerDuration.text.trim(),
+                      notes: controllerNotes.text.trim(),
+                      cancellationReason: statusNeedsReason ? controllerCancellationReason.text.trim() : null,
+                      needIds: initial?.needIds ?? const [],
+                      trainingIds: initial?.trainingIds ?? const [],
+                      budgetTotal: initial?.budgetTotal ?? 0,
+                      updatedAt: initial?.updatedAt,
+                    );
+                    Navigator.of(context).pop(program);
+                  },
+                  child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
+                ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
-            ElevatedButton(
-              onPressed: () {
-                final program = TrainingProgram(
-                  id: '',
-                  year: int.tryParse(controllerYear.text.trim()) ?? DateTime.now().year,
-                  title: controllerTitle.text.trim(),
-                  status: 'draft',
-                  owner: controllerOwner.text.trim(),
-                  department: '',
-                  needIds: const [],
-                  trainingIds: const [],
-                  budgetTotal: double.tryParse(controllerBudget.text.trim()) ?? 0,
-                );
-                Navigator.of(context).pop(program);
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
+    return result;
+  }
+
+  Future<void> _createProgram() async {
+    final result = await _openProgramDialog();
     if (result == null) return;
     try {
       final saved = await widget.api.adminCreateTrainingProgram(result);
@@ -1073,21 +1468,40 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
-  Future<void> _createTraining() async {
-    if (!widget.canWrite) return;
-    final controllerTitle = TextEditingController();
-    final controllerCategory = TextEditingController();
-    final controllerType = TextEditingController();
-    final controllerFormat = TextEditingController();
-    final controllerDate = TextEditingController();
-    final controllerTrainer = TextEditingController();
-    final controllerLocation = TextEditingController();
-    final controllerOwner = TextEditingController();
+  Future<void> _editProgram(TrainingProgram program) async {
+    final result = await _openProgramDialog(initial: program);
+    if (result == null) return;
+    try {
+      final saved = await widget.api.adminUpdateTrainingProgram(result);
+      setState(() => _programs = _programs.map((entry) => entry.id == saved.id ? saved : entry).toList());
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualisieren fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<TrainingRecord?> _openTrainingDialog({TrainingRecord? initial}) async {
+    if (!widget.canWrite) return null;
+    final controllerTitle = TextEditingController(text: initial?.title ?? '');
+    final controllerCategory = TextEditingController(text: initial?.category ?? '');
+    final controllerType = TextEditingController(text: initial?.type ?? '');
+    final controllerFormat = TextEditingController(text: initial?.format ?? '');
+    final controllerDate = TextEditingController(text: initial?.startDate ?? '');
+    final controllerTrainer = TextEditingController(text: initial?.trainer ?? '');
+    final controllerLocation = TextEditingController(text: initial?.location ?? '');
+    final controllerOwner = TextEditingController(text: initial?.owner ?? '');
+    const trainingStatusOptions = {
+      'planned': 'Geplant',
+      'scheduled': 'Terminiert',
+      'inProgress': 'In Arbeit',
+      'completed': 'Abgeschlossen',
+      'cancelled': 'Abgesagt',
+    };
+    String selectedStatus = initial?.status ?? 'planned';
     final result = await showDialog<TrainingRecord>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Neue Schulung'),
+          title: Text(initial == null ? 'Neue Schulung' : 'Schulung bearbeiten'),
           content: SizedBox(
             width: 420,
             child: SingleChildScrollView(
@@ -1102,6 +1516,14 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   TextField(controller: controllerTrainer, decoration: const InputDecoration(labelText: 'Trainer/Anbieter')),
                   TextField(controller: controllerLocation, decoration: const InputDecoration(labelText: 'Ort/Link')),
                   TextField(controller: controllerOwner, decoration: const InputDecoration(labelText: 'Owner')),
+                  DropdownButtonFormField<String>(
+                    value: selectedStatus,
+                    items: trainingStatusOptions.entries
+                        .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                        .toList(),
+                    onChanged: (value) => setState(() => selectedStatus = value ?? 'planned'),
+                    decoration: const InputDecoration(labelText: 'Status'),
+                  ),
                 ],
               ),
             ),
@@ -1111,9 +1533,9 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             ElevatedButton(
               onPressed: () {
                 final record = TrainingRecord(
-                  id: '',
-                  trainingNumber: '',
-                  year: DateTime.now().year,
+                  id: initial?.id ?? '',
+                  trainingNumber: initial?.trainingNumber ?? '',
+                  year: initial?.year ?? DateTime.now().year,
                   title: controllerTitle.text.trim(),
                   category: controllerCategory.text.trim(),
                   type: controllerType.text.trim(),
@@ -1122,7 +1544,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   endDate: '',
                   trainer: controllerTrainer.text.trim(),
                   location: controllerLocation.text.trim(),
-                  status: 'planned',
+                  status: selectedStatus,
                   owner: controllerOwner.text.trim(),
                   targetGroup: '',
                   reason: '',
@@ -1131,15 +1553,22 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   isExternal: controllerType.text.trim().toLowerCase() == 'extern',
                   participants: const [],
                   defaultQuestionnaireTemplateId: _templates.isNotEmpty ? _templates.first.id : '',
+                  linkedProgramId: initial?.linkedProgramId,
+                  updatedAt: initial?.updatedAt,
                 );
                 Navigator.of(context).pop(record);
               },
-              child: const Text('Speichern'),
+              child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
             ),
           ],
         );
       },
     );
+    return result;
+  }
+
+  Future<void> _createTraining() async {
+    final result = await _openTrainingDialog();
     if (result == null) return;
     try {
       final saved = await widget.api.adminCreateTraining(result);
@@ -1149,16 +1578,29 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
-  Future<void> _createTemplate() async {
-    if (!widget.canWrite) return;
-    final controllerTitle = TextEditingController();
-    final controllerDescription = TextEditingController();
-    final controllerQuestion = TextEditingController();
+  Future<void> _editTraining(TrainingRecord record) async {
+    final result = await _openTrainingDialog(initial: record);
+    if (result == null) return;
+    try {
+      final saved = await widget.api.adminUpdateTraining(result);
+      setState(() => _trainings = _trainings.map((entry) => entry.id == saved.id ? saved : entry).toList());
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualisieren fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<TrainingQuestionnaireTemplate?> _openTemplateDialog({TrainingQuestionnaireTemplate? initial}) async {
+    if (!widget.canWrite) return null;
+    final controllerTitle = TextEditingController(text: initial?.title ?? '');
+    final controllerDescription = TextEditingController(text: initial?.description ?? '');
+    final controllerQuestion = TextEditingController(
+      text: initial?.questions.isNotEmpty == true ? initial!.questions.first['label']?.toString() ?? '' : '',
+    );
     final result = await showDialog<TrainingQuestionnaireTemplate>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Neues Template'),
+          title: Text(initial == null ? 'Neues Template' : 'Template bearbeiten'),
           content: SizedBox(
             width: 420,
             child: Column(
@@ -1175,11 +1617,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             ElevatedButton(
               onPressed: () {
                 final template = TrainingQuestionnaireTemplate(
-                  id: '',
+                  id: initial?.id ?? '',
                   title: controllerTitle.text.trim(),
                   description: controllerDescription.text.trim(),
                   questions: [
                     {
+                      'id': initial?.questions.isNotEmpty == true ? initial!.questions.first['id'] : null,
                       'label': controllerQuestion.text.trim(),
                       'type': 'text',
                       'required': true,
@@ -1188,18 +1631,34 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                 );
                 Navigator.of(context).pop(template);
               },
-              child: const Text('Speichern'),
+              child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
             ),
           ],
         );
       },
     );
+    return result;
+  }
+
+  Future<void> _createTemplate() async {
+    final result = await _openTemplateDialog();
     if (result == null) return;
     try {
       final saved = await widget.api.adminCreateTrainingTemplate(result);
       setState(() => _templates = [..._templates, saved]);
     } catch (err) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<void> _editTemplate(TrainingQuestionnaireTemplate template) async {
+    final result = await _openTemplateDialog(initial: template);
+    if (result == null) return;
+    try {
+      final saved = await widget.api.adminUpdateTrainingTemplate(result);
+      setState(() => _templates = _templates.map((entry) => entry.id == saved.id ? saved : entry).toList());
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Aktualisieren fehlgeschlagen: $err')));
     }
   }
 
@@ -1384,6 +1843,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   if (isAuto) _autoBadge(theme),
                   if (isAuto) const SizedBox(width: 8),
                   Text(need.status),
+                  if (widget.canWrite) const SizedBox(width: 8),
+                  if (widget.canWrite)
+                    IconButton(
+                      tooltip: 'Bearbeiten',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _editNeed(need),
+                    ),
                   if (widget.canDelete) const SizedBox(width: 8),
                   if (widget.canDelete)
                     IconButton(
@@ -1400,55 +1866,485 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     );
   }
 
-  Widget _buildProgramsTab(ThemeData theme) {
-    return ListView(
-      children: [
-        Row(
-          children: [
-            Text('Jahresprogramme', style: theme.textTheme.titleMedium),
-            const Spacer(),
-            if (widget.canDelete)
-              TextButton.icon(
-                onPressed: () => _purgeTrainingScope('program', 'Schulungsprogramme'),
-                icon: const Icon(Icons.delete_forever_outlined),
-                label: const Text('Alles löschen'),
-              ),
-            if (widget.canWrite)
-              ElevatedButton.icon(
-                onPressed: _createProgram,
-                icon: const Icon(Icons.add),
-                label: const Text('Neues Programm'),
-              ),
+  String _programPlannedPeriodLabel(TrainingProgram program) {
+    final value = program.plannedPeriodValue;
+    if (value.isEmpty) return '—';
+    switch (program.plannedPeriodType) {
+      case 'date':
+        return 'Datum: $value';
+      case 'month':
+        return 'Monat: $value';
+      case 'quarter':
+        return 'Quartal: ${value.split('-').last} ${value.split('-').first}';
+      case 'halfYear':
+        return 'Halbjahr: ${value.split('-').last} ${value.split('-').first}';
+    }
+    return value;
+  }
+
+  Color _programStatusTint(String status, ThemeData theme) {
+    switch (status) {
+      case 'completed':
+        return Colors.green.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12);
+      case 'cancelled':
+      case 'notOccurred':
+      case 'removed':
+      case 'abgebrochen':
+        return Colors.red.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12);
+      case 'planned':
+      case 'inProgress':
+      default:
+        return Colors.amber.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12);
+    }
+  }
+
+  List<TrainingProgram> _filteredPrograms() {
+    final query = _programSearchController.text.trim().toLowerCase();
+    final filtered = _programs.where((entry) {
+      if (entry.year != _programYearFilter) return false;
+      if (_programDepartmentFilter != null && _programDepartmentFilter!.isNotEmpty) {
+        if (entry.department != _programDepartmentFilter) return false;
+      }
+      if (_programStatusFilter != null && _programStatusFilter!.isNotEmpty) {
+        if (entry.status != _programStatusFilter) return false;
+      }
+      if (_programFormatFilter != null && _programFormatFilter!.isNotEmpty) {
+        if (entry.format != _programFormatFilter) return false;
+      }
+      if (query.isEmpty) return true;
+      return entry.title.toLowerCase().contains(query) ||
+          entry.trainerProvider.toLowerCase().contains(query) ||
+          entry.responsiblePerson.toLowerCase().contains(query);
+    }).toList();
+    filtered.sort((a, b) {
+      int result;
+      if (_programSort == 'title') {
+        result = a.title.compareTo(b.title);
+      } else if (_programSort == 'status') {
+        result = a.status.compareTo(b.status);
+      } else {
+        result = a.plannedPeriodValue.compareTo(b.plannedPeriodValue);
+      }
+      return _programSortAsc ? result : -result;
+    });
+    return filtered;
+  }
+
+  Future<void> _addExecution(TrainingProgram program) async {
+    if (!widget.canWrite) return;
+    final controllerDate = TextEditingController();
+    final controllerParticipants = TextEditingController();
+    final controllerNotes = TextEditingController();
+    final controllerEffectiveness = TextEditingController();
+    final result = await showDialog<TrainingRecord>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Durchführung eintragen'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controllerDate,
+                  decoration: const InputDecoration(labelText: 'Durchführungsdatum (YYYY-MM-DD)'),
+                ),
+                TextField(
+                  controller: controllerParticipants,
+                  decoration: const InputDecoration(labelText: 'Teilnehmer (tatsächlich)'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: controllerEffectiveness,
+                  decoration: const InputDecoration(labelText: 'Wirksamkeit (optional)'),
+                ),
+                TextField(
+                  controller: controllerNotes,
+                  decoration: const InputDecoration(labelText: 'Notizen (optional)'),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+            ElevatedButton(
+              onPressed: () {
+                final record = TrainingRecord(
+                  id: '',
+                  trainingNumber: '',
+                  year: program.year,
+                  title: program.title,
+                  category: program.department,
+                  type: '',
+                  format: program.format,
+                  startDate: controllerDate.text.trim(),
+                  endDate: '',
+                  trainer: program.trainerProvider,
+                  location: program.location,
+                  status: 'completed',
+                  owner: program.responsiblePerson,
+                  targetGroup: program.targetGroup,
+                  reason: '',
+                  departments: [program.department],
+                  isMandatory: false,
+                  isExternal: false,
+                  participants: const [],
+                  defaultQuestionnaireTemplateId: _templates.isNotEmpty ? _templates.first.id : '',
+                  linkedProgramId: program.id,
+                  actualParticipants: int.tryParse(controllerParticipants.text.trim()),
+                  executionNotes: controllerNotes.text.trim(),
+                  effectivenessResult: controllerEffectiveness.text.trim(),
+                );
+                Navigator.of(context).pop(record);
+              },
+              child: const Text('Speichern'),
+            ),
           ],
-        ),
-        const SizedBox(height: 12),
-        if (_programs.isEmpty)
-          const Text('Noch keine Programme erstellt.'),
-        ..._programs.map((program) {
-          return Card(
-            child: ListTile(
-              title: Text(program.title.isEmpty ? 'Schulungsprogramm ${program.year}' : program.title),
-              subtitle: Text('Status: ${program.status} · Budget: ${program.budgetTotal.toStringAsFixed(0)} €'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+        );
+      },
+    );
+    if (result == null) return;
+    try {
+      final saved = await widget.api.adminCreateTraining(result);
+      setState(() => _trainings = [..._trainings, saved]);
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Durchführung konnte nicht gespeichert werden: $err')));
+    }
+  }
+
+  Future<void> _showProgramDetails(TrainingProgram program) async {
+    final executions = _trainings.where((t) => t.linkedProgramId == program.id).toList();
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(program.title),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    tooltip: 'PDF Export',
-                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                    onPressed: () => _downloadProgramPdf(program),
-                  ),
-                  if (widget.canDelete)
-                    IconButton(
-                      tooltip: 'Löschen',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => _deleteProgram(program),
+                  Text('Zeitraum: ${_programPlannedPeriodLabel(program)}'),
+                  Text('Abteilung/Team: ${program.department}'),
+                  Text('Zielgruppe: ${program.targetGroup}'),
+                  Text('Teilnehmer (geplant): ${program.participantsPlanned}'),
+                  Text('Format: ${program.format}'),
+                  Text('Status: ${program.status}'),
+                  Text('Verantwortlich: ${program.responsiblePerson}'),
+                  if (program.trainerProvider.isNotEmpty) Text('Trainer/Anbieter: ${program.trainerProvider}'),
+                  if (program.location.isNotEmpty) Text('Ort/Link: ${program.location}'),
+                  if (program.cancellationReason != null && program.cancellationReason!.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text('Begründung: ${program.cancellationReason}'),
+                    ),
+                  const SizedBox(height: 12),
+                  Text('Durchführungen', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  if (executions.isEmpty)
+                    const Text('Noch keine Durchführungen erfasst.')
+                  else
+                    ...executions.map(
+                      (exec) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(exec.startDate.isEmpty ? 'Ohne Datum' : exec.startDate),
+                        subtitle: Text(
+                          'Teilnehmer: ${exec.actualParticipants ?? exec.participants.length} · ${exec.executionNotes ?? ''}',
+                        ),
+                      ),
                     ),
                 ],
               ),
             ),
-          );
-        }),
-      ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
+            if (widget.canWrite)
+              ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  await _addExecution(program);
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Durchführung eintragen'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProgramsTab(ThemeData theme) {
+    final programs = _filteredPrograms();
+    final years = _programs.map((e) => e.year).toSet().toList()..sort();
+    if (years.isEmpty) years.add(_programYearFilter);
+    final departmentOptions = _programs.map((e) => e.department).where((e) => e.isNotEmpty).toSet().toList()..sort();
+    const formatOptions = {'praesenz': 'Präsenz', 'online': 'Online'};
+    const statusOptions = {
+      'planned': 'Geplant',
+      'inProgress': 'In Arbeit',
+      'completed': 'Abgeschlossen',
+      'cancelled': 'Abgesagt',
+      'notOccurred': 'Nicht erfolgt',
+      'removed': 'Entfernt',
+      'abgebrochen': 'Abgebrochen',
+    };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 980;
+        return ListView(
+          children: [
+            Row(
+              children: [
+                Text('Schulungsprogramm', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                if (widget.canDelete)
+                  TextButton.icon(
+                    onPressed: () => _purgeTrainingScope('program', 'Schulungsprogramme'),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: const Text('Alles löschen'),
+                  ),
+                if (widget.canWrite)
+                  ElevatedButton.icon(
+                    onPressed: _createProgram,
+                    icon: const Icon(Icons.add),
+                    label: const Text('+ Neue geplante Schulung'),
+                  ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _downloadProgramPdf(_programYearFilter),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('PDF Export'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                SizedBox(
+                  width: 140,
+                  child: DropdownButtonFormField<int>(
+                    value: _programYearFilter,
+                    items: years.map((year) => DropdownMenuItem(value: year, child: Text('$year'))).toList(),
+                    onChanged: (value) => setState(() => _programYearFilter = value ?? _programYearFilter),
+                    decoration: const InputDecoration(labelText: 'Jahr'),
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<String?>(
+                    value: _programDepartmentFilter,
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('Alle Abteilungen')),
+                      ...departmentOptions.map((dept) => DropdownMenuItem<String?>(value: dept, child: Text(dept))),
+                    ],
+                    onChanged: (value) => setState(() => _programDepartmentFilter = value),
+                    decoration: const InputDecoration(labelText: 'Abteilung/Team'),
+                  ),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: DropdownButtonFormField<String?>(
+                    value: _programStatusFilter,
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('Alle Status')),
+                      ...statusOptions.entries
+                          .map((entry) => DropdownMenuItem<String?>(value: entry.key, child: Text(entry.value))),
+                    ],
+                    onChanged: (value) => setState(() => _programStatusFilter = value),
+                    decoration: const InputDecoration(labelText: 'Status'),
+                  ),
+                ),
+                SizedBox(
+                  width: 160,
+                  child: DropdownButtonFormField<String?>(
+                    value: _programFormatFilter,
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('Alle Formate')),
+                      ...formatOptions.entries
+                          .map((entry) => DropdownMenuItem<String?>(value: entry.key, child: Text(entry.value))),
+                    ],
+                    onChanged: (value) => setState(() => _programFormatFilter = value),
+                    decoration: const InputDecoration(labelText: 'Format'),
+                  ),
+                ),
+                SizedBox(
+                  width: 240,
+                  child: TextField(
+                    controller: _programSearchController,
+                    decoration: const InputDecoration(prefixIcon: Icon(Icons.search), labelText: 'Suche'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: DropdownButtonFormField<String>(
+                    value: _programSort,
+                    items: const [
+                      DropdownMenuItem(value: 'plannedPeriod', child: Text('Sortieren: Zeitraum')),
+                      DropdownMenuItem(value: 'title', child: Text('Sortieren: Thema')),
+                      DropdownMenuItem(value: 'status', child: Text('Sortieren: Status')),
+                    ],
+                    onChanged: (value) => setState(() => _programSort = value ?? 'plannedPeriod'),
+                    decoration: const InputDecoration(labelText: 'Sortierung'),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _programSortAsc ? 'Aufsteigend' : 'Absteigend',
+                  onPressed: () => setState(() => _programSortAsc = !_programSortAsc),
+                  icon: Icon(_programSortAsc ? Icons.arrow_upward : Icons.arrow_downward),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (programs.isEmpty)
+              const Text('Keine geplanten Schulungen gefunden.')
+            else if (isWide)
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: const [
+                        Expanded(flex: 2, child: Text('Zeitraum')),
+                        Expanded(flex: 3, child: Text('Thema')),
+                        Expanded(flex: 2, child: Text('Abteilung/Team')),
+                        Expanded(flex: 1, child: Text('Format')),
+                        Expanded(flex: 2, child: Text('Status')),
+                        Expanded(flex: 2, child: Text('Verantwortlich')),
+                        Expanded(flex: 2, child: Text('Aktionen')),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...programs.map((program) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: _programStatusTint(program.status, theme),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: theme.dividerColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 2, child: Text(_programPlannedPeriodLabel(program))),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              program.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Expanded(flex: 2, child: Text(program.department)),
+                          Expanded(flex: 1, child: Text(formatOptions[program.format] ?? program.format)),
+                          Expanded(
+                            flex: 2,
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(statusOptions[program.status] ?? program.status),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(flex: 2, child: Text(program.responsiblePerson)),
+                          Expanded(
+                            flex: 2,
+                            child: Wrap(
+                              spacing: 6,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Details',
+                                  icon: const Icon(Icons.info_outline),
+                                  onPressed: () => _showProgramDetails(program),
+                                ),
+                                if (widget.canWrite)
+                                  IconButton(
+                                    tooltip: 'Bearbeiten',
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () => _editProgram(program),
+                                  ),
+                                if (widget.canWrite)
+                                  IconButton(
+                                    tooltip: 'Durchführung eintragen',
+                                    icon: const Icon(Icons.playlist_add),
+                                    onPressed: () => _addExecution(program),
+                                  ),
+                                if (widget.canDelete)
+                                  IconButton(
+                                    tooltip: 'Löschen',
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () => _deleteProgram(program),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              )
+            else
+              ...programs.map(
+                (program) => Card(
+                  color: _programStatusTint(program.status, theme),
+                  child: ListTile(
+                    title: Text(program.title),
+                    subtitle: Text(
+                      '${_programPlannedPeriodLabel(program)} · ${program.department} · ${statusOptions[program.status] ?? program.status}',
+                    ),
+                    trailing: Wrap(
+                      spacing: 4,
+                      children: [
+                        IconButton(
+                          tooltip: 'Details',
+                          icon: const Icon(Icons.info_outline),
+                          onPressed: () => _showProgramDetails(program),
+                        ),
+                        if (widget.canWrite)
+                          IconButton(
+                            tooltip: 'Bearbeiten',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _editProgram(program),
+                          ),
+                        if (widget.canWrite)
+                          IconButton(
+                            tooltip: 'Durchführung eintragen',
+                            icon: const Icon(Icons.playlist_add),
+                            onPressed: () => _addExecution(program),
+                          ),
+                        if (widget.canDelete)
+                          IconButton(
+                            tooltip: 'Löschen',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _deleteProgram(program),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -1492,6 +2388,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                     icon: const Icon(Icons.picture_as_pdf_outlined),
                     onPressed: () => _downloadTrainingPdf(training),
                   ),
+                  if (widget.canWrite)
+                    IconButton(
+                      tooltip: 'Bearbeiten',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _editTraining(training),
+                    ),
                   if (widget.canDelete)
                     IconButton(
                       tooltip: 'Löschen',
@@ -1537,12 +2439,29 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
               title: Text(template.title),
               subtitle: Text('${template.questions.length} Fragen'),
               trailing: widget.canDelete
-                  ? IconButton(
-                      tooltip: 'Löschen',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => _deleteTemplate(template),
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.canWrite)
+                          IconButton(
+                            tooltip: 'Bearbeiten',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _editTemplate(template),
+                          ),
+                        IconButton(
+                          tooltip: 'Löschen',
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteTemplate(template),
+                        ),
+                      ],
                     )
-                  : null,
+                  : widget.canWrite
+                      ? IconButton(
+                          tooltip: 'Bearbeiten',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _editTemplate(template),
+                        )
+                      : null,
             ),
           );
         }),
@@ -1572,10 +2491,21 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             child: ListTile(
               title: Text('${training.trainingNumber} · ${training.title}'),
               subtitle: Text('${training.category} · ${training.status}'),
-              trailing: IconButton(
-                tooltip: 'PDF Export',
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                onPressed: () => _downloadTrainingPdf(training),
+              trailing: Wrap(
+                spacing: 6,
+                children: [
+                  IconButton(
+                    tooltip: 'PDF Export',
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    onPressed: () => _downloadTrainingPdf(training),
+                  ),
+                  if (widget.canWrite)
+                    IconButton(
+                      tooltip: 'Bearbeiten',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _editTraining(training),
+                    ),
+                ],
               ),
             ),
           );

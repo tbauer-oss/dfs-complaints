@@ -1,5 +1,9 @@
 // api/_lib/trainingPdf.js – PDF-Exports für Schulungen
+import fs from 'node:fs';
+import path from 'node:path';
 import PDFDocument from 'pdfkit';
+
+const LOGO_PATH = path.join(process.cwd(), 'api', '_assets', 'dfs-logo.png');
 
 function drawSectionTitle(doc, title) {
   doc.moveDown(0.5);
@@ -13,10 +17,114 @@ function safeText(value, fallback = '—') {
   return text.length ? text : fallback;
 }
 
+function plannedPeriodLabel(item) {
+  const value = item.plannedPeriodValue || '';
+  if (!value) return '—';
+  switch (item.plannedPeriodType) {
+    case 'date':
+      return `Datum: ${value}`;
+    case 'month':
+      return `Monat: ${value}`;
+    case 'quarter':
+      return `Quartal: ${value.split('-').last} ${value.split('-').first}`;
+    case 'halfYear':
+      return `Halbjahr: ${value.split('-').last} ${value.split('-').first}`;
+    default:
+      return value;
+  }
+}
+
+function loadLogo() {
+  try {
+    if (fs.existsSync(LOGO_PATH)) {
+      return fs.readFileSync(LOGO_PATH);
+    }
+  } catch (err) {
+    console.error('[trainingPdf] logo missing', err);
+  }
+  return null;
+}
+
+function drawHeader(doc, title) {
+  const logo = loadLogo();
+  const headerTop = doc.page.margins.top - 10;
+  const startX = doc.page.margins.left;
+  if (logo) {
+    doc.image(logo, startX, headerTop, { width: 90 });
+  }
+  doc
+    .fontSize(18)
+    .fillColor('#1B2A4E')
+    .text(title, startX + (logo ? 110 : 0), headerTop + 10, { align: 'left' });
+  doc.moveDown(1.2);
+}
+
+function drawFooter(doc) {
+  const bottom = doc.page.height - doc.page.margins.bottom + 8;
+  doc.fontSize(9).fillColor('#6B7280');
+  doc.text('DFS-Diamon GmbH', doc.page.margins.left, bottom, { align: 'left' });
+  doc.text(`Seite ${doc.page.pageNumber}`, doc.page.margins.left, bottom, {
+    align: 'right',
+    width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+  });
+  doc.fillColor('#0F1A2B').fontSize(10);
+}
+
+function wrapText(doc, text, width) {
+  const content = text || '';
+  return doc.splitTextToSize(content, width);
+}
+
+function drawTable(doc, { columns, rows, rowPadding = 6, onPageBreak }) {
+  const startX = doc.page.margins.left;
+  const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const totalRatio = columns.reduce((sum, col) => sum + col.ratio, 0);
+  const widths = columns.map((col) => (availableWidth * col.ratio) / totalRatio);
+  const headerHeight = 22;
+  let y = doc.y + 6;
+
+  const ensureSpace = (height) => {
+    if (y + height > doc.page.height - doc.page.margins.bottom - 20) {
+      doc.addPage();
+      y = typeof onPageBreak === 'function' ? onPageBreak(doc) : doc.page.margins.top;
+    }
+  };
+
+  ensureSpace(headerHeight);
+  doc.rect(startX, y, availableWidth, headerHeight).fill('#EEF2F7');
+  doc.fillColor('#0F1A2B').fontSize(9);
+  let x = startX;
+  columns.forEach((col, idx) => {
+    doc.text(col.label, x + rowPadding, y + 6, { width: widths[idx] - rowPadding * 2, align: 'left' });
+    x += widths[idx];
+  });
+  y += headerHeight;
+
+  rows.forEach((row) => {
+    const cellLines = row.map((cell, idx) => wrapText(doc, cell, widths[idx] - rowPadding * 2));
+    const lineHeight = 12;
+    const maxLines = Math.max(...cellLines.map((lines) => lines.length || 1));
+    const rowHeight = maxLines * lineHeight + rowPadding * 2;
+    ensureSpace(rowHeight);
+    doc.rect(startX, y, availableWidth, rowHeight).strokeColor('#E5E7EB').lineWidth(0.5).stroke();
+    x = startX;
+    cellLines.forEach((lines, idx) => {
+      const text = lines.length ? lines.join('\n') : '—';
+      doc.fillColor('#111827').fontSize(9).text(text, x + rowPadding, y + rowPadding, {
+        width: widths[idx] - rowPadding * 2,
+      });
+      x += widths[idx];
+    });
+    y += rowHeight;
+  });
+
+  doc.moveDown(1);
+}
+
 export function createTrainingPdf(training, { questionnaires = [], templates = [], lang = 'de', finalize = true } = {}) {
   const doc = new PDFDocument({ size: 'A4', margin: 42, info: { Title: training.trainingNumber || 'Schulung' } });
-  doc.fontSize(18).fillColor('#1B2A4E').text('Schulungsnachweis', { align: 'left' });
-  doc.moveDown(0.3);
+  drawHeader(doc, 'Schulungsnachweis');
+  doc.fontSize(11).fillColor('#4B5563');
   doc.fontSize(11).fillColor('#4B5563').text(`Nummer: ${safeText(training.trainingNumber)} · Status: ${safeText(training.status)}`);
   doc.moveDown();
 
@@ -72,27 +180,103 @@ export function createTrainingPdf(training, { questionnaires = [], templates = [
   return doc;
 }
 
-export function createTrainingProgramPdf(program, trainings = [], { finalize = true } = {}) {
-  const doc = new PDFDocument({ size: 'A4', margin: 42, info: { Title: program.title || 'Schulungsprogramm' } });
-  doc.fontSize(18).fillColor('#1B2A4E').text('Jahres-Schulungsprogramm', { align: 'left' });
-  doc.moveDown(0.3);
-  doc.fontSize(11).fillColor('#4B5563').text(`${safeText(program.title)} · Status: ${safeText(program.status)}`);
+export function createTrainingProgramPdf(programItems = [], executions = [], { year, filters = {}, finalize = true } = {}) {
+  const doc = new PDFDocument({
+    size: 'A4',
+    margin: 42,
+    info: { Title: `Schulungsprogramm ${year || ''}`.trim() },
+  });
+  const title = `Schulungsprogramm ${year || ''}`.trim();
+  drawHeader(doc, title);
+  doc.on('pageAdded', () => drawFooter(doc));
+  drawFooter(doc);
+  doc.fontSize(10).fillColor('#4B5563');
+  doc.text(`Exportiert: ${new Date().toLocaleString('de-DE')}`);
+  const activeFilters = Object.entries(filters)
+    .filter(([, value]) => value)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(' · ');
+  if (activeFilters) {
+    doc.text(`Filter: ${activeFilters}`);
+  }
   doc.moveDown();
 
-  drawSectionTitle(doc, 'Überblick');
-  doc.text(`Jahr: ${safeText(program.year)}`);
-  doc.text(`Koordinator: ${safeText(program.owner)}`);
-  doc.text(`Budget gesamt: ${program.budgetTotal ? `${program.budgetTotal} €` : '—'}`);
-
-  drawSectionTitle(doc, 'Schulungen');
-  if (!trainings.length) {
-    doc.text('Keine Schulungen zugeordnet.');
+  drawSectionTitle(doc, 'Geplante Schulungen');
+  if (!programItems.length) {
+    doc.text('Keine geplanten Schulungen gefunden.');
   } else {
-    trainings.forEach((training, idx) => {
-      doc.text(`${idx + 1}. ${safeText(training.trainingNumber)} · ${safeText(training.title)} · ${safeText(training.startDate)}`);
+    const rows = programItems.map((item) => {
+      const statusLabel = safeText(item.status);
+      const topicLines = [
+        safeText(item.title || item.trainingTitle),
+        item.trainerProvider ? `Anbieter: ${item.trainerProvider}` : '',
+        item.location ? `Ort/Link: ${item.location}` : '',
+        item.duration ? `Dauer: ${item.duration}` : '',
+        item.notes ? `Notizen: ${item.notes}` : '',
+        item.cancellationReason ? `Begründung: ${item.cancellationReason}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      return [
+        safeText(item.plannedPeriodLabel || plannedPeriodLabel(item)),
+        topicLines,
+        safeText(item.department),
+        safeText(item.format),
+        statusLabel,
+        safeText(item.responsiblePerson || item.owner),
+      ];
+    });
+    drawTable(doc, {
+      columns: [
+        { label: 'Zeitraum', ratio: 0.16 },
+        { label: 'Thema', ratio: 0.3 },
+        { label: 'Abteilung/Team', ratio: 0.16 },
+        { label: 'Format', ratio: 0.1 },
+        { label: 'Status', ratio: 0.12 },
+        { label: 'Verantwortlich', ratio: 0.16 },
+      ],
+      rows,
+      onPageBreak: () => {
+        drawHeader(doc, title);
+        return doc.y;
+      },
     });
   }
 
+  drawSectionTitle(doc, 'Durchführungen');
+  const byProgram = new Map();
+  executions.forEach((execution) => {
+    const key = execution.linkedProgramId || 'unlinked';
+    if (!byProgram.has(key)) byProgram.set(key, []);
+    byProgram.get(key).push(execution);
+  });
+
+  if (!executions.length) {
+    doc.text('Keine Durchführungen dokumentiert.');
+  } else {
+    programItems.forEach((item) => {
+      const list = byProgram.get(item.id) || [];
+      if (!list.length) return;
+      doc.fontSize(10).fillColor('#1B2A4E').text(`${safeText(item.title || item.trainingTitle)}`, { continued: false });
+      const rows = list.map((entry) => [
+        safeText(entry.startDate || entry.executionDate),
+        safeText(entry.actualParticipants || entry.participants?.length),
+        safeText(entry.executionNotes || entry.notes),
+      ]);
+      drawTable(doc, {
+        columns: [
+          { label: 'Datum', ratio: 0.2 },
+          { label: 'Teilnehmer', ratio: 0.2 },
+          { label: 'Notizen', ratio: 0.6 },
+        ],
+        rows,
+        onPageBreak: () => {
+          drawHeader(doc, title);
+          return doc.y;
+        },
+      });
+    });
+  }
   if (finalize) doc.end();
   return doc;
 }

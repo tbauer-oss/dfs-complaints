@@ -6,10 +6,12 @@ import { requirePortalAccess } from './_guard.js';
 import { isAdminUser } from '../_lib/portalAuth.js';
 import {
   trainingProgramsAll,
+  trainingProgramGet,
   trainingProgramSave,
   trainingProgramUpdate,
   trainingProgramDelete,
 } from '../_lib/store.js';
+import { validateTrainingProgram } from '../_lib/trainingValidation.js';
 
 const TRAINING_TILE = 'trainings';
 
@@ -31,7 +33,16 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
-      const saved = await trainingProgramSave({ ...body, createdBy: actor.email, updatedBy: actor.email });
+      const { errors, normalizedPeriod } = validateTrainingProgram(body);
+      if (Object.keys(errors).length > 0) {
+        return bad(res, 'Validierung fehlgeschlagen.', 400, { errors });
+      }
+      const saved = await trainingProgramSave({
+        ...body,
+        plannedPeriodValue: normalizedPeriod || body.plannedPeriodValue,
+        createdBy: actor.email,
+        updatedBy: actor.email,
+      });
       return ok(res, { ok: true, program: saved });
     }
 
@@ -39,7 +50,20 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const id = body.id || req.query?.id;
       if (!id) return bad(res, 'id missing', 400);
-      const updated = await trainingProgramUpdate(id, { ...body, updatedBy: actor.email });
+      const { errors, normalizedPeriod } = validateTrainingProgram({ ...body, year: body.year || body.programYear });
+      if (Object.keys(errors).length > 0) {
+        return bad(res, 'Validierung fehlgeschlagen.', 400, { errors });
+      }
+      const current = await trainingProgramGet(id);
+      if (!current) return bad(res, 'not found', 404);
+      if (body.updatedAt && Number(body.updatedAt) !== Number(current.updatedAt)) {
+        return bad(res, 'conflict', 409, { message: 'Datensatz wurde zwischenzeitlich geändert.' });
+      }
+      const updated = await trainingProgramUpdate(id, {
+        ...body,
+        plannedPeriodValue: normalizedPeriod || body.plannedPeriodValue,
+        updatedBy: actor.email,
+      });
       if (!updated) return bad(res, 'not found', 404);
       return ok(res, { ok: true, program: updated });
     }

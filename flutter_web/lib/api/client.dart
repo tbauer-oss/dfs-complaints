@@ -2871,8 +2871,21 @@ class ApiClient {
     return r.bodyBytes;
   }
 
-  Future<Uint8List> adminTrainingProgramPdf(int year) async {
-    final path = Uri(path: '/api/admin/training-program-pdf', queryParameters: {'year': '$year'}).toString();
+  Future<Uint8List> adminTrainingProgramPdf(
+    int year, {
+    String? department,
+    String? status,
+    String? format,
+    String? search,
+    String? sort,
+  }) async {
+    final params = <String, String>{'year': '$year'};
+    if (department != null && department.trim().isNotEmpty) params['department'] = department.trim();
+    if (status != null && status.trim().isNotEmpty) params['status'] = status.trim();
+    if (format != null && format.trim().isNotEmpty) params['format'] = format.trim();
+    if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
+    if (sort != null && sort.trim().isNotEmpty) params['sort'] = sort.trim();
+    final path = Uri(path: '/api/training/program/pdf', queryParameters: params).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
