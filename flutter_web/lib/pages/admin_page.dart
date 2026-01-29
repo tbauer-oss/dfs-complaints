@@ -6788,7 +6788,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   void _openTrainingSection(
     TrainingAdminSection section, {
-    bool updateRoute = true,
+    bool updateRoute = false,
   }) {
     final tab = _trainingTabForSection(section);
     if (_view != AdminView.trainings || _trainingSection != section || _trainingInitialTab != tab) {
