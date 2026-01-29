@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:signature/signature.dart';
 import '../api/client.dart';
 import '../models/portal_user.dart';
@@ -1897,6 +1898,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       text: initial?.meetingLink ?? (initial?.format == 'online' ? initial?.location ?? '' : ''),
     );
     final controllerNotes = TextEditingController(text: initial?.notes ?? '');
+    final dateFormatter = DateFormat('yyyy-MM-dd');
     final existingCategory = initial?.category ?? '';
     String? selectedCategory = existingCategory.isEmpty
         ? null
@@ -1928,6 +1930,35 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     String selectedOwnerId = initial?.ownerUserId ?? initial?.owner ?? _currentUserEmail;
     List<TrainingParticipant> selectedParticipants =
         List<TrainingParticipant>.from(initial?.participants ?? const []);
+    DateTime? selectedDate = initial?.startDate == null ? null : DateTime.tryParse(initial!.startDate);
+    TimeOfDay? selectedStartTime;
+    TimeOfDay? selectedEndTime;
+
+    TimeOfDay? parseTimeOfDay(String value) {
+      final match = RegExp(r'^\s*(\d{1,2}):(\d{2})\s*$').firstMatch(value);
+      if (match == null) return null;
+      final hour = int.tryParse(match.group(1) ?? '');
+      final minute = int.tryParse(match.group(2) ?? '');
+      if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        return null;
+      }
+      return TimeOfDay(hour: hour, minute: minute);
+    }
+
+    String formatTimeOfDay(TimeOfDay time) =>
+        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+    if (selectedDate != null) {
+      controllerDate.text = dateFormatter.format(selectedDate!);
+    }
+    selectedStartTime = parseTimeOfDay(controllerStartTime.text.trim());
+    if (selectedStartTime != null) {
+      controllerStartTime.text = formatTimeOfDay(selectedStartTime!);
+    }
+    selectedEndTime = parseTimeOfDay(controllerEndTime.text.trim());
+    if (selectedEndTime != null) {
+      controllerEndTime.text = formatTimeOfDay(selectedEndTime!);
+    }
 
     Map<String, String> validateForm() {
       final errors = <String, String>{};
@@ -1952,27 +1983,19 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         errors['format'] = 'Bitte Format auswählen.';
       }
 
-      final dateValue = controllerDate.text.trim();
-      if (!RegExp(r'^\\d{4}-\\d{2}-\\d{2}\$').hasMatch(dateValue)) {
+      if (selectedDate == null) {
+        errors['startDate'] = 'Bitte gültiges Datum auswählen.';
+      } else if (selectedDate!.year < 2020 || selectedDate!.year > 2100) {
         errors['startDate'] = 'Bitte gültiges Datum auswählen.';
       }
 
-      final startTime = controllerStartTime.text.trim();
-      final endTime = controllerEndTime.text.trim();
-      if (startTime.isNotEmpty || endTime.isNotEmpty) {
-        if (startTime.isEmpty || endTime.isEmpty) {
-          errors['time'] = 'Bitte Start- und Endzeit angeben.';
-        } else if (!RegExp(r'^\\d{2}:\\d{2}\$').hasMatch(startTime) ||
-            !RegExp(r'^\\d{2}:\\d{2}\$').hasMatch(endTime)) {
-          errors['time'] = 'Bitte gültige Uhrzeit angeben.';
-        } else {
-          final startParts = startTime.split(':').map(int.parse).toList();
-          final endParts = endTime.split(':').map(int.parse).toList();
-          final startMinutes = startParts[0] * 60 + startParts[1];
-          final endMinutes = endParts[0] * 60 + endParts[1];
-          if (endMinutes <= startMinutes) {
-            errors['time'] = 'Ende muss nach Start liegen.';
-          }
+      if ((selectedStartTime == null) != (selectedEndTime == null)) {
+        errors['time'] = 'Bitte Start und Ende angeben oder beide Felder leer lassen.';
+      } else if (selectedStartTime != null && selectedEndTime != null) {
+        final startMinutes = selectedStartTime!.hour * 60 + selectedStartTime!.minute;
+        final endMinutes = selectedEndTime!.hour * 60 + selectedEndTime!.minute;
+        if (endMinutes <= startMinutes) {
+          errors['time'] = 'Ende muss nach Start liegen.';
         }
       }
 
@@ -2019,7 +2042,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             }
 
             Future<void> pickDate() async {
-              final initialDate = DateTime.tryParse(controllerDate.text.trim()) ?? DateTime.now();
+              final initialDate = selectedDate ?? DateTime.now();
               final picked = await showDatePicker(
                 context: context,
                 initialDate: initialDate,
@@ -2027,23 +2050,22 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                 lastDate: DateTime(DateTime.now().year + 5),
               );
               if (picked != null) {
-                controllerDate.text = picked.toIso8601String().split('T').first;
+                selectedDate = picked;
+                controllerDate.text = dateFormatter.format(picked);
                 refreshValidation();
               }
             }
 
-            Future<void> pickTime(TextEditingController controller) async {
-              TimeOfDay initialTime = TimeOfDay.now();
-              final text = controller.text.trim();
-              if (RegExp(r'^\\d{2}:\\d{2}\$').hasMatch(text)) {
-                final parts = text.split(':').map(int.parse).toList();
-                initialTime = TimeOfDay(hour: parts[0], minute: parts[1]);
-              }
+            Future<void> pickTime({
+              required TextEditingController controller,
+              required TimeOfDay? currentValue,
+              required void Function(TimeOfDay?) onPicked,
+            }) async {
+              final initialTime = currentValue ?? TimeOfDay.now();
               final picked = await showTimePicker(context: context, initialTime: initialTime);
               if (picked != null) {
-                final formatted =
-                    picked.hour.toString().padLeft(2, '0') + ':' + picked.minute.toString().padLeft(2, '0');
-                controller.text = formatted;
+                onPicked(picked);
+                controller.text = formatTimeOfDay(picked);
                 refreshValidation();
               }
             }
@@ -2187,7 +2209,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                       labelText: 'Start (optional)',
                                       suffixIcon: Icon(Icons.schedule),
                                     ),
-                                    onTap: () => pickTime(controllerStartTime),
+                                    onTap: () => pickTime(
+                                      controller: controllerStartTime,
+                                      currentValue: selectedStartTime,
+                                      onPicked: (value) => selectedStartTime = value,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -2199,7 +2225,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                       labelText: 'Ende (optional)',
                                       suffixIcon: Icon(Icons.schedule),
                                     ),
-                                    onTap: () => pickTime(controllerEndTime),
+                                    onTap: () => pickTime(
+                                      controller: controllerEndTime,
+                                      currentValue: selectedEndTime,
+                                      onPicked: (value) => selectedEndTime = value,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -2410,8 +2440,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                   : (selectedLocation ?? '').trim())
                               : '';
                           final ownerLabelValue = _staffByEmail(selectedOwnerId)?.label ?? selectedOwnerId;
-                          final startTimeValue = controllerStartTime.text.trim();
-                          final endTimeValue = controllerEndTime.text.trim();
+                          final startTimeValue = selectedStartTime == null ? '' : formatTimeOfDay(selectedStartTime!);
+                          final endTimeValue = selectedEndTime == null ? '' : formatTimeOfDay(selectedEndTime!);
                           final record = TrainingRecord(
                             id: initial?.id ?? '',
                             trainingNumber: initial?.trainingNumber ?? '',
@@ -2421,7 +2451,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             categoryFreeText: categoryValue == 'other' ? controllerCategoryFree.text.trim() : null,
                             type: selectedType ?? '',
                             format: selectedFormat ?? '',
-                            startDate: controllerDate.text.trim(),
+                            startDate: selectedDate == null ? '' : dateFormatter.format(selectedDate!),
                             startTime: startTimeValue.isEmpty ? null : startTimeValue,
                             endTime: endTimeValue.isEmpty ? null : endTimeValue,
                             endDate: '',
