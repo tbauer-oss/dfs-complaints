@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import { isAdminUser } from '../_lib/portalAuth.js';
+import { validateTrainingSession } from '../_lib/trainingValidation.js';
 import {
   trainingRecordsAll,
   trainingRecordGet,
@@ -58,12 +59,22 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
+      const { errors } = validateTrainingSession(body);
+      if (Object.keys(errors).length) {
+        const first = Object.values(errors)[0];
+        return bad(res, first, 400, { errors });
+      }
       const saved = await trainingRecordSave({ ...body, createdBy: actor.email, updatedBy: actor.email });
       return ok(res, { ok: true, record: saved });
     }
 
     if (req.method === 'PATCH') {
       const body = readJson(req) || {};
+      const { errors } = validateTrainingSession(body);
+      if (Object.keys(errors).length) {
+        const first = Object.values(errors)[0];
+        return bad(res, first, 400, { errors });
+      }
       const id = body.id || body.trainingNumber || req.query?.id;
       if (!id) return bad(res, 'id missing', 400);
       const updated = await trainingRecordUpdate(id, { ...body, updatedBy: actor.email });
