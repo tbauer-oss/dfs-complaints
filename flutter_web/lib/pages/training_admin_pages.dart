@@ -209,50 +209,54 @@ class _TrainingAdminOverviewPageState extends State<TrainingAdminOverviewPage> {
 }
 
 class TrainingNeedsPage extends StatelessWidget {
-  const TrainingNeedsPage({super.key, required this.api, required this.canWrite});
+  const TrainingNeedsPage({super.key, required this.api, required this.canWrite, this.canDelete = false});
 
   final ApiClient api;
   final bool canWrite;
+  final bool canDelete;
 
   @override
   Widget build(BuildContext context) {
-    return AdminTrainingPage(api: api, canWrite: canWrite, initialTab: 1);
+    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 1);
   }
 }
 
 class TrainingProgramPage extends StatelessWidget {
-  const TrainingProgramPage({super.key, required this.api, required this.canWrite});
+  const TrainingProgramPage({super.key, required this.api, required this.canWrite, this.canDelete = false});
 
   final ApiClient api;
   final bool canWrite;
+  final bool canDelete;
 
   @override
   Widget build(BuildContext context) {
-    return AdminTrainingPage(api: api, canWrite: canWrite, initialTab: 2);
+    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 2);
   }
 }
 
 class TrainingListPage extends StatelessWidget {
-  const TrainingListPage({super.key, required this.api, required this.canWrite});
+  const TrainingListPage({super.key, required this.api, required this.canWrite, this.canDelete = false});
 
   final ApiClient api;
   final bool canWrite;
+  final bool canDelete;
 
   @override
   Widget build(BuildContext context) {
-    return AdminTrainingPage(api: api, canWrite: canWrite, initialTab: 3);
+    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 3);
   }
 }
 
 class TrainingArchivePage extends StatelessWidget {
-  const TrainingArchivePage({super.key, required this.api, required this.canWrite});
+  const TrainingArchivePage({super.key, required this.api, required this.canWrite, this.canDelete = false});
 
   final ApiClient api;
   final bool canWrite;
+  final bool canDelete;
 
   @override
   Widget build(BuildContext context) {
-    return AdminTrainingPage(api: api, canWrite: canWrite, initialTab: 5);
+    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 5);
   }
 }
 

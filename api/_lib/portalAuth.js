@@ -12,6 +12,7 @@ import { normalizeTilePermission, portalUserByEmail, portalUserSave, sanitizeTil
 // Gültige Werte sind unten definiert und werden in den Guards/Handlers geprüft.
 export const PORTAL_ROLES = {
   superuser: 'superuser',
+  admin: 'admin',
   user: 'user',
   readonly: 'readonly',
   prrc: 'prrc',
@@ -31,6 +32,7 @@ const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 export function normalizeRole(role) {
   const lc = String(role || '').trim().toLowerCase();
   if (lc === PORTAL_ROLES.superuser) return PORTAL_ROLES.superuser;
+  if (lc === PORTAL_ROLES.admin) return PORTAL_ROLES.admin;
   if (lc === PORTAL_ROLES.readonly) return PORTAL_ROLES.readonly;
   if (lc === PORTAL_ROLES.prrc) return PORTAL_ROLES.prrc;
   return PORTAL_ROLES.user;
@@ -57,7 +59,7 @@ export async function isPortalEmail(email) {
 
 export function canWrite(role) {
   const r = normalizeRole(role);
-  return r === PORTAL_ROLES.superuser || r === PORTAL_ROLES.user;
+  return r === PORTAL_ROLES.superuser || r === PORTAL_ROLES.admin || r === PORTAL_ROLES.user;
 }
 
 export function tilePermissionForUser(user, tileId) {
@@ -80,6 +82,14 @@ export function canWriteTile(user, tileId) {
 
 export function canManageUsers(role) {
   return normalizeRole(role) === PORTAL_ROLES.superuser;
+}
+
+export function isAdminUser(user) {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  if (role === PORTAL_ROLES.superuser || role === PORTAL_ROLES.admin) return true;
+  const mail = String(user.email || '').trim().toLowerCase();
+  return ADMIN_EMAILS.has(mail);
 }
 
 async function ensureInitialAdmin(email) {
