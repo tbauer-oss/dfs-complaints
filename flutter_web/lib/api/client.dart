@@ -2616,7 +2616,7 @@ class ApiClient {
         .toList();
   }
 
-  Future<TrainingNeed> adminCreateTrainingNeed(TrainingNeed need) async {
+  Future<TrainingNeedSubmitResult> adminCreateTrainingNeed(TrainingNeed need) async {
     final r = await http.post(
       _u('/api/admin/training-needs'),
       headers: _adminHeaders(auth: true),
@@ -2627,7 +2627,10 @@ class ApiClient {
     }
     final decoded = jsonDecode(r.body);
     final map = decoded is Map && decoded['need'] is Map ? decoded['need'] as Map : decoded;
-    if (map is Map) return TrainingNeed.fromJson(map.cast<String, dynamic>());
+    if (map is Map) {
+      final warning = decoded is Map ? decoded['warning']?.toString() : null;
+      return TrainingNeedSubmitResult(need: TrainingNeed.fromJson(map.cast<String, dynamic>()), warning: warning);
+    }
     throw ApiError(r.statusCode, 'Ungültige Schulungsbedarf-Antwort');
   }
 

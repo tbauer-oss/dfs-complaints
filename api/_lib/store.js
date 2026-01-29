@@ -6266,15 +6266,42 @@ function normalizeTrainingNeed(record = {}) {
   const year = Number(record.year || record.trainingYear || new Date().getFullYear());
   const items = Array.isArray(record.items) ? record.items.map(normalizeTrainingNeedItem) : [];
   const status = TRAINING_NEED_STATUSES.includes(record.status) ? record.status : 'draft';
+  const departmentTeamSelected = normalizeString(record.departmentTeamSelected || record.departmentTeam || record.department || '');
+  const departmentTeamFreeText = normalizeString(record.departmentTeamFreeText || record.departmentTeamOther || '');
+  const plannedPeriodType = normalizeString(record.plannedPeriodType || '');
+  const plannedPeriodValue = normalizeString(record.plannedPeriodValue || '');
+  const trainingFormat = normalizeString(record.trainingFormat || record.format || '');
+  const intervalType = normalizeString(record.intervalType || '');
+  const intervalValue = normalizeString(record.intervalValue || '');
+  const intervalValueFreeText = normalizeString(record.intervalValueFreeText || '');
+  const plannedBudgetRaw = record.plannedBudget ?? record.budget;
+  const plannedBudget = plannedBudgetRaw === null || plannedBudgetRaw === undefined ? null : Number(plannedBudgetRaw || 0);
+  const additionalNotes = normalizeString(record.additionalNotes || record.comments || record.notes || '');
+  const topicPriorities = normalizeString(record.topicPriorities || '');
+  const preferredTrainers = normalizeString(record.preferredTrainers || '');
+  const specialRequirements = normalizeString(record.specialRequirements || '');
   return {
     id: normalizeString(record.id || crypto.randomUUID()),
     year,
     contactName: normalizeString(record.contactName || record.contact || record.requester || ''),
     position: normalizeString(record.position || ''),
-    department: normalizeString(record.department || ''),
+    department: normalizeString(record.department || departmentTeamSelected || ''),
     team: normalizeString(record.team || record.group || ''),
     items,
-    comments: normalizeString(record.comments || record.notes || ''),
+    comments: normalizeString(record.comments || additionalNotes || record.notes || ''),
+    departmentTeamSelected,
+    departmentTeamFreeText: departmentTeamFreeText || null,
+    plannedPeriodType,
+    plannedPeriodValue,
+    trainingFormat,
+    intervalType,
+    intervalValue: intervalValue || null,
+    intervalValueFreeText: intervalValueFreeText || null,
+    plannedBudget: Number.isFinite(plannedBudget) ? plannedBudget : null,
+    additionalNotes: additionalNotes || null,
+    topicPriorities: topicPriorities || null,
+    preferredTrainers: preferredTrainers || null,
+    specialRequirements: specialRequirements || null,
     status,
     noNeed: Boolean(record.noNeed),
     approverChain: Array.isArray(record.approverChain) ? record.approverChain.map(normalizeString) : [],

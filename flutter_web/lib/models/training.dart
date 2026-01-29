@@ -50,6 +50,19 @@ class TrainingNeed {
     required this.team,
     required this.items,
     required this.comments,
+    required this.departmentTeamSelected,
+    required this.departmentTeamFreeText,
+    required this.plannedPeriodType,
+    required this.plannedPeriodValue,
+    required this.trainingFormat,
+    required this.intervalType,
+    required this.intervalValue,
+    required this.intervalValueFreeText,
+    required this.plannedBudget,
+    required this.additionalNotes,
+    required this.topicPriorities,
+    required this.preferredTrainers,
+    required this.specialRequirements,
     required this.status,
     required this.noNeed,
   });
@@ -62,6 +75,19 @@ class TrainingNeed {
   final String team;
   final List<TrainingNeedItem> items;
   final String comments;
+  final String departmentTeamSelected;
+  final String? departmentTeamFreeText;
+  final String plannedPeriodType;
+  final String plannedPeriodValue;
+  final String trainingFormat;
+  final String intervalType;
+  final String? intervalValue;
+  final String? intervalValueFreeText;
+  final double? plannedBudget;
+  final String? additionalNotes;
+  final String? topicPriorities;
+  final String? preferredTrainers;
+  final String? specialRequirements;
   final String status;
   final bool noNeed;
 
@@ -78,6 +104,36 @@ class TrainingNeed {
           .map((item) => TrainingNeedItem.fromJson(item.cast<String, dynamic>()))
           .toList(),
       comments: (json['comments'] ?? '').toString(),
+      departmentTeamSelected: (json['departmentTeamSelected'] ?? json['departmentTeam'] ?? '').toString(),
+      departmentTeamFreeText: (json['departmentTeamFreeText'] ?? json['departmentTeamOther'])?.toString(),
+      plannedPeriodType: (json['plannedPeriodType'] ?? '').toString(),
+      plannedPeriodValue: (json['plannedPeriodValue'] ?? '').toString(),
+      trainingFormat: (() {
+        final raw = json['trainingFormat'];
+        if (raw != null) return raw.toString();
+        final items = json['items'];
+        if (items is List && items.isNotEmpty) {
+          final first = items.first;
+          if (first is Map && first['format'] != null) return first['format'].toString();
+        }
+        return '';
+      })(),
+      intervalType: (json['intervalType'] ?? '').toString(),
+      intervalValue: (json['intervalValue'] ?? '').toString().isEmpty ? null : (json['intervalValue'] ?? '').toString(),
+      intervalValueFreeText:
+          (json['intervalValueFreeText'] ?? '').toString().isEmpty ? null : (json['intervalValueFreeText'] ?? '').toString(),
+      plannedBudget: (() {
+        final raw = json['plannedBudget'] ?? json['budget'];
+        if (raw is num) return raw.toDouble();
+        if (raw == null) return null;
+        return double.tryParse(raw.toString());
+      })(),
+      additionalNotes: (json['additionalNotes'] ?? json['comments'])?.toString(),
+      topicPriorities: (json['topicPriorities'] ?? '').toString().isEmpty ? null : (json['topicPriorities'] ?? '').toString(),
+      preferredTrainers:
+          (json['preferredTrainers'] ?? '').toString().isEmpty ? null : (json['preferredTrainers'] ?? '').toString(),
+      specialRequirements:
+          (json['specialRequirements'] ?? '').toString().isEmpty ? null : (json['specialRequirements'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
       noNeed: json['noNeed'] == true,
     );
@@ -92,9 +148,29 @@ class TrainingNeed {
         'team': team,
         'items': items.map((item) => item.toJson()).toList(),
         'comments': comments,
+        'departmentTeamSelected': departmentTeamSelected,
+        'departmentTeamFreeText': departmentTeamFreeText,
+        'plannedPeriodType': plannedPeriodType,
+        'plannedPeriodValue': plannedPeriodValue,
+        'trainingFormat': trainingFormat,
+        'intervalType': intervalType,
+        'intervalValue': intervalValue,
+        'intervalValueFreeText': intervalValueFreeText,
+        'plannedBudget': plannedBudget,
+        'additionalNotes': additionalNotes,
+        'topicPriorities': topicPriorities,
+        'preferredTrainers': preferredTrainers,
+        'specialRequirements': specialRequirements,
         'status': status,
         'noNeed': noNeed,
       };
+}
+
+class TrainingNeedSubmitResult {
+  TrainingNeedSubmitResult({required this.need, this.warning});
+
+  final TrainingNeed need;
+  final String? warning;
 }
 
 class TrainingProgram {
