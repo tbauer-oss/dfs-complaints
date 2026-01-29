@@ -3,6 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
+import { isAdminUser } from '../_lib/portalAuth.js';
 import {
   trainingQuestionnairesAll,
   trainingQuestionnaireSave,
@@ -49,9 +50,13 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (!isAdminUser(actor)) {
+        return bad(res, 'forbidden', 403);
+      }
       const id = req.query?.id || readJson(req)?.id;
       if (!id) return bad(res, 'id missing', 400);
       await trainingQuestionnaireDelete(id);
+      console.info('[training-questionnaires] deleted', { id, by: actor.email, scope: 'single' });
       return ok(res, { ok: true });
     }
 

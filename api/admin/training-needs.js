@@ -3,6 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
+import { isAdminUser } from '../_lib/portalAuth.js';
 import {
   trainingNeedsAll,
   trainingNeedSave,
@@ -64,6 +65,11 @@ function normalizePeriodValue(type, value) {
   if (type === 'quarter' && /^\d{4}-Q[1-4]$/.test(val)) return val;
   if (type === 'halfYear' && /^\d{4}-H[1-2]$/.test(val)) return val;
   return null;
+}
+
+function periodYear(value) {
+  if (!value || value.length < 4) return '';
+  return value.slice(0, 4);
 }
 
 function plannedPeriodLabel(type, value) {
@@ -155,6 +161,8 @@ function validateTrainingNeed(body = {}) {
   const normalizedPeriod = normalizePeriodValue(periodType, body.plannedPeriodValue);
   if (!normalizedPeriod) {
     errors.plannedPeriodValue = 'Geplanter Zeitraum ist erforderlich.';
+  } else if (yearValue && periodYear(normalizedPeriod) !== yearValue) {
+    errors.plannedPeriodValue = 'Der geplante Zeitraum muss im Schulungsjahr liegen.';
   }
 
   const format = trim(body.trainingFormat);
@@ -264,15 +272,25 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const id = body.id || req.query?.id;
       if (!id) return bad(res, 'id missing', 400);
+      const patchYear = String(body.year || '').trim();
+      const patchPeriodType = trim(body.plannedPeriodType || '');
+      const patchPeriodValue = normalizePeriodValue(patchPeriodType, body.plannedPeriodValue);
+      if (patchYear && patchPeriodValue && periodYear(patchPeriodValue) !== patchYear) {
+        return bad(res, 'Der geplante Zeitraum muss im Schulungsjahr liegen.', 400);
+      }
       const updated = await trainingNeedUpdate(id, { ...body, updatedBy: actor.email });
       if (!updated) return bad(res, 'not found', 404);
       return ok(res, { ok: true, need: updated });
     }
 
     if (req.method === 'DELETE') {
+      if (!isAdminUser(actor)) {
+        return bad(res, 'forbidden', 403);
+      }
       const id = req.query?.id || readJson(req)?.id;
       if (!id) return bad(res, 'id missing', 400);
       await trainingNeedDelete(id);
+      console.info('[training-needs] deleted', { id, by: actor.email, scope: 'single' });
       return ok(res, { ok: true });
     }
 

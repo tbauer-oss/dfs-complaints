@@ -10829,16 +10829,19 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             return TrainingNeedsPage(
               api: widget.api,
               canWrite: _canWriteTile('trainings'),
+              canDelete: _isSuperuser || _portalRole == 'admin',
             );
           case TrainingAdminSection.program:
             return TrainingProgramPage(
               api: widget.api,
               canWrite: _canWriteTile('trainings'),
+              canDelete: _isSuperuser || _portalRole == 'admin',
             );
           case TrainingAdminSection.list:
             return TrainingListPage(
               api: widget.api,
               canWrite: _canWriteTile('trainings'),
+              canDelete: _isSuperuser || _portalRole == 'admin',
             );
           case TrainingAdminSection.effectiveness:
             return const TrainingEffectivenessPage();
@@ -10846,6 +10849,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             return TrainingArchivePage(
               api: widget.api,
               canWrite: _canWriteTile('trainings'),
+              canDelete: _isSuperuser || _portalRole == 'admin',
             );
         }
       case AdminView.prrc:

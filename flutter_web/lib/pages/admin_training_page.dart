@@ -6,16 +6,25 @@ import 'package:flutter/services.dart';
 import '../api/client.dart';
 import '../models/training.dart';
 
+class _DeleteDecision {
+  const _DeleteDecision({required this.confirmed, this.deleteInstances = false});
+
+  final bool confirmed;
+  final bool deleteInstances;
+}
+
 class AdminTrainingPage extends StatefulWidget {
   const AdminTrainingPage({
     super.key,
     required this.api,
     required this.canWrite,
+    required this.canDelete,
     this.initialTab = 0,
   });
 
   final ApiClient api;
   final bool canWrite;
+  final bool canDelete;
   final int initialTab;
 
   @override
@@ -101,6 +110,198 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
+  Future<_DeleteDecision?> _confirmDeleteDecision({
+    required String title,
+    required String message,
+    bool allowInstanceDelete = false,
+  }) {
+    bool deleteInstances = false;
+    return showDialog<_DeleteDecision>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(message),
+                  if (allowInstanceDelete)
+                    CheckboxListTile(
+                      value: deleteInstances,
+                      onChanged: (value) => setState(() => deleteInstances = value ?? false),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('Vorlage + alle automatisch erzeugten Instanzen löschen'),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(_DeleteDecision(confirmed: true, deleteInstances: deleteInstances)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+                  child: const Text('Löschen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool?> _confirmPurge(String scopeLabel) {
+    final controller = TextEditingController();
+    bool confirmChecked = false;
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final phraseOk = controller.text.trim().toUpperCase() == 'LÖSCHEN';
+            final canConfirm = phraseOk && confirmChecked;
+            return AlertDialog(
+              title: Text('Alles löschen ($scopeLabel)'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Diese Aktion kann nicht rückgängig gemacht werden. Bitte bestätigen Sie das Löschen.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      labelText: 'Bestätigung (LÖSCHEN)',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  CheckboxListTile(
+                    value: confirmChecked,
+                    onChanged: (value) => setState(() => confirmChecked = value ?? false),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Ich bestätige unwiderruflich'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: canConfirm ? () => Navigator.of(context).pop(true) : null,
+                  style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+                  child: const Text('Alles löschen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _purgeTrainingScope(String scope, String scopeLabel) async {
+    if (!widget.canDelete) return;
+    final confirmed = await _confirmPurge(scopeLabel);
+    if (confirmed != true) return;
+    try {
+      await widget.api.adminPurgeTraining(scope);
+      await _loadAll();
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Löschen fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<void> _deleteNeed(TrainingNeed need) async {
+    if (!widget.canDelete) return;
+    final allowInstances = need.intervalType == 'recurring' && (need.parentRecurringId == null || need.parentRecurringId!.isEmpty);
+    final decision = await _confirmDeleteDecision(
+      title: 'Schulungsbedarf löschen',
+      message: 'Möchten Sie diesen Schulungsbedarf wirklich löschen?',
+      allowInstanceDelete: allowInstances,
+    );
+    if (decision?.confirmed != true) return;
+    try {
+      await widget.api.adminDeleteTrainingNeed(need.id, deleteInstances: decision?.deleteInstances ?? false);
+      setState(() {
+        _needs = _needs.where((entry) {
+          if (entry.id == need.id) return false;
+          if ((decision?.deleteInstances ?? false) && entry.parentRecurringId == need.id) return false;
+          return true;
+        }).toList();
+      });
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Löschen fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<void> _deleteProgram(TrainingProgram program) async {
+    if (!widget.canDelete) return;
+    final decision = await _confirmDeleteDecision(
+      title: 'Schulungsprogramm löschen',
+      message: 'Möchten Sie dieses Schulungsprogramm wirklich löschen?',
+    );
+    if (decision?.confirmed != true) return;
+    try {
+      await widget.api.adminDeleteTrainingProgram(program.id);
+      setState(() => _programs = _programs.where((entry) => entry.id != program.id).toList());
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Löschen fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<void> _deleteTraining(TrainingRecord training) async {
+    if (!widget.canDelete) return;
+    final allowInstances = training.intervalType == 'recurring' &&
+        (training.parentRecurringId == null || training.parentRecurringId!.isEmpty);
+    final decision = await _confirmDeleteDecision(
+      title: 'Schulung löschen',
+      message: 'Möchten Sie diese Schulung wirklich löschen?',
+      allowInstanceDelete: allowInstances,
+    );
+    if (decision?.confirmed != true) return;
+    try {
+      await widget.api.adminDeleteTraining(training.id, deleteInstances: decision?.deleteInstances ?? false);
+      setState(() {
+        _trainings = _trainings.where((entry) {
+          if (entry.id == training.id) return false;
+          if ((decision?.deleteInstances ?? false) && entry.parentRecurringId == training.id) return false;
+          return true;
+        }).toList();
+      });
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Löschen fehlgeschlagen: $err')));
+    }
+  }
+
+  Future<void> _deleteTemplate(TrainingQuestionnaireTemplate template) async {
+    if (!widget.canDelete) return;
+    final decision = await _confirmDeleteDecision(
+      title: 'Template löschen',
+      message: 'Möchten Sie dieses Template wirklich löschen?',
+    );
+    if (decision?.confirmed != true) return;
+    try {
+      await widget.api.adminDeleteTrainingTemplate(template.id);
+      setState(() => _templates = _templates.where((entry) => entry.id != template.id).toList());
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Löschen fehlgeschlagen: $err')));
+    }
+  }
+
+  Widget _autoBadge(ThemeData theme) {
+    return Chip(
+      label: const Text('Automatisch'),
+      labelStyle: theme.textTheme.labelSmall,
+      backgroundColor: theme.colorScheme.secondaryContainer,
+      padding: EdgeInsets.zero,
+    );
+  }
+
   Future<void> _createNeed() async {
     if (!widget.canWrite) return;
     final controllerYear = TextEditingController(text: DateTime.now().year.toString());
@@ -118,6 +319,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final controllerTopicPriorities = TextEditingController();
     final controllerPreferredTrainers = TextEditingController();
     final controllerSpecialRequirements = TextEditingController();
+
+    controllerMonthYear.text = controllerYear.text;
+    controllerQuarterYear.text = controllerYear.text;
+    controllerHalfYearYear.text = controllerYear.text;
 
     const departmentOptions = [
       'Gesamte Organisation',
@@ -164,6 +369,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     String? selectedIntervalType;
     String? selectedIntervalValue;
     bool confirmationChecked = false;
+    bool recurrenceActive = true;
 
     String? errorYear;
     String? errorContact;
@@ -185,23 +391,46 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       return '$y-$m-$d';
     }
 
+    void syncPlannedPeriodYear() {
+      final yearText = controllerYear.text.trim();
+      if (!RegExp(r'^\\d{4}$').hasMatch(yearText)) return;
+      controllerMonthYear.text = yearText;
+      controllerQuarterYear.text = yearText;
+      controllerHalfYearYear.text = yearText;
+      final plannedText = controllerPlannedDate.text.trim();
+      if (plannedText.isEmpty) return;
+      final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(plannedText);
+      if (match == null) return;
+      final month = int.tryParse(match.group(2) ?? '');
+      final day = int.tryParse(match.group(3) ?? '');
+      if (month == null || day == null) return;
+      final updated = DateTime(int.parse(yearText), month, day);
+      controllerPlannedDate.text = formatDate(updated);
+    }
+
     String? buildPlannedPeriodValue() {
       if (plannedPeriodType == 'date') {
-        return controllerPlannedDate.text.trim().isEmpty ? null : controllerPlannedDate.text.trim();
+        final planned = controllerPlannedDate.text.trim();
+        if (planned.isEmpty) return null;
+        final match = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$').firstMatch(planned);
+        if (match == null) return null;
+        final year = controllerYear.text.trim();
+        if (RegExp(r'^\\d{4}$').hasMatch(year) && match.group(1) != year) return null;
+        return planned;
       }
       if (plannedPeriodType == 'month') {
-        final year = controllerMonthYear.text.trim();
+        final year = controllerYear.text.trim();
         if (year.isEmpty || selectedMonth == null) return null;
         if (!RegExp(r'^\\d{4}$').hasMatch(year)) return null;
         return '$year-$selectedMonth';
       }
       if (plannedPeriodType == 'quarter') {
-        final year = controllerQuarterYear.text.trim();
+        final year = controllerYear.text.trim();
         if (year.isEmpty || selectedQuarter == null) return null;
         if (!RegExp(r'^\\d{4}$').hasMatch(year)) return null;
         return '$year-$selectedQuarter';
       }
-      final year = controllerHalfYearYear.text.trim();
+      final year = controllerYear.text.trim();
       if (year.isEmpty || selectedHalfYear == null) return null;
       if (!RegExp(r'^\\d{4}$').hasMatch(year)) return null;
       return '$year-$selectedHalfYear';
@@ -234,20 +463,25 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
               title: const Text('Neuer Schulungsbedarf'),
               content: SizedBox(
                 width: 520,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: controllerYear,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          labelText: 'Schulungsjahr',
-                          errorText: errorYear,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: controllerYear,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          onChanged: (_) => setState(() {
+                            syncPlannedPeriodYear();
+                          }),
+                          decoration: InputDecoration(
+                            labelText: 'Schulungsjahr',
+                            labelStyle: const TextStyle(overflow: TextOverflow.visible),
+                            errorText: errorYear,
+                          ),
                         ),
-                      ),
                       TextField(
                         controller: controllerContact,
                         decoration: InputDecoration(
@@ -326,11 +560,21 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                           controller: controllerPlannedDate,
                           readOnly: true,
                           onTap: () async {
+                            final year = int.tryParse(controllerYear.text.trim()) ?? DateTime.now().year;
+                            final existing = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$')
+                                .firstMatch(controllerPlannedDate.text.trim());
+                            final initial = existing != null
+                                ? DateTime(
+                                    int.parse(existing.group(1)!),
+                                    int.parse(existing.group(2)!),
+                                    int.parse(existing.group(3)!),
+                                  )
+                                : DateTime(year, 1, 1);
                             final picked = await showDatePicker(
                               context: context,
-                              initialDate: DateTime.now(),
-                              firstDate: DateTime(DateTime.now().year - 1),
-                              lastDate: DateTime(DateTime.now().year + 5),
+                              initialDate: initial,
+                              firstDate: DateTime(year, 1, 1),
+                              lastDate: DateTime(year, 12, 31),
                             );
                             if (picked != null) {
                               setState(() => controllerPlannedDate.text = formatDate(picked));
@@ -361,13 +605,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: TextField(
-                                controller: controllerMonthYear,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: InputDecoration(
-                                  labelText: 'Jahr',
-                                  errorText: errorPlannedPeriod,
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Jahr'),
+                                child: Text(
+                                  'Jahr: ${controllerYear.text.trim().isEmpty ? 'JJJJ' : controllerYear.text.trim()} (aus Schulungsjahr übernommen)',
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
                             ),
@@ -391,13 +633,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: TextField(
-                                controller: controllerQuarterYear,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: InputDecoration(
-                                  labelText: 'Jahr',
-                                  errorText: errorPlannedPeriod,
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Jahr'),
+                                child: Text(
+                                  'Jahr: ${controllerYear.text.trim().isEmpty ? 'JJJJ' : controllerYear.text.trim()} (aus Schulungsjahr übernommen)',
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
                             ),
@@ -419,13 +659,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: TextField(
-                                controller: controllerHalfYearYear,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: InputDecoration(
-                                  labelText: 'Jahr',
-                                  errorText: errorPlannedPeriod,
+                              child: InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Jahr'),
+                                child: Text(
+                                  'Jahr: ${controllerYear.text.trim().isEmpty ? 'JJJJ' : controllerYear.text.trim()} (aus Schulungsjahr übernommen)',
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
                             ),
@@ -537,6 +775,14 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                             errorText: errorIntervalOther,
                           ),
                         ),
+                      if (intervalIsRecurring)
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Wiederholung aktiv'),
+                          subtitle: const Text('Automatische Eintragung für zukünftige Zeiträume'),
+                          value: recurrenceActive,
+                          onChanged: (value) => setState(() => recurrenceActive = value),
+                        ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -634,7 +880,20 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                         : null;
                                     errorTopic = topicText.isEmpty ? 'Pflichtfeld' : null;
                                     final plannedPeriodValue = buildPlannedPeriodValue();
-                                    errorPlannedPeriod = plannedPeriodValue == null ? 'Bitte Zeitraum vollständig angeben.' : null;
+                                    if (plannedPeriodValue == null) {
+                                      final yearText = controllerYear.text.trim();
+                                      final plannedText = controllerPlannedDate.text.trim();
+                                      final hasYear = RegExp(r'^\\d{4}$').hasMatch(yearText);
+                                      final mismatch = plannedPeriodType == 'date' &&
+                                          hasYear &&
+                                          RegExp(r'^(\\d{4})-\\d{2}-\\d{2}$').hasMatch(plannedText) &&
+                                          !plannedText.startsWith(yearText);
+                                      errorPlannedPeriod = mismatch
+                                          ? 'Der geplante Zeitraum muss im Schulungsjahr liegen.'
+                                          : 'Bitte Zeitraum vollständig angeben.';
+                                    } else {
+                                      errorPlannedPeriod = null;
+                                    }
                                     errorFormat = selectedFormat == null ? 'Bitte Format auswählen.' : null;
                                     errorIntervalType = selectedIntervalType == null ? 'Bitte auswählen.' : null;
                                     errorIntervalValue = intervalIsRecurring && (selectedIntervalValue == null || selectedIntervalValue!.isEmpty)
@@ -719,6 +978,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                                           : controllerSpecialRequirements.text.trim(),
                                       status: 'draft',
                                       noNeed: false,
+                                      recurrenceActive: recurrenceActive,
                                     );
                                     Navigator.of(context).pop(need);
                                   }
@@ -1097,6 +1357,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           children: [
             Text('Bedarfserhebung (FB620)', style: theme.textTheme.titleMedium),
             const Spacer(),
+            if (widget.canDelete)
+              TextButton.icon(
+                onPressed: () => _purgeTrainingScope('needs', 'Schulungsbedarfe'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Alles löschen'),
+              ),
             if (widget.canWrite)
               ElevatedButton.icon(
                 onPressed: _createNeed,
@@ -1110,11 +1376,26 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           const Text('Noch keine Bedarfe erfasst.'),
         ..._needs.map((need) {
           final item = need.items.isNotEmpty ? need.items.first : null;
+          final isAuto = need.isAutoGenerated;
           return Card(
             child: ListTile(
               title: Text('${need.year} · ${need.department.isEmpty ? 'Unbekannt' : need.department}'),
               subtitle: Text(item == null ? 'Kein Bedarf' : '${item.topic} · ${item.timeframe} · ${item.format}'),
-              trailing: Text(need.status),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isAuto) _autoBadge(theme),
+                  if (isAuto) const SizedBox(width: 8),
+                  Text(need.status),
+                  if (widget.canDelete) const SizedBox(width: 8),
+                  if (widget.canDelete)
+                    IconButton(
+                      tooltip: 'Löschen',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _deleteNeed(need),
+                    ),
+                ],
+              ),
             ),
           );
         }),
@@ -1129,6 +1410,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           children: [
             Text('Jahresprogramme', style: theme.textTheme.titleMedium),
             const Spacer(),
+            if (widget.canDelete)
+              TextButton.icon(
+                onPressed: () => _purgeTrainingScope('program', 'Schulungsprogramme'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Alles löschen'),
+              ),
             if (widget.canWrite)
               ElevatedButton.icon(
                 onPressed: _createProgram,
@@ -1145,10 +1432,21 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             child: ListTile(
               title: Text(program.title.isEmpty ? 'Schulungsprogramm ${program.year}' : program.title),
               subtitle: Text('Status: ${program.status} · Budget: ${program.budgetTotal.toStringAsFixed(0)} €'),
-              trailing: IconButton(
-                tooltip: 'PDF Export',
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                onPressed: () => _downloadProgramPdf(program),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'PDF Export',
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    onPressed: () => _downloadProgramPdf(program),
+                  ),
+                  if (widget.canDelete)
+                    IconButton(
+                      tooltip: 'Löschen',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _deleteProgram(program),
+                    ),
+                ],
               ),
             ),
           );
@@ -1164,6 +1462,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           children: [
             Text('Schulungen (Einzelmaßnahmen)', style: theme.textTheme.titleMedium),
             const Spacer(),
+            if (widget.canDelete)
+              TextButton.icon(
+                onPressed: () => _purgeTrainingScope('sessions', 'Schulungen'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Alles löschen'),
+              ),
             if (widget.canWrite)
               ElevatedButton.icon(
                 onPressed: _createTraining,
@@ -1176,14 +1480,28 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         if (_trainings.isEmpty)
           const Text('Noch keine Schulungen erstellt.'),
         ..._trainings.map((training) {
+          final isAuto = training.isAutoGenerated;
           return Card(
             child: ListTile(
               title: Text('${training.trainingNumber.isEmpty ? 'Neu' : training.trainingNumber} · ${training.title}'),
               subtitle: Text('${training.category} · ${training.startDate} · ${training.status}'),
-              trailing: IconButton(
-                tooltip: 'PDF Export',
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                onPressed: () => _downloadTrainingPdf(training),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isAuto) _autoBadge(theme),
+                  if (isAuto) const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'PDF Export',
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    onPressed: () => _downloadTrainingPdf(training),
+                  ),
+                  if (widget.canDelete)
+                    IconButton(
+                      tooltip: 'Löschen',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _deleteTraining(training),
+                    ),
+                ],
               ),
             ),
           );
@@ -1199,6 +1517,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           children: [
             Text('Fragebogen-Templates', style: theme.textTheme.titleMedium),
             const Spacer(),
+            if (widget.canDelete)
+              TextButton.icon(
+                onPressed: () => _purgeTrainingScope('templates', 'Templates'),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Alles löschen'),
+              ),
             if (widget.canWrite)
               ElevatedButton.icon(
                 onPressed: _createTemplate,
@@ -1215,6 +1539,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             child: ListTile(
               title: Text(template.title),
               subtitle: Text('${template.questions.length} Fragen'),
+              trailing: widget.canDelete
+                  ? IconButton(
+                      tooltip: 'Löschen',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _deleteTemplate(template),
+                    )
+                  : null,
             ),
           );
         }),

@@ -2649,8 +2649,9 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Schulungsbedarf-Antwort');
   }
 
-  Future<void> adminDeleteTrainingNeed(String id) async {
-    final path = Uri(path: '/api/admin/training-needs', queryParameters: {'id': id}).toString();
+  Future<void> adminDeleteTrainingNeed(String id, {bool deleteInstances = false}) async {
+    final params = deleteInstances ? {'deleteInstances': 'true'} : null;
+    final path = Uri(path: '/api/training/needs/$id', queryParameters: params).toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2702,7 +2703,7 @@ class ApiClient {
   }
 
   Future<void> adminDeleteTrainingProgram(String id) async {
-    final path = Uri(path: '/api/admin/training-programs', queryParameters: {'id': id}).toString();
+    final path = Uri(path: '/api/training/program/$id').toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2771,8 +2772,9 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Schulungs-Antwort');
   }
 
-  Future<void> adminDeleteTraining(String id) async {
-    final path = Uri(path: '/api/admin/trainings', queryParameters: {'id': id}).toString();
+  Future<void> adminDeleteTraining(String id, {bool deleteInstances = false}) async {
+    final params = deleteInstances ? {'deleteInstances': 'true'} : null;
+    final path = Uri(path: '/api/training/sessions/$id', queryParameters: params).toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -2823,8 +2825,19 @@ class ApiClient {
   }
 
   Future<void> adminDeleteTrainingTemplate(String id) async {
-    final path = Uri(path: '/api/admin/training-questionnaire-templates', queryParameters: {'id': id}).toString();
+    final path = Uri(path: '/api/training/templates/$id').toString();
     final r = await http.delete(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<void> adminPurgeTraining(String scope) async {
+    final r = await http.post(
+      _u('/api/admin/training/purge'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'scope': scope, 'confirm': 'LOESCHEN'}),
+    );
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
