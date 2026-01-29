@@ -23,6 +23,16 @@ export const TRAINING_NEED_DEPARTMENTS = [
 ];
 
 export const TRAINING_FORMATS = ['praesenz', 'online'];
+export const TRAINING_TYPES = ['intern', 'extern'];
+export const TRAINING_CATEGORIES = [
+  'pflichtschulung',
+  'qm-iso-mdr',
+  'arbeitssicherheit',
+  'produktion-prozess',
+  'it-datenschutz',
+  'soft-skills',
+  'other',
+];
 export const PLANNED_PERIOD_TYPES = ['date', 'month', 'quarter', 'halfYear'];
 export const INTERVAL_TYPES = ['once', 'recurring'];
 export const INTERVAL_OPTIONS = [
@@ -61,6 +71,30 @@ export function normalizePeriodValue(type, value) {
   if (type === 'quarter' && /^\d{4}-Q[1-4]$/.test(val)) return val;
   if (type === 'halfYear' && /^\d{4}-H[1-2]$/.test(val)) return val;
   return null;
+}
+
+export function isValidDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(trim(value));
+}
+
+export function isValidTime(value) {
+  return /^\d{2}:\d{2}$/.test(trim(value));
+}
+
+export function parseTimeToMinutes(value) {
+  if (!isValidTime(value)) return null;
+  const [hours, minutes] = value.split(':').map((part) => Number(part));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+export function isValidUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
 }
 
 export function periodYear(value) {
@@ -177,4 +211,84 @@ export function validateTrainingProgram(body = {}) {
   }
 
   return { errors, normalizedPeriod };
+}
+
+export function validateTrainingSession(body = {}) {
+  const errors = {};
+  if (!trim(body.title)) errors.title = 'Titel ist erforderlich.';
+
+  const category = trim(body.category);
+  if (!TRAINING_CATEGORIES.includes(category)) {
+    errors.category = 'Bitte eine gültige Kategorie auswählen.';
+  }
+  if (category === 'other') {
+    const categoryFree = trim(body.categoryFreeText);
+    if (categoryFree.length < 2) {
+      errors.categoryFreeText = 'Bitte Kategorie (frei) angeben.';
+    }
+  }
+
+  const type = trim(body.type);
+  if (!TRAINING_TYPES.includes(type)) {
+    errors.type = 'Bitte Typ auswählen.';
+  }
+
+  const format = trim(body.format);
+  if (!TRAINING_FORMATS.includes(format)) {
+    errors.format = 'Bitte Format auswählen.';
+  }
+
+  if (!isValidDate(body.startDate)) {
+    errors.startDate = 'Bitte ein gültiges Datum (YYYY-MM-DD) auswählen.';
+  }
+
+  const startTime = trim(body.startTime);
+  const endTime = trim(body.endTime);
+  if ((startTime && !endTime) || (!startTime && endTime)) {
+    errors.time = 'Bitte Start- und Endzeit angeben.';
+  } else if (startTime && endTime) {
+    const startMinutes = parseTimeToMinutes(startTime);
+    const endMinutes = parseTimeToMinutes(endTime);
+    if (startMinutes == null || endMinutes == null) {
+      errors.time = 'Bitte gültige Uhrzeit (HH:mm) angeben.';
+    } else if (endMinutes <= startMinutes) {
+      errors.time = 'Ende muss nach Start liegen.';
+    }
+  }
+
+  if (format === 'praesenz') {
+    if (!trim(body.location)) {
+      errors.location = 'Bitte Ort angeben.';
+    }
+  } else if (format === 'online') {
+    const link = trim(body.meetingLink || body.location);
+    if (!link) {
+      errors.meetingLink = 'Bitte Meeting-Link angeben.';
+    } else if (!isValidUrl(link)) {
+      errors.meetingLink = 'Bitte gültigen Meeting-Link (URL) angeben.';
+    }
+  }
+
+  if (type === 'intern') {
+    if (!trim(body.trainerInternal || body.trainer)) {
+      errors.trainerInternal = 'Bitte Trainer (intern) angeben.';
+    }
+  } else if (type === 'extern') {
+    if (!trim(body.providerCompany || body.trainer)) {
+      errors.providerCompany = 'Bitte Anbieter/Firma angeben.';
+    }
+  }
+
+  const owner = trim(body.ownerUserId || body.owner);
+  if (!owner) {
+    errors.ownerUserId = 'Owner ist erforderlich.';
+  }
+
+  const participants = Array.isArray(body.participants) ? body.participants : [];
+  const actualParticipants = Number(body.actualParticipants || 0);
+  if (!participants.length && !(Number.isFinite(actualParticipants) && actualParticipants > 0)) {
+    errors.participants = 'Mindestens 1 Teilnehmer erforderlich.';
+  }
+
+  return { errors };
 }

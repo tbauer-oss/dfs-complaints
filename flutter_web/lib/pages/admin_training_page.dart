@@ -35,6 +35,35 @@ class AdminTrainingPage extends StatefulWidget {
 }
 
 class _AdminTrainingPageState extends State<AdminTrainingPage> {
+  static const List<Map<String, String>> _trainingCategoryOptions = [
+    {'value': 'pflichtschulung', 'label': 'Pflichtschulung'},
+    {'value': 'qm-iso-mdr', 'label': 'QM / ISO / MDR'},
+    {'value': 'arbeitssicherheit', 'label': 'Arbeitssicherheit'},
+    {'value': 'produktion-prozess', 'label': 'Produktion / Prozess'},
+    {'value': 'it-datenschutz', 'label': 'IT / Datenschutz'},
+    {'value': 'soft-skills', 'label': 'Soft Skills'},
+    {'value': 'other', 'label': 'Sonstiges...'},
+  ];
+  static const List<Map<String, String>> _trainingTypeOptions = [
+    {'value': 'intern', 'label': 'Intern'},
+    {'value': 'extern', 'label': 'Extern'},
+  ];
+  static const List<Map<String, String>> _trainingFormatOptions = [
+    {'value': 'praesenz', 'label': 'Präsenz'},
+    {'value': 'online', 'label': 'Online'},
+  ];
+  static const List<String> _trainingLocationOptions = [
+    'DFS Riedenburg – Schulungsraum',
+    'DFS Riedenburg – Produktion',
+    'Diaswiss Nyon – Besprechungsraum',
+    'Extern – beim Anbieter',
+  ];
+  static const List<Map<String, String>> _meetingPlatforms = [
+    {'value': 'teams', 'label': 'Microsoft Teams'},
+    {'value': 'zoom', 'label': 'Zoom'},
+    {'value': 'webex', 'label': 'Webex'},
+    {'value': 'other', 'label': 'Andere'},
+  ];
   final _searchController = TextEditingController();
   final _programSearchController = TextEditingController();
   List<TrainingNeed> _needs = const [];
@@ -187,6 +216,58 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       default:
         return status;
     }
+  }
+
+  String _trainingCategoryLabel(TrainingRecord record) {
+    if (record.category == 'other') {
+      final freeText = record.categoryFreeText ?? '';
+      return freeText.isNotEmpty ? freeText : 'Sonstiges';
+    }
+    final match = _trainingCategoryOptions.firstWhere(
+      (entry) => entry['value'] == record.category,
+      orElse: () => const {'label': ''},
+    );
+    return match['label']!.isNotEmpty ? match['label']! : record.category;
+  }
+
+  String _trainingTypeLabel(String type) {
+    if (type == 'intern') return 'Intern';
+    if (type == 'extern') return 'Extern';
+    return type;
+  }
+
+  String _trainingFormatLabel(String format) {
+    if (format == 'praesenz') return 'Präsenz';
+    if (format == 'online') return 'Online';
+    return format;
+  }
+
+  String _trainingTimeLabel(TrainingRecord record) {
+    final start = record.startTime ?? '';
+    final end = record.endTime ?? '';
+    if (start.isNotEmpty && end.isNotEmpty) {
+      return '$start – $end';
+    }
+    return '';
+  }
+
+  String _trainingLocationLabel(TrainingRecord record) {
+    if (record.format == 'online') {
+      return (record.meetingLink ?? record.location).trim();
+    }
+    return record.location;
+  }
+
+  String _trainingTrainerLabel(TrainingRecord record) {
+    if (record.type == 'extern') {
+      return (record.providerCompany ?? record.trainer).trim();
+    }
+    return (record.trainerInternal ?? record.trainer).trim();
+  }
+
+  String _trainingOwnerLabel(TrainingRecord record) {
+    final ownerId = record.ownerUserId ?? record.owner;
+    return _staffByEmail(ownerId)?.label ?? record.owner;
   }
 
   String _wkMethodLabel(String? method) {
@@ -1774,123 +1855,581 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   Future<TrainingRecord?> _openTrainingDialog({TrainingRecord? initial}) async {
     if (!widget.canWrite) return null;
     final controllerTitle = TextEditingController(text: initial?.title ?? '');
-    final controllerCategory = TextEditingController(text: initial?.category ?? '');
-    final controllerType = TextEditingController(text: initial?.type ?? '');
-    final controllerFormat = TextEditingController(text: initial?.format ?? '');
+    final controllerCategoryFree = TextEditingController(text: initial?.categoryFreeText ?? '');
     final controllerDate = TextEditingController(text: initial?.startDate ?? '');
-    final controllerTrainer = TextEditingController(text: initial?.trainer ?? '');
-    final controllerLocation = TextEditingController(text: initial?.location ?? '');
-    final controllerOwner = TextEditingController(text: initial?.owner ?? '');
+    final controllerStartTime = TextEditingController(text: initial?.startTime ?? '');
+    final controllerEndTime = TextEditingController(text: initial?.endTime ?? '');
+    final controllerTrainerInternal = TextEditingController(
+      text: initial?.trainerInternal ?? (initial?.type == 'intern' ? initial?.trainer ?? '' : ''),
+    );
+    final controllerProviderCompany = TextEditingController(
+      text: initial?.providerCompany ?? (initial?.type == 'extern' ? initial?.trainer ?? '' : ''),
+    );
+    final controllerLocationFree = TextEditingController();
+    final controllerMeetingLink = TextEditingController(
+      text: initial?.meetingLink ?? (initial?.format == 'online' ? initial?.location ?? '' : ''),
+    );
+    final controllerNotes = TextEditingController(text: initial?.notes ?? '');
+    final existingCategory = initial?.category ?? '';
+    String? selectedCategory = existingCategory.isEmpty
+        ? null
+        : _trainingCategoryOptions.any((entry) => entry['value'] == existingCategory)
+            ? existingCategory
+            : 'other';
+    if (selectedCategory == 'other' && controllerCategoryFree.text.trim().isEmpty && existingCategory.isNotEmpty) {
+      controllerCategoryFree.text = existingCategory;
+    }
+    String? selectedType = ['intern', 'extern'].contains(initial?.type)
+        ? initial?.type
+        : initial?.isExternal == true
+            ? 'extern'
+            : null;
+    String? selectedFormat =
+        _trainingFormatOptions.any((entry) => entry['value'] == initial?.format) ? initial?.format : null;
+    String? selectedLocation = null;
+    if (selectedFormat == 'praesenz') {
+      final location = initial?.location ?? '';
+      if (location.isNotEmpty && _trainingLocationOptions.contains(location)) {
+        selectedLocation = location;
+      } else if (location.isNotEmpty) {
+        selectedLocation = 'other';
+        controllerLocationFree.text = location;
+      }
+    }
+    String? selectedPlatform =
+        _meetingPlatforms.any((entry) => entry['value'] == initial?.platform) ? initial?.platform : null;
+    String selectedOwnerId = initial?.ownerUserId ?? initial?.owner ?? _currentUserEmail;
     List<TrainingParticipant> selectedParticipants =
         List<TrainingParticipant>.from(initial?.participants ?? const []);
+
+    Map<String, String> validateForm() {
+      final errors = <String, String>{};
+      final title = controllerTitle.text.trim();
+      if (title.isEmpty) errors['title'] = 'Titel ist erforderlich.';
+
+      if (selectedCategory == null || selectedCategory!.isEmpty) {
+        errors['category'] = 'Bitte Kategorie auswählen.';
+      } else if (selectedCategory == 'other' && controllerCategoryFree.text.trim().isEmpty) {
+        errors['categoryFreeText'] = 'Bitte Kategorie (frei) angeben.';
+      }
+
+      if (selectedType == null || selectedType!.isEmpty) {
+        errors['type'] = 'Bitte Typ auswählen.';
+      } else if (selectedType == 'intern' && controllerTrainerInternal.text.trim().isEmpty) {
+        errors['trainerInternal'] = 'Bitte Trainer (intern) angeben.';
+      } else if (selectedType == 'extern' && controllerProviderCompany.text.trim().isEmpty) {
+        errors['providerCompany'] = 'Bitte Anbieter/Firma angeben.';
+      }
+
+      if (selectedFormat == null || selectedFormat!.isEmpty) {
+        errors['format'] = 'Bitte Format auswählen.';
+      }
+
+      final dateValue = controllerDate.text.trim();
+      if (!RegExp(r'^\\d{4}-\\d{2}-\\d{2}\$').hasMatch(dateValue)) {
+        errors['startDate'] = 'Bitte gültiges Datum auswählen.';
+      }
+
+      final startTime = controllerStartTime.text.trim();
+      final endTime = controllerEndTime.text.trim();
+      if (startTime.isNotEmpty || endTime.isNotEmpty) {
+        if (startTime.isEmpty || endTime.isEmpty) {
+          errors['time'] = 'Bitte Start- und Endzeit angeben.';
+        } else if (!RegExp(r'^\\d{2}:\\d{2}\$').hasMatch(startTime) ||
+            !RegExp(r'^\\d{2}:\\d{2}\$').hasMatch(endTime)) {
+          errors['time'] = 'Bitte gültige Uhrzeit angeben.';
+        } else {
+          final startParts = startTime.split(':').map(int.parse).toList();
+          final endParts = endTime.split(':').map(int.parse).toList();
+          final startMinutes = startParts[0] * 60 + startParts[1];
+          final endMinutes = endParts[0] * 60 + endParts[1];
+          if (endMinutes <= startMinutes) {
+            errors['time'] = 'Ende muss nach Start liegen.';
+          }
+        }
+      }
+
+      if (selectedFormat == 'praesenz') {
+        if (selectedLocation == null || selectedLocation!.isEmpty) {
+          errors['location'] = 'Bitte Ort auswählen.';
+        } else if (selectedLocation == 'other' && controllerLocationFree.text.trim().isEmpty) {
+          errors['location'] = 'Bitte Ort angeben.';
+        }
+      } else if (selectedFormat == 'online') {
+        final link = controllerMeetingLink.text.trim();
+        if (link.isEmpty) {
+          errors['meetingLink'] = 'Bitte Meeting-Link angeben.';
+        } else {
+          final uri = Uri.tryParse(link);
+          if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+            errors['meetingLink'] = 'Bitte gültige URL angeben.';
+          }
+        }
+      }
+
+      if (selectedOwnerId.trim().isEmpty) {
+        errors['owner'] = 'Owner ist erforderlich.';
+      }
+
+      if (selectedParticipants.isEmpty) {
+        errors['participants'] = 'Mindestens 1 Teilnehmer erforderlich.';
+      }
+
+      return errors;
+    }
+
+    var errors = validateForm();
+    var isFormValid = errors.isEmpty;
     final result = await showDialog<TrainingRecord>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            void refreshValidation() {
+              errors = validateForm();
+              isFormValid = errors.isEmpty;
+              setModalState(() {});
+            }
+
+            Future<void> pickDate() async {
+              final initialDate = DateTime.tryParse(controllerDate.text.trim()) ?? DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: initialDate,
+                firstDate: DateTime(DateTime.now().year - 5),
+                lastDate: DateTime(DateTime.now().year + 5),
+              );
+              if (picked != null) {
+                controllerDate.text = picked.toIso8601String().split('T').first;
+                refreshValidation();
+              }
+            }
+
+            Future<void> pickTime(TextEditingController controller) async {
+              TimeOfDay initialTime = TimeOfDay.now();
+              final text = controller.text.trim();
+              if (RegExp(r'^\\d{2}:\\d{2}\$').hasMatch(text)) {
+                final parts = text.split(':').map(int.parse).toList();
+                initialTime = TimeOfDay(hour: parts[0], minute: parts[1]);
+              }
+              final picked = await showTimePicker(context: context, initialTime: initialTime);
+              if (picked != null) {
+                final formatted =
+                    picked.hour.toString().padLeft(2, '0') + ':' + picked.minute.toString().padLeft(2, '0');
+                controller.text = formatted;
+                refreshValidation();
+              }
+            }
+
+            final theme = Theme.of(context);
+            final ownerLabel = _staffByEmail(selectedOwnerId)?.label ?? selectedOwnerId;
             return AlertDialog(
               title: Text(initial == null ? 'Neue Schulung' : 'Schulung bearbeiten'),
               content: SizedBox(
-                width: 520,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(controller: controllerTitle, decoration: const InputDecoration(labelText: 'Titel')),
-                      TextField(controller: controllerCategory, decoration: const InputDecoration(labelText: 'Kategorie')),
-                      TextField(controller: controllerType, decoration: const InputDecoration(labelText: 'Typ (intern/extern)')),
-                      TextField(controller: controllerFormat, decoration: const InputDecoration(labelText: 'Format')),
-                      TextField(controller: controllerDate, decoration: const InputDecoration(labelText: 'Datum')),
-                      TextField(controller: controllerTrainer, decoration: const InputDecoration(labelText: 'Trainer/Anbieter')),
-                      TextField(controller: controllerLocation, decoration: const InputDecoration(labelText: 'Ort/Link')),
-                      TextField(controller: controllerOwner, decoration: const InputDecoration(labelText: 'Owner')),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('Teilnehmer', style: Theme.of(context).textTheme.titleSmall),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: selectedParticipants.isEmpty
-                            ? [const Text('Noch keine Teilnehmer ausgewählt.')]
-                            : selectedParticipants.map((participant) {
-                                return InputChip(
-                                  label: Text(participant.name),
-                                  onDeleted: () {
-                                    setModalState(() {
-                                      selectedParticipants = selectedParticipants
-                                          .where((entry) => entry.id != participant.id && entry.userId != participant.userId)
-                                          .toList();
-                                    });
+                width: 620,
+                height: 600,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Grunddaten', style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: controllerTitle,
+                              autofocus: true,
+                              decoration: InputDecoration(
+                                labelText: 'Titel',
+                                hintText: 'z.B. MDR / Reklamationsprozess',
+                                errorText: errors['title'],
+                              ),
+                              onChanged: (_) => refreshValidation(),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: selectedCategory,
+                              decoration: InputDecoration(
+                                labelText: 'Kategorie',
+                                errorText: errors['category'],
+                              ),
+                              items: _trainingCategoryOptions
+                                  .map(
+                                    (entry) => DropdownMenuItem(
+                                      value: entry['value'],
+                                      child: Text(entry['label'] ?? ''),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                selectedCategory = value;
+                                refreshValidation();
+                              },
+                            ),
+                            if (selectedCategory == 'other') ...[
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: controllerCategoryFree,
+                                decoration: InputDecoration(
+                                  labelText: 'Kategorie (frei)',
+                                  errorText: errors['categoryFreeText'],
+                                ),
+                                onChanged: (_) => refreshValidation(),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            Text('Typ', style: theme.textTheme.labelMedium),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              children: _trainingTypeOptions.map((entry) {
+                                final value = entry['value'];
+                                return ChoiceChip(
+                                  label: Text(entry['label'] ?? ''),
+                                  selected: selectedType == value,
+                                  onSelected: (_) {
+                                    selectedType = value;
+                                    if (value == 'intern') {
+                                      controllerProviderCompany.clear();
+                                    }
+                                    if (value == 'extern') {
+                                      controllerTrainerInternal.clear();
+                                    }
+                                    refreshValidation();
                                   },
                                 );
                               }).toList(),
-                      ),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () async {
-                            final updated = await _openParticipantsDialog(initial: selectedParticipants);
-                            if (updated == null) return;
-                            setModalState(() => selectedParticipants = updated);
-                          },
-                          icon: const Icon(Icons.group_add_outlined),
-                          label: const Text('Teilnehmer hinzufügen'),
+                            ),
+                            if (errors['type'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(errors['type']!, style: TextStyle(color: theme.colorScheme.error)),
+                              ),
+                            const SizedBox(height: 12),
+                            Text('Format', style: theme.textTheme.labelMedium),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              children: _trainingFormatOptions.map((entry) {
+                                final value = entry['value'];
+                                return ChoiceChip(
+                                  label: Text(entry['label'] ?? ''),
+                                  selected: selectedFormat == value,
+                                  onSelected: (_) {
+                                    selectedFormat = value;
+                                    if (value == 'online') {
+                                      selectedLocation = null;
+                                      controllerLocationFree.clear();
+                                    }
+                                    if (value == 'praesenz') {
+                                      controllerMeetingLink.clear();
+                                      selectedPlatform = null;
+                                    }
+                                    refreshValidation();
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                            if (errors['format'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(errors['format']!, style: TextStyle(color: theme.colorScheme.error)),
+                              ),
+                            const SizedBox(height: 20),
+                            Text('Termin & Durchführung', style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: controllerDate,
+                              readOnly: true,
+                              decoration: InputDecoration(
+                                labelText: 'Datum',
+                                suffixIcon: const Icon(Icons.calendar_today_outlined),
+                                errorText: errors['startDate'],
+                              ),
+                              onTap: pickDate,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: controllerStartTime,
+                                    readOnly: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Start (optional)',
+                                      suffixIcon: Icon(Icons.schedule),
+                                    ),
+                                    onTap: () => pickTime(controllerStartTime),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: controllerEndTime,
+                                    readOnly: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Ende (optional)',
+                                      suffixIcon: Icon(Icons.schedule),
+                                    ),
+                                    onTap: () => pickTime(controllerEndTime),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (errors['time'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(errors['time']!, style: TextStyle(color: theme.colorScheme.error)),
+                              ),
+                            const SizedBox(height: 12),
+                            if (selectedFormat == 'praesenz') ...[
+                              DropdownButtonFormField<String>(
+                                value: selectedLocation,
+                                decoration: InputDecoration(
+                                  labelText: 'Ort',
+                                  errorText: errors['location'],
+                                ),
+                                items: [
+                                  ..._trainingLocationOptions.map(
+                                    (entry) => DropdownMenuItem(
+                                      value: entry,
+                                      child: Text(entry),
+                                    ),
+                                  ),
+                                  const DropdownMenuItem(
+                                    value: 'other',
+                                    child: Text('Sonstiges...'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  selectedLocation = value;
+                                  refreshValidation();
+                                },
+                              ),
+                              if (selectedLocation == 'other') ...[
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: controllerLocationFree,
+                                  decoration: InputDecoration(
+                                    labelText: 'Ort (frei)',
+                                    errorText: errors['location'],
+                                  ),
+                                  onChanged: (_) => refreshValidation(),
+                                ),
+                              ],
+                            ],
+                            if (selectedFormat == 'online') ...[
+                              TextField(
+                                controller: controllerMeetingLink,
+                                decoration: InputDecoration(
+                                  labelText: 'Meeting-Link',
+                                  hintText: 'https://…',
+                                  errorText: errors['meetingLink'],
+                                ),
+                                onChanged: (_) => refreshValidation(),
+                              ),
+                              const SizedBox(height: 8),
+                              DropdownButtonFormField<String>(
+                                value: selectedPlatform,
+                                decoration: const InputDecoration(labelText: 'Plattform (optional)'),
+                                items: _meetingPlatforms
+                                    .map(
+                                      (entry) => DropdownMenuItem(
+                                        value: entry['value'],
+                                        child: Text(entry['label'] ?? ''),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  selectedPlatform = value;
+                                  refreshValidation();
+                                },
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            if (selectedType == 'intern') ...[
+                              TextField(
+                                controller: controllerTrainerInternal,
+                                decoration: InputDecoration(
+                                  labelText: 'Trainer (intern)',
+                                  hintText: 'Name',
+                                  errorText: errors['trainerInternal'],
+                                ),
+                                onChanged: (_) => refreshValidation(),
+                              ),
+                            ],
+                            if (selectedType == 'extern') ...[
+                              TextField(
+                                controller: controllerProviderCompany,
+                                decoration: InputDecoration(
+                                  labelText: 'Anbieter/Firma',
+                                  hintText: 'Name',
+                                  errorText: errors['providerCompany'],
+                                ),
+                                onChanged: (_) => refreshValidation(),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            Text('Organisation', style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            if (_isAdminUser)
+                              DropdownButtonFormField<String>(
+                                value: selectedOwnerId.isEmpty ? null : selectedOwnerId,
+                                decoration: InputDecoration(
+                                  labelText: 'Owner',
+                                  errorText: errors['owner'],
+                                ),
+                                items: _staffUsers
+                                    .map(
+                                      (user) => DropdownMenuItem(
+                                        value: user.email,
+                                        child: Text(user.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  selectedOwnerId = value ?? '';
+                                  refreshValidation();
+                                },
+                              )
+                            else
+                              InputDecorator(
+                                decoration: const InputDecoration(labelText: 'Owner'),
+                                child: Text(ownerLabel.isEmpty ? '—' : ownerLabel),
+                              ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text('Teilnehmer', style: theme.textTheme.titleSmall),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: selectedParticipants.isEmpty
+                                  ? [const Text('Noch keine Teilnehmer ausgewählt.')]
+                                  : selectedParticipants.map((participant) {
+                                      return InputChip(
+                                        label: Text(participant.name),
+                                        onDeleted: () {
+                                          selectedParticipants = selectedParticipants
+                                              .where((entry) =>
+                                                  entry.id != participant.id && entry.userId != participant.userId)
+                                              .toList();
+                                          refreshValidation();
+                                        },
+                                      );
+                                    }).toList(),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Mindestens 1 Teilnehmer erforderlich.',
+                              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                            ),
+                            if (errors['participants'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(errors['participants']!, style: TextStyle(color: theme.colorScheme.error)),
+                              ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () async {
+                                  final updated = await _openParticipantsDialog(initial: selectedParticipants);
+                                  if (updated == null) return;
+                                  setModalState(() => selectedParticipants = updated);
+                                  refreshValidation();
+                                },
+                                icon: const Icon(Icons.group_add_outlined),
+                                label: const Text('Teilnehmer auswählen'),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text('Zusatz', style: theme.textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: controllerNotes,
+                              maxLines: 4,
+                              decoration: const InputDecoration(labelText: 'Notizen / Agenda (optional)'),
+                            ),
+                            if (initial != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: Text(
+                                  'Status: ${_trainingStatusLabel(initial.status)}',
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      if (initial != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Status: ${_trainingStatusLabel(initial.status)}',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               actions: [
                 TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
                 ElevatedButton(
-                  onPressed: () {
-                    final record = TrainingRecord(
-                      id: initial?.id ?? '',
-                      trainingNumber: initial?.trainingNumber ?? '',
-                      year: initial?.year ?? DateTime.now().year,
-                      title: controllerTitle.text.trim(),
-                      category: controllerCategory.text.trim(),
-                      type: controllerType.text.trim(),
-                      format: controllerFormat.text.trim(),
-                      startDate: controllerDate.text.trim(),
-                      endDate: '',
-                      trainer: controllerTrainer.text.trim(),
-                      location: controllerLocation.text.trim(),
-                      status: initial?.status ?? 'planned',
-                      owner: controllerOwner.text.trim(),
-                      targetGroup: '',
-                      reason: '',
-                      departments: const [],
-                      isMandatory: false,
-                      isExternal: controllerType.text.trim().toLowerCase() == 'extern',
-                      participants: selectedParticipants,
-                      defaultQuestionnaireTemplateId: _templates.isNotEmpty ? _templates.first.id : '',
-                      linkedProgramId: initial?.linkedProgramId,
-                      updatedAt: initial?.updatedAt,
-                      completedAt: initial?.completedAt,
-                      wkMethod: initial?.wkMethod,
-                      wkDelayDays: initial?.wkDelayDays,
-                      wkDueAt: initial?.wkDueAt,
-                      wkStatus: initial?.wkStatus,
-                      wkCompletedAt: initial?.wkCompletedAt,
-                      wkResponsibleId: initial?.wkResponsibleId,
-                      wkQuestionnaireTemplateId: initial?.wkQuestionnaireTemplateId,
-                      wkTargetParticipantIds: initial?.wkTargetParticipantIds,
-                    );
-                    Navigator.of(context).pop(record);
-                  },
+                  onPressed: isFormValid
+                      ? () {
+                          final categoryValue = selectedCategory ?? '';
+                          final trainerInternal = controllerTrainerInternal.text.trim();
+                          final providerCompany = controllerProviderCompany.text.trim();
+                          final meetingLink = controllerMeetingLink.text.trim();
+                          final locationValue = selectedFormat == 'praesenz'
+                              ? (selectedLocation == 'other'
+                                  ? controllerLocationFree.text.trim()
+                                  : (selectedLocation ?? '').trim())
+                              : '';
+                          final ownerLabelValue = _staffByEmail(selectedOwnerId)?.label ?? selectedOwnerId;
+                          final startTimeValue = controllerStartTime.text.trim();
+                          final endTimeValue = controllerEndTime.text.trim();
+                          final record = TrainingRecord(
+                            id: initial?.id ?? '',
+                            trainingNumber: initial?.trainingNumber ?? '',
+                            year: initial?.year ?? DateTime.now().year,
+                            title: controllerTitle.text.trim(),
+                            category: categoryValue,
+                            categoryFreeText: categoryValue == 'other' ? controllerCategoryFree.text.trim() : null,
+                            type: selectedType ?? '',
+                            format: selectedFormat ?? '',
+                            startDate: controllerDate.text.trim(),
+                            startTime: startTimeValue.isEmpty ? null : startTimeValue,
+                            endTime: endTimeValue.isEmpty ? null : endTimeValue,
+                            endDate: '',
+                            trainer: selectedType == 'extern' ? providerCompany : trainerInternal,
+                            trainerInternal: trainerInternal.isEmpty ? null : trainerInternal,
+                            providerCompany: providerCompany.isEmpty ? null : providerCompany,
+                            location: locationValue,
+                            meetingLink: selectedFormat == 'online' ? meetingLink : null,
+                            platform: selectedFormat == 'online' ? selectedPlatform : null,
+                            status: initial?.status ?? 'planned',
+                            owner: ownerLabelValue,
+                            ownerUserId: selectedOwnerId,
+                            targetGroup: '',
+                            reason: '',
+                            departments: const [],
+                            isMandatory: false,
+                            isExternal: selectedType == 'extern',
+                            participants: selectedParticipants,
+                            defaultQuestionnaireTemplateId: _templates.isNotEmpty ? _templates.first.id : '',
+                            linkedProgramId: initial?.linkedProgramId,
+                            updatedAt: initial?.updatedAt,
+                            completedAt: initial?.completedAt,
+                            wkMethod: initial?.wkMethod,
+                            wkDelayDays: initial?.wkDelayDays,
+                            wkDueAt: initial?.wkDueAt,
+                            wkStatus: initial?.wkStatus,
+                            wkCompletedAt: initial?.wkCompletedAt,
+                            wkResponsibleId: initial?.wkResponsibleId,
+                            wkQuestionnaireTemplateId: initial?.wkQuestionnaireTemplateId,
+                            wkTargetParticipantIds: initial?.wkTargetParticipantIds,
+                            notes: controllerNotes.text.trim().isEmpty ? null : controllerNotes.text.trim(),
+                          );
+                          Navigator.of(context).pop(record);
+                        }
+                      : null,
                   child: Text(initial == null ? 'Speichern' : 'Aktualisieren'),
                 ),
               ],
@@ -1899,6 +2438,16 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         );
       },
     );
+    controllerTitle.dispose();
+    controllerCategoryFree.dispose();
+    controllerDate.dispose();
+    controllerStartTime.dispose();
+    controllerEndTime.dispose();
+    controllerTrainerInternal.dispose();
+    controllerProviderCompany.dispose();
+    controllerLocationFree.dispose();
+    controllerMeetingLink.dispose();
+    controllerNotes.dispose();
     return result;
   }
 
@@ -1959,6 +2508,19 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       Text('Status: ${_trainingStatusLabel(current.status)}'),
                       if (current.completedAt != null)
                         Text('Durchgeführt am: ${DateTime.fromMillisecondsSinceEpoch(current.completedAt!).toLocal()}'),
+                      const SizedBox(height: 12),
+                      Text('Stammdaten', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 6),
+                      Text('Kategorie: ${_trainingCategoryLabel(current)}'),
+                      Text('Typ/Format: ${_trainingTypeLabel(current.type)} / ${_trainingFormatLabel(current.format)}'),
+                      Text('Datum: ${current.startDate}${_trainingTimeLabel(current).isNotEmpty ? ' · ${_trainingTimeLabel(current)}' : ''}'),
+                      if (_trainingTrainerLabel(current).isNotEmpty)
+                        Text('Trainer/Anbieter: ${_trainingTrainerLabel(current)}'),
+                      if (_trainingLocationLabel(current).isNotEmpty)
+                        Text('Ort/Link: ${_trainingLocationLabel(current)}'),
+                      if ((current.platform ?? '').isNotEmpty) Text('Plattform: ${current.platform}'),
+                      if (_trainingOwnerLabel(current).isNotEmpty) Text('Owner: ${_trainingOwnerLabel(current)}'),
+                      if ((current.notes ?? '').isNotEmpty) Text('Notizen: ${current.notes}'),
                       const SizedBox(height: 12),
                       Text('Unterschriften', style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: 8),
@@ -2418,9 +2980,11 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return _trainings;
     return _trainings.where((training) {
+      final categoryLabel = _trainingCategoryLabel(training).toLowerCase();
       return training.title.toLowerCase().contains(query) ||
           training.trainingNumber.toLowerCase().contains(query) ||
-          training.category.toLowerCase().contains(query);
+          training.category.toLowerCase().contains(query) ||
+          categoryLabel.contains(query);
     }).toList();
   }
 
@@ -2734,15 +3298,20 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   trainingNumber: '',
                   year: program.year,
                   title: program.title,
-                  category: program.department,
-                  type: '',
+                  category: 'other',
+                  categoryFreeText: program.department,
+                  type: program.trainerProvider.trim().isNotEmpty ? 'extern' : 'intern',
                   format: program.format,
                   startDate: controllerDate.text.trim(),
                   endDate: '',
-                  trainer: program.trainerProvider,
-                  location: program.location,
+                  trainer: program.trainerProvider.trim().isNotEmpty ? program.trainerProvider : program.responsiblePerson,
+                  trainerInternal: program.trainerProvider.trim().isEmpty ? program.responsiblePerson : null,
+                  providerCompany: program.trainerProvider.trim().isNotEmpty ? program.trainerProvider : null,
+                  location: program.format == 'praesenz' ? program.location : '',
+                  meetingLink: program.format == 'online' ? program.location : null,
                   status: 'completed',
-                  owner: program.responsiblePerson,
+                  owner: program.responsiblePerson.isNotEmpty ? program.responsiblePerson : _currentUserEmail,
+                  ownerUserId: _currentUserEmail,
                   targetGroup: program.targetGroup,
                   reason: '',
                   departments: [program.department],
@@ -3132,10 +3701,16 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           const Text('Noch keine Schulungen erstellt.'),
         ..._trainings.map((training) {
           final isAuto = training.isAutoGenerated;
+          final timeLabel = _trainingTimeLabel(training);
+          final dateLabel = training.startDate.isNotEmpty
+              ? '${training.startDate}${timeLabel.isNotEmpty ? ' · $timeLabel' : ''}'
+              : 'Ohne Datum';
           return Card(
             child: ListTile(
               title: Text('${training.trainingNumber.isEmpty ? 'Neu' : training.trainingNumber} · ${training.title}'),
-              subtitle: Text('${training.category} · ${training.startDate} · ${_trainingStatusLabel(training.status)}'),
+              subtitle: Text(
+                '${_trainingCategoryLabel(training)} · $dateLabel · ${_trainingStatusLabel(training.status)}',
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -3307,7 +3882,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           return Card(
             child: ListTile(
               title: Text('${training.trainingNumber} · ${training.title}'),
-              subtitle: Text('${training.category} · ${_trainingStatusLabel(training.status)}'),
+              subtitle: Text('${_trainingCategoryLabel(training)} · ${_trainingStatusLabel(training.status)}'),
               trailing: Wrap(
                 spacing: 6,
                 children: [

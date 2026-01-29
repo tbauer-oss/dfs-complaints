@@ -17,6 +17,56 @@ function safeText(value, fallback = '—') {
   return text.length ? text : fallback;
 }
 
+const CATEGORY_LABELS = {
+  pflichtschulung: 'Pflichtschulung',
+  'qm-iso-mdr': 'QM / ISO / MDR',
+  arbeitssicherheit: 'Arbeitssicherheit',
+  'produktion-prozess': 'Produktion / Prozess',
+  'it-datenschutz': 'IT / Datenschutz',
+  'soft-skills': 'Soft Skills',
+  other: 'Sonstiges',
+};
+
+function categoryLabel(training) {
+  if (training.category === 'other') {
+    return safeText(training.categoryFreeText || training.category);
+  }
+  return CATEGORY_LABELS[training.category] || safeText(training.category);
+}
+
+function typeLabel(value) {
+  if (value === 'intern') return 'Intern';
+  if (value === 'extern') return 'Extern';
+  return safeText(value);
+}
+
+function formatLabel(value) {
+  if (value === 'praesenz') return 'Präsenz';
+  if (value === 'online') return 'Online';
+  return safeText(value);
+}
+
+function timeRangeLabel(training) {
+  const start = safeText(training.startTime, '');
+  const end = safeText(training.endTime, '');
+  if (start && end) return `${start} – ${end}`;
+  return '—';
+}
+
+function locationLabel(training) {
+  if (training.format === 'online') {
+    return safeText(training.meetingLink || training.location);
+  }
+  return safeText(training.location);
+}
+
+function trainerLabel(training) {
+  if (training.type === 'extern') {
+    return safeText(training.providerCompany || training.trainer);
+  }
+  return safeText(training.trainerInternal || training.trainer);
+}
+
 function plannedPeriodLabel(item) {
   const value = item.plannedPeriodValue || '';
   if (!value) return '—';
@@ -130,14 +180,17 @@ export function createTrainingPdf(training, { questionnaires = [], templates = [
 
   drawSectionTitle(doc, 'Stammdaten');
   doc.text(`Titel: ${safeText(training.title)}`);
-  doc.text(`Kategorie: ${safeText(training.category)}`);
-  doc.text(`Typ/Format: ${safeText(training.type)} / ${safeText(training.format)}`);
-  doc.text(`Zeitraum: ${safeText(training.startDate)}${training.endDate ? ` – ${training.endDate}` : ''}`);
-  doc.text(`Trainer/Anbieter: ${safeText(training.trainer)}`);
-  doc.text(`Ort/Link: ${safeText(training.location)}`);
+  doc.text(`Kategorie: ${categoryLabel(training)}`);
+  doc.text(`Typ/Format: ${typeLabel(training.type)} / ${formatLabel(training.format)}`);
+  doc.text(`Termin: ${safeText(training.startDate)} · ${timeRangeLabel(training)}`);
+  doc.text(`Trainer/Anbieter: ${trainerLabel(training)}`);
+  doc.text(`Ort/Link: ${locationLabel(training)}`);
+  if (training.platform) doc.text(`Plattform: ${safeText(training.platform)}`);
+  doc.text(`Owner: ${safeText(training.owner)}`);
   doc.text(`Zielgruppe: ${safeText(training.targetGroup)}`);
   doc.text(`Abteilungen: ${Array.isArray(training.departments) && training.departments.length ? training.departments.join(', ') : '—'}`);
   doc.text(`Bezug/Grund: ${safeText(training.reason)}`);
+  if (training.notes) doc.text(`Notizen: ${safeText(training.notes)}`);
 
   drawSectionTitle(doc, 'Teilnehmer');
   if (!training.participants?.length) {

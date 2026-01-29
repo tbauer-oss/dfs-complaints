@@ -452,6 +452,15 @@ class TrainingRecord {
     this.executionNotes,
     this.effectivenessResult,
     this.updatedAt,
+    this.categoryFreeText,
+    this.startTime,
+    this.endTime,
+    this.meetingLink,
+    this.platform,
+    this.trainerInternal,
+    this.providerCompany,
+    this.ownerUserId,
+    this.notes,
   });
 
   final String id;
@@ -497,6 +506,15 @@ class TrainingRecord {
   final String? executionNotes;
   final String? effectivenessResult;
   final int? updatedAt;
+  final String? categoryFreeText;
+  final String? startTime;
+  final String? endTime;
+  final String? meetingLink;
+  final String? platform;
+  final String? trainerInternal;
+  final String? providerCompany;
+  final String? ownerUserId;
+  final String? notes;
 
   factory TrainingRecord.fromJson(Map<String, dynamic> json) {
     return TrainingRecord(
@@ -552,6 +570,15 @@ class TrainingRecord {
       executionNotes: json['executionNotes']?.toString(),
       effectivenessResult: json['effectivenessResult']?.toString(),
       updatedAt: json['updatedAt'] == null ? null : _parseInt(json['updatedAt']),
+      categoryFreeText: json['categoryFreeText']?.toString(),
+      startTime: json['startTime']?.toString(),
+      endTime: json['endTime']?.toString(),
+      meetingLink: json['meetingLink']?.toString(),
+      platform: json['platform']?.toString(),
+      trainerInternal: json['trainerInternal']?.toString(),
+      providerCompany: json['providerCompany']?.toString(),
+      ownerUserId: json['ownerUserId']?.toString(),
+      notes: json['notes']?.toString(),
     );
   }
 
@@ -599,6 +626,15 @@ class TrainingRecord {
         'executionNotes': executionNotes,
         'effectivenessResult': effectivenessResult,
         'updatedAt': updatedAt,
+        'categoryFreeText': categoryFreeText,
+        'startTime': startTime,
+        'endTime': endTime,
+        'meetingLink': meetingLink,
+        'platform': platform,
+        'trainerInternal': trainerInternal,
+        'providerCompany': providerCompany,
+        'ownerUserId': ownerUserId,
+        'notes': notes,
       };
 }
 
