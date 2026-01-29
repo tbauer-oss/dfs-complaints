@@ -469,19 +469,19 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        TextField(
-                          controller: controllerYear,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          onChanged: (_) => setState(() {
-                            syncPlannedPeriodYear();
-                          }),
-                          decoration: InputDecoration(
-                            labelText: 'Schulungsjahr',
-                            labelStyle: const TextStyle(overflow: TextOverflow.visible),
-                            errorText: errorYear,
-                          ),
+                      TextField(
+                        controller: controllerYear,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        onChanged: (_) => setState(() {
+                          syncPlannedPeriodYear();
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'Schulungsjahr',
+                          labelStyle: const TextStyle(overflow: TextOverflow.visible),
+                          errorText: errorYear,
                         ),
+                      ),
                       TextField(
                         controller: controllerContact,
                         decoration: InputDecoration(
@@ -1002,6 +1002,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   ),
                 ),
               ),
+            ),
             );
           },
         );
