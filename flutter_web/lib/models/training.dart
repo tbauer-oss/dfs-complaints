@@ -404,6 +404,8 @@ class TrainingParticipant {
         'overriddenAt': overriddenAt,
       };
 
+  String get department => departmentTeam ?? '';
+
   bool get isSigned => signedAt != null || overrideNoSignature;
 }
 
