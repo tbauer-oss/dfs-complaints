@@ -8,14 +8,6 @@ const ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
 const ALLOWED_HEADERS = 'Authorization, Content-Type, X-Requested-With';
 const MAX_AGE = '86400';
 
-function readOriginHeader(req) {
-  if (!req) return '';
-  if (typeof req.headers?.get === 'function') {
-    return req.headers.get('origin') || '';
-  }
-  return req?.headers?.origin || req?.headers?.Origin || '';
-}
-
 function normalizeOrigin(origin) {
   if (!origin) return '';
   try {
@@ -39,26 +31,14 @@ function isAllowedOrigin(origin) {
 }
 
 function resolveAllowedOrigin(req) {
-  const origin = readOriginHeader(req) || '';
+  const origin = req?.headers?.origin || '';
   return isAllowedOrigin(origin) ? origin : '';
 }
 
-function mergeAllowedHeaders(extraHeaders = '') {
-  if (!extraHeaders) return ALLOWED_HEADERS;
-  const combined = new Set(
-    `${ALLOWED_HEADERS},${extraHeaders}`
-      .split(',')
-      .map((header) => header.trim())
-      .filter(Boolean),
-  );
-  return Array.from(combined).join(', ');
-}
-
-function applyCors(res, allowOrigin, allowHeaders = '') {
-  const mergedHeaders = mergeAllowedHeaders(allowHeaders);
+function applyCors(res, allowOrigin) {
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
-  res.setHeader('Access-Control-Allow-Headers', mergedHeaders);
+  res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS);
   res.setHeader('Access-Control-Max-Age', MAX_AGE);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   if (allowOrigin) {
@@ -66,7 +46,6 @@ function applyCors(res, allowOrigin, allowHeaders = '') {
   }
   res.__corsApplied = true;
   res.__corsOrigin = allowOrigin;
-  res.__corsAllowHeaders = mergedHeaders;
 }
 
 // Shared CORS helper used by all routes
@@ -109,19 +88,7 @@ export function withCorsHandler(handler, options = {}) {
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
 export function setCors(req, res, allowHeaders = '') {
-  const allowOrigin = resolveAllowedOrigin(req);
-  applyCors(res, allowOrigin, allowHeaders);
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return true;
-  }
-  res.__corsApplied = true;
-  res.__corsOrigin = allowOrigin;
-  const handled = req.method === 'OPTIONS';
+  const handled = withCors(req, res);
   if (handled) return;
 }
 
@@ -133,8 +100,7 @@ export function handlePreflight(req, res) {
 function ensureCorsHeaders(res) {
   if (res.getHeader('Access-Control-Allow-Origin')) return;
   const allowOrigin = res.__corsOrigin || '';
-  const allowHeaders = res.__corsAllowHeaders || '';
-  applyCors(res, allowOrigin, allowHeaders);
+  applyCors(res, allowOrigin);
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
