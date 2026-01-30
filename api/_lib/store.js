@@ -79,6 +79,7 @@ const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
 const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
+const KEY_PORTAL_USER_UI = (email) => `${P}portal:user-ui:${email}`;
 const KEY_PORTAL_NEWS = `${P}portal:news`;
 const KEY_DOWNLOAD_CATEGORIES = `${P}downloads:categories`;
 const KEY_CAPA_COUNTER = (year) => `${P}capa:counter:${year}`;
@@ -116,6 +117,7 @@ const mem = {
   gateCodes: new Map(),
   customerNews: [],
   portalNews: [],
+  portalUserUi: new Map(),
   faqCategories: [],
   faqItems: [],
   downloads: [],
@@ -1973,6 +1975,27 @@ function sanitizePortalAdminUi(raw) {
   return result;
 }
 
+function sanitizePortalUserUi(raw) {
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw.trim());
+    } catch (_) {
+      raw = {};
+    }
+  }
+
+  const normalized = typeof raw === 'object' && raw ? raw : {};
+  const result = {};
+
+  const layout = sanitizeMenuLayout(normalized.menuLayout ?? normalized.sections);
+  if (layout) result.menuLayout = layout;
+
+  const navOrder = sanitizeNavOrder(normalized.navOrder);
+  if (navOrder.length > 0) result.navOrder = navOrder;
+
+  return result;
+}
+
 export async function loadPortalAdminUi() {
   const r = getRedis();
   let stored = null;
@@ -2012,6 +2035,46 @@ export async function savePortalAdminUi(config) {
   if (!persisted) throw new Error('failed to persist portal admin UI config');
   mem.adminUiConfig = next;
   return next;
+}
+
+export async function loadPortalUserUiConfig(email) {
+  const normalizedEmail = String(email || '').toLowerCase();
+  if (!normalizedEmail) return {};
+  const key = KEY_PORTAL_USER_UI(normalizedEmail);
+  const r = getRedis();
+  const stored = r ? await rget(key) : mem.portalUserUi.get(normalizedEmail) ?? null;
+  return sanitizePortalUserUi(stored || {});
+}
+
+export async function savePortalUserUiConfig(email, config) {
+  const normalizedEmail = String(email || '').toLowerCase();
+  if (!normalizedEmail) return {};
+  const key = KEY_PORTAL_USER_UI(normalizedEmail);
+  const current = await loadPortalUserUiConfig(normalizedEmail);
+  const patch = sanitizePortalUserUi(config || {});
+  const next = { ...current };
+
+  if (patch.menuLayout) {
+    next.menuLayout = patch.menuLayout;
+  }
+
+  if (patch.navOrder) {
+    next.navOrder = patch.navOrder;
+  }
+
+  const payload = { userId: normalizedEmail, updatedAt: Date.now(), ...next };
+  const r = getRedis();
+  if (r) await rset(key, payload); else mem.portalUserUi.set(normalizedEmail, payload);
+  return sanitizePortalUserUi(payload);
+}
+
+export async function resetPortalUserUiConfig(email) {
+  const normalizedEmail = String(email || '').toLowerCase();
+  if (!normalizedEmail) return {};
+  const key = KEY_PORTAL_USER_UI(normalizedEmail);
+  const r = getRedis();
+  if (r) await rdel(key); else mem.portalUserUi.delete(normalizedEmail);
+  return {};
 }
 
 export async function pushTokensForEmail(email) {
