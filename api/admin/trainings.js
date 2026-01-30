@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { requirePortalAccess } from './_guard.js';
+import { requireTrainingScopeAccess } from './_guard.js';
 import { isAdminUser } from '../_lib/portalAuth.js';
 import { validateTrainingSession } from '../_lib/trainingValidation.js';
 import {
@@ -13,7 +13,7 @@ import {
   trainingRecordDelete,
 } from '../_lib/store.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingSessions';
 
 function summarize(list) {
   const total = list.length;
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   setCors(req, res);
 
   const wantsWrite = ['POST', 'PATCH', 'DELETE'].includes(req.method);
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: wantsWrite });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: wantsWrite });
   if (!actor) return;
 
   try {

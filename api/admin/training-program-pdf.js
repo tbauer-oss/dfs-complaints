@@ -2,17 +2,17 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, bad, methodNotAllowed } from '../_lib/http.js';
-import { requirePortalAccess } from './_guard.js';
+import { requireTrainingScopeAccess } from './_guard.js';
 import { trainingProgramsAll, trainingRecordsAll } from '../_lib/store.js';
 import { createTrainingProgramPdf } from '../_lib/trainingPdf.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingProgram';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: false });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: false });
   if (!actor) return;
 
   if (req.method !== 'GET') return methodNotAllowed(res);

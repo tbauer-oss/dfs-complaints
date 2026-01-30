@@ -404,6 +404,21 @@ const Set<String> _TRAINING_TILE_IDS = {
   'trainingArchive',
 };
 
+const Map<String, String> _TRAINING_TILE_PERMISSION_KEYS = {
+  'trainings': 'training_view',
+  'trainingNeeds': 'training_needs_read',
+  'trainingProgram': 'training_program_read',
+  'trainingSessions': 'training_sessions_read',
+  'trainingEffectiveness': 'training_questionnaires_read',
+};
+
+const Map<String, String> _TRAINING_TILE_WRITE_KEYS = {
+  'trainingNeeds': 'training_needs_write',
+  'trainingProgram': 'training_program_write',
+  'trainingSessions': 'training_sessions_write',
+  'trainingEffectiveness': 'training_questionnaires_write',
+};
+
 String _internalNumberPrefix({DateTime? now}) {
   final date = now ?? DateTime.now();
   final yy = DateFormat('yy').format(date);
@@ -564,6 +579,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   bool _portalIsPrrcAuthorized = false;
   bool _portalIsQm = false;
   final Map<String, String> _portalTilePermissions = {};
+  final Map<String, dynamic> _portalPermissions = {};
+  final Set<String> _portalTileGrants = {};
   final Map<String, int> _chatLastReadMs = {};
   List<ChatConversationSummary> _chatCachedConversations = const [];
   final ValueNotifier<List<ChatConversationSummary>> _conversationListNotifier =
@@ -855,6 +872,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final nextIsPrrcAuthorized = _isTruthyFlag(profile['isPrrcAuthorized'] ?? profile['prrcAuthorized']) || nextIsPrrc;
     final nextIsQm = _isTruthyFlag(profile['isQM'] ?? profile['isQm'] ?? profile['qm']);
     final nextTilePermissions = _sanitizeTilePermissionMap(profile['tilePermissions']);
+    final nextPermissions = profile['permissions'];
+    final nextTileGrants = profile['tileGrants'];
 
     void apply() {
       if (nextRole.isNotEmpty) {
@@ -867,6 +886,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       _portalTilePermissions
         ..clear()
         ..addAll(nextTilePermissions);
+      _portalPermissions
+        ..clear()
+        ..addAll(nextPermissions is Map ? nextPermissions.cast<String, dynamic>() : const <String, dynamic>{});
+      _portalTileGrants
+        ..clear()
+        ..addAll(
+          nextTileGrants is List ? nextTileGrants.whereType<String>() : const <String>[],
+        );
     }
 
     if (notify && mounted) {
@@ -1481,6 +1508,37 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     return result;
   }
 
+  bool _hasPermissionFlag(String key) {
+    final raw = _portalPermissions[key];
+    if (raw is bool) return raw;
+    if (raw is num) return raw != 0;
+    final s = raw?.toString().trim().toLowerCase();
+    return s == 'true' || s == '1' || s == 'yes';
+  }
+
+  bool _canAccessTrainingModule() {
+    if (_portalPermissions.containsKey('training_view')) {
+      return _hasPermissionFlag('training_view');
+    }
+    if (_portalTileGrants.isNotEmpty) {
+      return _portalTileGrants.any(_TRAINING_TILE_IDS.contains);
+    }
+    return _trainingTileVisibleForRole('trainings');
+  }
+
+  bool _canAccessTrainingTile(String tileId) {
+    final key = _TRAINING_TILE_PERMISSION_KEYS[tileId];
+    if (key != null && _portalPermissions.containsKey(key)) {
+      return _hasPermissionFlag(key);
+    }
+    if (_portalTileGrants.isNotEmpty) {
+      return _portalTileGrants.contains(tileId);
+    }
+    final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
+    if (override != null) return override != 'none';
+    return _trainingTileVisibleForRole(tileId);
+  }
+
   bool _trainingTileVisibleForRole(String tileId) {
     final role = _portalRole.trim().toLowerCase();
     final isAdmin = _isSuperuser || _portalIsQm || _portalIsPrrc || role == 'admin';
@@ -1518,11 +1576,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   bool _tileVisibleForActor(String tileId) {
+    if (_TRAINING_TILE_IDS.contains(tileId)) {
+      return _canAccessTrainingTile(tileId);
+    }
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override != 'none';
-    if (_TRAINING_TILE_IDS.contains(tileId)) {
-      return _trainingTileVisibleForRole(tileId);
-    }
     if (_isSuperuser && tileId == 'capaReports') return true;
     if (tileId == 'prrc' && !_portalIsPrrc) return false;
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
@@ -1540,6 +1598,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   bool _canWriteTile(String? tileId) {
     if (tileId == null) return _portalRole != 'readonly';
+    if (_TRAINING_TILE_IDS.contains(tileId)) {
+      final key = _TRAINING_TILE_WRITE_KEYS[tileId];
+      if (key != null && _portalPermissions.containsKey(key)) {
+        return _hasPermissionFlag(key);
+      }
+    }
     final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
     if (override != null) return override == 'write';
     return _portalRole != 'readonly';
@@ -2636,7 +2700,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Future<void> _refreshTrainingDashboard() async {
-    if (!_allowedTilesForActor().any(_TRAINING_TILE_IDS.contains)) return;
+    if (!_canAccessTrainingModule()) return;
     setState(() {
       _trainingDashboardLoading = true;
       _trainingDashboardErr = null;
@@ -7312,6 +7376,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   bool _isViewAllowed(AdminView view) {
+    if (view == AdminView.trainings) {
+      if (!_canAccessTrainingModule()) {
+        return false;
+      }
+      return true;
+    }
     final allowed = _baseViewsForRole(_portalRole);
     final isSupplierView = view == AdminView.supplierEvaluation || view == AdminView.approvedSuppliers;
     if (!allowed.contains(view)) {
@@ -10923,33 +10993,33 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           case TrainingAdminSection.needs:
             return TrainingNeedsPage(
               api: widget.api,
-              canWrite: _canWriteTile('trainings'),
+              canWrite: _canWriteTile('trainingNeeds'),
               canDelete: _isSuperuser || _portalRole == 'admin',
-              canWriteNeeds: _canWriteTile('trainingNeeds') || _canWriteTile('trainings'),
+              canWriteNeeds: _canWriteTile('trainingNeeds'),
               canDeleteNeeds: _isSuperuser,
             );
           case TrainingAdminSection.program:
             return TrainingProgramPage(
               api: widget.api,
-              canWrite: _canWriteTile('trainings'),
+              canWrite: _canWriteTile('trainingProgram'),
               canDelete: _isSuperuser || _portalRole == 'admin',
             );
           case TrainingAdminSection.list:
             return TrainingListPage(
               api: widget.api,
-              canWrite: _canWriteTile('trainings'),
+              canWrite: _canWriteTile('trainingSessions'),
               canDelete: _isSuperuser || _portalRole == 'admin',
             );
           case TrainingAdminSection.effectiveness:
             return TrainingEffectivenessPage(
               api: widget.api,
-              canWrite: _canWriteTile('trainings'),
+              canWrite: _canWriteTile('trainingEffectiveness'),
               canDelete: _isSuperuser || _portalRole == 'admin',
             );
           case TrainingAdminSection.archive:
             return TrainingArchivePage(
               api: widget.api,
-              canWrite: _canWriteTile('trainings'),
+              canWrite: _canWriteTile('trainingSessions'),
               canDelete: _isSuperuser || _portalRole == 'admin',
             );
         }

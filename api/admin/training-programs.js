@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { requirePortalAccess } from './_guard.js';
+import { requireTrainingScopeAccess } from './_guard.js';
 import { isAdminUser } from '../_lib/portalAuth.js';
 import {
   trainingProgramsAll,
@@ -14,14 +14,14 @@ import {
 } from '../_lib/store.js';
 import { validateTrainingProgram } from '../_lib/trainingValidation.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingProgram';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
   const wantsWrite = ['POST', 'PATCH', 'DELETE'].includes(req.method);
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: wantsWrite });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: wantsWrite });
   if (!actor) return;
 
   try {

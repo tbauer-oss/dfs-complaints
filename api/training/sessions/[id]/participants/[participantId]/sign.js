@@ -3,11 +3,11 @@ export const config = { runtime: 'nodejs' };
 
 import crypto from 'node:crypto';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../../../_lib/http.js';
-import { requirePortalAccess } from '../../../../admin/_guard.js';
+import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
 import { isAdminUser } from '../../../../_lib/portalAuth.js';
 import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingSessions';
 const MAX_SIGNATURE_BYTES = 250000;
 
 function stripBase64(data = '') {
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return methodNotAllowed(res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: true });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });
   if (!actor) return;
 
   try {
