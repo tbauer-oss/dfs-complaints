@@ -1,7 +1,8 @@
 // /api/training/templates/[id].js – Admin delete for Fragebogen-Templates
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
+import { ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
+import { withCors } from '../../_lib/withCors.ts';
 import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { isAdminUser } from '../../_lib/portalAuth.js';
 import {
@@ -49,4 +50,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler);

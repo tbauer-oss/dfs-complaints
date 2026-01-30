@@ -1,7 +1,8 @@
 // /api/training/program/pdf.js – PDF Export for training program list
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, bad, methodNotAllowed } from '../../_lib/http.js';
+import { bad, methodNotAllowed } from '../../_lib/http.js';
+import { withCors } from '../../_lib/withCors.ts';
 import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { trainingProgramsAll, trainingRecordsAll } from '../../_lib/store.js';
 import { createTrainingProgramPdf } from '../../_lib/trainingPdf.js';
@@ -88,4 +89,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler);

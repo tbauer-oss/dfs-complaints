@@ -1,7 +1,8 @@
 // /api/training/wk/reminders – Due/overdue Wirksamkeitskontrollen
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, ok, bad, methodNotAllowed } from '../../_lib/http.js';
+import { ok, bad, methodNotAllowed } from '../../_lib/http.js';
+import { withCors } from '../../_lib/withCors.ts';
 import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { isAdminUser } from '../../_lib/portalAuth.js';
 import { trainingRecordsAll, trainingQuestionnairesAll } from '../../_lib/store.js';
@@ -95,4 +96,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler);
