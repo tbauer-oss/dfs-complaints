@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
-import { withCors } from '../../_lib/withCors.ts';
+import { withCorsHandler } from '../../_lib/http.js';
 import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { isAdminUser } from '../../_lib/portalAuth.js';
 import { trainingProgramDelete, trainingProgramGet, trainingProgramUpdate } from '../../_lib/store.js';
@@ -55,4 +55,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCors(handler);
+export default withCorsHandler(handler);

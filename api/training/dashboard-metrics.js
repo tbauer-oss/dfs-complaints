@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { ok, bad, methodNotAllowed } from '../_lib/http.js';
-import { withCors } from '../_lib/withCors.ts';
+import { withCorsHandler } from '../_lib/http.js';
 import { requireTrainingModuleAccess } from '../admin/_guard.js';
 import {
   trainingNeedsAll,
@@ -165,4 +165,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCors(handler);
+export default withCorsHandler(handler);
