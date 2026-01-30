@@ -64,7 +64,6 @@ function applyCors(res, allowOrigin, allowHeaders = '') {
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', mergedAllowedHeaders(allowHeaders));
     res.setHeader('Access-Control-Max-Age', '86400');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   res.__corsApplied = true;
   res.__corsOrigin = allowOrigin;
@@ -85,11 +84,29 @@ export function withCors(req, res, allowHeaders = '') {
   return false;
 }
 
-export function withCorsHandler(handler, allowHeaders = '') {
+export function withCorsHandler(handler, allowHeadersOrOptions = '') {
+  const options = typeof allowHeadersOrOptions === 'string'
+    ? { allowHeaders: allowHeadersOrOptions }
+    : (allowHeadersOrOptions || {});
+  const allowHeaders = options.allowHeaders || '';
+
   return async function corsWrapped(req, res) {
     const handled = withCors(req, res, allowHeaders);
+    if (typeof options.before === 'function') {
+      options.before(req, res, {
+        allowOrigin: res.getHeader('Access-Control-Allow-Origin') || res.__corsOrigin || '',
+      });
+    }
     if (handled) return;
-    return handler(req, res);
+    try {
+      await handler(req, res);
+    } catch (err) {
+      console.error('[withCorsHandler] error', err);
+      if (!res.headersSent) {
+        return bad(res, 'server error', 500);
+      }
+      res.end();
+    }
   };
 }
 

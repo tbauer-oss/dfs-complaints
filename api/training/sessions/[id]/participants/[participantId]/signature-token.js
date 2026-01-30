@@ -73,7 +73,7 @@ async function handler(req, res) {
   }
 }
 
-export default withCors(handler, {
+export default withCorsHandler(handler, {
   before(req, res, { allowOrigin }) {
     res.setHeader('X-Handler', 'signature-token');
     res.setHeader('X-Cors-Applied', allowOrigin ? 'yes' : 'no');
