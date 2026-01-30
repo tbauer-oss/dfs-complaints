@@ -1,18 +1,5 @@
 {
   "version": 2,
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "headers": {
-        "Access-Control-Allow-Origin": "https://dfs-complaints-web.vercel.app",
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-      },
-      "continue": true
-    },
-    { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -22,6 +9,13 @@
         { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" },
         { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "has": [{ "type": "method", "value": "OPTIONS" }],
+      "destination": "/api/_options.js"
     }
   ],
   "crons": [
