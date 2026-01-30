@@ -72,4 +72,14 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCorsHandler(handler, {
+  before(req, res, { allowOrigin }) {
+    res.setHeader('X-Handler', 'signature-token');
+    res.setHeader('X-Cors-Applied', allowOrigin ? 'yes' : 'no');
+    console.info('[training/signature-token]', {
+      method: req.method,
+      origin: req.headers?.origin,
+      url: req.url,
+    });
+  },
+});
