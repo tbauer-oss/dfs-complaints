@@ -21,6 +21,7 @@ import '../models/portal_user.dart';
 import '../models/fmea.dart';
 import '../models/supplier_evaluation.dart';
 import '../models/training.dart';
+import '../models/training_signature.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -2811,6 +2812,18 @@ class ApiClient {
         .toList();
   }
 
+  Future<TrainingRecord> adminTrainingById(String trainingId) async {
+    final path = Uri(path: '/api/admin/trainings', queryParameters: {'id': trainingId}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
+    if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Trainings-Antwort');
+  }
+
   Future<Map<String, dynamic>> adminTrainingSummary({int? year}) async {
     final params = <String, String>{'summary': '1'};
     if (year != null) params['year'] = '$year';
@@ -3072,6 +3085,20 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige Unterschrift-Antwort');
   }
 
+  Future<TrainingSignatureTokenResponse> trainingIssueSignatureToken({
+    required String trainingId,
+    required String participantId,
+  }) async {
+    final path = Uri(path: '/api/training/sessions/$trainingId/participants/$participantId/signature-token').toString();
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map) return TrainingSignatureTokenResponse.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Token-Antwort');
+  }
+
   Future<TrainingRecord> trainingResetParticipantSignature({
     required String trainingId,
     required String participantId,
@@ -3110,6 +3137,36 @@ class ApiClient {
     final map = decoded is Map && decoded['record'] is Map ? decoded['record'] as Map : decoded;
     if (map is Map) return TrainingRecord.fromJson(map.cast<String, dynamic>());
     throw ApiError(r.statusCode, 'Ungültige Override-Antwort');
+  }
+
+  Future<TrainingSignContext> publicTrainingSignContext(String token) async {
+    final path = Uri(path: '/api/public/training/sign-context', queryParameters: {'t': token}).toString();
+    final r = await http.get(_u(path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is Map) return TrainingSignContext.fromJson(decoded.cast<String, dynamic>());
+    throw ApiError(r.statusCode, 'Ungültige Signatur-Antwort');
+  }
+
+  Future<void> publicSubmitTrainingSignature({
+    required String token,
+    required String signatureBase64,
+    required bool confirmationChecked,
+  }) async {
+    final r = await http.post(
+      _u('/api/public/training/submit-signature'),
+      headers: const {'Content-Type': 'application/json; charset=utf-8'},
+      body: jsonEncode({
+        'token': token,
+        'signatureBase64Png': signatureBase64,
+        'confirmationChecked': confirmationChecked,
+      }),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
 
   Future<TrainingRecord> trainingConfigureWk({

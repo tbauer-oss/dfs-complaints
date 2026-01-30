@@ -404,10 +404,16 @@ class TrainingParticipant {
     this.signatureUrl,
     this.signatureHash,
     this.signatureNote,
+    this.confirmationChecked = false,
     this.overrideNoSignature = false,
     this.overrideReason,
     this.overriddenByUserId,
     this.overriddenAt,
+    this.signatureTokenHash,
+    this.signatureTokenIssuedAt,
+    this.signatureTokenExpiresAt,
+    this.signatureTokenUsedAt,
+    this.signatureRemoteMeta,
   });
 
   final String id;
@@ -423,10 +429,16 @@ class TrainingParticipant {
   final String? signatureUrl;
   final String? signatureHash;
   final String? signatureNote;
+  final bool confirmationChecked;
   final bool overrideNoSignature;
   final String? overrideReason;
   final String? overriddenByUserId;
   final int? overriddenAt;
+  final String? signatureTokenHash;
+  final int? signatureTokenIssuedAt;
+  final int? signatureTokenExpiresAt;
+  final int? signatureTokenUsedAt;
+  final Map<String, dynamic>? signatureRemoteMeta;
 
   factory TrainingParticipant.fromJson(Map<String, dynamic> json) {
     return TrainingParticipant(
@@ -445,12 +457,20 @@ class TrainingParticipant {
       signatureUrl: (json['signatureUrl'] ?? '').toString().isEmpty ? null : (json['signatureUrl'] ?? '').toString(),
       signatureHash: (json['signatureHash'] ?? '').toString().isEmpty ? null : (json['signatureHash'] ?? '').toString(),
       signatureNote: (json['signatureNote'] ?? '').toString().isEmpty ? null : (json['signatureNote'] ?? '').toString(),
+      confirmationChecked: json['confirmationChecked'] == true,
       overrideNoSignature: json['overrideNoSignature'] == true,
       overrideReason: (json['overrideReason'] ?? '').toString().isEmpty ? null : (json['overrideReason'] ?? '').toString(),
       overriddenByUserId: (json['overriddenByUserId'] ?? '').toString().isEmpty
           ? null
           : (json['overriddenByUserId'] ?? '').toString(),
       overriddenAt: json['overriddenAt'] == null ? null : _parseInt(json['overriddenAt']),
+      signatureTokenHash: (json['signatureTokenHash'] ?? '').toString().isEmpty ? null : (json['signatureTokenHash'] ?? '').toString(),
+      signatureTokenIssuedAt: json['signatureTokenIssuedAt'] == null ? null : _parseInt(json['signatureTokenIssuedAt']),
+      signatureTokenExpiresAt: json['signatureTokenExpiresAt'] == null ? null : _parseInt(json['signatureTokenExpiresAt']),
+      signatureTokenUsedAt: json['signatureTokenUsedAt'] == null ? null : _parseInt(json['signatureTokenUsedAt']),
+      signatureRemoteMeta: json['signatureRemoteMeta'] is Map
+          ? Map<String, dynamic>.from(json['signatureRemoteMeta'] as Map)
+          : null,
     );
   }
 
@@ -468,15 +488,28 @@ class TrainingParticipant {
         'signatureUrl': signatureUrl,
         'signatureHash': signatureHash,
         'signatureNote': signatureNote,
+        'confirmationChecked': confirmationChecked,
         'overrideNoSignature': overrideNoSignature,
         'overrideReason': overrideReason,
         'overriddenByUserId': overriddenByUserId,
         'overriddenAt': overriddenAt,
+        'signatureTokenHash': signatureTokenHash,
+        'signatureTokenIssuedAt': signatureTokenIssuedAt,
+        'signatureTokenExpiresAt': signatureTokenExpiresAt,
+        'signatureTokenUsedAt': signatureTokenUsedAt,
+        'signatureRemoteMeta': signatureRemoteMeta,
       };
 
   String get department => departmentTeam ?? '';
 
   bool get isSigned => signedAt != null || overrideNoSignature;
+
+  bool get hasActiveSignatureToken {
+    if (signatureTokenExpiresAt == null) return false;
+    if (signatureTokenUsedAt != null) return false;
+    if (isSigned) return false;
+    return signatureTokenExpiresAt! > DateTime.now().millisecondsSinceEpoch;
+  }
 }
 
 class TrainingRecord {
