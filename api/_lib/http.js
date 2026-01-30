@@ -4,6 +4,10 @@
 export const PROD_FE = 'https://dfs-complaints-web.vercel.app';
 const ALLOWED_ORIGINS = new Set([PROD_FE, 'http://localhost:3000', 'http://localhost:5173']);
 
+const ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+const ALLOWED_HEADERS = 'Authorization, Content-Type, X-Requested-With';
+const MAX_AGE = '86400';
+
 function normalizeOrigin(origin) {
   if (!origin) return '';
   try {
@@ -31,47 +35,23 @@ function resolveAllowedOrigin(req) {
   return isAllowedOrigin(origin) ? origin : '';
 }
 
-function mergedAllowedHeaders(custom = '') {
-  const base = [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'X-Admin-Secret',
-    'X-Gate',
-  ];
-  const extras = String(custom || '')
-    .split(',')
-    .map((h) => h.trim())
-    .filter(Boolean);
-  return [...base, ...extras]
-    .map((h) => h.toLowerCase())
-    .filter((h, idx, arr) => arr.indexOf(h) === idx)
-    .map((h) =>
-      h
-        .split('-')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join('-')
-    )
-    .join(', ');
-}
-
-function applyCors(res, allowOrigin, allowHeaders = '') {
+function applyCors(res, allowOrigin) {
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
+  res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS);
+  res.setHeader('Access-Control-Max-Age', MAX_AGE);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   if (allowOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-    res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', mergedAllowedHeaders(allowHeaders));
-    res.setHeader('Access-Control-Max-Age', '86400');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   res.__corsApplied = true;
   res.__corsOrigin = allowOrigin;
 }
 
 // Shared CORS helper used by all routes
-export function withCors(req, res, allowHeaders = '') {
+export function withCors(req, res) {
   const allowOrigin = resolveAllowedOrigin(req);
-  applyCors(res, allowOrigin, allowHeaders);
+  applyCors(res, allowOrigin);
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
@@ -83,16 +63,13 @@ export function withCors(req, res, allowHeaders = '') {
   return false;
 }
 
-export function withCorsHandler(handler, allowHeadersOrOptions = '') {
-  const options = typeof allowHeadersOrOptions === 'string'
-    ? { allowHeaders: allowHeadersOrOptions }
-    : (allowHeadersOrOptions || {});
-  const allowHeaders = options.allowHeaders || '';
+export function withCorsHandler(handler, options = {}) {
+  const resolvedOptions = options || {};
 
   return async function corsWrapped(req, res) {
-    const handled = withCors(req, res, allowHeaders);
-    if (typeof options.before === 'function') {
-      options.before(req, res, {
+    const handled = withCors(req, res);
+    if (typeof resolvedOptions.before === 'function') {
+      resolvedOptions.before(req, res, {
         allowOrigin: res.getHeader('Access-Control-Allow-Origin') || res.__corsOrigin || '',
       });
     }
@@ -111,7 +88,7 @@ export function withCorsHandler(handler, allowHeadersOrOptions = '') {
 
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
 export function setCors(req, res, allowHeaders = '') {
-  const handled = withCors(req, res, allowHeaders);
+  const handled = withCors(req, res);
   if (handled) return;
 }
 
