@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
-import { withCorsHandler } from '../../../../_lib/withCors.ts';
+import { withCorsHandler } from '../../../../_lib/http.js';
 import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
 import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
 import { generateSignatureToken, hashSignatureToken } from '../../../../_lib/trainingSignature.js';
