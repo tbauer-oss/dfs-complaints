@@ -1,11 +1,11 @@
 // /api/training/sessions/[id]/wk/configure – Configure Wirksamkeitskontrolle
 export const config = { runtime: 'nodejs' };
 
-import { ok, bad, methodNotAllowed, readJson } from '../../../_lib/http.js';
-import { withCorsHandler } from '../../../_lib/http.js';
-import { requireTrainingScopeAccess } from '../../../admin/_guard.js';
-import { isAdminUser } from '../../../_lib/portalAuth.js';
-import { trainingRecordGet, trainingRecordUpdate, trainingTemplateGet } from '../../../_lib/store.js';
+import { ok, bad, methodNotAllowed, readJson } from '../../../../_lib/http.js';
+import { withCorsHandler } from '../../../../_lib/http.js';
+import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
+import { isAdminUser } from '../../../../_lib/portalAuth.js';
+import { trainingRecordGet, trainingRecordUpdate, trainingTemplateGet } from '../../../../_lib/store.js';
 
 const TRAINING_TILE = 'trainingEffectiveness';
 const WK_METHODS = new Set(['questionnaire', 'direct', 'indirect']);

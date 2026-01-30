@@ -1,11 +1,11 @@
 // /api/training/sessions/[id]/participants/[participantId]/signature-token – Issue remote signature token
 export const config = { runtime: 'nodejs' };
 
-import { ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
-import { withCorsHandler } from '../../../../_lib/http.js';
-import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
-import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
-import { generateSignatureToken, hashSignatureToken } from '../../../../_lib/trainingSignature.js';
+import { ok, bad, methodNotAllowed } from '../../../../../_lib/http.js';
+import { withCorsHandler } from '../../../../../_lib/http.js';
+import { requireTrainingScopeAccess } from '../../../../../admin/_guard.js';
+import { trainingRecordGet, trainingRecordUpdate } from '../../../../../_lib/store.js';
+import { generateSignatureToken, hashSignatureToken } from '../../../../../_lib/trainingSignature.js';
 
 const TRAINING_TILE = 'trainingSessions';
 const TOKEN_TTL_MS = Number(process.env.SIGNATURE_TOKEN_TTL_MS || 2 * 60 * 60 * 1000);
