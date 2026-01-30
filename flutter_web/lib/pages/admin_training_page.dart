@@ -65,6 +65,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     {'value': 'webex', 'label': 'Webex'},
     {'value': 'other', 'label': 'Andere'},
   ];
+  static const List<String> _plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+  static const Map<String, String> _plannedPeriodTypeLabels = {
+    'date': 'Datum',
+    'month': 'Monat',
+    'quarter': 'Quartal',
+    'halfYear': 'Halbjahr',
+  };
   final _searchController = TextEditingController();
   final _programSearchController = TextEditingController();
   final _templateSearchController = TextEditingController();
@@ -571,19 +578,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       'alle 5 Jahre',
       'Sonstiges...',
     ];
-    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
-    const plannedPeriodTypeLabels = {
-      'date': 'Datum',
-      'month': 'Monat',
-      'quarter': 'Quartal',
-      'halfYear': 'Halbjahr',
-    };
-    const plannedPeriodTypeLabels = {
-      'date': 'Datum',
-      'month': 'Monat',
-      'quarter': 'Quartal',
-      'halfYear': 'Halbjahr',
-    };
+    const plannedPeriodTypes = _plannedPeriodTypes;
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
     const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
 
@@ -1308,7 +1303,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final controllerIntervalOther = TextEditingController(text: need.intervalValueFreeText ?? '');
     final controllerPlannedPeriodValue = TextEditingController(text: need.plannedPeriodValue);
 
-    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const plannedPeriodTypes = _plannedPeriodTypes;
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
     const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
     const intervalOptions = [
@@ -1414,7 +1409,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                         items: plannedPeriodTypes
                             .map((entry) => DropdownMenuItem(
                                   value: entry,
-                                  child: Text(plannedPeriodTypeLabels[entry] ?? entry),
+                                  child: Text(_plannedPeriodTypeLabels[entry] ?? entry),
                                 ))
                             .toList(),
                         onChanged: (value) => setState(() => plannedPeriodType = value ?? plannedPeriodTypes.first),
@@ -1643,7 +1638,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final controllerIntervalOther = TextEditingController(text: baseNeed.intervalValueFreeText ?? '');
     final controllerPlannedPeriodValue = TextEditingController(text: baseNeed.plannedPeriodValue);
 
-    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const plannedPeriodTypes = _plannedPeriodTypes;
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
     const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
     const intervalOptions = [
@@ -1746,7 +1741,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                           items: plannedPeriodTypes
                               .map((entry) => DropdownMenuItem(
                                     value: entry,
-                                    child: Text(plannedPeriodTypeLabels[entry] ?? entry),
+                                    child: Text(_plannedPeriodTypeLabels[entry] ?? entry),
                                   ))
                               .toList(),
                           onChanged: (value) => setState(() => plannedPeriodType = value ?? plannedPeriodTypes.first),
@@ -1957,7 +1952,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       'Finanzen',
       'Sonstiges...',
     ];
-    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const plannedPeriodTypes = _plannedPeriodTypes;
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
     const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
     const intervalOptions = [
@@ -2136,14 +2131,9 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       Wrap(
                         spacing: 8,
                         children: plannedPeriodTypes.map((type) {
-                          final label = {
-                            'date': 'Datum',
-                            'month': 'Monat',
-                            'quarter': 'Quartal',
-                            'halfYear': 'Halbjahr',
-                          }[type];
+                          final label = _plannedPeriodTypeLabels[type] ?? type;
                           return ChoiceChip(
-                            label: Text(label ?? type),
+                            label: Text(label),
                             selected: plannedPeriodType == type,
                             onSelected: (_) => setState(() {
                               plannedPeriodType = type;
