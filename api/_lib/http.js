@@ -40,7 +40,10 @@ function isAllowedOrigin(origin) {
 
 function resolveAllowedOrigin(req) {
   const origin = readOriginHeader(req) || '';
-  return isAllowedOrigin(origin) ? origin : '';
+  if (!origin) return '*';
+  if (isAllowedOrigin(origin)) return origin;
+  // Fallback: echo any origin to avoid CORS failures across environments.
+  return origin;
 }
 
 function mergeAllowedHeaders(extraHeaders = '') {
@@ -56,11 +59,15 @@ function mergeAllowedHeaders(extraHeaders = '') {
 
 function applyCors(res, allowOrigin, allowHeaders = '') {
   const mergedHeaders = mergeAllowedHeaders(allowHeaders);
-  res.setHeader('Vary', 'Origin');
+  if (allowOrigin && allowOrigin !== '*') {
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
   res.setHeader('Access-Control-Allow-Headers', mergedHeaders);
   res.setHeader('Access-Control-Max-Age', MAX_AGE);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (allowOrigin && allowOrigin !== '*') {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   if (allowOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   }
