@@ -1,7 +1,7 @@
 // /api/training/sessions/[id]/participants/[participantId]/signature-token – Issue remote signature token
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
+import { withCorsHandler, ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
 import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
 import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
 import { generateSignatureToken, hashSignatureToken } from '../../../../_lib/trainingSignature.js';
@@ -10,10 +10,7 @@ const TRAINING_TILE = 'trainingSessions';
 const TOKEN_TTL_MS = Number(process.env.SIGNATURE_TOKEN_TTL_MS || 2 * 60 * 60 * 1000);
 const APP_ORIGIN = (process.env.APP_ORIGIN || process.env.APP_BASE_URL || 'https://dfs-complaints-web.vercel.app').replace(/\/$/, '');
 
-export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
-
+async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });
@@ -74,3 +71,5 @@ export default async function handler(req, res) {
     return bad(res, 'server error', 500);
   }
 }
+
+export default withCorsHandler(handler);

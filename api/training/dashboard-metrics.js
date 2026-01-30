@@ -1,7 +1,7 @@
 // /api/training/dashboard-metrics – Aggregated Training metrics for admin dashboard
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
+import { withCorsHandler, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { requireTrainingModuleAccess } from '../admin/_guard.js';
 import {
   trainingNeedsAll,
@@ -55,10 +55,7 @@ function isNeedApproved(status = '') {
   return normalized === 'glapproved' || normalized === 'scheduled' || normalized === 'approved';
 }
 
-export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
-
+async function handler(req, res) {
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const actor = await requireTrainingModuleAccess(req, res);
@@ -166,3 +163,5 @@ export default async function handler(req, res) {
     return bad(res, 'server error', 500);
   }
 }
+
+export default withCorsHandler(handler);

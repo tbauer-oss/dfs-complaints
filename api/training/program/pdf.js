@@ -1,7 +1,7 @@
 // /api/training/program/pdf.js – PDF Export for training program list
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, bad, methodNotAllowed } from '../../_lib/http.js';
+import { withCorsHandler, bad, methodNotAllowed } from '../../_lib/http.js';
 import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { trainingProgramsAll, trainingRecordsAll } from '../../_lib/store.js';
 import { createTrainingProgramPdf } from '../../_lib/trainingPdf.js';
@@ -27,10 +27,7 @@ function matchesSearch(item, query) {
   return hay.includes(query);
 }
 
-export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
-
+async function handler(req, res) {
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: false });
   if (!actor) return;
   if (req.method !== 'GET') return methodNotAllowed(res);
@@ -90,3 +87,5 @@ export default async function handler(req, res) {
     res.end();
   }
 }
+
+export default withCorsHandler(handler);
