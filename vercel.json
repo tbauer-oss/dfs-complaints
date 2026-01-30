@@ -1,6 +1,16 @@
 {
   "version": 2,
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "headers": {
+        "Access-Control-Allow-Origin": "https://dfs-complaints-web.vercel.app",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      },
+      "continue": true
+    },
     { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
   ],
   "headers": [
