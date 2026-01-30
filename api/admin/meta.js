@@ -1,5 +1,6 @@
 // api/admin/meta.js
 import { loadAppMeta, sanitizeAppMeta, updateAppMeta } from '../_lib/appMeta.js';
+import { handlePreflight, setCors } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 
 export const config = { runtime: 'nodejs' };
@@ -11,18 +12,9 @@ const json = (res, code, data) => {
   res.end(JSON.stringify(data));
 };
 
-function setCors(req, res) {
-  const origin = req.headers.origin || '';
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Secret, Authorization');
-}
-function isOptions(req) { return req.method === 'OPTIONS'; }
-
 export default async function handler(req, res) {
+  if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (isOptions(req)) return res.status(204).end();
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   const actor = await requirePortalAccess(req, res, { write: true, tile: 'appMeta' });

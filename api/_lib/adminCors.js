@@ -20,11 +20,8 @@ export function applyAdminCors(req, res) {
     }
   };
   const normalized = normalizeOrigin(origin);
-  const isLocalhost =
-    process.env.NODE_ENV !== 'production' &&
-    (normalized.startsWith('http://localhost:') || normalized.startsWith('https://localhost:'));
 
-  if (allowed.has(normalized) || isLocalhost) {
+  if (allowed.has(normalized)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');

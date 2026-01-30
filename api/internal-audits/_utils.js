@@ -1,33 +1,15 @@
 import { randomUUID } from 'crypto';
 import { redis } from '../_lib/redis.js';
 import { portalUserFromRequest, canWrite } from '../_lib/portalAuth.js';
-import { bad } from '../_lib/http.js';
+import { bad, withCors } from '../_lib/http.js';
 import {
   processIncomingFiles,
   normalizeProvidedUploads,
   deleteUploadsFromBlob,
 } from '../_lib/uploads.js';
 
-const PROD_ORIGIN = 'https://dfs-complaints-web.vercel.app';
-const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
-
 export function applyInternalCors(req, res) {
-  const origin = req?.headers?.origin || '';
-  const allowOrigin = origin === PROD_ORIGIN || LOCAL_PATTERN.test(origin) ? origin : PROD_ORIGIN;
-  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return true;
-  }
-  return false;
+  return withCors(req, res);
 }
 
 const WRITE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

@@ -1,35 +1,6 @@
 // api/admin/reps.js
 export const config = { runtime: 'nodejs' };
 
-// ---------------- CORS ----------------
-const PROD_FE  = 'https://dfs-complaints-web.vercel.app';
-const PREVIEW  = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i;
-
-function setCors(req, res) {
-  const origin = req.headers.origin || '';
-  const allow  = origin && (origin === PROD_FE || PREVIEW.test(origin))
-    ? origin
-    : (process.env.WEB_ORIGIN || PROD_FE);
-
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  // wichtig: beide Schreibweisen + Standard-Header erlauben
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    [
-      'Content-Type', 'content-type',
-      'Authorization', 'authorization',
-      'X-Admin-Secret', 'x-admin-secret',
-      'Accept', 'accept',
-      'Origin', 'origin'
-    ].join(', ')
-  );
-  res.setHeader('Access-Control-Expose-Headers', '*');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-}
-
 function safeJson(req) {
   try {
     if (!req.body) return {};
@@ -49,12 +20,13 @@ import {
   unassignCustomer,
 } from '../_lib/repsStore.js';
 import { removeRepFromDownloadPermissions } from '../_lib/store.js';
+import { handlePreflight, setCors } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 
 // ---------------- Handler ----------------
 export default async function handler(req, res) {
+  if (handlePreflight(req, res)) return;
   setCors(req, res);
-  if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'reps' });
   if (!actor) return;
 

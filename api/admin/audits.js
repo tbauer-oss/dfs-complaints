@@ -1,9 +1,11 @@
 // /api/admin/audits.js – Legacy endpoint disabled in favor of Internal Audits V2
 export const config = { runtime: 'nodejs' };
 
-import { methodNotAllowed } from '../_lib/http.js';
+import { handlePreflight, methodNotAllowed, setCors } from '../_lib/http.js';
 
 export default async function handler(req, res) {
+  if (handlePreflight(req, res)) return;
+  setCors(req, res);
   // Prevent accidental use of the legacy internal audits implementation.
   if (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     res.statusCode = 410;

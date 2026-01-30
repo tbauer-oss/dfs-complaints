@@ -1,19 +1,9 @@
 // api/rep/exists.js
+import { handlePreflight, setCors } from '../_lib/http.js';
+
 export default async function handler(req, res) {
-  const origin = req.headers.origin || '';
-  const allow = [
-    'https://dfs-complaints-web.vercel.app',
-    'http://localhost:5173',
-    'http://localhost:3000',
-  ];
-  if (allow.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (handlePreflight(req, res)) return;
+  setCors(req, res, 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret');
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
