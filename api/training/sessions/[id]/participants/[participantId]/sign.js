@@ -2,11 +2,11 @@
 export const config = { runtime: 'nodejs' };
 
 import crypto from 'node:crypto';
-import { ok, bad, methodNotAllowed, readJson } from '../../../../_lib/http.js';
-import { withCorsHandler } from '../../../../_lib/http.js';
-import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
-import { isAdminUser } from '../../../../_lib/portalAuth.js';
-import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
+import { ok, bad, methodNotAllowed, readJson } from '../../../../../_lib/http.js';
+import { withCorsHandler } from '../../../../../_lib/http.js';
+import { requireTrainingScopeAccess } from '../../../../../admin/_guard.js';
+import { isAdminUser } from '../../../../../_lib/portalAuth.js';
+import { trainingRecordGet, trainingRecordUpdate } from '../../../../../_lib/store.js';
 
 const TRAINING_TILE = 'trainingSessions';
 const MAX_SIGNATURE_BYTES = 250000;
