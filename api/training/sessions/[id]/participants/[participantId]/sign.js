@@ -65,10 +65,16 @@ export default async function handler(req, res) {
       updated.signatureUrl = '';
       updated.signatureHash = '';
       updated.signatureNote = '';
+      updated.confirmationChecked = false;
       updated.overrideNoSignature = false;
       updated.overrideReason = '';
       updated.overriddenByUserId = '';
       updated.overriddenAt = null;
+      updated.signatureTokenHash = '';
+      updated.signatureTokenIssuedAt = null;
+      updated.signatureTokenExpiresAt = null;
+      updated.signatureTokenUsedAt = null;
+      updated.signatureRemoteMeta = null;
       updated.updatedAt = now;
       updatedParticipants[idx] = updated;
       const updatedTraining = await trainingRecordUpdate(training.id, {
@@ -89,6 +95,7 @@ export default async function handler(req, res) {
       updated.overrideReason = reason;
       updated.overriddenByUserId = actor.email || '';
       updated.overriddenAt = now;
+      updated.confirmationChecked = true;
       updated.updatedAt = now;
       updatedParticipants[idx] = updated;
       const updatedTraining = await trainingRecordUpdate(training.id, {
@@ -117,6 +124,9 @@ export default async function handler(req, res) {
     updated.signedAt = now;
     updated.signedByUserId = actor.email || '';
     updated.signatureNote = (body.note || '').toString().trim();
+    updated.confirmationChecked = true;
+    updated.signatureTokenUsedAt = now;
+    updated.signatureRemoteMeta = null;
     updated.updatedAt = now;
     updatedParticipants[idx] = updated;
 

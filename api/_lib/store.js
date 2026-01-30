@@ -6447,10 +6447,18 @@ function normalizeTrainingParticipant(record = {}) {
     signatureUrl: normalizeString(record.signatureUrl || record.signatureImageUrl || ''),
     signatureHash: normalizeString(record.signatureHash || ''),
     signatureNote: normalizeString(record.signatureNote || record.note || ''),
+    confirmationChecked: Boolean(record.confirmationChecked),
     overrideNoSignature: Boolean(record.overrideNoSignature),
     overrideReason: normalizeString(record.overrideReason || ''),
     overriddenByUserId: normalizeString(record.overriddenByUserId || ''),
     overriddenAt: Number(record.overriddenAt || 0) || null,
+    signatureTokenHash: normalizeString(record.signatureTokenHash || ''),
+    signatureTokenIssuedAt: Number(record.signatureTokenIssuedAt || 0) || null,
+    signatureTokenExpiresAt: Number(record.signatureTokenExpiresAt || 0) || null,
+    signatureTokenUsedAt: Number(record.signatureTokenUsedAt || 0) || null,
+    signatureRemoteMeta: record.signatureRemoteMeta && typeof record.signatureRemoteMeta === 'object'
+      ? record.signatureRemoteMeta
+      : null,
     evidence: Array.isArray(record.evidence)
       ? record.evidence.map((entry = {}) => ({
         id: normalizeString(entry.id || crypto.randomUUID()),
