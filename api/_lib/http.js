@@ -85,6 +85,14 @@ export function withCors(req, res, allowHeaders = '') {
   return false;
 }
 
+export function withCorsHandler(handler, allowHeaders = '') {
+  return async function corsWrapped(req, res) {
+    const handled = withCors(req, res, allowHeaders);
+    if (handled) return;
+    return handler(req, res);
+  };
+}
+
 // --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
 export function setCors(req, res, allowHeaders = '') {
   const handled = withCors(req, res, allowHeaders);

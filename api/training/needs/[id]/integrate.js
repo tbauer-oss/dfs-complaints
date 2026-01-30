@@ -1,7 +1,7 @@
 // /api/training/needs/[id]/integrate.js – Integrate training need into program
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../../_lib/http.js';
+import { withCorsHandler, ok, bad, methodNotAllowed, readJson } from '../../../_lib/http.js';
 import { requireTrainingIntegrationAccess } from '../../../admin/_guard.js';
 import { isAdminUser } from '../../../_lib/portalAuth.js';
 import {
@@ -70,10 +70,7 @@ function buildProgramDraft({ need, actor, draft = {} }) {
   };
 }
 
-export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
-
+async function handler(req, res) {
   const actor = await requireTrainingIntegrationAccess(req, res);
   if (!actor) return;
   if (!isAdminUser(actor)) return bad(res, 'forbidden', 403);
@@ -177,3 +174,5 @@ export default async function handler(req, res) {
     return bad(res, 'server error', 500);
   }
 }
+
+export default withCorsHandler(handler);

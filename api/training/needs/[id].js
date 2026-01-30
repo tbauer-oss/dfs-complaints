@@ -1,16 +1,13 @@
 // /api/training/needs/[id].js – Admin delete for Schulungsbedarfe
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
+import { withCorsHandler, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
 import { requireTrainingNeedAccess } from '../../admin/_guard.js';
 import { PORTAL_ROLES, normalizeRole } from '../../_lib/portalAuth.js';
 import { trainingNeedDelete, trainingNeedGet, trainingNeedUpdate } from '../../_lib/store.js';
 import { validateTrainingNeed } from '../../_lib/trainingValidation.js';
 
-export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
-
+async function handler(req, res) {
   const actor = await requireTrainingNeedAccess(req, res, { write: true });
   if (!actor) return;
   const role = normalizeRole(actor.role);
@@ -61,3 +58,5 @@ export default async function handler(req, res) {
     return bad(res, 'server error', 500);
   }
 }
+
+export default withCorsHandler(handler);

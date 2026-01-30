@@ -1,7 +1,7 @@
 // /api/training/wk/reminders – Due/overdue Wirksamkeitskontrollen
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../../_lib/http.js';
+import { withCorsHandler, ok, bad, methodNotAllowed } from '../../_lib/http.js';
 import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { isAdminUser } from '../../_lib/portalAuth.js';
 import { trainingRecordsAll, trainingQuestionnairesAll } from '../../_lib/store.js';
@@ -39,10 +39,7 @@ function summarizeAssignment(assignment, training) {
   };
 }
 
-export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  setCors(req, res);
-
+async function handler(req, res) {
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE });
@@ -97,3 +94,5 @@ export default async function handler(req, res) {
     return bad(res, 'server error', 500);
   }
 }
+
+export default withCorsHandler(handler);
