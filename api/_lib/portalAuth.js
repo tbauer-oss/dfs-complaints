@@ -80,6 +80,27 @@ export function canWriteTile(user, tileId) {
   return canWrite(user?.role);
 }
 
+export const TRAINING_TILE_IDS = [
+  'trainings',
+  'trainingNeeds',
+  'trainingProgram',
+  'trainingSessions',
+  'trainingEffectiveness',
+  'trainingArchive',
+];
+
+export function canReadTrainingModule(user) {
+  return TRAINING_TILE_IDS.some((tile) => canReadTile(user, tile));
+}
+
+export function canReadTrainingScope(user, scopeTile) {
+  return canReadTile(user, scopeTile) || canReadTile(user, 'trainings');
+}
+
+export function canWriteTrainingScope(user, scopeTile) {
+  return canWriteTile(user, scopeTile) || canWriteTile(user, 'trainings');
+}
+
 export function canManageUsers(role) {
   return normalizeRole(role) === PORTAL_ROLES.superuser;
 }

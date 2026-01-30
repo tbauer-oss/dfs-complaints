@@ -2,11 +2,11 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../../_lib/http.js';
-import { requirePortalAccess } from '../../admin/_guard.js';
+import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { isAdminUser } from '../../_lib/portalAuth.js';
 import { trainingRecordsAll, trainingQuestionnairesAll } from '../../_lib/store.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingEffectiveness';
 
 function summarizeTraining(training) {
   return {
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return methodNotAllowed(res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE });
   if (!actor) return;
 
   try {

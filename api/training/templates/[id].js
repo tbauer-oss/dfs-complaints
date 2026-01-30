@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
-import { requirePortalAccess } from '../../admin/_guard.js';
+import { requireTrainingScopeAccess } from '../../admin/_guard.js';
 import { isAdminUser } from '../../_lib/portalAuth.js';
 import {
   trainingQuestionnaireTemplateDelete,
@@ -10,13 +10,13 @@ import {
   trainingTemplateGet,
 } from '../../_lib/store.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingEffectiveness';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: true });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });
   if (!actor) return;
   const canEditAll = isAdminUser(actor);
 

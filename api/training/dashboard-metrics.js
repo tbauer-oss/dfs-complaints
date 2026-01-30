@@ -2,15 +2,13 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
-import { requirePortalAccess } from '../admin/_guard.js';
+import { requireTrainingModuleAccess } from '../admin/_guard.js';
 import {
   trainingNeedsAll,
   trainingProgramsAll,
   trainingRecordsAll,
   trainingQuestionnairesAll,
 } from '../_lib/store.js';
-
-const TRAINING_TILE = 'trainings';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -63,7 +61,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') return methodNotAllowed(res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE });
+  const actor = await requireTrainingModuleAccess(req, res);
   if (!actor) return;
 
   try {

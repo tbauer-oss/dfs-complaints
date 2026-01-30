@@ -2,7 +2,15 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
-import { canReadTile, canWriteTile, isAdminUser, portalUserFromRequest } from '../_lib/portalAuth.js';
+import {
+  canReadTile,
+  canWriteTile,
+  canReadTrainingModule,
+  canReadTrainingScope,
+  canWriteTrainingScope,
+  isAdminUser,
+  portalUserFromRequest,
+} from '../_lib/portalAuth.js';
 
 const KNOWN_TILES = [
   'open',
@@ -67,6 +75,17 @@ export default async function handler(req, res) {
     if (String(perm || '').toLowerCase() === 'none') continue;
     tileGrants.add(tile);
   }
+
+  permissions.training_view = canReadTrainingModule(actor);
+  permissions.training_needs_read = canReadTrainingScope(actor, 'trainingNeeds');
+  permissions.training_needs_write = canWriteTrainingScope(actor, 'trainingNeeds');
+  permissions.training_program_read = canReadTrainingScope(actor, 'trainingProgram');
+  permissions.training_program_write = canWriteTrainingScope(actor, 'trainingProgram');
+  permissions.training_sessions_read = canReadTrainingScope(actor, 'trainingSessions');
+  permissions.training_sessions_write = canWriteTrainingScope(actor, 'trainingSessions');
+  permissions.training_questionnaires_read = canReadTrainingScope(actor, 'trainingEffectiveness');
+  permissions.training_questionnaires_write = canWriteTrainingScope(actor, 'trainingEffectiveness');
+  permissions.training_delete = actor.role === 'superuser';
 
   const profile = {
     email: actor.email,

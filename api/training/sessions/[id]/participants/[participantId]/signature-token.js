@@ -2,11 +2,11 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
-import { requirePortalAccess } from '../../../../admin/_guard.js';
+import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
 import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
 import { generateSignatureToken, hashSignatureToken } from '../../../../_lib/trainingSignature.js';
 
-const TRAINING_TILE = 'trainings';
+const TRAINING_TILE = 'trainingSessions';
 const TOKEN_TTL_MS = Number(process.env.SIGNATURE_TOKEN_TTL_MS || 2 * 60 * 60 * 1000);
 const APP_ORIGIN = (process.env.APP_ORIGIN || process.env.APP_BASE_URL || 'https://dfs-complaints-web.vercel.app').replace(/\/$/, '');
 
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return methodNotAllowed(res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: true });
+  const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });
   if (!actor) return;
 
   try {
