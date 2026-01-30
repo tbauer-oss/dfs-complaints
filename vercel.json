@@ -1,22 +1,17 @@
 {
   "version": 2,
-  "headers": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://dfs-complaints-web.vercel.app" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Access-Control-Allow-Headers", "value": "Authorization, Content-Type, X-Requested-With" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,PATCH,DELETE,OPTIONS" }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "has": [{ "type": "method", "value": "OPTIONS" }],
-      "destination": "/api/_options.js"
-    }
+      "src": "/api/(.*)",
+      "headers": {
+        "Access-Control-Allow-Origin": "https://dfs-complaints-web.vercel.app",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      },
+      "continue": true
+    },
+    { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" }
   ],
   "crons": [
     { "path": "/api/cron/training-recurrence", "schedule": "0 * * * *" }
