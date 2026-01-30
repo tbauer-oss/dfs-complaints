@@ -1,7 +1,8 @@
 // /api/training/sessions/[id]/participants/[participantId]/signature-token – Issue remote signature token
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
+import { ok, bad, methodNotAllowed } from '../../../../_lib/http.js';
+import { withCors } from '../../../../_lib/withCors.ts';
 import { requireTrainingScopeAccess } from '../../../../admin/_guard.js';
 import { trainingRecordGet, trainingRecordUpdate } from '../../../../_lib/store.js';
 import { generateSignatureToken, hashSignatureToken } from '../../../../_lib/trainingSignature.js';
@@ -72,4 +73,14 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler, {
+  before(req, res, { allowOrigin }) {
+    res.setHeader('X-Handler', 'signature-token');
+    res.setHeader('X-Cors-Applied', allowOrigin ? 'yes' : 'no');
+    console.info('[training/signature-token]', {
+      method: req.method,
+      origin: req.headers?.origin,
+      url: req.url,
+    });
+  },
+});

@@ -1,7 +1,8 @@
 // /api/training/dashboard-metrics – Aggregated Training metrics for admin dashboard
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, ok, bad, methodNotAllowed } from '../_lib/http.js';
+import { ok, bad, methodNotAllowed } from '../_lib/http.js';
+import { withCors } from '../_lib/withCors.ts';
 import { requireTrainingModuleAccess } from '../admin/_guard.js';
 import {
   trainingNeedsAll,
@@ -164,4 +165,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler);
