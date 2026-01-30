@@ -5,10 +5,26 @@ export const PROD_FE = 'https://dfs-complaints-web.vercel.app';
 const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
 const ALLOWED_ORIGINS = new Set([PROD_FE, 'http://localhost:3000', 'http://localhost:5173']);
 
+function normalizeOrigin(origin) {
+  if (!origin) return '';
+  try {
+    const url = new URL(origin);
+    const isHttpsDefault = url.protocol === 'https:' && (url.port === '' || url.port === '443');
+    const isHttpDefault = url.protocol === 'http:' && (url.port === '' || url.port === '80');
+    if (isHttpsDefault || isHttpDefault) {
+      return `${url.protocol}//${url.hostname}`;
+    }
+    return url.origin;
+  } catch {
+    return origin.trim().toLowerCase();
+  }
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return false;
-  if (ALLOWED_ORIGINS.has(origin)) return true;
-  if (process.env.NODE_ENV !== 'production' && LOCAL_PATTERN.test(origin)) return true;
+  const normalized = normalizeOrigin(origin);
+  if (ALLOWED_ORIGINS.has(normalized)) return true;
+  if (process.env.NODE_ENV !== 'production' && LOCAL_PATTERN.test(normalized)) return true;
   return false;
 }
 
