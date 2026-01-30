@@ -1,7 +1,8 @@
 // /api/training/needs/[id]/integrate.js – Integrate training need into program
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, ok, bad, methodNotAllowed, readJson } from '../../../_lib/http.js';
+import { ok, bad, methodNotAllowed, readJson } from '../../../_lib/http.js';
+import { withCors } from '../../../_lib/withCors.ts';
 import { requireTrainingIntegrationAccess } from '../../../admin/_guard.js';
 import { isAdminUser } from '../../../_lib/portalAuth.js';
 import {
@@ -175,4 +176,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler);

@@ -1,7 +1,8 @@
 // /api/training/needs/[id]/integration-suggestions.js – Suggestions for training program integration
 export const config = { runtime: 'nodejs' };
 
-import { withCorsHandler, ok, bad, methodNotAllowed } from '../../../_lib/http.js';
+import { ok, bad, methodNotAllowed } from '../../../_lib/http.js';
+import { withCors } from '../../../_lib/withCors.ts';
 import { requireTrainingIntegrationAccess } from '../../../admin/_guard.js';
 import { isAdminUser } from '../../../_lib/portalAuth.js';
 import { trainingNeedGet, trainingProgramsAll } from '../../../_lib/store.js';
@@ -58,4 +59,4 @@ async function handler(req, res) {
   }
 }
 
-export default withCorsHandler(handler);
+export default withCors(handler);
