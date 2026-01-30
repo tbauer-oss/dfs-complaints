@@ -2658,6 +2658,90 @@ class ApiClient {
     }
   }
 
+  Future<List<TrainingProgram>> trainingNeedIntegrationSuggestions(String needId) async {
+    final r = await http.get(
+      _u('/api/training/needs/$needId/integration-suggestions'),
+      headers: _adminHeaders(auth: true),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['list'] is List ? decoded['list'] as List : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((e) => TrainingProgram.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> integrateTrainingNeed(
+    String needId, {
+    required String mode,
+    String? programEntryId,
+    Map<String, dynamic>? programDraft,
+    bool markNeedDone = false,
+    bool mergeParticipants = false,
+    bool mergeBudget = false,
+    bool linkNeed = true,
+  }) async {
+    final payload = {
+      'mode': mode,
+      'programEntryId': programEntryId,
+      'programDraft': programDraft,
+      'markNeedDone': markNeedDone,
+      'mergeParticipants': mergeParticipants,
+      'mergeBudget': mergeBudget,
+      'linkNeed': linkNeed,
+    };
+    final r = await http.post(
+      _u('/api/training/needs/$needId/integrate'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> integrateTrainingNeedsBulk({
+    required List<String> needIds,
+    required String bulkMode,
+    Map<String, dynamic>? programDraft,
+    bool markNeedsDone = false,
+    bool linkNeed = true,
+  }) async {
+    final payload = {
+      'needIds': needIds,
+      'bulkMode': bulkMode,
+      'programDraft': programDraft,
+      'markNeedsDone': markNeedsDone,
+      'linkNeed': linkNeed,
+    };
+    final r = await http.post(
+      _u('/api/training/needs/integrate-bulk'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(payload),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  Future<void> removeTrainingProgramNeedLink({required String programEntryId, required String trainingNeedId}) async {
+    final r = await http.delete(
+      _u('/api/training/program/need-link'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'programEntryId': programEntryId, 'trainingNeedId': trainingNeedId}),
+    );
+    if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
   Future<List<TrainingProgram>> adminTrainingPrograms({int? year}) async {
     final path = year == null ? '/api/admin/training-programs' : '/api/admin/training-programs?year=$year';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));

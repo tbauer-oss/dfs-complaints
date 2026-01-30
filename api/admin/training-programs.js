@@ -10,6 +10,7 @@ import {
   trainingProgramSave,
   trainingProgramUpdate,
   trainingProgramDelete,
+  trainingProgramNeedLinksAll,
 } from '../_lib/store.js';
 import { validateTrainingProgram } from '../_lib/trainingValidation.js';
 
@@ -26,9 +27,14 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const list = await trainingProgramsAll();
+      const links = await trainingProgramNeedLinksAll();
       const year = Number(req.query?.year || 0);
       const filtered = year ? list.filter((entry) => entry.year === year) : list;
-      return ok(res, { ok: true, list: filtered });
+      const enriched = filtered.map((entry) => ({
+        ...entry,
+        needLinks: links.filter((link) => link.programEntryId === entry.id),
+      }));
+      return ok(res, { ok: true, list: enriched });
     }
 
     if (req.method === 'POST') {

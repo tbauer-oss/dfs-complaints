@@ -91,6 +91,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   String _templateSort = 'title';
   bool _templateSortAsc = true;
   bool _myQuestionnairesLoading = false;
+  final Set<String> _selectedNeedIds = {};
+  String _needStatusFilter = 'all';
 
   @override
   void initState() {
@@ -570,6 +572,18 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
       'Sonstiges...',
     ];
     const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const plannedPeriodTypeLabels = {
+      'date': 'Datum',
+      'month': 'Monat',
+      'quarter': 'Quartal',
+      'halfYear': 'Halbjahr',
+    };
+    const plannedPeriodTypeLabels = {
+      'date': 'Datum',
+      'month': 'Monat',
+      'quarter': 'Quartal',
+      'halfYear': 'Halbjahr',
+    };
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
     const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
 
@@ -583,7 +597,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     DateTime? selectedPlannedDate;
     String? plannedPeriodValue = initial?.plannedPeriodValue;
     String? selectedFormat = initial?.trainingFormat.isNotEmpty == true ? initial!.trainingFormat : null;
-    String? selectedIntervalType = initial?.intervalType.isNotEmpty == true ? initial!.intervalType : null;
+    String? selectedIntervalType = initial?.intervalType.isNotEmpty == true ? initial!.intervalType : 'once';
     String? selectedIntervalValue = initial?.intervalValue;
     bool confirmationChecked = initial != null;
     bool recurrenceActive = initial?.recurrenceActive ?? true;
@@ -1272,6 +1286,638 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     }
   }
 
+  Future<void> _integrateNeed(TrainingNeed need) async {
+    if (!_isAdminUser) return;
+    final suggestions = await widget.api
+        .trainingNeedIntegrationSuggestions(need.id)
+        .catchError((_) => <TrainingProgram>[]);
+    final primaryItem = need.items.isNotEmpty ? need.items.first : null;
+    final resolvedDepartment = _resolveNeedDepartment(need);
+    final controllerTitle = TextEditingController(text: primaryItem?.topic ?? '');
+    final controllerDepartment = TextEditingController(text: resolvedDepartment);
+    final controllerTargetGroup = TextEditingController(text: resolvedDepartment);
+    final controllerResponsible = TextEditingController(text: _currentUserEmail);
+    final controllerParticipants = TextEditingController(
+      text: primaryItem == null ? '' : primaryItem.participants.toString(),
+    );
+    final controllerBudget = TextEditingController(
+      text: need.plannedBudget == null ? '' : need.plannedBudget!.toStringAsFixed(0),
+    );
+    final controllerNotes = TextEditingController(text: need.additionalNotes ?? need.comments);
+    final controllerCategoryFreeText = TextEditingController();
+    final controllerIntervalOther = TextEditingController(text: need.intervalValueFreeText ?? '');
+    final controllerPlannedPeriodValue = TextEditingController(text: need.plannedPeriodValue);
+
+    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
+    const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
+    const intervalOptions = [
+      'vierteljährlich',
+      'halbjährlich',
+      'jährlich',
+      'alle 2 Jahre',
+      'alle 3 Jahre',
+      'alle 4 Jahre',
+      'alle 5 Jahre',
+      'Sonstiges...',
+    ];
+
+    String plannedPeriodType = need.plannedPeriodType.isNotEmpty ? need.plannedPeriodType : plannedPeriodTypes.first;
+    String selectedCategory = 'other';
+    String selectedFormat = need.trainingFormat.isNotEmpty ? need.trainingFormat : trainingFormats.keys.first;
+    String selectedIntervalType = need.intervalType.isNotEmpty ? need.intervalType : 'once';
+    String? selectedIntervalValue = need.intervalValue;
+    if (selectedIntervalValue != null && !intervalOptions.contains(selectedIntervalValue)) {
+      controllerIntervalOther.text = selectedIntervalValue!;
+      selectedIntervalValue = 'Sonstiges...';
+    }
+
+    String mode = suggestions.isNotEmpty ? 'useExisting' : 'create';
+    TrainingProgram? selectedProgram = suggestions.isNotEmpty ? suggestions.first : null;
+    bool markNeedDone = false;
+    bool linkNeed = true;
+    bool mergeParticipants = false;
+    bool mergeBudget = false;
+
+    String? errorTitle;
+    String? errorDepartment;
+    String? errorTargetGroup;
+    String? errorPlannedPeriod;
+    String? errorFormat;
+    String? errorResponsible;
+    String? errorParticipants;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final intervalIsRecurring = selectedIntervalType == 'recurring';
+            final intervalIsOther = selectedIntervalValue == 'Sonstiges...';
+            return AlertDialog(
+              title: const Text('Ins Schulungsprogramm übernehmen'),
+              content: SizedBox(
+                width: 640,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Zusammenfassung Bedarf', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      Text('Schulungsjahr: ${need.year}'),
+                      Text('Abteilung/Team: ${resolvedDepartment.isEmpty ? '—' : resolvedDepartment}'),
+                      Text('Schulungsthema: ${primaryItem?.topic ?? '—'}'),
+                      Text('Geplanter Zeitraum: ${_needPlannedPeriodLabel(need)}'),
+                      Text('Format: ${trainingFormats[need.trainingFormat] ?? '—'}'),
+                      Text('Schulungsintervall: ${intervalTypes[need.intervalType] ?? '—'}'),
+                      Text('Teilnehmer (geschätzt): ${primaryItem?.participants ?? '—'}'),
+                      Text(
+                        'Geplantes Budget: ${need.plannedBudget == null ? '—' : '${need.plannedBudget} €'}',
+                      ),
+                      if ((need.additionalNotes ?? '').isNotEmpty) Text('Hinweise: ${need.additionalNotes}'),
+                      if ((need.topicPriorities ?? '').isNotEmpty) Text('Themen: ${need.topicPriorities}'),
+                      if ((need.preferredTrainers ?? '').isNotEmpty) Text('Trainer: ${need.preferredTrainers}'),
+                      if ((need.specialRequirements ?? '').isNotEmpty) Text('Anforderungen: ${need.specialRequirements}'),
+                      const SizedBox(height: 16),
+                      Text('Programm-Daten', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: controllerTitle,
+                        decoration: InputDecoration(labelText: 'Programmtitel', errorText: errorTitle),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedCategory,
+                        items: _trainingCategoryOptions
+                            .map((entry) => DropdownMenuItem(value: entry['value'], child: Text(entry['label'] ?? '')))
+                            .toList(),
+                        onChanged: (value) => setState(() => selectedCategory = value ?? 'other'),
+                        decoration: const InputDecoration(labelText: 'Kategorie'),
+                      ),
+                      if (selectedCategory == 'other')
+                        TextField(
+                          controller: controllerCategoryFreeText,
+                          decoration: const InputDecoration(labelText: 'Kategorie (Sonstiges)'),
+                        ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: controllerDepartment,
+                        decoration: InputDecoration(labelText: 'Abteilung/Team', errorText: errorDepartment),
+                      ),
+                      TextField(
+                        controller: controllerTargetGroup,
+                        decoration: InputDecoration(labelText: 'Zielgruppe', errorText: errorTargetGroup),
+                      ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: plannedPeriodType,
+                        items: plannedPeriodTypes
+                            .map((entry) => DropdownMenuItem(
+                                  value: entry,
+                                  child: Text(plannedPeriodTypeLabels[entry] ?? entry),
+                                ))
+                            .toList(),
+                        onChanged: (value) => setState(() => plannedPeriodType = value ?? plannedPeriodTypes.first),
+                        decoration: const InputDecoration(labelText: 'Zeitraumstyp'),
+                      ),
+                      TextField(
+                        controller: controllerPlannedPeriodValue,
+                        decoration: InputDecoration(
+                          labelText: 'Geplanter Termin',
+                          hintText: 'YYYY-MM-DD / YYYY-MM / YYYY-Qx / YYYY-Hx',
+                          errorText: errorPlannedPeriod,
+                        ),
+                      ),
+                      DropdownButtonFormField<String>(
+                        value: selectedFormat,
+                        items: trainingFormats.entries
+                            .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                            .toList(),
+                        onChanged: (value) => setState(() => selectedFormat = value ?? trainingFormats.keys.first),
+                        decoration: InputDecoration(labelText: 'Format', errorText: errorFormat),
+                      ),
+                      DropdownButtonFormField<String>(
+                        value: selectedIntervalType,
+                        items: intervalTypes.entries
+                            .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          selectedIntervalType = value ?? 'once';
+                          if (selectedIntervalType != 'recurring') {
+                            selectedIntervalValue = null;
+                            controllerIntervalOther.clear();
+                          }
+                        }),
+                        decoration: const InputDecoration(labelText: 'Intervall'),
+                      ),
+                      if (intervalIsRecurring)
+                        DropdownButtonFormField<String>(
+                          value: selectedIntervalValue,
+                          items: intervalOptions.map((entry) => DropdownMenuItem(value: entry, child: Text(entry))).toList(),
+                          onChanged: (value) => setState(() {
+                            selectedIntervalValue = value;
+                            if (selectedIntervalValue != 'Sonstiges...') {
+                              controllerIntervalOther.clear();
+                            }
+                          }),
+                          decoration: const InputDecoration(labelText: 'Intervall-Details'),
+                        ),
+                      if (intervalIsRecurring && intervalIsOther)
+                        TextField(
+                          controller: controllerIntervalOther,
+                          decoration: const InputDecoration(labelText: 'Intervall (Sonstiges)'),
+                        ),
+                      TextField(
+                        controller: controllerResponsible,
+                        decoration: InputDecoration(labelText: 'Verantwortlich', errorText: errorResponsible),
+                      ),
+                      TextField(
+                        controller: controllerParticipants,
+                        decoration: InputDecoration(labelText: 'Teilnehmer (geplant)', errorText: errorParticipants),
+                      ),
+                      TextField(
+                        controller: controllerBudget,
+                        decoration: const InputDecoration(labelText: 'Budget (optional)'),
+                        keyboardType: TextInputType.number,
+                      ),
+                      TextField(
+                        controller: controllerNotes,
+                        decoration: const InputDecoration(labelText: 'Notizen'),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 12),
+                      if (suggestions.isNotEmpty) ...[
+                        Text('Duplikat-Prüfung', style: Theme.of(context).textTheme.titleSmall),
+                        RadioListTile<String>(
+                          title: const Text('Bestehenden Programmpunkt verwenden'),
+                          value: 'useExisting',
+                          groupValue: mode,
+                          onChanged: (value) => setState(() => mode = value ?? 'useExisting'),
+                        ),
+                        if (mode == 'useExisting')
+                          DropdownButtonFormField<TrainingProgram>(
+                            value: selectedProgram,
+                            items: suggestions
+                                .map(
+                                  (entry) => DropdownMenuItem(
+                                    value: entry,
+                                    child: Text('${entry.title} · ${entry.department} · ${entry.plannedPeriodValue}'),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) => setState(() => selectedProgram = value),
+                            decoration: const InputDecoration(labelText: 'Vorschlag auswählen'),
+                          ),
+                        CheckboxListTile(
+                          value: mergeParticipants,
+                          onChanged: mode == 'useExisting'
+                              ? (value) => setState(() => mergeParticipants = value ?? false)
+                              : null,
+                          title: const Text('Teilnehmer addieren'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        CheckboxListTile(
+                          value: mergeBudget,
+                          onChanged:
+                              mode == 'useExisting' ? (value) => setState(() => mergeBudget = value ?? false) : null,
+                          title: const Text('Budget addieren'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        RadioListTile<String>(
+                          title: const Text('Neuen Programmpunkt erstellen'),
+                          value: 'create',
+                          groupValue: mode,
+                          onChanged: (value) => setState(() => mode = value ?? 'create'),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        value: markNeedDone,
+                        onChanged: (value) => setState(() => markNeedDone = value ?? false),
+                        title: const Text('Bedarf als erledigt markieren'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      CheckboxListTile(
+                        value: linkNeed,
+                        onChanged: (value) => setState(() => linkNeed = value ?? true),
+                        title: const Text('Bedarf im Programm als Quelle verlinken'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: () {
+                    errorTitle = controllerTitle.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorDepartment = controllerDepartment.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorTargetGroup = controllerTargetGroup.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorPlannedPeriod = controllerPlannedPeriodValue.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorFormat = selectedFormat.isEmpty ? 'Pflichtfeld' : null;
+                    errorResponsible = controllerResponsible.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    errorParticipants = controllerParticipants.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                    if ([
+                      errorTitle,
+                      errorDepartment,
+                      errorTargetGroup,
+                      errorPlannedPeriod,
+                      errorFormat,
+                      errorResponsible,
+                      errorParticipants,
+                    ].any((entry) => entry != null)) {
+                      setState(() {});
+                      return;
+                    }
+                    Navigator.of(context).pop(true);
+                  },
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != true) return;
+    try {
+      final draft = {
+        'title': controllerTitle.text.trim(),
+        'category': selectedCategory,
+        'categoryFreeText': selectedCategory == 'other' ? controllerCategoryFreeText.text.trim() : null,
+        'department': controllerDepartment.text.trim(),
+        'targetGroup': controllerTargetGroup.text.trim(),
+        'plannedPeriodType': plannedPeriodType,
+        'plannedPeriodValue': controllerPlannedPeriodValue.text.trim(),
+        'format': selectedFormat,
+        'intervalType': selectedIntervalType,
+        'intervalValue': selectedIntervalType == 'recurring'
+            ? (selectedIntervalValue == 'Sonstiges...' ? controllerIntervalOther.text.trim() : selectedIntervalValue)
+            : null,
+        'responsiblePerson': controllerResponsible.text.trim(),
+        'participantsPlanned': controllerParticipants.text.trim(),
+        'budgetTotal': double.tryParse(controllerBudget.text.trim().replaceAll(',', '.')),
+        'notes': controllerNotes.text.trim(),
+      };
+      await widget.api.integrateTrainingNeed(
+        need.id,
+        mode: mode,
+        programEntryId: selectedProgram?.id,
+        programDraft: draft,
+        markNeedDone: markNeedDone,
+        mergeParticipants: mergeParticipants,
+        mergeBudget: mergeBudget,
+        linkNeed: linkNeed,
+      );
+      _selectedNeedIds.remove(need.id);
+      await _loadAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Schulungsbedarf wurde ins Schulungsprogramm übernommen.')),
+        );
+      }
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Übernahme fehlgeschlagen: $err')),
+      );
+    }
+  }
+
+  Future<void> _integrateNeedsBulk(List<TrainingNeed> selectedNeeds) async {
+    if (!_isAdminUser || selectedNeeds.isEmpty) return;
+    final baseNeed = selectedNeeds.first;
+    final primaryItem = baseNeed.items.isNotEmpty ? baseNeed.items.first : null;
+    final resolvedDepartment = _resolveNeedDepartment(baseNeed);
+    final controllerTitle = TextEditingController(text: primaryItem?.topic ?? '');
+    final controllerDepartment = TextEditingController(text: resolvedDepartment);
+    final controllerTargetGroup = TextEditingController(text: resolvedDepartment);
+    final controllerResponsible = TextEditingController(text: _currentUserEmail);
+    final controllerParticipants = TextEditingController(text: primaryItem?.participants.toString() ?? '');
+    final controllerBudget = TextEditingController(
+      text: baseNeed.plannedBudget == null ? '' : baseNeed.plannedBudget!.toStringAsFixed(0),
+    );
+    final controllerNotes = TextEditingController(text: baseNeed.additionalNotes ?? baseNeed.comments);
+    final controllerCategoryFreeText = TextEditingController();
+    final controllerIntervalOther = TextEditingController(text: baseNeed.intervalValueFreeText ?? '');
+    final controllerPlannedPeriodValue = TextEditingController(text: baseNeed.plannedPeriodValue);
+
+    const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
+    const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
+    const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
+    const intervalOptions = [
+      'vierteljährlich',
+      'halbjährlich',
+      'jährlich',
+      'alle 2 Jahre',
+      'alle 3 Jahre',
+      'alle 4 Jahre',
+      'alle 5 Jahre',
+      'Sonstiges...',
+    ];
+
+    String plannedPeriodType =
+        baseNeed.plannedPeriodType.isNotEmpty ? baseNeed.plannedPeriodType : plannedPeriodTypes.first;
+    String selectedCategory = 'other';
+    String selectedFormat =
+        baseNeed.trainingFormat.isNotEmpty ? baseNeed.trainingFormat : trainingFormats.keys.first;
+    String selectedIntervalType = baseNeed.intervalType.isNotEmpty ? baseNeed.intervalType : 'once';
+    String? selectedIntervalValue = baseNeed.intervalValue;
+    if (selectedIntervalValue != null && !intervalOptions.contains(selectedIntervalValue)) {
+      controllerIntervalOther.text = selectedIntervalValue!;
+      selectedIntervalValue = 'Sonstiges...';
+    }
+
+    String bulkMode = 'grouped';
+    bool markNeedsDone = false;
+    bool linkNeed = true;
+
+    String? errorTitle;
+    String? errorDepartment;
+    String? errorTargetGroup;
+    String? errorPlannedPeriod;
+    String? errorFormat;
+    String? errorResponsible;
+    String? errorParticipants;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final intervalIsRecurring = selectedIntervalType == 'recurring';
+            final intervalIsOther = selectedIntervalValue == 'Sonstiges...';
+            return AlertDialog(
+              title: const Text('Auswahl ins Schulungsprogramm übernehmen'),
+              content: SizedBox(
+                width: 640,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Bedarfe: ${selectedNeeds.length} ausgewählt'),
+                      const SizedBox(height: 8),
+                      RadioListTile<String>(
+                        value: 'grouped',
+                        groupValue: bulkMode,
+                        onChanged: (value) => setState(() => bulkMode = value ?? 'grouped'),
+                        title: const Text('Ein Programmpunkt für alle'),
+                      ),
+                      RadioListTile<String>(
+                        value: 'oneToOne',
+                        groupValue: bulkMode,
+                        onChanged: (value) => setState(() => bulkMode = value ?? 'oneToOne'),
+                        title: const Text('Je Bedarf ein Programmpunkt'),
+                      ),
+                      if (bulkMode == 'grouped') ...[
+                        const SizedBox(height: 12),
+                        Text('Programm-Daten', style: Theme.of(context).textTheme.titleSmall),
+                        TextField(
+                          controller: controllerTitle,
+                          decoration: InputDecoration(labelText: 'Programmtitel', errorText: errorTitle),
+                        ),
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          value: selectedCategory,
+                          items: _trainingCategoryOptions
+                              .map((entry) => DropdownMenuItem(value: entry['value'], child: Text(entry['label'] ?? '')))
+                              .toList(),
+                          onChanged: (value) => setState(() => selectedCategory = value ?? 'other'),
+                          decoration: const InputDecoration(labelText: 'Kategorie'),
+                        ),
+                        if (selectedCategory == 'other')
+                          TextField(
+                            controller: controllerCategoryFreeText,
+                            decoration: const InputDecoration(labelText: 'Kategorie (Sonstiges)'),
+                          ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: controllerDepartment,
+                          decoration: InputDecoration(labelText: 'Abteilung/Team', errorText: errorDepartment),
+                        ),
+                        TextField(
+                          controller: controllerTargetGroup,
+                          decoration: InputDecoration(labelText: 'Zielgruppe', errorText: errorTargetGroup),
+                        ),
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          value: plannedPeriodType,
+                          items: plannedPeriodTypes
+                              .map((entry) => DropdownMenuItem(
+                                    value: entry,
+                                    child: Text(plannedPeriodTypeLabels[entry] ?? entry),
+                                  ))
+                              .toList(),
+                          onChanged: (value) => setState(() => plannedPeriodType = value ?? plannedPeriodTypes.first),
+                          decoration: const InputDecoration(labelText: 'Zeitraumstyp'),
+                        ),
+                        TextField(
+                          controller: controllerPlannedPeriodValue,
+                          decoration: InputDecoration(
+                            labelText: 'Geplanter Termin',
+                            hintText: 'YYYY-MM-DD / YYYY-MM / YYYY-Qx / YYYY-Hx',
+                            errorText: errorPlannedPeriod,
+                          ),
+                        ),
+                        DropdownButtonFormField<String>(
+                          value: selectedFormat,
+                          items: trainingFormats.entries
+                              .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                              .toList(),
+                          onChanged: (value) => setState(() => selectedFormat = value ?? trainingFormats.keys.first),
+                          decoration: InputDecoration(labelText: 'Format', errorText: errorFormat),
+                        ),
+                        DropdownButtonFormField<String>(
+                          value: selectedIntervalType,
+                          items: intervalTypes.entries
+                              .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                              .toList(),
+                          onChanged: (value) => setState(() {
+                            selectedIntervalType = value ?? 'once';
+                            if (selectedIntervalType != 'recurring') {
+                              selectedIntervalValue = null;
+                              controllerIntervalOther.clear();
+                            }
+                          }),
+                          decoration: const InputDecoration(labelText: 'Intervall'),
+                        ),
+                        if (intervalIsRecurring)
+                          DropdownButtonFormField<String>(
+                            value: selectedIntervalValue,
+                            items: intervalOptions
+                                .map((entry) => DropdownMenuItem(value: entry, child: Text(entry)))
+                                .toList(),
+                            onChanged: (value) => setState(() {
+                              selectedIntervalValue = value;
+                              if (selectedIntervalValue != 'Sonstiges...') {
+                                controllerIntervalOther.clear();
+                              }
+                            }),
+                            decoration: const InputDecoration(labelText: 'Intervall-Details'),
+                          ),
+                        if (intervalIsRecurring && intervalIsOther)
+                          TextField(
+                            controller: controllerIntervalOther,
+                            decoration: const InputDecoration(labelText: 'Intervall (Sonstiges)'),
+                          ),
+                        TextField(
+                          controller: controllerResponsible,
+                          decoration: InputDecoration(labelText: 'Verantwortlich', errorText: errorResponsible),
+                        ),
+                        TextField(
+                          controller: controllerParticipants,
+                          decoration: InputDecoration(labelText: 'Teilnehmer (geplant)', errorText: errorParticipants),
+                        ),
+                        TextField(
+                          controller: controllerBudget,
+                          decoration: const InputDecoration(labelText: 'Budget (optional)'),
+                          keyboardType: TextInputType.number,
+                        ),
+                        TextField(
+                          controller: controllerNotes,
+                          decoration: const InputDecoration(labelText: 'Notizen'),
+                          maxLines: 3,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        value: markNeedsDone,
+                        onChanged: (value) => setState(() => markNeedsDone = value ?? false),
+                        title: const Text('Bedarf als erledigt markieren'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      CheckboxListTile(
+                        value: linkNeed,
+                        onChanged: (value) => setState(() => linkNeed = value ?? true),
+                        title: const Text('Bedarf im Programm als Quelle verlinken'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Abbrechen')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (bulkMode == 'grouped') {
+                      errorTitle = controllerTitle.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                      errorDepartment = controllerDepartment.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                      errorTargetGroup = controllerTargetGroup.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                      errorPlannedPeriod = controllerPlannedPeriodValue.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                      errorFormat = selectedFormat.isEmpty ? 'Pflichtfeld' : null;
+                      errorResponsible = controllerResponsible.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                      errorParticipants = controllerParticipants.text.trim().isEmpty ? 'Pflichtfeld' : null;
+                      if ([
+                        errorTitle,
+                        errorDepartment,
+                        errorTargetGroup,
+                        errorPlannedPeriod,
+                        errorFormat,
+                        errorResponsible,
+                        errorParticipants,
+                      ].any((entry) => entry != null)) {
+                        setState(() {});
+                        return;
+                      }
+                    }
+                    Navigator.of(context).pop(true);
+                  },
+                  child: const Text('Übernehmen'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != true) return;
+    try {
+      final draft = bulkMode == 'grouped'
+          ? {
+              'title': controllerTitle.text.trim(),
+              'category': selectedCategory,
+              'categoryFreeText': selectedCategory == 'other' ? controllerCategoryFreeText.text.trim() : null,
+              'department': controllerDepartment.text.trim(),
+              'targetGroup': controllerTargetGroup.text.trim(),
+              'plannedPeriodType': plannedPeriodType,
+              'plannedPeriodValue': controllerPlannedPeriodValue.text.trim(),
+              'format': selectedFormat,
+              'intervalType': selectedIntervalType,
+              'intervalValue': selectedIntervalType == 'recurring'
+                  ? (selectedIntervalValue == 'Sonstiges...'
+                      ? controllerIntervalOther.text.trim()
+                      : selectedIntervalValue)
+                  : null,
+              'responsiblePerson': controllerResponsible.text.trim(),
+              'participantsPlanned': controllerParticipants.text.trim(),
+              'budgetTotal': double.tryParse(controllerBudget.text.trim().replaceAll(',', '.')),
+              'notes': controllerNotes.text.trim(),
+            }
+          : null;
+      await widget.api.integrateTrainingNeedsBulk(
+        needIds: selectedNeeds.map((need) => need.id).toList(),
+        bulkMode: bulkMode,
+        programDraft: draft,
+        markNeedsDone: markNeedsDone,
+        linkNeed: linkNeed,
+      );
+      _selectedNeedIds.clear();
+      await _loadAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Schulungsbedarfe wurden ins Schulungsprogramm übernommen.')),
+        );
+      }
+    } catch (err) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Übernahme fehlgeschlagen: $err')),
+      );
+    }
+  }
+
   Future<TrainingProgram?> _openProgramDialog({TrainingProgram? initial}) async {
     if (!widget.canWrite) return null;
     final controllerYear = TextEditingController(text: (initial?.year ?? _programYearFilter).toString());
@@ -1280,6 +1926,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final controllerDepartmentOther = TextEditingController();
     final controllerResponsible = TextEditingController(text: initial?.responsiblePerson ?? '');
     final controllerParticipants = TextEditingController(text: initial?.participantsPlanned ?? '');
+    final controllerCategoryFreeText = TextEditingController(text: initial?.categoryFreeText ?? '');
+    final controllerIntervalOther = TextEditingController();
     final controllerTrainer = TextEditingController(text: initial?.trainerProvider ?? '');
     final controllerLocation = TextEditingController(text: initial?.location ?? '');
     final controllerDuration = TextEditingController(text: initial?.duration ?? '');
@@ -1311,6 +1959,17 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     ];
     const plannedPeriodTypes = ['date', 'month', 'quarter', 'halfYear'];
     const trainingFormats = {'praesenz': 'Präsenz', 'online': 'Online'};
+    const intervalTypes = {'once': 'einmalig', 'recurring': 'wiederkehrend'};
+    const intervalOptions = [
+      'vierteljährlich',
+      'halbjährlich',
+      'jährlich',
+      'alle 2 Jahre',
+      'alle 3 Jahre',
+      'alle 4 Jahre',
+      'alle 5 Jahre',
+      'Sonstiges...',
+    ];
     const statusOptions = {
       'planned': 'Geplant',
       'inProgress': 'In Arbeit',
@@ -1335,6 +1994,9 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     DateTime? selectedPlannedDate;
     String? plannedPeriodValue = initial?.plannedPeriodValue;
     String? selectedFormat = initial?.format.isNotEmpty == true ? initial!.format : null;
+    String selectedCategory = initial?.category.isNotEmpty == true ? initial!.category : 'other';
+    String? selectedIntervalType = initial?.intervalType.isNotEmpty == true ? initial!.intervalType : null;
+    String? selectedIntervalValue = initial?.intervalValue;
     String selectedStatus = initial?.status.isNotEmpty == true ? initial!.status : 'planned';
 
     final hasExecutions = initial != null && _trainings.any((t) => t.linkedProgramId == initial.id);
@@ -1349,6 +2011,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     String? errorParticipants;
     String? errorStatus;
     String? errorCancellationReason;
+    String? errorIntervalType;
+    String? errorIntervalValue;
 
     String formatDate(DateTime date) {
       final y = date.year.toString().padLeft(4, '0');
@@ -1397,6 +2061,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         selectedHalfYear = plannedPeriodValue!.split('-').last;
       }
     }
+    if (selectedIntervalValue != null && !intervalOptions.contains(selectedIntervalValue)) {
+      controllerIntervalOther.text = selectedIntervalValue!;
+      selectedIntervalValue = 'Sonstiges...';
+    }
 
     final result = await showDialog<TrainingProgram>(
       context: context,
@@ -1405,6 +2073,9 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           builder: (context, setState) {
             final selectedDepartmentIsOther = selectedDepartment == 'Sonstiges...';
             final statusNeedsReason = ['cancelled', 'notOccurred', 'removed', 'abgebrochen'].contains(selectedStatus);
+            final categoryIsOther = selectedCategory == 'other';
+            final intervalIsRecurring = selectedIntervalType == 'recurring';
+            final intervalIsOther = selectedIntervalValue == 'Sonstiges...';
             return AlertDialog(
               title: Text(initial == null ? 'Neue geplante Schulung' : 'Geplante Schulung bearbeiten'),
               content: SizedBox(
@@ -1424,6 +2095,20 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                         controller: controllerTitle,
                         decoration: InputDecoration(labelText: 'Thema', errorText: errorTitle),
                       ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedCategory,
+                        items: _trainingCategoryOptions
+                            .map((entry) => DropdownMenuItem(value: entry['value'], child: Text(entry['label'] ?? '')))
+                            .toList(),
+                        onChanged: (value) => setState(() => selectedCategory = value ?? 'other'),
+                        decoration: const InputDecoration(labelText: 'Kategorie'),
+                      ),
+                      if (categoryIsOther)
+                        TextField(
+                          controller: controllerCategoryFreeText,
+                          decoration: const InputDecoration(labelText: 'Kategorie (Sonstiges)'),
+                        ),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
                         value: selectedDepartment,
@@ -1520,6 +2205,38 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                         onChanged: (value) => setState(() => selectedFormat = value),
                         decoration: InputDecoration(labelText: 'Format', errorText: errorFormat),
                       ),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: selectedIntervalType,
+                        items: intervalTypes.entries
+                            .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value)))
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          selectedIntervalType = value;
+                          if (selectedIntervalType != 'recurring') {
+                            selectedIntervalValue = null;
+                            controllerIntervalOther.clear();
+                          }
+                        }),
+                        decoration: InputDecoration(labelText: 'Intervall', errorText: errorIntervalType),
+                      ),
+                      if (intervalIsRecurring)
+                        DropdownButtonFormField<String>(
+                          value: selectedIntervalValue,
+                          items: intervalOptions.map((entry) => DropdownMenuItem(value: entry, child: Text(entry))).toList(),
+                          onChanged: (value) => setState(() {
+                            selectedIntervalValue = value;
+                            if (selectedIntervalValue != 'Sonstiges...') {
+                              controllerIntervalOther.clear();
+                            }
+                          }),
+                          decoration: InputDecoration(labelText: 'Intervall-Details', errorText: errorIntervalValue),
+                        ),
+                      if (intervalIsRecurring && intervalIsOther)
+                        TextField(
+                          controller: controllerIntervalOther,
+                          decoration: InputDecoration(labelText: 'Intervall (Sonstiges)', errorText: errorIntervalValue),
+                        ),
                       TextField(
                         controller: controllerResponsible,
                         decoration: InputDecoration(labelText: 'Verantwortlich', errorText: errorResponsible),
@@ -1588,6 +2305,17 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                     plannedPeriodValue = buildPlannedPeriodValue();
                     errorPlannedPeriod = plannedPeriodValue == null ? 'Bitte Zeitraum auswählen.' : null;
                     errorFormat = selectedFormat == null ? 'Bitte Format auswählen.' : null;
+                    errorIntervalType =
+                        selectedIntervalType == null ? 'Bitte Schulungsintervall auswählen.' : null;
+                    errorIntervalValue = null;
+                    if (selectedIntervalType == 'recurring') {
+                      if (selectedIntervalValue == null || selectedIntervalValue!.isEmpty) {
+                        errorIntervalValue = 'Bitte Intervall auswählen.';
+                      } else if (selectedIntervalValue == 'Sonstiges...' &&
+                          controllerIntervalOther.text.trim().length < 2) {
+                        errorIntervalValue = 'Bitte Intervall angeben.';
+                      }
+                    }
                     errorResponsible = controllerResponsible.text.trim().isEmpty ? 'Pflichtfeld' : null;
                     errorParticipants = controllerParticipants.text.trim().isEmpty ? 'Pflichtfeld' : null;
                     errorStatus = selectedStatus.isEmpty ? 'Pflichtfeld' : null;
@@ -1605,6 +2333,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       errorTargetGroup,
                       errorPlannedPeriod,
                       errorFormat,
+                      errorIntervalType,
+                      errorIntervalValue,
                       errorResponsible,
                       errorParticipants,
                       errorStatus,
@@ -1624,9 +2354,16 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       owner: controllerResponsible.text.trim(),
                       department: resolvedDepartment,
                       targetGroup: controllerTargetGroup.text.trim(),
+                      category: selectedCategory,
+                      categoryFreeText:
+                          selectedCategory == 'other' ? controllerCategoryFreeText.text.trim() : null,
                       plannedPeriodType: plannedPeriodType,
                       plannedPeriodValue: plannedPeriodValue!,
                       format: selectedFormat ?? '',
+                      intervalType: selectedIntervalType ?? '',
+                      intervalValue: selectedIntervalType == 'recurring'
+                          ? (selectedIntervalValue == 'Sonstiges...' ? controllerIntervalOther.text.trim() : selectedIntervalValue)
+                          : null,
                       responsiblePerson: controllerResponsible.text.trim(),
                       participantsPlanned: controllerParticipants.text.trim(),
                       trainerProvider: controllerTrainer.text.trim(),
@@ -1635,6 +2372,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       notes: controllerNotes.text.trim(),
                       cancellationReason: statusNeedsReason ? controllerCancellationReason.text.trim() : null,
                       needIds: initial?.needIds ?? const [],
+                      needLinks: initial?.needLinks ?? const [],
                       trainingIds: initial?.trainingIds ?? const [],
                       budgetTotal: initial?.budgetTotal ?? 0,
                       updatedAt: initial?.updatedAt,
@@ -4158,13 +4896,75 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     );
   }
 
+  String _resolveNeedDepartment(TrainingNeed need) {
+    if (need.departmentTeamSelected == 'Sonstiges...') {
+      return need.departmentTeamFreeText ?? need.department;
+    }
+    return need.departmentTeamSelected.isNotEmpty ? need.departmentTeamSelected : need.department;
+  }
+
+  String _needPlannedPeriodLabel(TrainingNeed need) {
+    final value = need.plannedPeriodValue;
+    if (value.isEmpty) return '—';
+    switch (need.plannedPeriodType) {
+      case 'date':
+        return 'Datum: $value';
+      case 'month':
+        return 'Monat: $value';
+      case 'quarter':
+        return 'Quartal: ${value.split('-').last} ${value.split('-').first}';
+      case 'halfYear':
+        return 'Halbjahr: ${value.split('-').last} ${value.split('-').first}';
+    }
+    return value;
+  }
+
+  String _needStatusLabel(TrainingNeed need) {
+    switch (need.status) {
+      case 'integrated':
+        return 'Ins Programm übernommen';
+      case 'closed':
+        return 'Erledigt';
+      default:
+        return 'Offen';
+    }
+  }
+
+  Color _needStatusTint(TrainingNeed need, ThemeData theme) {
+    switch (need.status) {
+      case 'integrated':
+        return Colors.green.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12);
+      case 'closed':
+        return Colors.blueGrey.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12);
+      default:
+        return Colors.orange.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.12);
+    }
+  }
+
   Widget _buildNeedsTab(ThemeData theme) {
+    final filteredNeeds = _needs.where((need) {
+      if (_needStatusFilter == 'open') {
+        return need.status != 'integrated' && need.status != 'closed';
+      }
+      if (_needStatusFilter == 'integrated') {
+        return need.status == 'integrated';
+      }
+      return true;
+    }).toList();
+    final selectedNeeds = filteredNeeds.where((need) => _selectedNeedIds.contains(need.id)).toList();
     return ListView(
       children: [
         Row(
           children: [
             Text('Bedarfserhebung (FB620)', style: theme.textTheme.titleMedium),
             const Spacer(),
+            if (_isAdminUser && selectedNeeds.isNotEmpty)
+              ElevatedButton.icon(
+                onPressed: () => _integrateNeedsBulk(selectedNeeds),
+                icon: const Icon(Icons.playlist_add_check),
+                label: const Text('Auswahl ins Schulungsprogramm übernehmen'),
+              ),
+            if (_isAdminUser && selectedNeeds.isNotEmpty) const SizedBox(width: 8),
             if (widget.canDelete)
               TextButton.icon(
                 onPressed: () => _purgeTrainingScope('needs', 'Schulungsbedarfe'),
@@ -4180,21 +4980,73 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
           ],
         ),
         const SizedBox(height: 12),
-        if (_needs.isEmpty)
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Alle'),
+              selected: _needStatusFilter == 'all',
+              onSelected: (_) => setState(() => _needStatusFilter = 'all'),
+            ),
+            ChoiceChip(
+              label: const Text('Nur offen'),
+              selected: _needStatusFilter == 'open',
+              onSelected: (_) => setState(() => _needStatusFilter = 'open'),
+            ),
+            ChoiceChip(
+              label: const Text('Nur übernommen'),
+              selected: _needStatusFilter == 'integrated',
+              onSelected: (_) => setState(() => _needStatusFilter = 'integrated'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (filteredNeeds.isEmpty)
           const Text('Noch keine Bedarfe erfasst.'),
-        ..._needs.map((need) {
+        ...filteredNeeds.map((need) {
           final item = need.items.isNotEmpty ? need.items.first : null;
           final isAuto = need.isAutoGenerated;
+          final statusLabel = _needStatusLabel(need);
+          final statusTint = _needStatusTint(need, theme);
+          final isIntegrated = need.status == 'integrated' || need.status == 'closed';
           return Card(
             child: ListTile(
-              title: Text('${need.year} · ${need.department.isEmpty ? 'Unbekannt' : need.department}'),
+              leading: _isAdminUser
+                  ? Checkbox(
+                      value: _selectedNeedIds.contains(need.id),
+                      onChanged: isIntegrated
+                          ? null
+                          : (value) => setState(() {
+                                if (value == true) {
+                                  _selectedNeedIds.add(need.id);
+                                } else {
+                                  _selectedNeedIds.remove(need.id);
+                                }
+                              }),
+                    )
+                  : null,
+              title: Text('${need.year} · ${_resolveNeedDepartment(need).isEmpty ? 'Unbekannt' : _resolveNeedDepartment(need)}'),
               subtitle: Text(item == null ? 'Kein Bedarf' : '${item.topic} · ${item.timeframe} · ${item.format}'),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (isAuto) _autoBadge(theme),
                   if (isAuto) const SizedBox(width: 8),
-                  Text(need.status),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusTint,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(statusLabel),
+                  ),
+                  if (_isAdminUser) const SizedBox(width: 8),
+                  if (_isAdminUser)
+                    OutlinedButton.icon(
+                      onPressed: isIntegrated ? null : () => _integrateNeed(need),
+                      icon: const Icon(Icons.arrow_forward),
+                      label: const Text('Ins Schulungsprogramm übernehmen'),
+                    ),
                   if (widget.canWrite) const SizedBox(width: 8),
                   if (widget.canWrite)
                     IconButton(
@@ -4373,6 +5225,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
 
   Future<void> _showProgramDetails(TrainingProgram program) async {
     final executions = _trainings.where((t) => t.linkedProgramId == program.id).toList();
+    final needIds = {...program.needIds, ...program.needLinks.map((link) => link.trainingNeedId)}.toList();
+    final linkedNeeds = _needs.where((need) => needIds.contains(need.id)).toList();
+    final linkMap = {for (final link in program.needLinks) link.trainingNeedId: link};
+    String formatTimestamp(int? value) {
+      if (value == null) return '—';
+      return DateFormat('dd.MM.yyyy').format(DateTime.fromMillisecondsSinceEpoch(value));
+    }
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -4387,9 +5246,12 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                   Text('Zeitraum: ${_programPlannedPeriodLabel(program)}'),
                   Text('Abteilung/Team: ${program.department}'),
                   Text('Zielgruppe: ${program.targetGroup}'),
+                  if (program.category.isNotEmpty)
+                    Text('Kategorie: ${program.categoryFreeText?.isNotEmpty == true ? program.categoryFreeText : program.category}'),
                   Text('Teilnehmer (geplant): ${program.participantsPlanned}'),
                   Text('Format: ${program.format}'),
                   Text('Status: ${program.status}'),
+                  if (program.intervalType.isNotEmpty) Text('Intervall: ${program.intervalType} ${program.intervalValue ?? ''}'),
                   Text('Verantwortlich: ${program.responsiblePerson}'),
                   if (program.trainerProvider.isNotEmpty) Text('Trainer/Anbieter: ${program.trainerProvider}'),
                   if (program.location.isNotEmpty) Text('Ort/Link: ${program.location}'),
@@ -4398,6 +5260,53 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       padding: const EdgeInsets.only(top: 8),
                       child: Text('Begründung: ${program.cancellationReason}'),
                     ),
+                  const SizedBox(height: 12),
+                  Text('Quellen (Schulungsbedarfe)', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  if (linkedNeeds.isEmpty)
+                    const Text('Keine Quellen verlinkt.')
+                  else
+                    ...linkedNeeds.map((need) {
+                      final item = need.items.isNotEmpty ? need.items.first : null;
+                      final link = linkMap[need.id];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item?.topic ?? 'Ohne Thema'),
+                        subtitle: Text(
+                          '${_resolveNeedDepartment(need)} · Eingereicht: ${formatTimestamp(need.createdAt)}'
+                          '${link != null ? ' · Verlinkt: ${formatTimestamp(link.linkedAt)}' : ''}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: widget.canWrite ? () => _editNeed(need) : null,
+                              child: const Text('Bedarf öffnen'),
+                            ),
+                            if (_isAdminUser)
+                              IconButton(
+                                tooltip: 'Link entfernen',
+                                icon: const Icon(Icons.link_off),
+                                onPressed: () async {
+                                  try {
+                                    await widget.api.removeTrainingProgramNeedLink(
+                                      programEntryId: program.id,
+                                      trainingNeedId: need.id,
+                                    );
+                                    await _loadAll();
+                                    if (mounted) Navigator.of(context).pop();
+                                  } catch (err) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Link entfernen fehlgeschlagen: $err')),
+                                    );
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
                   const SizedBox(height: 12),
                   Text('Durchführungen', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 6),
