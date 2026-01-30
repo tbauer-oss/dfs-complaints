@@ -23,12 +23,16 @@ class AdminTrainingPage extends StatefulWidget {
     required this.api,
     required this.canWrite,
     required this.canDelete,
+    this.canWriteNeeds,
+    this.canDeleteNeeds,
     this.initialTab = 0,
   });
 
   final ApiClient api;
   final bool canWrite;
   final bool canDelete;
+  final bool? canWriteNeeds;
+  final bool? canDeleteNeeds;
   final int initialTab;
 
   @override
@@ -225,6 +229,9 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     final role = (widget.api.portalProfile?['role'] ?? '').toString().toLowerCase();
     return role == 'admin' || role == 'superuser';
   }
+
+  bool get _canWriteNeeds => widget.canWriteNeeds ?? widget.canWrite;
+  bool get _canDeleteNeeds => widget.canDeleteNeeds ?? widget.canDelete;
 
   PortalUserSummary? _staffByEmail(String? email) {
     if (email == null || email.isEmpty) return null;
@@ -442,7 +449,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   }
 
   Future<void> _deleteNeed(TrainingNeed need) async {
-    if (!widget.canDelete) return;
+    if (!_canDeleteNeeds) return;
     final allowInstances = need.intervalType == 'recurring' && (need.parentRecurringId == null || need.parentRecurringId!.isEmpty);
     final decision = await _confirmDeleteDecision(
       title: 'Schulungsbedarf löschen',
@@ -528,7 +535,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   }
 
   Future<TrainingNeed?> _openNeedDialog({TrainingNeed? initial}) async {
-    if (!widget.canWrite) return null;
+    if (!_canWriteNeeds) return null;
     final controllerYear = TextEditingController(text: (initial?.year ?? DateTime.now().year).toString());
     final controllerContact = TextEditingController(text: initial?.contactName ?? '');
     final controllerTopic = TextEditingController(text: initial?.items.isNotEmpty == true ? initial!.items.first.topic : '');
@@ -4955,13 +4962,13 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                 label: const Text('Auswahl ins Schulungsprogramm übernehmen'),
               ),
             if (_isAdminUser && selectedNeeds.isNotEmpty) const SizedBox(width: 8),
-            if (widget.canDelete)
+            if (_canDeleteNeeds)
               TextButton.icon(
                 onPressed: () => _purgeTrainingScope('needs', 'Schulungsbedarfe'),
                 icon: const Icon(Icons.delete_forever_outlined),
                 label: const Text('Alles löschen'),
               ),
-            if (widget.canWrite)
+            if (_canWriteNeeds)
               ElevatedButton.icon(
                 onPressed: _createNeed,
                 icon: const Icon(Icons.add),
@@ -5037,15 +5044,15 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                       icon: const Icon(Icons.arrow_forward),
                       label: const Text('Ins Schulungsprogramm übernehmen'),
                     ),
-                  if (widget.canWrite) const SizedBox(width: 8),
-                  if (widget.canWrite)
+                  if (_canWriteNeeds) const SizedBox(width: 8),
+                  if (_canWriteNeeds)
                     IconButton(
                       tooltip: 'Bearbeiten',
                       icon: const Icon(Icons.edit_outlined),
                       onPressed: () => _editNeed(need),
                     ),
-                  if (widget.canDelete) const SizedBox(width: 8),
-                  if (widget.canDelete)
+                  if (_canDeleteNeeds) const SizedBox(width: 8),
+                  if (_canDeleteNeeds)
                     IconButton(
                       tooltip: 'Löschen',
                       icon: const Icon(Icons.delete_outline),
@@ -5270,7 +5277,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             TextButton(
-                              onPressed: widget.canWrite ? () => _editNeed(need) : null,
+                              onPressed: _canWriteNeeds ? () => _editNeed(need) : null,
                               child: const Text('Bedarf öffnen'),
                             ),
                             if (_isAdminUser)

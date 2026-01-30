@@ -10830,6 +10830,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               api: widget.api,
               canWrite: _canWriteTile('trainings'),
               canDelete: _isSuperuser || _portalRole == 'admin',
+              canWriteNeeds: _canWriteTile('trainingNeeds') || _canWriteTile('trainings'),
+              canDeleteNeeds: _isSuperuser,
             );
           case TrainingAdminSection.program:
             return TrainingProgramPage(
