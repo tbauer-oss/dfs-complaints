@@ -3,6 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import { Redis } from '@upstash/redis';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
+import { handlePreflight, setCors } from '../_lib/http.js';
 
 // ---- Upstash ----
 const redisUrl =
@@ -15,18 +16,6 @@ const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redis
 
 function requireRedis() { if (!redis) throw new Error('Redis not configured'); }
 const S = (v) => (v ?? '').toString().trim();
-
-// ---- CORS (wie bei dir) ----
-function setCors(res) {
-  const origin = process.env.WEB_ORIGIN || 'https://dfs-complaints-web.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Gate');
-  res.setHeader('Access-Control-Max-Age', '600');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-}
 
 // ---- Key-Präfixe (beide Varianten unterstützen) ----
 const PFXS = ['dfs:complaints:', 'dfs:complaint:']; // plural + singular
@@ -98,8 +87,8 @@ async function loadComplaintByTicket(ticket) {
 }
 
 export default async function handler(req, res) {
-  setCors(res);
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (handlePreflight(req, res)) return;
+  setCors(req, res);
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
 
   try {

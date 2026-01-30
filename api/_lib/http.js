@@ -2,7 +2,6 @@
 
 // --- Erlaubte Frontend-Origins ---
 export const PROD_FE = 'https://dfs-complaints-web.vercel.app';
-const LOCAL_PATTERN = /^http:\/\/localhost(?::\d+)?$/i;
 const ALLOWED_ORIGINS = new Set([PROD_FE, 'http://localhost:3000', 'http://localhost:5173']);
 
 function normalizeOrigin(origin) {
@@ -24,7 +23,6 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   const normalized = normalizeOrigin(origin);
   if (ALLOWED_ORIGINS.has(normalized)) return true;
-  if (process.env.NODE_ENV !== 'production' && LOCAL_PATTERN.test(normalized)) return true;
   return false;
 }
 
@@ -64,6 +62,7 @@ function applyCors(res, allowOrigin, allowHeaders = '') {
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', mergedAllowedHeaders(allowHeaders));
     res.setHeader('Access-Control-Max-Age', '86400');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   res.__corsApplied = true;
   res.__corsOrigin = allowOrigin;

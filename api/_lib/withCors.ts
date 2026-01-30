@@ -2,10 +2,11 @@
 const ALLOWED_ORIGINS = new Set([
   'https://dfs-complaints-web.vercel.app',
   'http://localhost:3000',
+  'http://localhost:5173',
 ]);
 
 const ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
-const ALLOWED_HEADERS = 'Authorization, Content-Type';
+const ALLOWED_HEADERS = 'Authorization, Content-Type, X-Requested-With';
 const MAX_AGE = '86400';
 
 function normalizeOrigin(origin) {
@@ -19,7 +20,7 @@ function normalizeOrigin(origin) {
 
 function resolveAllowedOrigin(origin) {
   const normalized = normalizeOrigin(origin);
-  return ALLOWED_ORIGINS.has(normalized) ? normalized : '';
+  return ALLOWED_ORIGINS.has(normalized) ? origin : '';
 }
 
 function applyCorsHeaders(res, allowOrigin) {
@@ -29,6 +30,7 @@ function applyCorsHeaders(res, allowOrigin) {
   res.setHeader('Access-Control-Max-Age', MAX_AGE);
   if (allowOrigin) {
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 }
 

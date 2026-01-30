@@ -1,47 +1,12 @@
 // api/rep/decision/reset.js
 export const config = { runtime: 'nodejs' };
 
+import { handlePreflight, setCors } from '../../_lib/http.js';
+
 // --- Utils ---
 const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
-// --- Fallback-CORS (falls _lib/cors.js nicht ladbar) ---
-function setCorsFallback(
-  req,
-  res,
-  allowHeaders = 'Content-Type, Authorization, X-Admin-Secret, X-Gate, X-Rep-Secret, X-Debug'
-) {
-  const PROD_FE = 'https://dfs-complaints-web.vercel.app';
-  const origin = req.headers?.origin || '';
-  const isPreview = /^https:\/\/dfs-complaints-web-[a-z0-9-]+(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(origin);
-  const isLocal = origin.startsWith('http://localhost');
-
-  const allow =
-    origin && (origin === PROD_FE || isPreview || isLocal)
-      ? origin
-      : (process.env.WEB_ORIGIN || PROD_FE);
-
-  res.setHeader('Access-Control-Allow-Origin', allow);
-  res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', allowHeaders);
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-}
-
-async function ensureCors(req, res, allowHeaders) {
-  try {
-    const mod = await import(new URL('../../_lib/cors.js', import.meta.url));
-    if (typeof mod.setCors === 'function') {
-      mod.setCors(req, res, allowHeaders);
-      return;
-    }
-    setCorsFallback(req, res, allowHeaders);
-  } catch {
-    setCorsFallback(req, res, allowHeaders);
-  }
-}
 
 // --- Upstash-Facade: passt sich an eure Exporte an; mit lokalem Fallback ---
 async function loadUpstashFacade() {
@@ -136,12 +101,8 @@ async function loadRepAuth() {
 // --- Handler ---
 export default async function handler(req, res) {
   // 1) CORS zuerst
-  await ensureCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
-
-  // 2) Preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (handlePreflight(req, res)) return;
+  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
 
   const debug = S(req.query?.debug) === '1' || S(req.headers?.['x-debug']) === '1';
   const reqId = rid();
