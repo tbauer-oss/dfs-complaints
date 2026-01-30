@@ -24,6 +24,7 @@ import 'pages/legal_privacy_page.dart';
 import 'pages/legal_imprint_page.dart';
 import 'widgets/legal_footer.dart';
 import 'pages/reset_password_page.dart';
+import 'pages/training_signature_page.dart';
 
 // Widgets
 import 'widgets/lang_action.dart';
@@ -688,6 +689,7 @@ class _MyAppState extends State<MyApp> {
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
               '/reset-password': (_) => ResetPasswordPage(api: api),
+              '/sign': (_) => TrainingSignaturePage(api: api),
               // Datenschutz-Seite
               '/legal/privacy': (_) => const LegalPrivacyPage(),
               // Impressum-Seite
@@ -721,6 +723,13 @@ class _MyAppState extends State<MyApp> {
                     initialSectionId: section,
                     initialTopicId: topic,
                   ),
+                  settings: settings,
+                );
+              }
+
+              if (name.startsWith('/sign')) {
+                return MaterialPageRoute(
+                  builder: (_) => TrainingSignaturePage(api: api),
                   settings: settings,
                 );
               }

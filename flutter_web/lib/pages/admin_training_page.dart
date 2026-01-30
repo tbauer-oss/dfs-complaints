@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
@@ -5,10 +6,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:signature/signature.dart';
 import '../api/client.dart';
 import '../models/portal_user.dart';
 import '../models/training.dart';
+import '../models/training_signature.dart';
 
 class _DeleteDecision {
   const _DeleteDecision({required this.confirmed, this.deleteInstances = false});
@@ -3258,6 +3261,43 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
     setState(() => _trainings = _trainings.map((entry) => entry.id == updated.id ? updated : entry).toList());
   }
 
+  Future<void> _openSignatureQrDialog({
+    required TrainingRecord training,
+    required TrainingParticipant participant,
+    required ValueChanged<TrainingRecord> onUpdated,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _TrainingSignatureQrDialog(
+        api: widget.api,
+        training: training,
+        participant: participant,
+        onTrainingUpdated: onUpdated,
+      ),
+    );
+  }
+
+  Future<void> _issueSignatureLinkAndCopy({
+    required TrainingRecord training,
+    required TrainingParticipant participant,
+    required ValueChanged<TrainingRecord> onUpdated,
+  }) async {
+    try {
+      final response = await widget.api.trainingIssueSignatureToken(
+        trainingId: training.id,
+        participantId: participant.id,
+      );
+      await Clipboard.setData(ClipboardData(text: response.url));
+      final refreshed = await widget.api.adminTrainingById(training.id);
+      onUpdated(refreshed);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signatur-Link kopiert.')));
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Link konnte nicht erstellt werden: $err')));
+    }
+  }
+
   Future<void> _editTraining(TrainingRecord record) async {
     final result = await _openTrainingDialog(initial: record);
     if (result == null) return;
@@ -3272,6 +3312,7 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   Future<void> _openTrainingDetailDialog(TrainingRecord record) async {
     final currentUser = _currentUserEmail;
     final canManage = _isAdminUser;
+    final canIssueToken = widget.canWrite;
     var current = record;
     final wkMethod = ValueNotifier<String>(current.wkMethod ?? '');
     final wkDelayDays = ValueNotifier<int>(current.wkDelayDays ?? 0);
@@ -3294,6 +3335,10 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final participants = current.participants;
+            void applyTrainingUpdate(TrainingRecord updated) {
+              _updateTrainingRecord(updated);
+              setModalState(() => current = updated);
+            }
             return AlertDialog(
               title: Text('${current.trainingNumber.isEmpty ? 'Schulung' : current.trainingNumber} · ${current.title}'),
               content: SizedBox(
@@ -3331,15 +3376,51 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
                           final signedAt = participant.signedAt == null
                               ? null
                               : DateTime.fromMillisecondsSinceEpoch(participant.signedAt!).toLocal();
+                          final tokenActive = participant.hasActiveSignatureToken;
+                          final tokenExpiresAt = participant.signatureTokenExpiresAt;
+                          final tokenLabel = tokenActive && tokenExpiresAt != null
+                              ? DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(tokenExpiresAt).toLocal())
+                              : null;
                           return Card(
                             elevation: 0,
                             color: Colors.grey.shade50,
                             child: ListTile(
                               title: Text(participant.name),
-                              subtitle: Text(isSigned ? 'unterschrieben ${signedAt ?? ''}' : 'offen'),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(isSigned ? 'unterschrieben ${signedAt ?? ''}' : 'offen'),
+                                  if (tokenLabel != null) Text('Link aktiv bis $tokenLabel'),
+                                ],
+                              ),
                               trailing: Wrap(
                                 spacing: 8,
+                                runSpacing: 4,
                                 children: [
+                                  if (!isSigned && canIssueToken)
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await _openSignatureQrDialog(
+                                          training: current,
+                                          participant: participant,
+                                          onUpdated: applyTrainingUpdate,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.qr_code),
+                                      label: const Text('QR-Code'),
+                                    ),
+                                  if (!isSigned && canIssueToken)
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await _issueSignatureLinkAndCopy(
+                                          training: current,
+                                          participant: participant,
+                                          onUpdated: applyTrainingUpdate,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.link),
+                                      label: const Text('Link kopieren'),
+                                    ),
                                   if (!isSigned)
                                     ElevatedButton(
                                       onPressed: canSign
@@ -6373,6 +6454,150 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
             ),
           );
         }),
+      ],
+    );
+  }
+}
+
+class _TrainingSignatureQrDialog extends StatefulWidget {
+  const _TrainingSignatureQrDialog({
+    required this.api,
+    required this.training,
+    required this.participant,
+    required this.onTrainingUpdated,
+  });
+
+  final ApiClient api;
+  final TrainingRecord training;
+  final TrainingParticipant participant;
+  final ValueChanged<TrainingRecord> onTrainingUpdated;
+
+  @override
+  State<_TrainingSignatureQrDialog> createState() => _TrainingSignatureQrDialogState();
+}
+
+class _TrainingSignatureQrDialogState extends State<_TrainingSignatureQrDialog> {
+  TrainingSignatureTokenResponse? _token;
+  String? _error;
+  bool _loading = true;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _issueToken();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _issueToken() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final token = await widget.api.trainingIssueSignatureToken(
+        trainingId: widget.training.id,
+        participantId: widget.participant.id,
+      );
+      final refreshed = await widget.api.adminTrainingById(widget.training.id);
+      widget.onTrainingUpdated(refreshed);
+      if (!mounted) return;
+      setState(() {
+        _token = token;
+        _loading = false;
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Token konnte nicht erstellt werden: $err';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _startPolling() async {
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      try {
+        final refreshed = await widget.api.adminTrainingById(widget.training.id);
+        widget.onTrainingUpdated(refreshed);
+        final participant = refreshed.participants.firstWhere(
+          (entry) => entry.id == widget.participant.id,
+          orElse: () => widget.participant,
+        );
+        if (participant.isSigned && mounted) {
+          Navigator.of(context).pop();
+        }
+      } catch (_) {
+        // Ignore polling errors
+      }
+    });
+  }
+
+  Future<void> _copyLink() async {
+    final url = _token?.url;
+    if (url == null || url.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signatur-Link kopiert.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final token = _token;
+    final expiresAt = token == null || token.expiresAt == 0
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(token.expiresAt).toLocal();
+    return AlertDialog(
+      title: Text('QR-Code für ${widget.participant.name}'),
+      content: SizedBox(
+        width: 360,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Text(_error!)
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (token != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: QrImageView(
+                            data: token.url,
+                            size: 220,
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      const Text('Mit Handy scannen und unterschreiben.'),
+                      if (expiresAt != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text('Link aktiv bis ${DateFormat('HH:mm').format(expiresAt)}'),
+                        ),
+                    ],
+                  ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : _issueToken,
+          child: const Text('Neu generieren'),
+        ),
+        TextButton(
+          onPressed: _loading ? null : _copyLink,
+          child: const Text('Link kopieren'),
+        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Schließen')),
       ],
     );
   }
