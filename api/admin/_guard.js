@@ -30,3 +30,24 @@ export async function requirePortalAccess(req, res, { write = false, tile, allow
 
   return actor;
 }
+
+export async function requireTrainingNeedAccess(req, res, { write = false } = {}) {
+  if (handlePreflight(req, res)) return null;
+
+  const actor = await portalUserFromRequest(req);
+  if (!actor) {
+    bad(res, 'unauthorized', 401);
+    return null;
+  }
+
+  const allowed = write
+    ? canWriteTile(actor, 'trainingNeeds') || canWriteTile(actor, 'trainings')
+    : canReadTile(actor, 'trainingNeeds') || canReadTile(actor, 'trainings');
+
+  if (!allowed) {
+    bad(res, 'forbidden', 403);
+    return null;
+  }
+
+  return actor;
+}

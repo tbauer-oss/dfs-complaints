@@ -209,15 +209,31 @@ class _TrainingAdminOverviewPageState extends State<TrainingAdminOverviewPage> {
 }
 
 class TrainingNeedsPage extends StatelessWidget {
-  const TrainingNeedsPage({super.key, required this.api, required this.canWrite, this.canDelete = false});
+  const TrainingNeedsPage({
+    super.key,
+    required this.api,
+    required this.canWrite,
+    this.canDelete = false,
+    this.canWriteNeeds,
+    this.canDeleteNeeds,
+  });
 
   final ApiClient api;
   final bool canWrite;
   final bool canDelete;
+  final bool? canWriteNeeds;
+  final bool? canDeleteNeeds;
 
   @override
   Widget build(BuildContext context) {
-    return AdminTrainingPage(api: api, canWrite: canWrite, canDelete: canDelete, initialTab: 1);
+    return AdminTrainingPage(
+      api: api,
+      canWrite: canWrite,
+      canDelete: canDelete,
+      canWriteNeeds: canWriteNeeds,
+      canDeleteNeeds: canDeleteNeeds,
+      initialTab: 1,
+    );
   }
 }
 

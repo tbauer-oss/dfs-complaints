@@ -2,8 +2,8 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { requirePortalAccess } from './_guard.js';
-import { isAdminUser } from '../_lib/portalAuth.js';
+import { requireTrainingNeedAccess } from './_guard.js';
+import { PORTAL_ROLES, normalizeRole } from '../_lib/portalAuth.js';
 import {
   trainingNeedsAll,
   trainingNeedGet,
@@ -13,8 +13,6 @@ import {
 } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
 import { normalizePeriodValue, periodYear, trim, validateTrainingNeed } from '../_lib/trainingValidation.js';
-
-const TRAINING_TILE = 'trainings';
 
 function plannedPeriodLabel(type, value) {
   if (!value) return '';
@@ -87,7 +85,7 @@ export default async function handler(req, res) {
   setCors(req, res);
 
   const wantsWrite = ['POST', 'PATCH', 'DELETE'].includes(req.method);
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: wantsWrite });
+  const actor = await requireTrainingNeedAccess(req, res, { write: wantsWrite });
   if (!actor) return;
 
   try {
@@ -111,6 +109,7 @@ export default async function handler(req, res) {
         updatedBy: actor.email,
       };
       const saved = await trainingNeedSave(payload);
+      console.info('[training-needs] created', { id: saved.id, by: actor.email });
       let warning = null;
       try {
         const resolvedDepartment =
@@ -167,11 +166,13 @@ export default async function handler(req, res) {
         updatedBy: actor.email,
       });
       if (!updated) return bad(res, 'not found', 404);
+      console.info('[training-needs] updated', { id, by: actor.email });
       return ok(res, { ok: true, need: updated });
     }
 
     if (req.method === 'DELETE') {
-      if (!isAdminUser(actor)) {
+      if (normalizeRole(actor.role) !== PORTAL_ROLES.superuser) {
+        console.warn('[training-needs] delete denied', { id: req.query?.id, by: actor.email });
         return bad(res, 'forbidden', 403);
       }
       const id = req.query?.id || readJson(req)?.id;

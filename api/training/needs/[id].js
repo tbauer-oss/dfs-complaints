@@ -2,20 +2,19 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../../_lib/http.js';
-import { requirePortalAccess } from '../../admin/_guard.js';
-import { isAdminUser } from '../../_lib/portalAuth.js';
+import { requireTrainingNeedAccess } from '../../admin/_guard.js';
+import { PORTAL_ROLES, normalizeRole } from '../../_lib/portalAuth.js';
 import { trainingNeedDelete, trainingNeedGet, trainingNeedUpdate } from '../../_lib/store.js';
 import { validateTrainingNeed } from '../../_lib/trainingValidation.js';
-
-const TRAINING_TILE = 'trainings';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { tile: TRAINING_TILE, write: true });
+  const actor = await requireTrainingNeedAccess(req, res, { write: true });
   if (!actor) return;
-  const canEditAll = isAdminUser(actor);
+  const role = normalizeRole(actor.role);
+  const canEditAll = role === PORTAL_ROLES.superuser || role === PORTAL_ROLES.admin;
 
   try {
     if (req.method === 'PATCH') {
@@ -39,11 +38,15 @@ export default async function handler(req, res) {
         plannedPeriodValue: normalizedPeriod || body.plannedPeriodValue,
         updatedBy: actor.email,
       });
+      console.info('[training/needs] updated', { id, by: actor.email });
       return ok(res, { ok: true, need: updated });
     }
 
     if (req.method === 'DELETE') {
-      if (!canEditAll) return bad(res, 'forbidden', 403);
+      if (role !== PORTAL_ROLES.superuser) {
+        console.warn('[training/needs] delete denied', { id: req.query?.id, by: actor.email });
+        return bad(res, 'forbidden', 403);
+      }
       const id = req.query?.id || readJson(req)?.id;
       if (!id) return bad(res, 'id missing', 400);
       const deleteInstances = String(req.query?.deleteInstances || readJson(req)?.deleteInstances || '')
