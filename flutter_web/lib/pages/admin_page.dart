@@ -838,7 +838,43 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Map<String, dynamic>? get _portalProfile =>
-      widget.portalProfile ?? widget.api.portalProfile;
+      widget.api.portalProfile ?? widget.portalProfile;
+
+  bool _isTruthyFlag(dynamic flag) {
+    if (flag == null) return false;
+    if (flag is bool) return flag;
+    final s = flag.toString().trim().toLowerCase();
+    return s == 'true' || s == '1' || s == 'yes';
+  }
+
+  void _applyPortalProfile(Map<String, dynamic>? profile, {bool notify = false}) {
+    if (profile == null) return;
+    final nextRole = (profile['role'] ?? '').toString().trim().toLowerCase();
+    final nextIsSales = _isTruthyFlag(profile['isSales']);
+    final nextIsPrrc = _isTruthyFlag(profile['isPRRC'] ?? profile['isPrrc'] ?? profile['prrc']);
+    final nextIsPrrcAuthorized = _isTruthyFlag(profile['isPrrcAuthorized'] ?? profile['prrcAuthorized']) || nextIsPrrc;
+    final nextIsQm = _isTruthyFlag(profile['isQM'] ?? profile['isQm'] ?? profile['qm']);
+    final nextTilePermissions = _sanitizeTilePermissionMap(profile['tilePermissions']);
+
+    void apply() {
+      if (nextRole.isNotEmpty) {
+        _portalRole = nextRole;
+      }
+      _portalIsSales = nextIsSales;
+      _portalIsPrrc = nextIsPrrc;
+      _portalIsPrrcAuthorized = nextIsPrrcAuthorized;
+      _portalIsQm = nextIsQm;
+      _portalTilePermissions
+        ..clear()
+        ..addAll(nextTilePermissions);
+    }
+
+    if (notify && mounted) {
+      setState(apply);
+    } else {
+      apply();
+    }
+  }
 
   MyRep? get _portalRep {
     final rep = _portalProfile?['rep'];
@@ -895,7 +931,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   String get _portalDisplayName {
     String s(Object? v) => (v ?? '').toString().trim();
-    final profile = widget.portalProfile ?? widget.api.portalProfile;
+    final profile = widget.api.portalProfile ?? widget.portalProfile;
     if (profile != null) {
       final fullName = [s(profile['firstName']), s(profile['lastName'])]
           .where((p) => p.isNotEmpty)
@@ -916,7 +952,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   String get _onboardingUserId {
     String s(Object? v) => (v ?? '').toString().trim();
-    final profile = widget.portalProfile ?? widget.api.portalProfile ?? const {};
+    final profile = widget.api.portalProfile ?? widget.portalProfile ?? const {};
     for (final candidate in [
       s(profile['id']),
       s(profile['userId']),
@@ -1482,9 +1518,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   bool _tileVisibleForActor(String tileId) {
+    final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
+    if (override != null) return override != 'none';
     if (_TRAINING_TILE_IDS.contains(tileId)) {
-      final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
-      if (override != null) return override != 'none';
       return _trainingTileVisibleForRole(tileId);
     }
     if (_isSuperuser && tileId == 'capaReports') return true;
@@ -1499,8 +1535,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _portalRole != 'ek') {
       return false;
     }
-    final override = _normalizeTilePermission(_portalTilePermissions[tileId]);
-    if (override != null) return override != 'none';
     return true;
   }
 
@@ -1730,6 +1764,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   bool _navCollapsed = true;
   List<AdminView> _navOrder = const [];
+  Map<String, dynamic>? _globalUiConfig;
 
   // Mehrfach-Zuordnung interne Nummer
   final Set<String> _selectedAllTickets = <String>{};
@@ -1889,43 +1924,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       normalizeEmail: _normalizeChatEmail,
     );
     _conversationListNotifier.addListener(_syncConversationListFromNotifier);
-    bool _truthy(dynamic flag) {
-      if (flag == null) return false;
-      if (flag is bool) return flag;
-      final s = flag.toString().trim().toLowerCase();
-      return s == 'true' || s == '1' || s == 'yes';
-    }
-
-    final profileRole = widget.portalProfile?['role'] ?? widget.api.portalProfile?['role'];
-    if (profileRole is String && profileRole.trim().isNotEmpty) {
-      _portalRole = profileRole.trim().toLowerCase();
-    }
-    final profileIsSales = widget.portalProfile?['isSales'] ?? widget.api.portalProfile?['isSales'];
-    _portalIsSales = _truthy(profileIsSales);
-    final profileIsPrrc = widget.portalProfile?['isPRRC'] ??
-        widget.portalProfile?['isPrrc'] ??
-        widget.portalProfile?['prrc'] ??
-        widget.api.portalProfile?['isPRRC'] ??
-        widget.api.portalProfile?['isPrrc'] ??
-        widget.api.portalProfile?['prrc'];
-    _portalIsPrrc = _truthy(profileIsPrrc);
-    final profileIsPrrcAuthorized = widget.portalProfile?['isPrrcAuthorized'] ??
-        widget.api.portalProfile?['isPrrcAuthorized'] ??
-        widget.portalProfile?['prrcAuthorized'] ??
-        widget.api.portalProfile?['prrcAuthorized'];
-    _portalIsPrrcAuthorized = _truthy(profileIsPrrcAuthorized) || _portalIsPrrc;
-    final profileIsQm = widget.portalProfile?['isQM'] ??
-        widget.portalProfile?['isQm'] ??
-        widget.portalProfile?['qm'] ??
-        widget.api.portalProfile?['isQM'] ??
-        widget.api.portalProfile?['isQm'] ??
-        widget.api.portalProfile?['qm'];
-    _portalIsQm = _truthy(profileIsQm);
-    final profileTilePermissions =
-        widget.portalProfile?['tilePermissions'] ?? widget.api.portalProfile?['tilePermissions'];
-    _portalTilePermissions
-      ..clear()
-      ..addAll(_sanitizeTilePermissionMap(profileTilePermissions));
+    _applyPortalProfile(_portalProfile);
 
     if (kDebugMode) {
       debugPrint(
@@ -1965,6 +1964,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _applyNavOrder(_defaultNavOrder());
     _loadNavOrder();
     _loadAdminUiConfigFromServer();
+    _loadUserUiConfigFromServer();
+    _refreshPortalProfileFromServer();
     _view = widget.initialView;
     _trainingSection = widget.trainingSection;
     _trainingInitialTab = _trainingTabForSection(_trainingSection);
@@ -7556,7 +7557,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
 
     if (persist && syncRemote) {
-      _syncAdminUiConfig(navOrder: merged);
+      _syncUserUiConfig(navOrder: merged);
     }
   }
 
@@ -7595,7 +7596,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     return _view == AdminView.menu ? _buildMenu() : _buildView();
   }
 
-  List<_AdminMenuSectionState> _baseMenuSections() {
+  List<_AdminMenuSectionState> _baseMenuSections({bool filterAllowed = true}) {
     AdminView? _tileIdToView(String id) {
       switch (id) {
         case 'open':
@@ -7721,6 +7722,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       ),
     ];
 
+    if (!filterAllowed) {
+      return sections.map((s) => s.copy()).toList();
+    }
+
     return sections
         .map((s) => _AdminMenuSectionState(
               title: s.title,
@@ -7732,11 +7737,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   void _initMenuLayout() {
-    final defaults = _baseMenuSections();
+    final allSections = _baseMenuSections(filterAllowed: false);
     _tileDefaultSection = {
-      for (final section in defaults) for (final id in section.tileIds) id: section.title,
+      for (final section in allSections) for (final id in section.tileIds) id: section.title,
     };
     _menuTileIds = _tileDefaultSection.keys.toSet();
+    final defaults = _baseMenuSections();
     _menuSections = _loadMenuLayout(defaults: defaults);
 
     // Ensure newly added tiles (e.g. Downloads) appear even if an older
@@ -7764,8 +7770,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   Future<void> _loadAdminUiConfigFromServer() async {
     try {
-      final config = await _api.fetchAdminUiConfig();
+      final config = await _api.fetchPortalUiDefaults();
       if (config.isEmpty) return;
+      _globalUiConfig = config;
 
       final remoteTiles = config['roleTileVisibility'];
       if (remoteTiles is Map<String, dynamic>) {
@@ -7830,6 +7837,65 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       debugPrint('Failed to load admin UI config: $e');
+    }
+  }
+
+  Future<void> _loadUserUiConfigFromServer() async {
+    try {
+      final config = await _api.fetchUserUiConfig();
+      if (config.isEmpty) return;
+
+      final remoteLayout = config['menuLayout'];
+      if (remoteLayout != null) {
+        final defaults = _baseMenuSections();
+        final sections = _loadMenuLayout(defaults: defaults, storedLayout: remoteLayout);
+        setState(() => _menuSections = sections);
+        _ensureMenuTilePresent('downloads');
+        _ensureMenuTilePresent('portalUsers');
+        _ensureMenuTilePresent('complaintList');
+        _ensureMenuTilePresent('prrc');
+        _ensureMenuTilePresent('capaReports');
+        _ensureMenuTilePresent('capaDashboard');
+        _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('internalErrors');
+        _ensureMenuTilePresent('changeManagement');
+        _ensureMenuTilePresent('audits');
+        _ensureMenuTilePresent('trainings');
+        _ensureMenuTilePresent('approvedSuppliers');
+        _ensureMenuTilePresent('supplierEvaluation');
+        _ensureMenuTilePresent('trainingNeeds');
+        _ensureMenuTilePresent('trainingProgram');
+        _ensureMenuTilePresent('trainingSessions');
+        _ensureMenuTilePresent('trainingEffectiveness');
+        _ensureMenuTilePresent('trainingArchive');
+      }
+
+      final navOrder = config['navOrder'];
+      if (navOrder is List) {
+        final views = navOrder
+            .whereType<String>()
+            .map((name) => AdminView.values.firstWhereOrNull((v) => v.name == name))
+            .whereNotNull()
+            .toList();
+        if (views.isNotEmpty) {
+          _applyNavOrder(views, persist: false, syncRemote: false);
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load user UI config: $e');
+    }
+  }
+
+  Future<void> _refreshPortalProfileFromServer() async {
+    try {
+      final profile = await widget.api.refreshPortalProfile();
+      if (profile == null) return;
+      _applyPortalProfile(profile, notify: true);
+      _api.setPortalRole(_portalRole);
+      _filterMenuSectionsForRole();
+      await _loadUserUiConfigFromServer();
+    } catch (e) {
+      debugPrint('Failed to refresh portal profile: $e');
     }
   }
 
@@ -8050,17 +8116,29 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   void _persistMenuLayout({bool syncRemote = true}) {
     final payload = _currentMenuLayoutPayload();
     if (syncRemote) {
-      _syncAdminUiConfig(menuLayout: payload);
+      _syncUserUiConfig(menuLayout: payload);
     }
   }
 
-  void _resetMenuLayout() {
+  Future<void> _resetMenuLayout() async {
+    final defaults = _baseMenuSections();
+    final resetLayout = _globalUiConfig?['menuLayout'];
+    final sections = _loadMenuLayout(defaults: defaults, storedLayout: resetLayout);
     setState(() {
-      _menuSections = _baseMenuSections().map((s) => s.copy()).toList();
-      _menuTileScale = 1.0;
-      _archivedTileIds.clear();
+      _menuSections = sections;
     });
-    _persistMenuLayout();
+    try {
+      await _api.resetUserUiConfig();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Layout wurde zurückgesetzt')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_formatError(e))),
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _syncAdminUiConfig({
@@ -8078,6 +8156,23 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } catch (e) {
       if (!swallowErrors) rethrow;
       debugPrint('Failed to sync admin UI config: $e');
+      return const {};
+    }
+  }
+
+  Future<Map<String, dynamic>> _syncUserUiConfig({
+    Map<String, dynamic>? menuLayout,
+    List<AdminView>? navOrder,
+    bool swallowErrors = true,
+  }) async {
+    try {
+      return await _api.updateUserUiConfig(
+        menuLayout: menuLayout,
+        navOrder: navOrder?.map((v) => v.name).toList(),
+      );
+    } catch (e) {
+      if (!swallowErrors) rethrow;
+      debugPrint('Failed to sync user UI config: $e');
       return const {};
     }
   }
@@ -14645,7 +14740,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       MaterialPageRoute(
         builder: (_) => PrrcDashboardPage(
           api: widget.api,
-          portalProfile: widget.portalProfile ?? widget.api.portalProfile,
+          portalProfile: widget.api.portalProfile ?? widget.portalProfile,
           initialTicket: ticket,
         ),
       ),
@@ -23200,7 +23295,7 @@ class PrrcDashboardPage extends StatefulWidget {
     bool _reportableMarked = false;
 
     Map<String, dynamic>? get _portalProfile =>
-        widget.portalProfile ?? widget.api.portalProfile;
+        widget.api.portalProfile ?? widget.portalProfile;
 
     MyRep? get _portalRep {
       final rep = _portalProfile?['rep'];
@@ -23299,7 +23394,7 @@ class PrrcDashboardPage extends StatefulWidget {
       return s == 'true' || s == '1' || s == 'yes';
     }
 
-    final profile = widget.portalProfile ?? widget.api.portalProfile ?? const {};
+    final profile = widget.api.portalProfile ?? widget.portalProfile ?? const {};
     final role = (profile['role'] ?? '').toString().trim().toLowerCase();
     _portalRole = role.isEmpty ? 'user' : role;
     if (_portalRole == 'user' && (widget.api.adminSecret ?? '').trim().isNotEmpty) {
@@ -24748,6 +24843,24 @@ class AdminApi {
     return const {};
   }
 
+  Future<Map<String, dynamic>> fetchPortalUiDefaults() async {
+    final res = await _request('GET', '/api/ui-config/default');
+    if (res.status != 200) throw 'ui-config default GET: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final cfg = j['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
+  }
+
+  Future<Map<String, dynamic>> fetchUserUiConfig() async {
+    final res = await _request('GET', '/api/ui-config/me');
+    if (res.status != 200) throw 'ui-config me GET: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final cfg = j['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
+  }
+
   Future<Map<String, dynamic>> updateAdminUiConfig({
     Map<String, Set<String>>? roleTileVisibility,
     Map<String, dynamic>? menuLayout,
@@ -24763,6 +24876,31 @@ class AdminApi {
 
     final res = await _request('POST', '/api/admin/ui-config', body: body);
     if (res.status != 200) throw 'ui-config POST: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final cfg = j['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
+  }
+
+  Future<Map<String, dynamic>> updateUserUiConfig({
+    Map<String, dynamic>? menuLayout,
+    List<String>? navOrder,
+  }) async {
+    final body = <String, dynamic>{};
+    if (menuLayout != null) body['menuLayout'] = menuLayout;
+    if (navOrder != null) body['navOrder'] = navOrder;
+
+    final res = await _request('PUT', '/api/ui-config/me', body: body);
+    if (res.status != 200) throw 'ui-config me PUT: HTTP ${res.status} ${res.responseText}';
+    final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
+    final cfg = j['config'];
+    if (cfg is Map) return cfg.cast<String, dynamic>();
+    return const {};
+  }
+
+  Future<Map<String, dynamic>> resetUserUiConfig() async {
+    final res = await _request('POST', '/api/ui-config/me/reset');
+    if (res.status != 200) throw 'ui-config me reset: HTTP ${res.status} ${res.responseText}';
     final Map<String, dynamic> j = jsonDecode(res.responseText ?? '{}');
     final cfg = j['config'];
     if (cfg is Map) return cfg.cast<String, dynamic>();

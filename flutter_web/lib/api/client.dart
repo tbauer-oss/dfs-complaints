@@ -1556,6 +1556,29 @@ class ApiClient {
     return LoginResult.failure(statusCode: 0, message: 'Login fehlgeschlagen');
   }
 
+  Future<Map<String, dynamic>?> refreshPortalProfile() async {
+    if (portalToken == null || portalToken!.isEmpty) return null;
+    final r = await _get('/api/me/permissions', auth: true);
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = jsonDecode(r.body);
+    if (decoded is! Map) return null;
+    final profileRaw = decoded['profile'];
+    if (profileRaw is! Map) return null;
+    final profile = profileRaw.cast<String, dynamic>();
+    final enriched = <String, dynamic>{...profile};
+    if (decoded['permissions'] is Map) {
+      enriched['permissions'] = (decoded['permissions'] as Map).cast<String, dynamic>();
+    }
+    if (decoded['tileGrants'] is List) {
+      enriched['tileGrants'] = (decoded['tileGrants'] as List).whereType<String>().toList();
+    }
+    portalProfile = enriched;
+    _saveSession();
+    return portalProfile;
+  }
+
   Future<Map<String, dynamic>> adminStats({DateTime? from, DateTime? to}) async {
     final params = <String, String>{};
     if (from != null) params['from'] = _formatDateOnly(from);
