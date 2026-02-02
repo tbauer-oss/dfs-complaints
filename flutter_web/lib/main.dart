@@ -1,6 +1,5 @@
 // lib/main.dart
-import 'dart:ui';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -34,6 +33,23 @@ import 'widgets/password_field.dart';
 
 // ===== THEME BRANDING ===== //
 const kBrandSeed = Color(0xFF1F4C8F); // DFS-Blau – bei Bedarf anpassen
+
+String computeInitialRoute() {
+  // Web Hash-Deep-Link: https://host/#/sign?t=abc  -> fragment = "/sign?t=abc"
+  final uri = Uri.base;
+
+  if (kIsWeb) {
+    final frag = uri.fragment; // includes path + query
+    if (frag.isNotEmpty) {
+      final normalized = frag.startsWith('/') ? frag : '/$frag';
+      return normalized;
+    }
+  }
+
+  // Non-web / fallback
+  final path = uri.path.isNotEmpty ? uri.path : '/';
+  return path.startsWith('/') ? path : '/$path';
+}
 
 ThemeData _lightTheme() {
   final scheme = ColorScheme.fromSeed(
@@ -319,7 +335,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (!_bootDone) {
       return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+        builder: (_, __) => Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
 
@@ -416,7 +432,7 @@ class _MyAppState extends State<MyApp> {
             },
 
             // ---- Routing ----
-            initialRoute: WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+            initialRoute: computeInitialRoute(),
             routes: {
               // Root / Startseite: Kunden-Flow
               '/': (_) => Builder(
