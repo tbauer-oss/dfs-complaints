@@ -3127,15 +3127,11 @@ class ApiClient {
     required String participantId,
     required String reason,
   }) async {
-    final params = <String, String>{};
-    if (reason.trim().isNotEmpty) params['reason'] = reason.trim();
-    final path = Uri(
-      path: '/api/training/sessions/$trainingId/participants/$participantId/sign',
-      queryParameters: params.isEmpty ? null : params,
-    ).toString();
-    final r = await http.delete(
+    final path = Uri(path: '/api/training/sessions/$trainingId/participants/$participantId/sign').toString();
+    final r = await http.post(
       _u(path),
       headers: _adminHeaders(auth: true),
+      body: jsonEncode({'action': 'reset', 'reason': reason}),
     );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
