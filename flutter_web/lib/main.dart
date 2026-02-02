@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+import 'dart:ui' show ImageFilter;
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -334,7 +335,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     if (!_bootDone) {
-      return const MaterialApp(
+      return MaterialApp(
         builder: (_, __) => Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
