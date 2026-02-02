@@ -96,12 +96,12 @@ export function withCorsHandler(handler, options = {}) {
 
   return async function corsWrapped(req, res) {
     const handled = withCors(req, res);
+    if (handled) return;
     if (typeof resolvedOptions.before === 'function') {
       resolvedOptions.before(req, res, {
         allowOrigin: res.getHeader('Access-Control-Allow-Origin') || res.__corsOrigin || '',
       });
     }
-    if (handled) return;
     try {
       await handler(req, res);
     } catch (err) {
