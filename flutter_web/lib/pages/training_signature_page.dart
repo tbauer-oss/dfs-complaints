@@ -40,8 +40,13 @@ class _TrainingSignaturePageState extends State<TrainingSignaturePage> {
     super.dispose();
   }
 
+  String _readToken() {
+    final params = Uri.base.queryParameters;
+    return params['t'] ?? params['token'] ?? '';
+  }
+
   Future<void> _loadContext() async {
-    final token = Uri.base.queryParameters['t'] ?? '';
+    final token = _readToken();
     if (token.isEmpty) {
       setState(() {
         _loading = false;
@@ -69,7 +74,7 @@ class _TrainingSignaturePageState extends State<TrainingSignaturePage> {
   }
 
   Future<void> _submit() async {
-    final token = Uri.base.queryParameters['t'] ?? '';
+    final token = _readToken();
     if (token.isEmpty) return;
     setState(() => _saving = true);
     try {
