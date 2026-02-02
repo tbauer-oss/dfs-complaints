@@ -1709,6 +1709,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (_portalIsQm || _portalRole == 'admin' || _portalRole == 'ek' || _isSuperuser) {
       allowed.add('supplierEvaluation');
       allowed.add('approvedSuppliers');
+      allowed.add('createSupplier');
     }
 
     _portalTilePermissions.forEach((tile, perm) {
