@@ -14,6 +14,7 @@ class SupplierEvaluationPage extends StatefulWidget {
   final bool isQm;
   final bool canManageLookups;
   final String? initialSupplierId;
+  final bool startNewSupplier;
   const SupplierEvaluationPage({
     super.key,
     required this.api,
@@ -21,6 +22,7 @@ class SupplierEvaluationPage extends StatefulWidget {
     required this.isQm,
     required this.canManageLookups,
     this.initialSupplierId,
+    this.startNewSupplier = false,
   });
 
   @override
@@ -283,7 +285,9 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialSupplierId != null && widget.initialSupplierId!.isNotEmpty) {
+    if (!widget.startNewSupplier &&
+        widget.initialSupplierId != null &&
+        widget.initialSupplierId!.isNotEmpty) {
       _supplierFilter = widget.initialSupplierId;
       _selectedSupplierId = widget.initialSupplierId;
       _annualSupplierId = widget.initialSupplierId;
@@ -338,6 +342,10 @@ class _SupplierEvaluationPageState extends State<SupplierEvaluationPage> {
         _letterLayoutDraft = results[6] as SupplierLetterLayoutConfig;
         _loading = false;
       });
+      if (widget.startNewSupplier) {
+        _startNewSupplier();
+        return;
+      }
       if (_selectedSupplierId != null) {
         final selected = _suppliers.firstWhere(
           (s) => s.id == _selectedSupplierId,

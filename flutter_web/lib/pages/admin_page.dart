@@ -241,6 +241,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'trainingArchive',
     'approvedSuppliers',
     'supplierEvaluation',
+    'createSupplier',
   ],
   'user': [
     'open',
@@ -321,6 +322,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'trainingArchive',
     'approvedSuppliers',
     'supplierEvaluation',
+    'createSupplier',
   ],
   'admin': [
     'open',
@@ -360,6 +362,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'trainingArchive',
     'approvedSuppliers',
     'supplierEvaluation',
+    'createSupplier',
   ],
   'ek': [
     'open',
@@ -370,6 +373,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'audits',
     'approvedSuppliers',
     'supplierEvaluation',
+    'createSupplier',
   ],
   'prrc': [
     'open',
@@ -574,6 +578,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   bool _menuTilesLogged = false;
   String _portalRole = '';
   String? _supplierEvaluationFocusId;
+  bool _startSupplierCreation = false;
   bool _portalIsSales = false;
   bool _portalIsPrrc = false;
   bool _portalIsPrrcAuthorized = false;
@@ -1586,7 +1591,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     if (tileId == 'capaReports' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'capaDashboard' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
     if (tileId == 'changeManagement' && !_isSuperuser && !_portalIsPrrc && !_portalIsQm) return false;
-    if ((tileId == 'supplierEvaluation' || tileId == 'approvedSuppliers') &&
+    if ((tileId == 'supplierEvaluation' || tileId == 'approvedSuppliers' || tileId == 'createSupplier') &&
         !_isSuperuser &&
         !_portalIsQm &&
         _portalRole != 'admin' &&
@@ -7728,6 +7733,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.supplierEvaluation;
         case 'approvedSuppliers':
           return AdminView.approvedSuppliers;
+        case 'createSupplier':
+          return AdminView.supplierEvaluation;
         default:
           return null;
       }
@@ -7768,7 +7775,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       const _AdminMenuSectionState(
         title: 'Connect+ Supplier Management',
         subtitle: 'Zugelassene Lieferanten, Bewertung und Monitoring',
-        tileIds: ['approvedSuppliers', 'supplierEvaluation'],
+        tileIds: ['approvedSuppliers', 'supplierEvaluation', 'createSupplier'],
       ),
       const _AdminMenuSectionState(
         title: 'Connect+ Customer Management',
@@ -7836,6 +7843,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('internalChat');
     _ensureMenuTilePresent('approvedSuppliers');
     _ensureMenuTilePresent('supplierEvaluation');
+    _ensureMenuTilePresent('createSupplier');
   }
 
   Future<void> _loadAdminUiConfigFromServer() async {
@@ -7867,6 +7875,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('trainingArchive');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
+        _ensureMenuTilePresent('createSupplier');
       }
 
       final remoteLayout = config['menuLayout'];
@@ -7887,6 +7896,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('trainings');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
+        _ensureMenuTilePresent('createSupplier');
         _ensureMenuTilePresent('trainingNeeds');
         _ensureMenuTilePresent('trainingProgram');
         _ensureMenuTilePresent('trainingSessions');
@@ -7933,6 +7943,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('trainings');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
+        _ensureMenuTilePresent('createSupplier');
         _ensureMenuTilePresent('trainingNeeds');
         _ensureMenuTilePresent('trainingProgram');
         _ensureMenuTilePresent('trainingSessions');
@@ -8319,6 +8330,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'Wiki-Artikel';
       case 'approvedSuppliers':
         return 'Zugelassene Lieferanten';
+      case 'createSupplier':
+        return 'Lieferant anlegen';
       default:
         return tileId;
     }
@@ -10136,7 +10149,33 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorA: AdminPalette.indigoA,
           colorB: AdminPalette.indigoB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.supplierEvaluation),
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _startSupplierCreation = false;
+                    _view = AdminView.supplierEvaluation;
+                  }),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'createSupplier':
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Lieferant anlegen',
+          subtitle: 'Neuen Lieferanten erfassen',
+          icon: Icons.add_business_outlined,
+          colorA: AdminPalette.tealA,
+          colorB: AdminPalette.tealB,
+          compact: compact,
+          onTap: isPreview
+              ? () {}
+              : () => setState(() {
+                    _supplierEvaluationFocusId = null;
+                    _startSupplierCreation = true;
+                    _view = AdminView.supplierEvaluation;
+                  }),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -11065,23 +11104,27 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           onOpenSupplierEvaluation: () {
             setState(() {
               _supplierEvaluationFocusId = null;
+              _startSupplierCreation = false;
               _view = AdminView.supplierEvaluation;
             });
           },
           onOpenSupplierEvaluationFor: (supplierId) {
             setState(() {
               _supplierEvaluationFocusId = supplierId;
+              _startSupplierCreation = false;
               _view = AdminView.supplierEvaluation;
             });
           },
         );
       case AdminView.supplierEvaluation:
         return SupplierEvaluationPage(
+          key: ValueKey('supplier-evaluation-${_startSupplierCreation}_${_supplierEvaluationFocusId ?? ''}'),
           api: widget.api,
           canWrite: _canWriteTile('supplierEvaluation'),
           isQm: _portalIsQm || _isSuperuser || _portalRole == 'admin',
           canManageLookups: _portalIsQm || _isSuperuser || _portalRole == 'admin' || _portalRole == 'ek',
           initialSupplierId: _supplierEvaluationFocusId,
+          startNewSupplier: _startSupplierCreation,
         );
       case AdminView.wikiCategories:
         return AdminWikiCategoriesPage(
