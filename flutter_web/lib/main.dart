@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
 import 'api/client.dart';
 import 'l10n/app_localizations.dart';
@@ -192,6 +193,8 @@ ThemeData _darkTheme() {
 }
 
 void main() {
+  setUrlStrategy(const HashUrlStrategy());
+
   if (html.window.navigator.userAgent.contains('Chrome')) {
     html.window.addEventListener('beforeinstallprompt', (event) {
       event.preventDefault(); // verhindert automatisches Anzeigen

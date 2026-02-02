@@ -3287,7 +3287,8 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
         trainingId: training.id,
         participantId: participant.id,
       );
-      await Clipboard.setData(ClipboardData(text: response.url));
+      final url = _ensureHashSignatureUrl(response.url);
+      await Clipboard.setData(ClipboardData(text: url));
       final refreshed = await widget.api.adminTrainingById(training.id);
       onUpdated(refreshed);
       if (!mounted) return;
@@ -6459,6 +6460,15 @@ class _AdminTrainingPageState extends State<AdminTrainingPage> {
   }
 }
 
+String _ensureHashSignatureUrl(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.fragment.isNotEmpty || !uri.path.contains('/sign')) {
+    return url;
+  }
+  final fragment = '/sign${uri.hasQuery ? '?${uri.query}' : ''}';
+  return uri.replace(path: '/', query: '', fragment: fragment).toString();
+}
+
 class _TrainingSignatureQrDialog extends StatefulWidget {
   const _TrainingSignatureQrDialog({
     required this.api,
@@ -6542,7 +6552,7 @@ class _TrainingSignatureQrDialogState extends State<_TrainingSignatureQrDialog> 
   Future<void> _copyLink() async {
     final url = _token?.url;
     if (url == null || url.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: url));
+    await Clipboard.setData(ClipboardData(text: _ensureHashSignatureUrl(url)));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signatur-Link kopiert.')));
   }
@@ -6550,6 +6560,7 @@ class _TrainingSignatureQrDialogState extends State<_TrainingSignatureQrDialog> 
   @override
   Widget build(BuildContext context) {
     final token = _token;
+    final signatureUrl = token == null ? null : _ensureHashSignatureUrl(token.url);
     final expiresAt = token == null || token.expiresAt == 0
         ? null
         : DateTime.fromMillisecondsSinceEpoch(token.expiresAt).toLocal();
@@ -6573,7 +6584,7 @@ class _TrainingSignatureQrDialogState extends State<_TrainingSignatureQrDialog> 
                             border: Border.all(color: Colors.grey.shade300),
                           ),
                           child: QrImageView(
-                            data: token.url,
+                            data: signatureUrl ?? token.url,
                             size: 220,
                             backgroundColor: Colors.white,
                           ),
