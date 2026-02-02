@@ -416,7 +416,7 @@ class _MyAppState extends State<MyApp> {
             },
 
             // ---- Routing ----
-            initialRoute: '/',
+            initialRoute: WidgetsBinding.instance.platformDispatcher.defaultRouteName,
             routes: {
               // Root / Startseite: Kunden-Flow
               '/': (_) => Builder(
@@ -702,6 +702,16 @@ class _MyAppState extends State<MyApp> {
             // Guard-Logik zentral
             onGenerateRoute: (settings) {
               final name = settings.name ?? '/';
+              final uri = Uri.tryParse(name);
+              final path = uri?.path ?? name;
+              final isPublicSign = path == '/sign' || path == '/sign/';
+
+              if (isPublicSign) {
+                return MaterialPageRoute(
+                  builder: (_) => TrainingSignaturePage(api: api),
+                  settings: settings,
+                );
+              }
 
               if (name == '/rep' && !_repLoggedIn) {
                 return MaterialPageRoute(
