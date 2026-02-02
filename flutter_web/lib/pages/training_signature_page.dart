@@ -41,8 +41,18 @@ class _TrainingSignaturePageState extends State<TrainingSignaturePage> {
   }
 
   String _readToken() {
-    final params = Uri.base.queryParameters;
-    return params['t'] ?? params['token'] ?? '';
+    final baseParams = Uri.base.queryParameters;
+    if (baseParams.isNotEmpty) {
+      return baseParams['t'] ?? baseParams['token'] ?? '';
+    }
+
+    final fragment = Uri.base.fragment;
+    if (fragment.isEmpty) {
+      return '';
+    }
+    final parsed = Uri.tryParse('https://placeholder/$fragment');
+    final fragmentParams = parsed?.queryParameters ?? const {};
+    return fragmentParams['t'] ?? fragmentParams['token'] ?? '';
   }
 
   Future<void> _loadContext() async {
