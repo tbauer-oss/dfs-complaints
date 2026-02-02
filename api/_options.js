@@ -1,12 +1,11 @@
 // api/_options.js
-import { withCors } from './_lib/cors.js';
+import { withCorsHandler } from './_lib/http.js';
 
 export const config = { runtime: 'nodejs' };
 
-export default function handler(req, res) {
-  const handled = withCors(req, res);
-  if (handled) return;
-
+function handler(_req, res) {
   res.statusCode = 204;
   res.end();
 }
+
+export default withCorsHandler(handler);
