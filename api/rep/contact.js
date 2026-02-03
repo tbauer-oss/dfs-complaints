@@ -47,10 +47,7 @@ function mapMailError(err) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (setCors(req, res, 'Content-Type, Authorization, X-Gate')) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

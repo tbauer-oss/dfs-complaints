@@ -1,7 +1,7 @@
 // api/complaint/contact.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, noContent, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
 import { complaintGet, complaintSave, userByEmail } from '../_lib/store.js';
 import { getRepOf } from '../_lib/repsStore.js';
@@ -76,8 +76,7 @@ function pushHistory(comp = {}, entry = {}) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const user = getAuthUser(req);

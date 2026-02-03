@@ -1,14 +1,13 @@
 // api/account/index.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
 import { userByEmail, userSave } from '../_lib/store.js';
 import { sendMail } from '../_lib/mailer.js';
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req, res)) return;
 
   const auth = getAuthUser(req);
   if (!auth) return bad(res, 'unauthorized', 401);

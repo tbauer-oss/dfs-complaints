@@ -2,7 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import JSZip from 'jszip';
-import { setCors, noContent, bad, methodNotAllowed } from '../_lib/http.js';
+import { setCors, bad, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import { normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
 import { hasDepartmentOverlap, normalizeDepartments } from '../_lib/departments.js';
@@ -125,8 +125,7 @@ function canExport(complaint) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req, res)) return;
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const actor = await requirePortalAccess(req, res, { write: false, tile: 'all' });

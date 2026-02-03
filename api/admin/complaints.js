@@ -5,7 +5,6 @@ import {
   setCors,
   ok,
   bad,
-  noContent,
   methodNotAllowed,
   readJson,
 } from '../_lib/http.js';
@@ -450,12 +449,9 @@ function buildPayloadMail(lang, ticket) {
 // =======================================================
 export default async function handler(req, res) {
   // 1) CORS IMMER zuerst
-  setCors(req, res);
+  if (setCors(req, res)) return;
 
-  // 2) Preflight IMMER minimal beantworten (keine weiteren Imports!)
-  if (req.method === 'OPTIONS') return noContent(res);
-
-  // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
+  // 2) Admin-Auth prüfen (immer noch ohne schwere Imports)
   const tile = req.query?.open ? 'open' : 'all';
   const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile, allowPrrc: true });
   if (!actor) return;

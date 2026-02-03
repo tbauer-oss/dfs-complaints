@@ -3,7 +3,6 @@ export const config = { runtime: 'nodejs' };
 
 import {
   bad,
-  noContent,
   ok,
   readJson,
   setCors,
@@ -24,8 +23,7 @@ function trim(v) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const { ticket } = req.query || {};

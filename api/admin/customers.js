@@ -18,12 +18,7 @@ function adminAuthorized(req) {
 
 export default async function handler(req, res) {
   // CORS – exakt wie bei /api/rep/complaints.js, nur mit X-Admin-Secret
-  setCors(req, res, 'Content-Type, Authorization, X-Admin-Secret, X-Gate');
-
-  // Preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (setCors(req, res, 'Content-Type, Authorization, X-Admin-Secret, X-Gate')) return;
 
   // Nur POST zulassen
   if (req.method !== 'POST') {

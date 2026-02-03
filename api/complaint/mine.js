@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 import jwt from 'jsonwebtoken';
-import { setCors, noContent, ok, bad, methodNotAllowed } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { complaintsByEmail } from '../_lib/store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
@@ -12,8 +12,7 @@ function auth(req){
 }
 
 export default async function handler(req,res){
-  setCors(req,res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req,res)) return;
   if (req.method !== 'GET')     return methodNotAllowed(res);
 
   const a = auth(req);
