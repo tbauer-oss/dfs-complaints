@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     await ensureInitialAdmins();
 
-    const body = readJson(req);
+    const body = await readJson(req);
     const email = String(body?.email || '').trim().toLowerCase();
     const pw = String(body?.password || '');
     if (!email || !pw) return bad(res, 'missing credentials', 400);
