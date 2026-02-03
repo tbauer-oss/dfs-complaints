@@ -25456,7 +25456,8 @@ class AdminApi {
     try {
       final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
       if (res.status == 404 || res.status == 410) return true;
-      return res.status >= 500;
+      final status = res.status ?? 0;
+      return status >= 500;
     } catch (_) {
       return true;
     }
