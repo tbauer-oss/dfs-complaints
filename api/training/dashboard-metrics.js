@@ -57,6 +57,7 @@ function isNeedApproved(status = '') {
 }
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const actor = await requireTrainingModuleAccess(req, res);

@@ -41,6 +41,7 @@ function summarizeAssignment(assignment, training) {
 }
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE });

@@ -9,6 +9,7 @@ import { trainingNeedDelete, trainingNeedGet, trainingNeedUpdate } from '../../_
 import { validateTrainingNeed } from '../../_lib/trainingValidation.js';
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   const actor = await requireTrainingNeedAccess(req, res, { write: true });
   if (!actor) return;
   const role = normalizeRole(actor.role);
