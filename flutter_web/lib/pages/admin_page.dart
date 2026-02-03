@@ -595,6 +595,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   Future<void>? _chatAvatarLoadFuture;
   bool _chatAvatarSyncInProgress = false;
   Timer? _chatUnreadTimer;
+  Timer? _complaintRefreshTimer;
   bool _chatHasUnread = false;
   bool get _canWrite => _canWriteTile(_viewToTileId(_view));
   bool get _isSuperuser => _portalRole == 'superuser';
@@ -2118,6 +2119,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _conversationListNotifier.removeListener(_syncConversationListFromNotifier);
     _conversationListNotifier.dispose();
     _chatUnreadTimer?.cancel();
+    _complaintRefreshTimer?.cancel();
     _portalFeedPulseTimer?.cancel();
     super.dispose();
   }
@@ -2815,6 +2817,16 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (openIdx != -1) {
         _openComplaints[openIdx] = updated;
       }
+    });
+    _scheduleComplaintRefresh();
+  }
+
+  void _scheduleComplaintRefresh() {
+    _complaintRefreshTimer?.cancel();
+    _complaintRefreshTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      _reloadComplaintList();
+      _refreshOpen();
     });
   }
 
@@ -16994,6 +17006,12 @@ class _ComplaintsDetailList extends StatelessWidget {
 
     // Einmalig den Parent-State holen (performanter als pro Item)
     final parent = context.findAncestorStateOfType<_AdminPageState>();
+    void handleClosed() {
+      onClosed();
+      if (parent == null) return;
+      parent._reloadComplaintList();
+      parent._refreshOpen();
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -17012,7 +17030,7 @@ class _ComplaintsDetailList extends StatelessWidget {
                     productLookup: parent?._productByArticle,
                     productLookupService: parent?._productLookup,
                     onChanged: parent?._syncComplaint,
-                    onClosed: onClosed,
+                    onClosed: handleClosed,
                     companyHint: companyHint,
                     hasRep: (c.email.isNotEmpty)
                         ? (parent?._customerHasRep(c.email) ?? false)
@@ -25424,14 +25442,33 @@ class AdminApi {
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
       if (r1.status == 200 || r1.status == 204 || r1.status == 404) return;
-    } catch (_) {/* Fallback */}
-    // 2) DELETE Body
-    final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
-    if (r2.status == 404) return;
-    if (r2.status != 200 && r2.status != 204) {
+    } catch (_) {
       final missing = await _isComplaintMissing(ticket);
       if (missing) return;
-      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
+    }
+    // 2) DELETE Body
+    try {
+      final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
+      if (r2.status == 404) return;
+      if (r2.status != 200 && r2.status != 204) {
+        final missing = await _isComplaintMissing(ticket);
+        if (missing) return;
+        throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
+      }
+    } catch (e) {
+      final missing = await _isComplaintMissing(ticket);
+      if (missing) return;
+      rethrow;
+    }
+  }
+
+  Future<bool> _isComplaintMissing(String ticket) async {
+    try {
+      final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
+      if (res.status == 404 || res.status == 410) return true;
+      return res.status >= 500;
+    } catch (_) {
+      return true;
     }
   }
 
