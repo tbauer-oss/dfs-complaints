@@ -55,9 +55,8 @@ function mergeHeaderLists(...values) {
 function isAllowedOrigin(origin) {
   if (!origin) return false;
   if (DEFAULT_ALLOWED_ORIGINS.includes(origin)) return true;
-  if (/^https:\/\/[^/]+\.vercel\.app$/.test(origin) && /dfs/i.test(origin)) return true;
   if (DEFAULT_ALLOWED_ORIGINS.length > 0) return false;
-  return /^https:\/\/[^/]+$/i.test(origin);
+  return /^https:\/\/[^/]+\.vercel\.app$/.test(origin) && /dfs/i.test(origin);
 }
 
 // Preflight helper (CORS policy is defined in vercel.json)
