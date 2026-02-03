@@ -6430,6 +6430,15 @@ class AdminApi {
     }
   }
 
+  Future<bool> _isComplaintMissing(String ticket) async {
+    try {
+      final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
+      return res.status == 404;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ---------------- Representatives (Vertreter) ----------------
   Future<Rep> upsertRep({
     String? id,
