@@ -6399,10 +6399,11 @@ class AdminApi {
     // 1) DELETE ?ticket=...
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
-      if (r1.status == 200 || r1.status == 204) return;
+      if (r1.status == 200 || r1.status == 204 || r1.status == 404) return;
     } catch (_) {}
     // 2) DELETE Body
     final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
+    if (r2.status == 404) return;
     if (r2.status != 200 && r2.status != 204) {
       throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.body}';
     }
