@@ -1,7 +1,8 @@
 import { applyInternalCors, ensureActor, listAudits, createAudit } from './_utils.js';
 
 export default async function handler(req, res) {
-  if (applyInternalCors(req, res)) return;
+  applyInternalCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   if (req.method === 'GET') {
     const audits = await listAudits();

@@ -31,7 +31,8 @@ function strOrUndef(v) {
 }
 
 export default async function handler(req, res) {
-  if (setCors(req, res)) return;
+  setCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   // --- Admin-Auth ---
   const admin = getAdmin?.(req);

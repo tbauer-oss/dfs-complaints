@@ -769,7 +769,8 @@ async function loadRepInfoMap(repIds) {
 }
 
 export default async function handler(req, res) {
-  if (setCors(req, res)) return;
+  setCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return methodNotAllowed(res);
   const actor = await requireStatsAccess(req, res);
   if (!actor) return;

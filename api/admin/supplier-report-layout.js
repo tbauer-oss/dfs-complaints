@@ -212,7 +212,8 @@ function normalizeLayoutInput(input) {
 }
 
 export default async function handler(req, res) {
-  if (applyAdminCors(req, res)) return;
+  applyAdminCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
     if (req.method === 'POST') {

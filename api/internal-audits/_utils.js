@@ -9,7 +9,7 @@ import {
 } from '../_lib/uploads.js';
 
 export function applyInternalCors(req, res) {
-  return withCors(req, res);
+  withCors(req, res);
 }
 
 const WRITE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

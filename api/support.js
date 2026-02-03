@@ -48,7 +48,8 @@ function asString(v) {
 const CATS = new Set(['general','complaint','technical','account','privacy','feedback','improve','other']);
 
 export default async function handler(req, res) {
-  if (setCors(req, res)) return;
+  setCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   if (!mailOk) {

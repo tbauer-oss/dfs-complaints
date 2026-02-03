@@ -9,20 +9,17 @@ function ensureJsonContentType(res) {
 // Preflight helper (CORS policy is defined in vercel.json)
 export function withCors(req, res) {
   ensureJsonContentType(res);
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return true;
-  }
-  return false;
+  return req.method === 'OPTIONS';
 }
 
 export function withCorsHandler(handler, options = {}) {
   const resolvedOptions = options || {};
 
   return async function corsWrapped(req, res) {
-    const handled = withCors(req, res);
-    if (handled) return;
+    withCors(req, res);
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
     if (typeof resolvedOptions.before === 'function') {
       resolvedOptions.before(req, res, { allowOrigin: res.getHeader('Access-Control-Allow-Origin') || '' });
     }
@@ -41,12 +38,19 @@ export function withCorsHandler(handler, options = {}) {
 // --- Preflight helper (CORS policy is defined in vercel.json) ---
 export function setCors(req, res, allowHeaders = '') {
   void allowHeaders;
-  return withCors(req, res);
+  withCors(req, res);
+  return false;
 }
 
 // --- Preflight komfortabel beantworten ---
 export function handlePreflight(req, res) {
-  return withCors(req, res);
+  withCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return true;
+  }
+  return false;
 }
 
 function ensureCorsHeaders(res) {
