@@ -11,11 +11,6 @@
       },
       "continue": true
     },
-    {
-      "src": "/api/(.*)",
-      "methods": ["OPTIONS"],
-      "dest": "/api/_options.js"
-    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
