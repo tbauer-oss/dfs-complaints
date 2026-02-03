@@ -9,8 +9,7 @@ const EMAIL_FROM_USER_KEY = (k) => k.slice('dfs:user:'.length); // "dfs:user:<em
 
 export default async function handler(req, res) {
   // --- CORS immer zuerst ---
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (setCors(req, res, 'Content-Type, Authorization, X-Gate')) return;
 
   if (req.method !== 'GET') {
     return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));

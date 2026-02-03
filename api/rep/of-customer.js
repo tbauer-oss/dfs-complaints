@@ -34,8 +34,7 @@ const S = (v) => (v ?? '').toString().trim();
 const norm = (v) => S(v).toLowerCase();
 
 export default async function handler(req, res) {
-  setCors(req, res, 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (setCors(req, res, 'Content-Type, Authorization')) return;
   if (req.method !== 'GET')
     return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
 

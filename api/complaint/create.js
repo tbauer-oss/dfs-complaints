@@ -10,7 +10,7 @@ export const config = {
 const BODY_LIMIT_BYTES = Number(process.env.API_BODY_LIMIT_BYTES || 64 * 1024 * 1024);
 
 import jwt from 'jsonwebtoken';
-import { setCors, noContent, ok, bad, methodNotAllowed, readJsonBody } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed, readJsonBody } from '../_lib/http.js';
 import { complaintSave, userByEmail, nextTicket } from '../_lib/store.js';
 import {
   blobUploadsEnabled,
@@ -29,8 +29,7 @@ function auth(req) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req, res)) return;
   if (req.method !== 'POST')    return methodNotAllowed(res);
 
   try {

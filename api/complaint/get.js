@@ -1,7 +1,7 @@
 // api/complaint/get.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, noContent, ok, bad, methodNotAllowed } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { complaintByTicket } from '../_lib/store.js';
 import jwt from 'jsonwebtoken';
 
@@ -20,8 +20,7 @@ function getUserEmail(req) {
 }
 
 export default async function handler(req, res) {
-  setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (setCors(req, res)) return;
   if (req.method !== 'GET') return methodNotAllowed(res);
 
   const email = getUserEmail(req);

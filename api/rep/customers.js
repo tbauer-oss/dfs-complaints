@@ -119,8 +119,7 @@ async function readRepCustomers(repId) {
 
 export default async function handler(req, res) {
   // CORS inkl. X-Debug für Browser-Tests
-  setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (setCors(req, res, 'Content-Type, Authorization, X-Gate, X-Debug')) return;
 
   try {
     // Auth

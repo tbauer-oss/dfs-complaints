@@ -14,8 +14,7 @@ function getBearerToken(req) {
 
 export default async function handler(req, res) {
   // Einheitliche CORS-Header
-  setCors(req, res, 'Content-Type, Authorization, X-Gate');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (setCors(req, res, 'Content-Type, Authorization, X-Gate')) return;
   if (req.method !== 'GET') {
     return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
   }
