@@ -7,6 +7,7 @@ import {
   bad,
   methodNotAllowed,
   readJson,
+  readJsonBody,
 } from '../_lib/http.js';
 import { sendMail } from '../_lib/mailer.js';
 import { requirePortalAccess } from './_guard.js';
@@ -1391,11 +1392,13 @@ export default async function handler(req, res) {
     // ----------------------------
     if (req.method === 'DELETE') {
       let ticket = (req.query?.ticket || '').toString().trim();
-      if (!ticket && req.body) {
+      if (!ticket) {
         try {
-          const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
+          const b = await readJsonBody(req);
           ticket = (b?.ticket || '').toString().trim();
-        } catch {}
+        } catch (err) {
+          return bad(res, err?.message || 'invalid json', err?.statusCode || 400);
+        }
       }
       if (!ticket) return bad(res, 'missing ticket', 400);
 

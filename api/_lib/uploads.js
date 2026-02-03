@@ -258,7 +258,14 @@ export async function storeGeneratedFile(buffer, {
 
 export async function deleteUploadsFromBlob(uploads = []) {
   if (!blobUploadsEnabled) return false;
-  const paths = collectBlobPaths(uploads);
+  const list = Array.isArray(uploads) ? uploads : (uploads ? [uploads] : []);
+  let paths = [];
+  try {
+    paths = collectBlobPaths(list);
+  } catch (err) {
+    console.error('[uploads] failed to collect blob paths', err?.message || err);
+    return false;
+  }
   if (!paths.length) return false;
   try {
     await del(paths);
