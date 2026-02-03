@@ -25429,7 +25429,18 @@ class AdminApi {
     final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
     if (r2.status == 404) return;
     if (r2.status != 200 && r2.status != 204) {
+      final missing = await _isComplaintMissing(ticket);
+      if (missing) return;
       throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.responseText ?? ''}';
+    }
+  }
+
+  Future<bool> _isComplaintMissing(String ticket) async {
+    try {
+      final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
+      return res.status == 404;
+    } catch (_) {
+      return false;
     }
   }
 
