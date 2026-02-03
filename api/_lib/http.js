@@ -1,88 +1,14 @@
-// api/_lib/http.js  (ESM, shared CORS helpers)
+// api/_lib/http.js  (ESM, shared HTTP helpers)
 
-// --- Erlaubte Frontend-Origins ---
-export const PROD_FE = 'https://dfs-complaints-web.vercel.app';
-const ALLOWED_ORIGINS = new Set([PROD_FE, 'http://localhost:3000', 'http://localhost:5173']);
-
-const ALLOWED_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
-const ALLOWED_HEADERS = 'Authorization, Content-Type, X-Requested-With';
-const MAX_AGE = '86400';
-
-function readOriginHeader(req) {
-  if (!req) return '';
-  if (typeof req.headers?.get === 'function') {
-    return req.headers.get('origin') || '';
-  }
-  return req?.headers?.origin || req?.headers?.Origin || '';
-}
-
-function normalizeOrigin(origin) {
-  if (!origin) return '';
-  try {
-    const url = new URL(origin);
-    const isHttpsDefault = url.protocol === 'https:' && (url.port === '' || url.port === '443');
-    const isHttpDefault = url.protocol === 'http:' && (url.port === '' || url.port === '80');
-    if (isHttpsDefault || isHttpDefault) {
-      return `${url.protocol}//${url.hostname}`;
-    }
-    return url.origin;
-  } catch {
-    return origin.trim().toLowerCase();
-  }
-}
-
-function isAllowedOrigin(origin) {
-  if (!origin) return false;
-  const normalized = normalizeOrigin(origin);
-  if (ALLOWED_ORIGINS.has(normalized)) return true;
-  return false;
-}
-
-function resolveAllowedOrigin(req) {
-  const origin = readOriginHeader(req) || '';
-  if (!origin) return '*';
-  if (isAllowedOrigin(origin)) return origin;
-  // Fallback: echo any origin to avoid CORS failures across environments.
-  return origin;
-}
-
-function mergeAllowedHeaders(extraHeaders = '') {
-  if (!extraHeaders) return ALLOWED_HEADERS;
-  const combined = new Set(
-    `${ALLOWED_HEADERS},${extraHeaders}`
-      .split(',')
-      .map((header) => header.trim())
-      .filter(Boolean),
-  );
-  return Array.from(combined).join(', ');
-}
-
-function applyCors(res, allowOrigin, allowHeaders = '') {
-  const mergedHeaders = mergeAllowedHeaders(allowHeaders);
-  if (allowOrigin && allowOrigin !== '*') {
-    res.setHeader('Vary', 'Origin');
-  }
-  res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
-  res.setHeader('Access-Control-Allow-Headers', mergedHeaders);
-  res.setHeader('Access-Control-Max-Age', MAX_AGE);
-  if (allowOrigin && allowOrigin !== '*') {
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
-  if (allowOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-  }
-  res.__corsApplied = true;
-  res.__corsOrigin = allowOrigin;
-  res.__corsAllowHeaders = mergedHeaders;
-}
-
-// Shared CORS helper used by all routes
-export function withCors(req, res) {
-  const allowOrigin = resolveAllowedOrigin(req);
-  applyCors(res, allowOrigin);
+function ensureJsonContentType(res) {
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
+}
+
+// Preflight helper (CORS policy is defined in vercel.json)
+export function withCors(req, res) {
+  ensureJsonContentType(res);
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
     res.end();
@@ -98,9 +24,7 @@ export function withCorsHandler(handler, options = {}) {
     const handled = withCors(req, res);
     if (handled) return;
     if (typeof resolvedOptions.before === 'function') {
-      resolvedOptions.before(req, res, {
-        allowOrigin: res.getHeader('Access-Control-Allow-Origin') || res.__corsOrigin || '',
-      });
+      resolvedOptions.before(req, res, { allowOrigin: res.getHeader('Access-Control-Allow-Origin') || '' });
     }
     try {
       await handler(req, res);
@@ -114,22 +38,10 @@ export function withCorsHandler(handler, options = {}) {
   };
 }
 
-// --- CORS setzen (immer am Handler-Anfang aufrufen!) ---
+// --- Preflight helper (CORS policy is defined in vercel.json) ---
 export function setCors(req, res, allowHeaders = '') {
-  const allowOrigin = resolveAllowedOrigin(req);
-  applyCors(res, allowOrigin, allowHeaders);
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
-    res.end();
-    return true;
-  }
-  res.__corsApplied = true;
-  res.__corsOrigin = allowOrigin;
-  const handled = req.method === 'OPTIONS';
-  if (handled) return;
+  void allowHeaders;
+  return withCors(req, res);
 }
 
 // --- Preflight komfortabel beantworten ---
@@ -138,22 +50,13 @@ export function handlePreflight(req, res) {
 }
 
 function ensureCorsHeaders(res) {
-  if (res.getHeader('Access-Control-Allow-Origin')) return;
-  const allowOrigin = res.__corsOrigin || '';
-  const allowHeaders = res.__corsAllowHeaders || '';
-  applyCors(res, allowOrigin, allowHeaders);
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
+  ensureJsonContentType(res);
 }
 
 // --- 200 OK (JSON) ---
 export function ok(res, data) {
-  // CORS sollte bereits gesetzt sein; Content-Type zur Sicherheit nochmal
+  // Content-Type zur Sicherheit
   ensureCorsHeaders(res);
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
   res.statusCode = 200;
   res.end(JSON.stringify(data ?? {}));
 }
@@ -161,9 +64,6 @@ export function ok(res, data) {
 // --- Fehlerantwort ---
 export function bad(res, msg = 'bad request', code = 400, extra = undefined) {
   ensureCorsHeaders(res);
-  if (!res.getHeader('Content-Type')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
   res.statusCode = code;
   const body = typeof extra === 'object' && extra !== null ? { error: msg, ...extra } : { error: msg };
   res.end(JSON.stringify(body));
