@@ -6,7 +6,7 @@
       "headers": {
         "Access-Control-Allow-Origin": "https://dfs-complaints-web.vercel.app",
         "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, X-Admin-Secret, X-Gate, X-Rep-Secret",
         "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
       },
       "continue": true
