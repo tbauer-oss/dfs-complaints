@@ -449,7 +449,8 @@ function buildPayloadMail(lang, ticket) {
 // =======================================================
 export default async function handler(req, res) {
   // 1) CORS IMMER zuerst
-  if (setCors(req, res)) return;
+  setCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   // 2) Admin-Auth prüfen (immer noch ohne schwere Imports)
   const tile = req.query?.open ? 'open' : 'all';

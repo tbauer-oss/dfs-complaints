@@ -12,7 +12,8 @@ import {
 
 export async function requirePortalAccess(req, res, { write = false, tile, allowPrrc = false } = {}) {
   // ✅ CORS immer zuerst – auch für 401/403
-  if (handlePreflight(req, res)) return null;
+  handlePreflight(req, res);
+  if (req.method === 'OPTIONS') return null;
 
   const actor = await portalUserFromRequest(req);
   if (!actor) {
@@ -40,7 +41,8 @@ export async function requirePortalAccess(req, res, { write = false, tile, allow
 }
 
 export async function requireTrainingNeedAccess(req, res, { write = false } = {}) {
-  if (handlePreflight(req, res)) return null;
+  handlePreflight(req, res);
+  if (req.method === 'OPTIONS') return null;
 
   const actor = await portalUserFromRequest(req);
   if (!actor) {
@@ -59,7 +61,8 @@ export async function requireTrainingNeedAccess(req, res, { write = false } = {}
 }
 
 export async function requireTrainingModuleAccess(req, res) {
-  if (handlePreflight(req, res)) return null;
+  handlePreflight(req, res);
+  if (req.method === 'OPTIONS') return null;
 
   const actor = await portalUserFromRequest(req);
   if (!actor) {
@@ -76,7 +79,8 @@ export async function requireTrainingModuleAccess(req, res) {
 }
 
 export async function requireTrainingScopeAccess(req, res, { tile, write = false } = {}) {
-  if (handlePreflight(req, res)) return null;
+  handlePreflight(req, res);
+  if (req.method === 'OPTIONS') return null;
 
   const actor = await portalUserFromRequest(req);
   if (!actor) {
@@ -93,7 +97,8 @@ export async function requireTrainingScopeAccess(req, res, { tile, write = false
 }
 
 export async function requireTrainingIntegrationAccess(req, res) {
-  if (handlePreflight(req, res)) return null;
+  handlePreflight(req, res);
+  if (req.method === 'OPTIONS') return null;
 
   const actor = await portalUserFromRequest(req);
   if (!actor) {

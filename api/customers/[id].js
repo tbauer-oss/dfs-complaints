@@ -50,7 +50,8 @@ async function repOwnsCustomer(repId, email) {
 }
 
 export default async function handler(req, res) {
-  if (setCors(req, res)) return;
+  setCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'PATCH') {
     return res.status(405).end(JSON.stringify({ error: 'method not allowed' }));
   }
