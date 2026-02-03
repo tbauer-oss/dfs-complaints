@@ -6399,12 +6399,34 @@ class AdminApi {
     // 1) DELETE ?ticket=...
     try {
       final r1 = await _request('DELETE', '/api/admin/complaints', q: {'ticket': ticket});
-      if (r1.status == 200 || r1.status == 204) return;
-    } catch (_) {}
+      if (r1.status == 200 || r1.status == 204 || r1.status == 404) return;
+    } catch (_) {
+      final missing = await _isComplaintMissing(ticket);
+      if (missing) return;
+    }
     // 2) DELETE Body
-    final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
-    if (r2.status != 200 && r2.status != 204) {
-      throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.body}';
+    try {
+      final r2 = await _request('DELETE', '/api/admin/complaints', body: {'ticket': ticket});
+      if (r2.status == 404) return;
+      if (r2.status != 200 && r2.status != 204) {
+        final missing = await _isComplaintMissing(ticket);
+        if (missing) return;
+        throw 'HTTP ${r2.status} ${r2.statusText} — ${r2.body}';
+      }
+    } catch (e) {
+      final missing = await _isComplaintMissing(ticket);
+      if (missing) return;
+      rethrow;
+    }
+  }
+
+  Future<bool> _isComplaintMissing(String ticket) async {
+    try {
+      final res = await _request('GET', '/api/admin/complaints', q: {'ticket': ticket});
+      if (res.status == 404 || res.status == 410) return true;
+      return res.status >= 500;
+    } catch (_) {
+      return true;
     }
   }
 
