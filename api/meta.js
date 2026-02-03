@@ -1,13 +1,12 @@
 // api/meta.js
 import { loadAppMeta } from './_lib/appMeta.js';
-import { withCors, ok, bad, methodNotAllowed } from './_lib/http.js';
+import { ok, bad, methodNotAllowed } from './_lib/http.js';
 
 export const config = { runtime: 'nodejs' };
 
 const nowIso = () => new Date().toISOString();
 
 export default async function handler(req, res) {
-  withCors(req, res);
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
