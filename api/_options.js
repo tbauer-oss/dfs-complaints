@@ -4,9 +4,8 @@ import { withCors } from './_lib/cors.js';
 export const config = { runtime: 'nodejs' };
 
 export default function handler(req, res) {
-  const handled = withCors(req, res);
-  if (handled) return;
+  // Nur Header setzen – egal was withCors zurückliefert
+  try { withCors(req, res); } catch (e) { /* ignore */ }
 
-  res.statusCode = 204;
-  res.end();
+  return res.status(204).end();
 }
