@@ -6,9 +6,74 @@ function ensureJsonContentType(res) {
   }
 }
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  process.env.APP_ORIGIN,
+  process.env.APP_BASE_URL,
+  process.env.REP_PORTAL_URL,
+  process.env.CORS_ALLOW_ORIGINS,
+  'https://dfs-complaints-web.vercel.app',
+]
+  .flatMap((value) => (value ? value.split(',') : []))
+  .map((value) => value.trim())
+  .filter(Boolean)
+  .map((value) => {
+    try {
+      return new URL(value).origin;
+    } catch {
+      return null;
+    }
+  })
+  .filter(Boolean);
+
+const DEFAULT_ALLOW_HEADERS = [
+  'Authorization',
+  'Content-Type',
+  'X-Requested-With',
+  'X-Admin-Secret',
+  'X-Gate',
+  'X-Rep-Secret',
+].join(', ');
+
+const DEFAULT_ALLOW_METHODS = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+
+function normalizeHeaderList(value) {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function mergeHeaderLists(...values) {
+  const merged = new Map();
+  values.flatMap(normalizeHeaderList).forEach((header) => {
+    merged.set(header.toLowerCase(), header);
+  });
+  return Array.from(merged.values()).join(', ');
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  if (DEFAULT_ALLOWED_ORIGINS.includes(origin)) return true;
+  if (DEFAULT_ALLOWED_ORIGINS.length > 0) return false;
+  return /^https:\/\/[^/]+\.vercel\.app$/.test(origin) && /dfs/i.test(origin);
+}
+
 // Preflight helper (CORS policy is defined in vercel.json)
 export function withCors(req, res) {
   ensureJsonContentType(res);
+  const origin = req.headers?.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', DEFAULT_ALLOW_METHODS);
+  const requestedHeaders = req.headers?.['access-control-request-headers'] || '';
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    mergeHeaderLists(DEFAULT_ALLOW_HEADERS, requestedHeaders),
+  );
   return req.method === 'OPTIONS';
 }
 
