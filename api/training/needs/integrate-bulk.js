@@ -64,6 +64,7 @@ function buildProgramDraft({ need, actor, draft = {} }) {
 }
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   const actor = await requireTrainingIntegrationAccess(req, res);
   if (!actor) return;
   if (!isAdminUser(actor)) return bad(res, 'forbidden', 403);

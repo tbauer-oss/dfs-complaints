@@ -12,6 +12,7 @@ const TOKEN_TTL_MS = Number(process.env.SIGNATURE_TOKEN_TTL_MS || 2 * 60 * 60 * 
 const APP_ORIGIN = (process.env.APP_ORIGIN || process.env.APP_BASE_URL || 'https://dfs-complaints-web.vercel.app').replace(/\/$/, '');
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });

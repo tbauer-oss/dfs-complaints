@@ -10,6 +10,7 @@ import { trainingRecordErase, trainingRecordGet, trainingRecordUpdate } from '..
 const TRAINING_TILE = 'trainingSessions';
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });
   if (!actor) return;
   const canEditAll = isAdminUser(actor);
