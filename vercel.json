@@ -14,7 +14,7 @@
     {
       "src": "/api/training/(.*)",
       "methods": ["OPTIONS"],
-      "dest": "/api/_options"
+      "dest": "/api/training/_options"
     },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
