@@ -197,7 +197,11 @@ class Auditor {
           parseInt(qualifications?['experienceYears'] ?? json['experienceYears']),
       standardsKnowledge: parseList(qualifications?['standardsKnowledge']),
       requalificationDueDate: parseDate(qualifications?['requalificationDueDate'] ?? json['requalificationDueDate']),
-      qualificationOverride: (qualifications?['override'] ?? qualifications?['qualificationOverride']) == true,
+      qualificationOverride: (qualifications?['override'] ??
+              qualifications?['qualificationOverride'] ??
+              json['qualificationOverride'] ??
+              json['override']) ==
+          true,
       evidenceAttachments: ((qualifications?['evidence'] as List?) ?? const [])
           .whereType<Map>()
           .map((e) => AuditorEvidence.fromJson(e.cast<String, dynamic>()))
