@@ -12,11 +12,6 @@
       "continue": true
     },
     {
-      "src": "/api/(.*)",
-      "methods": ["OPTIONS"],
-      "dest": "/api/_options"
-    },
-    {
       "src": "/api/training/(.*)",
       "has": [
         { "type": "header", "key": "Access-Control-Request-Method" }
