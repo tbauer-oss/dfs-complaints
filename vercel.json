@@ -26,6 +26,10 @@
       "src": "/api/training/sessions/([^/]+)/participants/([^/]+)/sign",
       "dest": "/api/training/sign?id=$1&participantId=$2"
     },
+    {
+      "src": "/api/training/sessions/([^/]+)",
+      "dest": "/api/training/session?id=$1"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
