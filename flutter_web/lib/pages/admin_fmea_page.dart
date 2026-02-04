@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import '../api/client.dart';
 import '../models/capa_report.dart';
 import '../models/complaint.dart';
@@ -1932,7 +1933,7 @@ class _AdminFmeaPageState extends State<AdminFmeaPage> {
       return Focus(
         focusNode: _riskListFocus,
         child: Shortcuts(
-          shortcuts: const {
+          shortcuts: {
             LogicalKeySet(LogicalKeyboardKey.arrowDown): _RiskNavigateIntent(1),
             LogicalKeySet(LogicalKeyboardKey.arrowUp): _RiskNavigateIntent(-1),
             LogicalKeySet(LogicalKeyboardKey.enter): _RiskSelectIntent(),
