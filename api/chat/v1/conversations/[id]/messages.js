@@ -11,6 +11,7 @@ import { createRedisAdapter } from '../../_lib/redisAdapter.js';
 import {
   appendMessage,
   buildMessagePayload,
+  ensureDmConversation,
   fetchConversationMeta,
   buildProfilesMap,
   normalizeUserId,
@@ -58,9 +59,32 @@ export default async function handler(req, res) {
     const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
-    const meta =
+    const dmSourceId =
+      requestedConvId?.startsWith('dm:') || canonicalConvId?.startsWith('dm:')
+        ? canonicalConvId || requestedConvId
+        : null;
+    const parseDmParticipants = (convId) => {
+      if (!convId?.startsWith('dm:')) return null;
+      const [, rawA, rawB] = convId.split(':');
+      const userA = normalizeUserId(rawA);
+      const userB = normalizeUserId(rawB);
+      if (!userA || !userB) return null;
+      return [userA, userB];
+    };
+
+    let meta =
       (canonicalConvId && (await fetchConversationMeta(rdb, canonicalConvId))) ||
       (canonicalConvId !== requestedConvId ? await fetchConversationMeta(rdb, requestedConvId) : null);
+
+    if (!meta && dmSourceId) {
+      const dmParticipants = parseDmParticipants(dmSourceId);
+      const isParticipant = dmParticipants?.includes(uid);
+      if (dmParticipants && isParticipant) {
+        meta = await ensureDmConversation(rdb, dmParticipants[0], dmParticipants[1]);
+      }
+      if (!meta && !isParticipant) return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
+    }
+
     if (!meta) return bad(res, 'conversation not found', 404);
 
     const convId = canonicalizeConversationId(meta.convId) || canonicalConvId || requestedConvId;
@@ -71,9 +95,17 @@ export default async function handler(req, res) {
     const isGroupConversation = convId?.startsWith('grp:');
     const normalizedMembers =
       (isGroupConversation && Array.isArray(members?.[0]) ? members[0] : members) || [];
+    const dmParticipants =
+      !isGroupConversation
+        ? Array.isArray(meta?.participants) && meta.participants.length > 0
+          ? meta.participants
+          : parseDmParticipants(convId) || []
+        : [];
     const isMember = isGroupConversation
       ? normalizedMembers.includes(uid)
-      : Boolean(await rdb.sismember(membersKey, uid));
+      : dmParticipants.length > 0
+        ? dmParticipants.includes(uid)
+        : Boolean(await rdb.sismember(membersKey, uid));
 
     if (!isMember) {
       console.warn('[chat/v1/messages] membership_denied', {
