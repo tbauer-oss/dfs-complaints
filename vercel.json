@@ -11,6 +11,11 @@
       },
       "continue": true
     },
+    {
+      "src": "/api/training/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "/api/_options"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
