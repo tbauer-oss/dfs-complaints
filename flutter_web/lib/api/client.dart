@@ -662,6 +662,7 @@ class ApiClient {
     String method,
     String path, {
     Object? body,
+    Map<String, String>? headers,
     void Function(int sent, int total)? onProgress,
   }) async {
     final payload = body == null ? null : jsonEncode(body);
@@ -670,7 +671,7 @@ class ApiClient {
       req
         ..open(method, _u(path).toString())
         ..withCredentials = true;
-      _headersJson().forEach(req.setRequestHeader);
+      (headers ?? _headersJson()).forEach(req.setRequestHeader);
       if (onProgress != null) {
         final totalBytes = payload == null ? 0 : utf8.encode(payload).length;
         req.upload.onProgress.listen((event) {
@@ -1733,6 +1734,7 @@ class ApiClient {
         'POST',
         '/api/admin/downloads',
         body: body,
+        headers: _adminHeaders(auth: true, path: '/api/admin/downloads'),
         onProgress: onProgress,
       );
       final status = res.status ?? 0;

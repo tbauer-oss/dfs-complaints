@@ -68,7 +68,11 @@ function sanitizeFilename(name) {
   return raw.replace(/[^a-z0-9._-]+/gi, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'file';
 }
 
-function buildBlobPath(ticket, filename) {
+function buildBlobPath(ticket, filename, prefixOverride) {
+  const override = (prefixOverride ?? '').toString().replace(/^\/+|\/+$/g, '');
+  if (override) {
+    return `${override}/${filename}`;
+  }
   const safeTicket = (ticket ?? '').toString().replace(/[^a-z0-9]/gi, '').slice(-10).toLowerCase();
   const prefix = safeTicket ? `complaints/${safeTicket}` : 'complaints/general';
   return `${prefix}/${filename}`;
@@ -115,11 +119,11 @@ async function resolveTicket(ticket) {
   return ticket;
 }
 
-async function uploadBuffer(buffer, { ticket, filename, mime }) {
+async function uploadBuffer(buffer, { ticket, filename, mime, prefix }) {
   if (!blobUploadsEnabled || !buffer?.length) return null;
   const safeName = sanitizeFilename(filename);
   const resolvedTicket = await resolveTicket(ticket);
-  const key = buildBlobPath(resolvedTicket, safeName);
+  const key = buildBlobPath(resolvedTicket, safeName, prefix);
   const blob = await put(key, buffer, {
     access: 'public',
     contentType: (mime || 'application/octet-stream').toString(),
@@ -137,6 +141,7 @@ async function uploadBuffer(buffer, { ticket, filename, mime }) {
 
 export async function processIncomingFiles(filesInput, {
   ticket,
+  prefix,
   includeMailAttachments = false,
   allowPreviewFallback = !blobUploadsEnabled,
   allowDataUrlFallback = !blobUploadsEnabled,
@@ -176,7 +181,7 @@ export async function processIncomingFiles(filesInput, {
     };
 
     try {
-      const blob = await uploadBuffer(buffer, { ticket, filename: entry.name, mime: entry.mime });
+      const blob = await uploadBuffer(buffer, { ticket, filename: entry.name, mime: entry.mime, prefix });
       if (blob?.url) entry.url = blob.url;
       if (blob?.downloadUrl) entry.downloadUrl = blob.downloadUrl;
       if (blob?.blobPath) entry.blobPath = blob.blobPath;
@@ -218,6 +223,7 @@ export async function processIncomingFiles(filesInput, {
 
 export async function storeGeneratedFile(buffer, {
   ticket,
+  prefix,
   filename,
   mime = 'application/octet-stream',
   allowDataUrlFallback = true,
@@ -234,7 +240,7 @@ export async function storeGeneratedFile(buffer, {
 
   if (!preferDataUrlFallback) {
     try {
-      const blob = await uploadBuffer(buffer, { ticket, filename, mime });
+      const blob = await uploadBuffer(buffer, { ticket, filename, mime, prefix });
       if (blob?.url) entry.url = blob.url;
       if (blob?.downloadUrl) entry.downloadUrl = blob.downloadUrl;
       if (blob?.blobPath) entry.blobPath = blob.blobPath;
