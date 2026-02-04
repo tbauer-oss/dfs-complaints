@@ -3551,30 +3551,49 @@ class RiskAccordion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ExpansionPanelList(
-      elevation: 0,
-      expandedHeaderPadding: EdgeInsets.zero,
-      expansionCallback: (index, isExpanded) {
-        final section = sections[index];
-        onToggle(section.id, !isExpanded);
-      },
-      children: sections.map((section) {
+    return Column(
+      children: sections.mapIndexed((index, section) {
         final expanded = isSectionOpen(section.id, section.defaultOpen);
-        return ExpansionPanel(
-          canTapOnHeader: true,
-          isExpanded: expanded,
-          backgroundColor: theme.colorScheme.surface,
-          headerBuilder: (context, isExpanded) {
-            return ListTile(
-              title: Text(
-                section.title,
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        final hasDivider = index < sections.length - 1;
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            border: hasDivider ? Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)) : null,
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () => onToggle(section.id, !expanded),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          section.title,
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                    ],
+                  ),
+                ),
               ),
-            );
-          },
-          body: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: section.child,
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: ClipRect(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    heightFactor: expanded ? 1 : 0,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: section.child,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }).toList(),
