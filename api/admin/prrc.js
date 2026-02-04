@@ -1,7 +1,7 @@
 // api/admin/prrc.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
 import { normalizeRole, PORTAL_ROLES } from '../_lib/portalAuth.js';
 import { normalizeDepartments, hasDepartmentOverlap } from '../_lib/departments.js';
@@ -61,8 +61,7 @@ function statsFromComplaints(list = []) {
 
 export default async function handler(req, res) {
   setCors(req, res);
-
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   const actor = await requirePortalAccess(req, res, { tile: 'prrc', allowPrrc: true });
   if (!actor) return;

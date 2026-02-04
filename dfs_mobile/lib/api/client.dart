@@ -294,7 +294,6 @@ class ApiClient {
   Map<String, String> _headers({bool auth = false, Map<String, String>? extra}) {
     final h = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
-      if (gate != null) 'X-Gate': gate!,
       if (auth && token != null) 'Authorization': 'Bearer $token',
     };
     if (extra != null) h.addAll(extra);
@@ -1066,7 +1065,12 @@ class ApiClient {
 
   /// Registrierung: `null` = Erfolg, sonst Fehlermeldung
   Future<String?> register(Map<String, dynamic> data) async {
-    final r = await _post('/api/auth/register', data);
+    final gateToken = gate?.trim();
+    final r = await _post(
+      '/api/auth/register',
+      data,
+      extraHeaders: gateToken == null || gateToken.isEmpty ? null : {'X-Gate': gateToken},
+    );
     if (_ok2xx(r.statusCode)) return null;
     try {
       final body = r.body;

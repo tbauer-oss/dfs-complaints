@@ -149,20 +149,29 @@ export async function ensureInitialAdmins() {
 export async function portalUserFromRequest(req, { allowSecretFallback = true } = {}) {
   const tokenUser = getAuthUser(req);
   if (tokenUser?.email) {
-    const stored = await portalUserByEmail(tokenUser.email).catch(() => null);
+    const tokenRole = normalizeRole(tokenUser.role);
+    const tokenStatus = normalizeStatus(tokenUser.portalStatus);
+    let stored = null;
+    try {
+      stored = await portalUserByEmail(tokenUser.email);
+    } catch (err) {
+      console.warn('[portalAuth] failed to load portal user', err?.message || err);
+    }
     if (stored) {
-      const role = normalizeRole(stored.role);
+      const storedRole = normalizeRole(stored.role);
       const status = normalizeStatus(stored.portalStatus, stored.revoked);
       const tilePermissions = sanitizeTilePermissions(stored.tilePermissions);
       if (status === 'active') {
-        return { ...stored, role, portalStatus: status, tilePermissions };
+        const resolvedRole = tokenRole === PORTAL_ROLES.superuser ? tokenRole : storedRole;
+        return { ...stored, role: resolvedRole, portalStatus: status, tilePermissions };
       }
-    } else if (normalizeRole(tokenUser.role) === PORTAL_ROLES.superuser) {
-      const role = normalizeRole(tokenUser.role);
-      const portalStatus = normalizeStatus(tokenUser.portalStatus);
-      if (portalStatus === 'active') {
-        return { ...tokenUser, role, portalStatus, tilePermissions: sanitizeTilePermissions(tokenUser.tilePermissions) };
-      }
+    } else if (tokenRole === PORTAL_ROLES.superuser && tokenStatus === 'active') {
+      return {
+        ...tokenUser,
+        role: tokenRole,
+        portalStatus: tokenStatus,
+        tilePermissions: sanitizeTilePermissions(tokenUser.tilePermissions),
+      };
     }
   }
 

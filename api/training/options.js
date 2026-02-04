@@ -1,7 +1,7 @@
-// api/_options.js
+// /api/training/_options.js – Training-specific CORS preflight handler
 export const config = { runtime: 'nodejs' };
 
-import { withCors } from './_lib/http.js';
+import { withCors } from '../_lib/http.js';
 
 export default function handler(req, res) {
   withCors(req, res);

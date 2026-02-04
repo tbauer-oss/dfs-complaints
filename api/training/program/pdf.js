@@ -29,6 +29,7 @@ function matchesSearch(item, query) {
 }
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: false });
   if (!actor) return;
   if (req.method !== 'GET') return methodNotAllowed(res);

@@ -5,7 +5,6 @@ import {
   setCors,
   ok,
   bad,
-  noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
 import {
@@ -165,7 +164,7 @@ function buildMessage(lang, data) {
 
 export default async function handler(req, res) {
   setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (!['GET', 'POST'].includes(req.method || '')) return methodNotAllowed(res);
   const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile: 'reps' });
   if (!actor) return;

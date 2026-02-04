@@ -1,18 +1,52 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/api/(.*)/", "dest": "/api/$1" },
     {
       "src": "/api/(.*)",
       "headers": {
         "Access-Control-Allow-Origin": "https://dfs-complaints-web.vercel.app",
         "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, X-Admin-Secret, X-Gate, X-Rep-Secret",
         "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS"
       },
       "continue": true
     },
-    { "src": "/api/(.*)", "methods": ["OPTIONS"], "dest": "/api/_options.js" },
+    {
+      "src": "/api/internal-audits/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "/api/internal-audits/options"
+    },
+    {
+      "src": "/api/internal-audits/([^/]+)/plan$",
+      "dest": "/api/internal-audits/[id]/plan.js?id=$1"
+    },
+    {
+      "src": "/api/internal-audits/([^/]+)/evidence$",
+      "dest": "/api/internal-audits/[id]/evidence.js?id=$1"
+    },
+    {
+      "src": "/api/internal-audits/([^/]+)$",
+      "dest": "/api/internal-audits/[id].js?id=$1"
+    },
+    {
+      "src": "/api/training/(.*)",
+      "has": [
+        { "type": "header", "key": "Access-Control-Request-Method" }
+      ],
+      "dest": "/api/training/options"
+    },
+    {
+      "src": "/api/training/sessions/([^/]+)/participants/([^/]+)/signature-token",
+      "dest": "/api/training/signature-token?id=$1&participantId=$2"
+    },
+    {
+      "src": "/api/training/sessions/([^/]+)/participants/([^/]+)/sign",
+      "dest": "/api/training/sign?id=$1&participantId=$2"
+    },
+    {
+      "src": "/api/training/sessions/([^/]+)",
+      "dest": "/api/training/session?id=$1"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],

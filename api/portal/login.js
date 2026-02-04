@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
@@ -17,13 +17,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 export default async function handler(req, res) {
-  if (handlePreflight(req, res)) return;
-  if (req.method !== 'POST') return methodNotAllowed(res);
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
 
   try {
+    if (req.method !== 'POST') return methodNotAllowed(res);
+
     await ensureInitialAdmins();
 
-    const body = readJson(req);
+    const body = await readJson(req);
     const email = String(body?.email || '').trim().toLowerCase();
     const pw = String(body?.password || '');
     if (!email || !pw) return bad(res, 'missing credentials', 400);
@@ -45,7 +48,14 @@ export default async function handler(req, res) {
     if (!u) return bad(res, 'invalid credentials', 401);
 
     const hash = u.passhash || u.passwordHash || '';
-    const okPw = await bcrypt.compare(pw, hash);
+    if (!hash) return bad(res, 'invalid credentials', 401);
+    let okPw = false;
+    try {
+      okPw = await bcrypt.compare(pw, hash);
+    } catch (err) {
+      console.warn('[portal/login] password hash invalid for', email, err?.message || err);
+      return bad(res, 'invalid credentials', 401);
+    }
     if (!okPw) return bad(res, 'invalid credentials', 401);
 
     const role = normalizeRole(u.role);

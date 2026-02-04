@@ -11,6 +11,7 @@ const TRAINING_TILE = 'trainingEffectiveness';
 const WK_METHODS = new Set(['questionnaire', 'direct', 'indirect']);
 
 async function handler(req, res) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });

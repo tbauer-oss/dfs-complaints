@@ -5,7 +5,6 @@ import {
   setCors,
   ok,
   bad,
-  noContent,
   methodNotAllowed,
 } from '../_lib/http.js';
 import { requirePortalAccess } from './_guard.js';
@@ -771,7 +770,7 @@ async function loadRepInfoMap(repIds) {
 
 export default async function handler(req, res) {
   setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return methodNotAllowed(res);
   const actor = await requireStatsAccess(req, res);
   if (!actor) return;

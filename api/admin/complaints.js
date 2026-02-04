@@ -8,6 +8,7 @@ import {
   noContent,
   methodNotAllowed,
   readJson,
+  readJsonBody,
 } from '../_lib/http.js';
 import { sendMail } from '../_lib/mailer.js';
 import { requirePortalAccess } from './_guard.js';
@@ -451,11 +452,9 @@ function buildPayloadMail(lang, ticket) {
 export default async function handler(req, res) {
   // 1) CORS IMMER zuerst
   setCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  // 2) Preflight IMMER minimal beantworten (keine weiteren Imports!)
-  if (req.method === 'OPTIONS') return noContent(res);
-
-  // 3) Admin-Auth prüfen (immer noch ohne schwere Imports)
+  // 2) Admin-Auth prüfen (immer noch ohne schwere Imports)
   const tile = req.query?.open ? 'open' : 'all';
   const actor = await requirePortalAccess(req, res, { write: req.method !== 'GET', tile, allowPrrc: true });
   if (!actor) return;
@@ -1394,11 +1393,13 @@ export default async function handler(req, res) {
     // ----------------------------
     if (req.method === 'DELETE') {
       let ticket = (req.query?.ticket || '').toString().trim();
-      if (!ticket && req.body) {
+      if (!ticket) {
         try {
-          const b = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
+          const b = await readJsonBody(req);
           ticket = (b?.ticket || '').toString().trim();
-        } catch {}
+        } catch (err) {
+          return bad(res, err?.message || 'invalid json', err?.statusCode || 400);
+        }
       }
       if (!ticket) return bad(res, 'missing ticket', 400);
 

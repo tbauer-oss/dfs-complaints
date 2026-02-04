@@ -19,8 +19,8 @@ function stripBase64(data = '') {
 }
 
 async function handler(req, res) {
-  const isDelete = req.method === 'DELETE';
-  if (req.method !== 'POST' && !isDelete) return methodNotAllowed(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return methodNotAllowed(res);
 
   const actor = await requireTrainingScopeAccess(req, res, { tile: TRAINING_TILE, write: true });
   if (!actor) return;
@@ -38,8 +38,8 @@ async function handler(req, res) {
     if (idx < 0) return bad(res, 'participant not found', 404);
 
     const participant = participants[idx];
-    const body = isDelete ? {} : readJson(req) || {};
-    const action = isDelete ? 'reset' : (body.action || 'sign').toString();
+    const body = readJson(req) || {};
+    const action = (body.action || 'sign').toString();
     const admin = isAdminUser(actor);
 
     if (!admin) {
@@ -56,7 +56,8 @@ async function handler(req, res) {
 
     if (action === 'reset') {
       if (!admin) return bad(res, 'forbidden', 403);
-      const reason = (isDelete ? req.query?.reason : body.reason || '').toString().trim();
+      const reason = (body.reason || '').toString().trim();
+      const resolvedReason = reason.length >= 5 ? reason : 'Unterschrift zurückgesetzt';
       updated.signedAt = null;
       updated.signedByUserId = '';
       updated.signatureBase64 = '';
@@ -79,12 +80,7 @@ async function handler(req, res) {
         participants: updatedParticipants,
         auditLog: [
           ...(training.auditLog || []),
-          {
-            action: 'signature_reset',
-            message: reason ? `Unterschrift zurückgesetzt: ${reason}` : 'Unterschrift zurückgesetzt',
-            by: actor.email,
-            at: now,
-          },
+          { action: 'signature_reset', message: resolvedReason, by: actor.email, at: now },
         ],
       });
       return ok(res, { ok: true, record: updatedTraining });

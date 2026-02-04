@@ -12,7 +12,6 @@ import {
   setCors,
   ok,
   bad,
-  noContent,
   methodNotAllowed,
   readJsonBody,
 } from '../_lib/http.js';
@@ -46,7 +45,7 @@ function firstNonEmpty(...values) {
 
 export default async function handler(req, res) {
   setCors(req, res);
-  if (req.method === "OPTIONS") return noContent(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   const { ticket } = req.query || {};
   if (!ticket) return bad(res, "missing ticket", 400);

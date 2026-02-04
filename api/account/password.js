@@ -1,7 +1,7 @@
 // api/account/password.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from '../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
 import { getAuthUser } from '../_lib/auth.js';
 import {
   portalUserByEmail,
@@ -15,7 +15,7 @@ import { sendMail } from '../_lib/mailer.js';
 
 export default async function handler(req, res) {
   setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const auth = getAuthUser(req);

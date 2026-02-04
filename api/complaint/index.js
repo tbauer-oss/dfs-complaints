@@ -1,7 +1,7 @@
 // api/admin/complaints/index.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, noContent, methodNotAllowed } from '../../_lib/http.js';
+import { setCors, ok, bad, methodNotAllowed } from '../../_lib/http.js';
 import { getAdmin } from '../../_lib/auth.js';
 // Passen ggf. die Namen an, falls deine store.js abweicht:
 import {
@@ -32,7 +32,7 @@ function strOrUndef(v) {
 
 export default async function handler(req, res) {
   setCors(req, res);
-  if (req.method === 'OPTIONS') return noContent(res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   // --- Admin-Auth ---
   const admin = getAdmin?.(req);
