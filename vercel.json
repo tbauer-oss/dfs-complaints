@@ -13,7 +13,9 @@
     },
     {
       "src": "/api/training/(.*)",
-      "methods": ["OPTIONS"],
+      "has": [
+        { "type": "header", "key": "Access-Control-Request-Method" }
+      ],
       "dest": "/api/training/options"
     },
     { "handle": "filesystem" },
