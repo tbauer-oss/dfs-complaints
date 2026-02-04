@@ -24777,16 +24777,19 @@ class PrrcDashboardPage extends StatefulWidget {
 // Admin API (Browser, dart:html)
 // ===================================================================
 class AdminApi {
-  AdminApi({this.onNewsChanged});
-
+  AdminApi({this.onNewsChanged, bool enableApiDebugLogs = false})
+      : _enableApiDebugLogs = enableApiDebugLogs;
+  
   final VoidCallback? onNewsChanged;
   late final CustomerNewsService _customerNewsService = CustomerNewsService(_request);
+  bool _enableApiDebugLogs;
   String _secret = '';
   String _portalToken = '';
   String _portalRole = '';
   void setSecret(String s) => _secret = s;
   void setPortalToken(String s) => _portalToken = s;
   void setPortalRole(String role) => _portalRole = role.trim();
+  void setEnableApiDebugLogs(bool value) => _enableApiDebugLogs = value;
 
   String get baseUrl {
     final b = const String.fromEnvironment('API_BASE', defaultValue: '');
@@ -24844,6 +24847,8 @@ class AdminApi {
     if (!kDebugMode) return;
     final lower = path.toLowerCase();
     if (!lower.startsWith('/api/admin') && !lower.startsWith('/api/chat')) return;
+    final shouldLog = _enableApiDebugLogs || status == null || status < 200 || status >= 300;
+    if (!shouldLog) return;
     debugPrint('API response [$method $path]: status=${status ?? 'n/a'}, role=$_portalRole');
   }
 
