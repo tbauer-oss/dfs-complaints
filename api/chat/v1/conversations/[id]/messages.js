@@ -59,17 +59,28 @@ export default async function handler(req, res) {
     const uid = normalizeUserId(actor.email);
     if (!uid) return bad(res, 'invalid user', 400);
 
+    const dmSourceId =
+      requestedConvId?.startsWith('dm:') || canonicalConvId?.startsWith('dm:')
+        ? canonicalConvId || requestedConvId
+        : null;
+    const parseDmParticipants = (convId) => {
+      if (!convId?.startsWith('dm:')) return null;
+      const [, rawA, rawB] = convId.split(':');
+      const userA = normalizeUserId(rawA);
+      const userB = normalizeUserId(rawB);
+      if (!userA || !userB) return null;
+      return [userA, userB];
+    };
+
     let meta =
       (canonicalConvId && (await fetchConversationMeta(rdb, canonicalConvId))) ||
       (canonicalConvId !== requestedConvId ? await fetchConversationMeta(rdb, requestedConvId) : null);
 
-    if (!meta && canonicalConvId?.startsWith('dm:')) {
-      const [, rawA, rawB] = canonicalConvId.split(':');
-      const userA = normalizeUserId(rawA);
-      const userB = normalizeUserId(rawB);
-      const isParticipant = [userA, userB].includes(uid);
-      if (userA && userB && isParticipant) {
-        meta = await ensureDmConversation(rdb, userA, userB);
+    if (!meta && dmSourceId) {
+      const dmParticipants = parseDmParticipants(dmSourceId);
+      const isParticipant = dmParticipants?.includes(uid);
+      if (dmParticipants && isParticipant) {
+        meta = await ensureDmConversation(rdb, dmParticipants[0], dmParticipants[1]);
       }
       if (!meta && !isParticipant) return bad(res, 'not_a_member', 403, { error: 'not_a_member' });
     }
@@ -88,13 +99,7 @@ export default async function handler(req, res) {
       !isGroupConversation
         ? Array.isArray(meta?.participants) && meta.participants.length > 0
           ? meta.participants
-          : convId?.startsWith('dm:')
-            ? convId
-              .split(':')
-              .slice(1)
-              .map((entry) => normalizeUserId(entry))
-              .filter(Boolean)
-            : []
+          : parseDmParticipants(convId) || []
         : [];
     const isMember = isGroupConversation
       ? normalizedMembers.includes(uid)
