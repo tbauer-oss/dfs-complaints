@@ -1,8 +1,7 @@
 import { applyInternalCors, ensureActor, getAudit, updateAudit, deleteAudit } from './_utils.js';
 
 export default async function handler(req, res) {
-  applyInternalCors(req, res);
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (applyInternalCors(req, res)) return;
 
   const { id } = req.query || {};
   if (!id) {
