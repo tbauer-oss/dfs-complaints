@@ -12,6 +12,11 @@
       "continue": true
     },
     {
+      "src": "/api/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "/api/options"
+    },
+    {
       "src": "/api/internal-audits/(.*)",
       "methods": ["OPTIONS"],
       "dest": "/api/internal-audits/options"
