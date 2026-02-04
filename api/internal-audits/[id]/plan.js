@@ -18,13 +18,8 @@ export default async function handler(req, res) {
       return;
     }
     const plan = await getAuditPlan(id);
-    if (!plan) {
-      res.statusCode = 404;
-      res.end(JSON.stringify({ error: 'plan not found' }));
-      return;
-    }
     res.statusCode = 200;
-    res.end(JSON.stringify({ plan }));
+    res.end(JSON.stringify({ plan: plan || { auditId: id, planEntries: [] } }));
     return;
   }
 
