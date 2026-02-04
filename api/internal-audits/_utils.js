@@ -10,6 +10,11 @@ import {
 
 export function applyInternalCors(req, res) {
   withCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return true;
+  }
+  return false;
 }
 
 const WRITE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
