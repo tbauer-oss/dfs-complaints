@@ -37,7 +37,9 @@
     },
     {
       "src": "/api/wiki/(.*)",
-      "methods": ["OPTIONS"],
+      "has": [
+        { "type": "header", "key": "Access-Control-Request-Method" }
+      ],
       "dest": "/api/_options"
     },
     {
