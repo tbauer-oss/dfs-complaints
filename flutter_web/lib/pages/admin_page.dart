@@ -24847,8 +24847,9 @@ class AdminApi {
     if (!kDebugMode) return;
     final lower = path.toLowerCase();
     if (!lower.startsWith('/api/admin') && !lower.startsWith('/api/chat')) return;
-    final shouldLog = _enableApiDebugLogs || status == null || status < 200 || status >= 300;
-    if (!shouldLog) return;
+    if (!_enableApiDebugLogs) return;
+    final isError = status == null || status < 200 || status >= 300;
+    if (!isError) return;
     debugPrint('API response [$method $path]: status=${status ?? 'n/a'}, role=$_portalRole');
   }
 
