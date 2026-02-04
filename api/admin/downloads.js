@@ -25,6 +25,7 @@ async function parseUpload(body) {
   if (!files.length) return null;
 
   const processed = await processIncomingFiles(files, {
+    prefix: 'downloads',
     // identische Fallbacks wie bei Reklamations-Uploads
     allowPreviewFallback: true,
     allowDataUrlFallback: true,
