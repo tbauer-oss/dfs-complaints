@@ -36,6 +36,11 @@
       "dest": "/api/training/options"
     },
     {
+      "src": "/api/wiki/(.*)",
+      "methods": ["OPTIONS"],
+      "dest": "/api/_options"
+    },
+    {
       "src": "/api/training/sessions/([^/]+)/participants/([^/]+)/signature-token",
       "dest": "/api/training/signature-token?id=$1&participantId=$2"
     },
