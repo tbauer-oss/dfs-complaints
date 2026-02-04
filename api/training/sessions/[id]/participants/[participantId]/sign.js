@@ -57,7 +57,7 @@ async function handler(req, res) {
     if (action === 'reset') {
       if (!admin) return bad(res, 'forbidden', 403);
       const reason = (body.reason || '').toString().trim();
-      if (reason.length < 5) return bad(res, 'reset reason required', 400);
+      const resolvedReason = reason.length >= 5 ? reason : 'Unterschrift zurückgesetzt';
       updated.signedAt = null;
       updated.signedByUserId = '';
       updated.signatureBase64 = '';
@@ -80,7 +80,7 @@ async function handler(req, res) {
         participants: updatedParticipants,
         auditLog: [
           ...(training.auditLog || []),
-          { action: 'signature_reset', message: `Unterschrift zurückgesetzt: ${reason}`, by: actor.email, at: now },
+          { action: 'signature_reset', message: resolvedReason, by: actor.email, at: now },
         ],
       });
       return ok(res, { ok: true, record: updatedTraining });

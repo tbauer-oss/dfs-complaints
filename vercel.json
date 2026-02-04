@@ -18,6 +18,14 @@
       ],
       "dest": "/api/training/options"
     },
+    {
+      "src": "/api/training/sessions/([^/]+)/participants/([^/]+)/signature-token",
+      "dest": "/api/training/signature-token?id=$1&participantId=$2"
+    },
+    {
+      "src": "/api/training/sessions/([^/]+)/participants/([^/]+)/sign",
+      "dest": "/api/training/sign?id=$1&participantId=$2"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
