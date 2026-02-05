@@ -322,18 +322,15 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     // Bild-Hintergrund für DFS Connect (responsiv)
-    final bg = Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset(
-          'assets/backgrounds/dfs_connect_bg.png',
+    final bg = Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: const AssetImage('assets/backgrounds/dfs_connect_bg.png'),
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
+          colorFilter: ColorFilter.mode(Colors.white.withOpacity(0.18), BlendMode.lighten),
         ),
-        Container(
-          color: Colors.white.withOpacity(0.18),
-        ),
-      ],
+      ),
     );
 
     // Linke Brand-Spalte (nur großflächig am Web/Desktop sichtbar)
