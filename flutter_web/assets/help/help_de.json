@@ -65,6 +65,27 @@
           "links": ["#complaint-track", "#customer-documents"]
         },
         {
+          "id": "app-troubleshooting",
+          "title": "App hängt im Ladebildschirm",
+          "summary": "Schnelle Schritte, wenn die Android-App beim Start nicht weiterlädt.",
+          "tags": ["App", "Android", "Laden"],
+          "steps": [
+            {"title": "Internetverbindung prüfen", "anchor": "connection", "description": "Stellen Sie sicher, dass WLAN oder Mobilfunk stabil ist. Öffnen Sie testweise eine Webseite oder ein anderes Online-Tool."},
+            {"title": "App neu starten", "anchor": "restart", "description": "Schließen Sie die App vollständig (aus dem App-Switcher entfernen) und öffnen Sie sie erneut."},
+            {"title": "Updates installieren", "anchor": "update", "description": "Prüfen Sie im Play Store, ob ein App-Update verfügbar ist. Installieren Sie zusätzlich ausstehende Android-Systemupdates."},
+            {"title": "Cache leeren", "anchor": "cache", "description": "Android: Einstellungen → Apps → DFS → Speicher → Cache leeren. Starten Sie die App danach neu."},
+            {"title": "Anmelden & Berechtigungen prüfen", "anchor": "auth", "description": "Wenn möglich, melden Sie sich ab und wieder an. Prüfen Sie, ob die App Netzwerkzugriff hat (keine Daten- oder Akku-Restriktionen aktiv)."},
+            {"title": "Neuinstallation (letzter Schritt)", "anchor": "reinstall", "description": "Deinstallieren Sie die App und installieren Sie sie neu. Anschließend erneut anmelden."},
+            {"title": "Support kontaktieren", "anchor": "support", "description": "Falls das Problem bleibt, nutzen Sie das Support-Formular und nennen Sie Gerät, Android-Version, App-Version und den Zeitpunkt des Fehlers."}
+          ],
+          "tips": [
+            "Ein VPN oder Firmen-Proxy kann den Start blockieren – testen Sie kurz ohne VPN.",
+            "Wenn der Ladebildschirm nach einer Passwortänderung hängt, bitte erneut anmelden.",
+            "Notieren Sie die exakte Uhrzeit des Fehlers – das hilft beim Log-Abgleich."],
+          "screenshots": ["[Screenshot: App-Startscreen]", "[Screenshot: Android App-Info > Cache leeren]"],
+          "links": ["#app-troubleshooting", "#support"]
+        },
+        {
           "id": "customer-knowledge",
           "title": "Wissensdatenbank & Downloads",
           "summary": "Artikel finden, Produktkataloge ansehen und Support kontaktieren, ohne ein Ticket zu öffnen.",
