@@ -7,6 +7,7 @@ class NotificationPermissionSnapshot {
   NotificationPermissionSnapshot({
     required this.isAndroid,
     required this.sdkInt,
+    required this.compileSdk,
     required this.targetSdk,
     required this.status,
     required this.attempted,
@@ -16,6 +17,7 @@ class NotificationPermissionSnapshot {
 
   final bool isAndroid;
   final int? sdkInt;
+  final int? compileSdk;
   final int? targetSdk;
   final PermissionStatus status;
   final bool attempted;
@@ -28,7 +30,7 @@ class NotificationPermissionSnapshot {
 
   String toLogString() {
     return 'sdk=${sdkInt ?? '-'} targetSdk=${targetSdk ?? '-'} '
-        'status=${status.name} attempted=$attempted '
+        'compileSdk=${compileSdk ?? '-'} status=${status.name} attempted=$attempted '
         'requests=$requestCount lastAt=${lastRequestedAt ?? '-'}';
   }
 }
@@ -47,7 +49,7 @@ class NotificationPermissionService {
     bool force = false,
     String trigger = 'startup',
   }) async {
-    final before = await _snapshot();
+    final before = await snapshot();
     debugPrint('[push] notification permission snapshot ($trigger): ${before.toLogString()}');
 
     if (!before.isAndroid || !before.isRuntimeRequired) {
@@ -67,7 +69,7 @@ class NotificationPermissionService {
     final status = await Permission.notification.request();
     await _recordAttempt(status: status, increment: false);
 
-    final after = await _snapshot();
+    final after = await snapshot();
     debugPrint('[push] notification permission result ($trigger): ${after.toLogString()}');
     return after;
   }
@@ -87,7 +89,7 @@ class NotificationPermissionService {
     }
   }
 
-  Future<NotificationPermissionSnapshot> _snapshot() async {
+  Future<NotificationPermissionSnapshot> snapshot() async {
     final prefs = await SharedPreferences.getInstance();
     final attempted = prefs.getBool(_kAttemptedKey) ?? false;
     final requestCount = prefs.getInt(_kRequestCountKey) ?? 0;
@@ -107,6 +109,7 @@ class NotificationPermissionService {
     return NotificationPermissionSnapshot(
       isAndroid: isAndroid,
       sdkInt: info.sdkInt,
+      compileSdk: info.compileSdk,
       targetSdk: info.targetSdk,
       status: status,
       attempted: attempted,
@@ -135,6 +138,7 @@ class NotificationPermissionService {
       if (result == null) return const _AndroidInfo();
       return _AndroidInfo(
         sdkInt: result['sdkInt'] as int?,
+        compileSdk: result['compileSdk'] as int?,
         targetSdk: result['targetSdk'] as int?,
       );
     } catch (e) {
@@ -145,7 +149,8 @@ class NotificationPermissionService {
 }
 
 class _AndroidInfo {
-  const _AndroidInfo({this.sdkInt, this.targetSdk});
+  const _AndroidInfo({this.sdkInt, this.compileSdk, this.targetSdk});
   final int? sdkInt;
+  final int? compileSdk;
   final int? targetSdk;
 }

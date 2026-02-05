@@ -44,13 +44,13 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final locale = Localizations.localeOf(context);
 
     try {
-      await PushNotifications.instance
+      await PushMessagingService.instance
           .setup(widget.api, languageCode: locale.languageCode);
     } catch (e) {
       debugPrint('[push] rep setup failed: $e');
     }
     try {
-      await PushNotifications.instance
+      await PushMessagingService.instance
           .replayLatestToken(widget.api, languageCode: locale.languageCode);
     } catch (e) {
       debugPrint('[push] rep token replay failed: $e');

@@ -166,16 +166,17 @@ class _RepLoginPageState extends State<RepLoginPage> {
 
       if (wantsPush) {
         try {
-          await PushNotifications.instance.setup(
+          await PushMessagingService.instance.setup(
             widget.api,
             languageCode: locale.languageCode,
+            forcePermissionPrompt: true,
           );
         } catch (e) {
           debugPrint('[push] customer setup failed: $e');
         }
       } else if (!showPushOptIn) {
         try {
-          await PushNotifications.instance.replayLatestToken(
+          await PushMessagingService.instance.replayLatestToken(
             widget.api,
             languageCode: locale.languageCode,
           );
@@ -184,7 +185,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
         }
       } else {
         try {
-          await PushNotifications.instance.deactivate(widget.api);
+          await PushMessagingService.instance.deactivate(widget.api);
         } catch (e) {
           debugPrint('[push] customer deactivate failed: $e');
         }

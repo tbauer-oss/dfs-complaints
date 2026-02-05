@@ -24,6 +24,8 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "1.0.1"
+        buildConfigField("int", "COMPILE_SDK", "$compileSdk")
+        buildConfigField("int", "TARGET_SDK", "$targetSdk")
     }
 
     signingConfigs {
@@ -61,6 +63,10 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 }
 
