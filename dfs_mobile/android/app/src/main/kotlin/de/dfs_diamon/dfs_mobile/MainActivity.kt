@@ -13,8 +13,13 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 if (call.method == "getAndroidSdkInfo") {
                     val sdkInt = android.os.Build.VERSION.SDK_INT
-                    val targetSdk = applicationInfo.targetSdkVersion
-                    val payload = mapOf("sdkInt" to sdkInt, "targetSdk" to targetSdk)
+                    val targetSdk = BuildConfig.TARGET_SDK
+                    val compileSdk = BuildConfig.COMPILE_SDK
+                    val payload = mapOf(
+                        "sdkInt" to sdkInt,
+                        "targetSdk" to targetSdk,
+                        "compileSdk" to compileSdk,
+                    )
                     result.success(payload)
                 } else {
                     result.notImplemented()

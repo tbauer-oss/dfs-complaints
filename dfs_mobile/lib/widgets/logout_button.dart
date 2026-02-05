@@ -29,7 +29,7 @@ class LogoutButton extends StatelessWidget implements PreferredSizeWidget {
           icon: const Icon(Icons.logout),
           label: Text(t.logout),
           onPressed: () async {
-            await PushNotifications.instance.deactivate(api);
+            await PushMessagingService.instance.deactivate(api);
             await api.logout();
             if (context.mounted) {
               ScaffoldMessenger.of(context)

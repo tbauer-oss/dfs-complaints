@@ -64,7 +64,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   // ---- Core ----
   final api = ApiClient();
-  final push = PushNotifications.instance;
+  final push = PushMessagingService.instance;
   final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
   final _prefs = AppPrefs(); // zentrale Quelle für Theme & Locale
   final _geoLocale = GeoLocaleService();
@@ -82,7 +82,6 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _prefs.load().then((_) => _autoDetectLocale());        // Theme & Sprache laden (triggert Rebuild)
     _boot();              // Session-Logik
-    WidgetsBinding.instance.addPostFrameCallback((_) => _requestPushPermissions());
   }
 
   Future<void> _autoDetectLocale() async {
@@ -112,6 +111,7 @@ class _MyAppState extends State<MyApp> {
       _bootDone = true;
     });
     if (wasLoggedIn || hasRep || hasAdmin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _schedulePushSetup('boot'));
       try {
         await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
       } catch (e) {
@@ -120,14 +120,15 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  Future<void> _requestPushPermissions() async {
+  Future<void> _schedulePushSetup(String trigger) async {
     if (!mounted || _pushRequested) return;
     _pushRequested = true;
     try {
       await Future.delayed(const Duration(milliseconds: 600));
+      debugPrint('[push][init] scheduling setup ($trigger)');
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
     } catch (e) {
-      debugPrint('[push] setup on first frame failed: $e');
+      debugPrint('[push] setup ($trigger) failed: $e');
     }
   }
 
@@ -213,7 +214,7 @@ class _MyAppState extends State<MyApp> {
       if (!mounted) return;
       () async {
         try {
-          await push.setup(api, languageCode: _prefs.locale?.languageCode);
+          await _schedulePushSetup('login');
         } catch (e) {
           debugPrint('[push] setup after login failed: $e');
         }

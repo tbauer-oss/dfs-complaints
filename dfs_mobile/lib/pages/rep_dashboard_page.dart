@@ -872,7 +872,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     if (!confirmed) return;
 
     try {
-      await PushNotifications.instance.deactivate(widget.api);
+      await PushMessagingService.instance.deactivate(widget.api);
     } catch (e) {
       debugPrint('[push] rep deactivate failed: $e');
     }
