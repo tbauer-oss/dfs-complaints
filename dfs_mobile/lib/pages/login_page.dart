@@ -321,18 +321,19 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final t = context.t;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
-    // Dezenter Hintergrund mit Brand-Verlauf
-    final bg = Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFF1F4C8F), // DFS-Blau (Seed)
-            Theme.of(context).colorScheme.surface,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    // Bild-Hintergrund für DFS Connect (responsiv)
+    final bg = Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/backgrounds/dfs_connect_bg.png',
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
         ),
-      ),
+        Container(
+          color: Colors.white.withOpacity(0.18),
+        ),
+      ],
     );
 
     // Linke Brand-Spalte (nur großflächig am Web/Desktop sichtbar)
