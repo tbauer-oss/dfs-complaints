@@ -24,7 +24,11 @@ class NotificationPermissionSnapshot {
   final int requestCount;
   final String? lastRequestedAt;
 
-  bool get isRuntimeRequired => isAndroid && (sdkInt ?? 0) >= 33;
+  bool get isRuntimeRequired {
+    if (!isAndroid) return false;
+    final runtime = sdkInt ?? targetSdk ?? compileSdk ?? 0;
+    return runtime >= 33;
+  }
   bool get isGranted => status == PermissionStatus.granted;
   bool get isPermanentlyDenied => status.isPermanentlyDenied;
 
