@@ -92,9 +92,22 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _boot() async {
-    await api.restoreSession();
-    await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
-    await push.setup(api, languageCode: _prefs.locale?.languageCode);
+    try {
+      await api.restoreSession();
+    } catch (e) {
+      debugPrint('[boot] restore session failed: $e');
+    }
+    try {
+      await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
+    } catch (e) {
+      debugPrint('[boot] ensure rep session failed: $e');
+    }
+    try {
+      await push.setup(api, languageCode: _prefs.locale?.languageCode);
+    } catch (e) {
+      debugPrint('[boot] push setup failed: $e');
+    }
+
     final wasLoggedIn = _customerLoggedIn;
     final hasRep = _repLoggedIn;
     final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
