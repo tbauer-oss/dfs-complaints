@@ -321,14 +321,16 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final t = context.t;
     final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
-    // Bild-Hintergrund für DFS Connect (responsiv)
+    // Dezenter Hintergrund mit Brand-Verlauf
     final bg = Container(
       decoration: BoxDecoration(
-        image: DecorationImage(
-          image: const AssetImage('assets/backgrounds/dfs_connect_bg.png'),
-          fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
-          colorFilter: ColorFilter.mode(Colors.white.withOpacity(0.18), BlendMode.lighten),
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF1F4C8F), // DFS-Blau (Seed)
+            Theme.of(context).colorScheme.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
     );
