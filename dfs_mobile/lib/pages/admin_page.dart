@@ -17,6 +17,7 @@ import 'package:dfs_mobile/widgets/dialog_content_scroll.dart';
 import 'package:dfs_mobile/widgets/legal_footer.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:dfs_mobile/services/notification_permission_service.dart';
 
 import 'admin_stats_page.dart';
 
@@ -166,6 +167,11 @@ class _AdminPageState extends State<AdminPage> {
         // Bereits initialisiert ist okay.
       }
 
+      await NotificationPermissionService.instance.ensureRequested(
+        force: true,
+        trigger: 'admin_debug',
+      );
+
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission(alert: true, badge: true, sound: true);
 
@@ -210,6 +216,14 @@ class _AdminPageState extends State<AdminPage> {
         SnackBar(content: Text('Fehler bei Push-Register: $e')),
       );
     }
+  }
+
+  Future<void> _handleResetNotificationPrompt() async {
+    await NotificationPermissionService.instance.resetPromptState();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Push-Permission-Flow wurde zurückgesetzt.')),
+    );
   }
 
   // Hilfsfunktionen ---------------------------------------------------
@@ -938,6 +952,17 @@ class _AdminPageState extends State<AdminPage> {
             compact: compact,
             onTap: () {
               _handleDebugPushRegister();
+            },
+          ),
+          AdminTilePro(
+            label: 'Push-Permissions Reset (Debug)',
+            subtitle: 'Permission-Flow zurücksetzen',
+            icon: Icons.restart_alt,
+            colorA: AdminPalette.orangeA,
+            colorB: AdminPalette.orangeB,
+            compact: compact,
+            onTap: () {
+              _handleResetNotificationPrompt();
             },
           ),
         ],
@@ -6611,6 +6636,8 @@ class AdminPalette {
   static const tealB  = Color(0xFF00897B);
   static const blueA  = Color(0xFFE7F0FF);
   static const blueB  = Color(0xFF1E88E5);
+  static const orangeA = Color(0xFFFFF3E0);
+  static const orangeB = Color(0xFFEF6C00);
 }
 
 class AdminTilePro extends StatefulWidget {
