@@ -169,6 +169,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
           await PushMessagingService.instance.setup(
             widget.api,
             languageCode: locale.languageCode,
+            forcePermissionPrompt: true,
           );
         } catch (e) {
           debugPrint('[push] customer setup failed: $e');

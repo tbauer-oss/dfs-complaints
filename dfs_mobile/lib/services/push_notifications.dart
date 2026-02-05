@@ -63,6 +63,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       }
     }
   } catch (_) {}
+  if (message.notification != null) return;
+  await _showBackgroundNotification(message);
 }
 
 class PushMessagingService {
@@ -77,7 +79,11 @@ class PushMessagingService {
   String? _appVersion;
   String? _appBuild;
 
-  Future<void> setup(ApiClient api, {String? languageCode}) async {
+  Future<void> setup(
+    ApiClient api, {
+    String? languageCode,
+    bool forcePermissionPrompt = false,
+  }) async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
     await _ensureFirebase(options);
@@ -89,6 +95,7 @@ class PushMessagingService {
 
     final notificationSnapshot = await NotificationPermissionService.instance.ensureRequested(
       trigger: 'push_setup',
+      force: forcePermissionPrompt,
     );
     await _requestLocalPermissions(notificationSnapshot);
 
@@ -415,7 +422,14 @@ class PushMessagingService {
 
   void _showNotification(RemoteMessage message) {
     final notification = message.notification;
-    if (notification == null) return;
+    final dataTitle = message.data['title']?.toString();
+    final dataBody = message.data['body']?.toString();
+    final title = notification?.title ?? dataTitle;
+    final body = notification?.body ?? dataBody;
+    if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
+      debugPrint('[push][notify] skipped empty notification payload');
+      return;
+    }
     final androidDetails = AndroidNotificationDetails(
       'complaint-status',
       'Complaint status updates',
@@ -427,9 +441,9 @@ class PushMessagingService {
     const iosDetails = DarwinNotificationDetails();
     final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
     _localNotifications.show(
-      id: notification.hashCode,
-      title: notification.title,
-      body: notification.body,
+      id: message.hashCode,
+      title: title,
+      body: body,
       notificationDetails: details,
       payload: message.data.isEmpty ? null : jsonEncode(message.data),
     );
@@ -503,4 +517,47 @@ class PushChannelInfo {
   final String? id;
   final String? name;
   final String? importance;
+}
+
+Future<void> _showBackgroundNotification(RemoteMessage message) async {
+  if (kIsWeb) return;
+  final dataTitle = message.data['title']?.toString();
+  final dataBody = message.data['body']?.toString();
+  if ((dataTitle == null || dataTitle.isEmpty) && (dataBody == null || dataBody.isEmpty)) {
+    return;
+  }
+
+  final plugin = FlutterLocalNotificationsPlugin();
+  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const iosInit = DarwinInitializationSettings();
+  const settings = InitializationSettings(android: androidInit, iOS: iosInit);
+  await plugin.initialize(settings);
+
+  const channel = AndroidNotificationChannel(
+    'complaint-status',
+    'Complaint status updates',
+    description: 'Updates whenever a complaint status changes.',
+    importance: Importance.high,
+  );
+  final androidPlugin =
+      plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+  await androidPlugin?.createNotificationChannel(channel);
+
+  final androidDetails = AndroidNotificationDetails(
+    'complaint-status',
+    'Complaint status updates',
+    channelDescription: 'Updates whenever a complaint status changes.',
+    importance: Importance.high,
+    priority: Priority.high,
+    ticker: 'complaint-status',
+  );
+  const iosDetails = DarwinNotificationDetails();
+  final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+  await plugin.show(
+    message.hashCode,
+    dataTitle,
+    dataBody,
+    details,
+    payload: message.data.isEmpty ? null : jsonEncode(message.data),
+  );
 }
