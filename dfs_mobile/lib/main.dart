@@ -102,12 +102,6 @@ class _MyAppState extends State<MyApp> {
     } catch (e) {
       debugPrint('[boot] ensure rep session failed: $e');
     }
-    try {
-      await push.setup(api, languageCode: _prefs.locale?.languageCode);
-    } catch (e) {
-      debugPrint('[boot] push setup failed: $e');
-    }
-
     final wasLoggedIn = _customerLoggedIn;
     final hasRep = _repLoggedIn;
     final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
@@ -115,18 +109,23 @@ class _MyAppState extends State<MyApp> {
       _loggedIn = wasLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
     });
-    if (wasLoggedIn || hasRep || hasAdmin) {
-      try {
-        await push.setup(api, languageCode: _prefs.locale?.languageCode);
-      } catch (e) {
-        debugPrint('[push] setup on boot failed: $e');
-      }
-      try {
-        await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
-      } catch (e) {
-        debugPrint('[push] replay token on boot failed: $e');
-      }
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      () async {
+        try {
+          await push.setup(api, languageCode: _prefs.locale?.languageCode);
+        } catch (e) {
+          debugPrint('[push] setup on boot failed: $e');
+        }
+        if (wasLoggedIn || hasRep || hasAdmin) {
+          try {
+            await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
+          } catch (e) {
+            debugPrint('[push] replay token on boot failed: $e');
+          }
+        }
+      }();
+    });
   }
 
   Future<void> _openAdmin(BuildContext context) async {
