@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/client.dart';
 import 'notification_permission_service.dart';
 
@@ -16,6 +17,12 @@ const String _kSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID',
 const String _kStorageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET', defaultValue: '');
 const String _kIosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID', defaultValue: 'de.dfs_diamon.dfs_complaints');
 const String _kMeasurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: '');
+const String _kPrefsTokenKey = 'dfs_push_last_token';
+const String _kPrefsTokenAtKey = 'dfs_push_last_token_at';
+const String _kPrefsUploadStatusKey = 'dfs_push_last_upload_status';
+const String _kPrefsUploadStatusCodeKey = 'dfs_push_last_upload_status_code';
+const String _kPrefsUploadErrorKey = 'dfs_push_last_upload_error';
+const String _kPrefsUploadAtKey = 'dfs_push_last_upload_at';
 
 FirebaseOptions? _optionsCache;
 FirebaseOptions? _firebaseOptions() {
@@ -58,9 +65,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } catch (_) {}
 }
 
-class PushNotifications {
-  PushNotifications._();
-  static final PushNotifications instance = PushNotifications._();
+class PushMessagingService {
+  PushMessagingService._();
+  static final PushMessagingService instance = PushMessagingService._();
 
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   StreamSubscription<String>? _tokenSub;
@@ -77,6 +84,7 @@ class PushNotifications {
     await _ensureAppInfo();
 
     final messaging = FirebaseMessaging.instance;
+    debugPrint('[push][init] setup start');
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
 
     final notificationSnapshot = await NotificationPermissionService.instance.ensureRequested(
@@ -102,11 +110,14 @@ class PushNotifications {
 
     final token = await messaging.getToken();
     if (token != null && token.isNotEmpty) {
-      debugPrint('[push] got FCM token from FirebaseMessaging: $token');
+      await _recordTokenReceived(token);
+      debugPrint('[push][token] got FCM token from FirebaseMessaging: $token');
       await _registerToken(api, token, languageCode);
     }
 
     _tokenSub ??= messaging.onTokenRefresh.listen((value) {
+      debugPrint('[push][token] token refreshed');
+      _recordTokenReceived(value);
       _registerToken(api, value, languageCode);
     });
   }
@@ -114,13 +125,13 @@ class PushNotifications {
   Future<void> replayLatestToken(ApiClient api, {String? languageCode}) async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
-    if (options == null) return;
     final lang = (languageCode ?? '').trim();
     try {
       await _ensureFirebase(options);
       await _ensureAppInfo();
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null && token.isNotEmpty) {
+        await _recordTokenReceived(token);
         await _registerToken(api, token, languageCode);
       } else {
         final cached = (api.pushDeviceToken ?? '').trim();
@@ -142,8 +153,6 @@ class PushNotifications {
   Future<void> init() async {
     if (kIsWeb) return;
     final options = _firebaseOptions();
-    if (options == null) return;
-
     await _ensureFirebase(options);
   }
 
@@ -174,6 +183,7 @@ class PushNotifications {
 
   Future<void> _ensureFirebase([FirebaseOptions? options]) async {
     if (!_initialized) {
+      debugPrint('[push][init] ensuring Firebase');
       try {
         if (Firebase.apps.isEmpty) {
           if (options != null) {
@@ -189,8 +199,17 @@ class PushNotifications {
 
       await _configureLocalNotifications();
       FirebaseMessaging.onMessage.listen(_showNotification);
+      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        debugPrint('[push][event] notification opened: ${message.messageId ?? '-'}');
+      });
+      FirebaseMessaging.instance.getInitialMessage().then((message) {
+        if (message != null) {
+          debugPrint('[push][event] initial notification: ${message.messageId ?? '-'}');
+        }
+      });
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       _initialized = true;
+      debugPrint('[push][init] Firebase messaging ready');
     }
   }
 
@@ -260,6 +279,105 @@ class PushNotifications {
     await androidPlugin?.createNotificationChannel(channel);
   }
 
+  Future<void> _recordTokenReceived(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefsTokenKey, token);
+    await prefs.setString(_kPrefsTokenAtKey, DateTime.now().toIso8601String());
+  }
+
+  Future<void> _recordUploadResult({
+    required bool success,
+    required int statusCode,
+    String? error,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefsUploadStatusKey, success ? 'success' : 'failure');
+    await prefs.setInt(_kPrefsUploadStatusCodeKey, statusCode);
+    if (error != null && error.trim().isNotEmpty) {
+      await prefs.setString(_kPrefsUploadErrorKey, error.trim());
+    } else {
+      await prefs.remove(_kPrefsUploadErrorKey);
+    }
+    await prefs.setString(_kPrefsUploadAtKey, DateTime.now().toIso8601String());
+  }
+
+  Future<PushDiagnosticsSnapshot> collectDiagnostics() async {
+    final permission = await NotificationPermissionService.instance.snapshot();
+    final prefs = await SharedPreferences.getInstance();
+    final storedToken = prefs.getString(_kPrefsTokenKey);
+    final storedTokenAt = prefs.getString(_kPrefsTokenAtKey);
+    final uploadStatus = prefs.getString(_kPrefsUploadStatusKey);
+    final uploadStatusCode = prefs.getInt(_kPrefsUploadStatusCodeKey);
+    final uploadError = prefs.getString(_kPrefsUploadErrorKey);
+    final uploadAt = prefs.getString(_kPrefsUploadAtKey);
+
+    String? currentToken;
+    if (!kIsWeb) {
+      try {
+        await _ensureFirebase(_firebaseOptions());
+        currentToken = await FirebaseMessaging.instance.getToken();
+      } catch (e) {
+        debugPrint('[push][diag] token check failed: $e');
+      }
+    }
+
+    final channelInfo = await _loadChannelInfo();
+
+    return PushDiagnosticsSnapshot(
+      permission: permission,
+      androidSdk: permission.sdkInt,
+      compileSdk: permission.compileSdk,
+      targetSdk: permission.targetSdk,
+      currentToken: currentToken,
+      storedToken: storedToken,
+      storedTokenAt: storedTokenAt,
+      lastUploadStatus: uploadStatus,
+      lastUploadStatusCode: uploadStatusCode,
+      lastUploadError: uploadError,
+      lastUploadAt: uploadAt,
+      channelInfo: channelInfo,
+    );
+  }
+
+  Future<PushChannelInfo?> _loadChannelInfo() async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return null;
+    }
+    try {
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin == null) return null;
+      final dynamic androidDynamic = androidPlugin;
+      final dynamic channels = await androidDynamic.getNotificationChannels();
+      if (channels is List) {
+        for (final channel in channels) {
+          if (channel is AndroidNotificationChannel) {
+            if (channel.id == 'complaint-status') {
+              return PushChannelInfo(
+                id: channel.id,
+                name: channel.name,
+                importance: channel.importance.name,
+              );
+            }
+          } else {
+            try {
+              if (channel.id == 'complaint-status') {
+                return PushChannelInfo(
+                  id: channel.id?.toString(),
+                  name: channel.name?.toString(),
+                  importance: channel.importance?.toString(),
+                );
+              }
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[push][diag] channel check failed: $e');
+    }
+    return null;
+  }
+
   Future<void> _registerToken(ApiClient api, String token, String? languageCode) async {
     final lang = (languageCode ?? '').trim();
     final hasAuth = api.hasPushAuth;
@@ -267,7 +385,7 @@ class PushNotifications {
 
     final platform = _platformLabel();
 
-    debugPrint('[push] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
+    debugPrint('[push][token] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
 
     try {
       await _ensureAppInfo();
@@ -281,13 +399,17 @@ class PushNotifications {
       );
 
       api.pushDeviceToken = token;
+      await _recordUploadResult(success: true, statusCode: 200);
+      debugPrint('[push][backend] token registered');
       
       if (hasAuth) {
         _lastToken = token;
         _lastLang = lang;
       }
     } catch (e) {
-      debugPrint('[push] register token failed: $e');
+      final statusCode = e is ApiError ? e.status : 0;
+      await _recordUploadResult(success: false, statusCode: statusCode, error: e.toString());
+      debugPrint('[push][backend] register token failed: $e');
     }
   }
 
@@ -332,4 +454,53 @@ class PushNotifications {
       debugPrint('[push] package info unavailable: $e');
     }
   }
+}
+
+class PushDiagnosticsSnapshot {
+  PushDiagnosticsSnapshot({
+    required this.permission,
+    required this.androidSdk,
+    required this.compileSdk,
+    required this.targetSdk,
+    required this.currentToken,
+    required this.storedToken,
+    required this.storedTokenAt,
+    required this.lastUploadStatus,
+    required this.lastUploadStatusCode,
+    required this.lastUploadError,
+    required this.lastUploadAt,
+    required this.channelInfo,
+  });
+
+  final NotificationPermissionSnapshot permission;
+  final int? androidSdk;
+  final int? compileSdk;
+  final int? targetSdk;
+  final String? currentToken;
+  final String? storedToken;
+  final String? storedTokenAt;
+  final String? lastUploadStatus;
+  final int? lastUploadStatusCode;
+  final String? lastUploadError;
+  final String? lastUploadAt;
+  final PushChannelInfo? channelInfo;
+
+  String? maskedToken() {
+    final token = currentToken ?? storedToken;
+    if (token == null || token.isEmpty) return null;
+    if (token.length <= 12) return token;
+    return '${token.substring(0, 6)}…${token.substring(token.length - 6)}';
+  }
+}
+
+class PushChannelInfo {
+  PushChannelInfo({
+    required this.id,
+    required this.name,
+    required this.importance,
+  });
+
+  final String? id;
+  final String? name;
+  final String? importance;
 }

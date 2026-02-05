@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
@@ -18,6 +18,7 @@ import 'package:dfs_mobile/widgets/legal_footer.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dfs_mobile/services/notification_permission_service.dart';
+import 'package:dfs_mobile/pages/push_diagnostics_page.dart';
 
 import 'admin_stats_page.dart';
 
@@ -965,6 +966,20 @@ class _AdminPageState extends State<AdminPage> {
               _handleResetNotificationPrompt();
             },
           ),
+          if (kDebugMode)
+            AdminTilePro(
+              label: 'Push Diagnostics (Debug)',
+              subtitle: 'Status & Telemetrie',
+              icon: Icons.bug_report_outlined,
+              colorA: AdminPalette.purpleA,
+              colorB: AdminPalette.purpleB,
+              compact: compact,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PushDiagnosticsPage()),
+                );
+              },
+            ),
         ],
       ),
     ];
@@ -6638,6 +6653,8 @@ class AdminPalette {
   static const blueB  = Color(0xFF1E88E5);
   static const orangeA = Color(0xFFFFF3E0);
   static const orangeB = Color(0xFFEF6C00);
+  static const purpleA = Color(0xFFF3E5F5);
+  static const purpleB = Color(0xFF7B1FA2);
 }
 
 class AdminTilePro extends StatefulWidget {

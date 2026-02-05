@@ -31,7 +31,7 @@ class LogoutAction extends StatelessWidget {
     return PopupMenuButton<String>(
       onSelected: (value) async {
         if (value == 'logout' && await _confirm(context)) {
-          await PushNotifications.instance.deactivate(api);
+          await PushMessagingService.instance.deactivate(api);
           await api.logout();
           onLoggedOut?.call();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.loggedOut)));
