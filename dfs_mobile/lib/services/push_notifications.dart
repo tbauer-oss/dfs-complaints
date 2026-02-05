@@ -531,7 +531,16 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   const iosInit = DarwinInitializationSettings();
   const settings = InitializationSettings(android: androidInit, iOS: iosInit);
-  await plugin.initialize(settings);
+  final dynamic notifications = plugin;
+  try {
+    await Function.apply(
+      notifications.initialize,
+      const [],
+      {#initializationSettings: settings},
+    );
+  } on NoSuchMethodError {
+    await Function.apply(notifications.initialize, [settings]);
+  }
 
   const channel = AndroidNotificationChannel(
     'complaint-status',
@@ -553,11 +562,26 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
   );
   const iosDetails = DarwinNotificationDetails();
   final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-  await plugin.show(
-    message.hashCode,
-    dataTitle,
-    dataBody,
-    details,
-    payload: message.data.isEmpty ? null : jsonEncode(message.data),
-  );
+  final payload = message.data.isEmpty ? null : jsonEncode(message.data);
+  try {
+    await Function.apply(
+      notifications.show,
+      const [],
+      {
+        #id: message.hashCode,
+        #title: dataTitle,
+        #body: dataBody,
+        #notificationDetails: details,
+        #payload: payload,
+      },
+    );
+  } on NoSuchMethodError {
+    await notifications.show(
+      message.hashCode,
+      dataTitle,
+      dataBody,
+      details,
+      payload: payload,
+    );
+  }
 }
