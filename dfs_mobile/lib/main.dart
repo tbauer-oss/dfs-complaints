@@ -71,6 +71,7 @@ class _MyAppState extends State<MyApp> {
 
   bool _bootDone = false;
   bool _loggedIn = false; // Kundenlogin (token) steuert den Kunden-Flow
+  bool _pushRequested = false;
 
   // ---- Helpers ----
   bool get _customerLoggedIn => (api.token != null && api.token!.isNotEmpty);
@@ -81,6 +82,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _prefs.load().then((_) => _autoDetectLocale());        // Theme & Sprache laden (triggert Rebuild)
     _boot();              // Session-Logik
+    WidgetsBinding.instance.addPostFrameCallback((_) => _requestPushPermissions());
   }
 
   Future<void> _autoDetectLocale() async {
@@ -102,12 +104,6 @@ class _MyAppState extends State<MyApp> {
     } catch (e) {
       debugPrint('[boot] ensure rep session failed: $e');
     }
-    try {
-      await push.setup(api, languageCode: _prefs.locale?.languageCode);
-    } catch (e) {
-      debugPrint('[boot] push setup failed: $e');
-    }
-
     final wasLoggedIn = _customerLoggedIn;
     final hasRep = _repLoggedIn;
     final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
@@ -117,15 +113,21 @@ class _MyAppState extends State<MyApp> {
     });
     if (wasLoggedIn || hasRep || hasAdmin) {
       try {
-        await push.setup(api, languageCode: _prefs.locale?.languageCode);
-      } catch (e) {
-        debugPrint('[push] setup on boot failed: $e');
-      }
-      try {
         await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
       } catch (e) {
         debugPrint('[push] replay token on boot failed: $e');
       }
+    }
+  }
+
+  Future<void> _requestPushPermissions() async {
+    if (!mounted || _pushRequested) return;
+    _pushRequested = true;
+    try {
+      await Future.delayed(const Duration(milliseconds: 600));
+      await push.setup(api, languageCode: _prefs.locale?.languageCode);
+    } catch (e) {
+      debugPrint('[push] setup on first frame failed: $e');
     }
   }
 
