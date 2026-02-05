@@ -23,6 +23,7 @@ class NotificationPermissionSnapshot {
   final String? lastRequestedAt;
 
   bool get isRuntimeRequired => isAndroid && (sdkInt ?? 0) >= 33;
+  bool get isGranted => status == PermissionStatus.granted;
   bool get isPermanentlyDenied => status.isPermanentlyDenied;
 
   String toLogString() {
@@ -53,7 +54,7 @@ class NotificationPermissionService {
       return before;
     }
 
-    if (before.status.isGranted) {
+    if (before.isGranted) {
       return before;
     }
 

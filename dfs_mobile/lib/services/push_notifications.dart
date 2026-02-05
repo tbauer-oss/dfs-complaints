@@ -96,7 +96,7 @@ class PushNotifications {
         debugPrint('[push] iOS permission denied');
         return;
       }
-    } else if (notificationSnapshot.isRuntimeRequired && !notificationSnapshot.status.isGranted) {
+    } else if (notificationSnapshot.isRuntimeRequired && !notificationSnapshot.isGranted) {
       debugPrint('[push] Android notification permission not granted');
     }
 
