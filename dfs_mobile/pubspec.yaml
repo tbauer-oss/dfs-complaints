@@ -32,6 +32,7 @@ dependencies:
   image: ^4.2.0
   image_cropper: ^8.0.1
   package_info_plus: ^8.0.0
+  permission_handler: ^11.3.1
   flutter_markdown: ^0.6.18
   auto_size_text: ^3.0.0
   

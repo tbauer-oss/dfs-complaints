@@ -7,6 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../api/client.dart';
+import 'notification_permission_service.dart';
 
 const String _kApiKey = String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '');
 const String _kAppId = String.fromEnvironment('FIREBASE_APP_ID', defaultValue: '');
@@ -78,12 +79,25 @@ class PushNotifications {
     final messaging = FirebaseMessaging.instance;
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
 
-    await _requestLocalPermissions();
+    final notificationSnapshot = await NotificationPermissionService.instance.ensureRequested(
+      trigger: 'push_setup',
+    );
+    await _requestLocalPermissions(notificationSnapshot);
 
-    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true, announcement: true, provisional: false);
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[push] Permission denied');
-      return;
+    if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        announcement: true,
+        provisional: false,
+      );
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        debugPrint('[push] iOS permission denied');
+        return;
+      }
+    } else if (notificationSnapshot.isRuntimeRequired && !notificationSnapshot.status.isGranted) {
+      debugPrint('[push] Android notification permission not granted');
     }
 
     final token = await messaging.getToken();
@@ -180,7 +194,26 @@ class PushNotifications {
     }
   }
 
-  Future<void> _requestLocalPermissions() async {
+  Future<void> _requestLocalPermissions(NotificationPermissionSnapshot snapshot) async {
+    if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+      try {
+        final iosPlugin = _localNotifications
+            .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+
+        final macPlugin = _localNotifications
+            .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
+        await macPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+      } catch (e) {
+        debugPrint('[push] iOS permission request failed: $e');
+      }
+      return;
+    }
+
+    if (snapshot.isRuntimeRequired) {
+      return;
+    }
+
     try {
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -198,18 +231,6 @@ class PushNotifications {
       }
     } catch (e) {
       debugPrint('[push] Android permission request failed: $e');
-    }
-
-    try {
-      final iosPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-      await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
-
-      final macPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
-      await macPlugin?.requestPermissions(alert: true, badge: true, sound: true);
-    } catch (e) {
-      debugPrint('[push] iOS permission request failed: $e');
     }
   }
 
