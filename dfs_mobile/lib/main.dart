@@ -124,6 +124,7 @@ class _MyAppState extends State<MyApp> {
     if (!mounted || _pushRequested) return;
     _pushRequested = true;
     try {
+      await Future.delayed(const Duration(milliseconds: 600));
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
     } catch (e) {
       debugPrint('[push] setup on first frame failed: $e');
