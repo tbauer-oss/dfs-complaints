@@ -98,20 +98,27 @@ class _MyAppState extends State<MyApp> {
     } catch (e) {
       debugPrint('[boot] restore session failed: $e');
     }
+
     try {
-      await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
+      await api.ensureRepSession();
     } catch (e) {
       debugPrint('[boot] ensure rep session failed: $e');
     }
+
     final wasLoggedIn = _customerLoggedIn;
     final hasRep = _repLoggedIn;
     final hasAdmin = (api.adminSecret ?? '').isNotEmpty;
+
     setState(() {
-      _loggedIn = wasLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
+      _loggedIn = wasLoggedIn;
       _bootDone = true;
     });
+
+    // IMMER: Push-Setup einplanen (Permission + Listener etc.)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _schedulePushSetup('boot'));
+
+    // NUR WENN AUTH: Token ans Backend replayen (macht auch Sinn)
     if (wasLoggedIn || hasRep || hasAdmin) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _schedulePushSetup('boot'));
       try {
         await push.replayLatestToken(api, languageCode: _prefs.locale?.languageCode);
       } catch (e) {
