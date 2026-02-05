@@ -65,10 +65,12 @@ flutter:
     - assets/dfs_logo.png
     - assets/dfs_logo.svg
     - assets/data/dfs_products.csv
+    - assets/backgrounds/
   generate: true
 
 flutter_intl:
   enabled: true
+
 
 
 
