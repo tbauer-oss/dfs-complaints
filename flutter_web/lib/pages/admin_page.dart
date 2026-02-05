@@ -6259,7 +6259,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                       chatService: _chatService,
                       currentUserId: _portalChatId,
                       conversationListNotifier: _conversationListNotifier,
-                      showHeaderActions: selected == null,
+                      showHeaderActions: true,
                       onConversationsLoaded: (conversations) {
                         _handleConversationsSnapshot(conversations);
                         if (pendingConversationId == null) return;
