@@ -196,7 +196,7 @@ class ApiClient {
   }
 
   Future<void> restoreSession() async {
-    // ✅ Wenn wir schon einen Token haben: NICHT überschreiben
+    // Wenn wir schon einen Token haben: NICHT überschreiben
     if ((token ?? '').isNotEmpty ||
         (portalToken ?? '').isNotEmpty ||
         (repToken ?? '').isNotEmpty ||
@@ -205,39 +205,76 @@ class ApiClient {
       return;
     }
 
-    try {
-      final ls = html.window.localStorage;
+    if (kIsWeb) {
+      try {
+        final ls = html.window.localStorage;
 
-      // Nur übernehmen, wenn wirklich was da ist (sonst In-Memory nicht killen)
-      final t = ls['dfs_token'];
+        final t = ls['dfs_token'];
+        if (t != null && t.isNotEmpty) token = t;
+
+        final a = ls['dfs_admin'];
+        if (a != null && a.isNotEmpty) adminSecret = a;
+
+        final g = ls['dfs_gate'];
+        if (g != null && g.isNotEmpty) gate = g;
+
+        final rt = ls['dfs_rep_token'];
+        if (rt != null && rt.isNotEmpty) repToken = rt;
+
+        final re = ls['dfs_rep_email'];
+        if (re != null && re.isNotEmpty) _repEmail = re;
+
+        final pt = ls['dfs_portal_token'];
+        if (pt != null && pt.isNotEmpty) portalToken = pt;
+
+        final storedProfile = ls['dfs_portal_profile'];
+        if (storedProfile != null && storedProfile.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(storedProfile);
+            if (decoded is Map) portalProfile = decoded.cast<String, dynamic>();
+          } catch (_) {}
+        }
+
+        final pTok = ls['dfs_push_token'];
+        if (pTok != null && pTok.isNotEmpty) pushDeviceToken = pTok;
+      } catch (_) {
+        // Web sollte hier nicht crashen – aber safe ist safe
+      }
+    } else {
+      // Mobile/Desktop: SharedPreferences lesen
+      final prefs = await SharedPreferences.getInstance();
+
+      final t = prefs.getString('dfs_token');
       if (t != null && t.isNotEmpty) token = t;
 
-      final a = ls['dfs_admin'];
+      final a = prefs.getString('dfs_admin');
       if (a != null && a.isNotEmpty) adminSecret = a;
 
-      final g = ls['dfs_gate'];
+      final g = prefs.getString('dfs_gate');
       if (g != null && g.isNotEmpty) gate = g;
 
-      final rt = ls['dfs_rep_token'];
+      final rt = prefs.getString('dfs_rep_token');
       if (rt != null && rt.isNotEmpty) repToken = rt;
 
-      final re = ls['dfs_rep_email'];
+      final re = prefs.getString('dfs_rep_email');
       if (re != null && re.isNotEmpty) _repEmail = re;
 
-      final pt = ls['dfs_portal_token'];
+      final pt = prefs.getString('dfs_portal_token');
       if (pt != null && pt.isNotEmpty) portalToken = pt;
 
-      final storedProfile = ls['dfs_portal_profile'];
+      final storedProfile = prefs.getString('dfs_portal_profile');
       if (storedProfile != null && storedProfile.isNotEmpty) {
         try {
           final decoded = jsonDecode(storedProfile);
           if (decoded is Map) portalProfile = decoded.cast<String, dynamic>();
         } catch (_) {}
       }
-    } catch (_) {
-      // Nicht-Web (Android/iOS): localStorage existiert nicht -> einfach nichts tun
+
+      final pTok = prefs.getString('dfs_push_token');
+      if (pTok != null && pTok.isNotEmpty) pushDeviceToken = pTok;
     }
 
+    // Flags (wie gehabt)
     _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
     _persistAdminSession = (adminSecret ?? '').isNotEmpty;
     _persistPortalSession = (portalToken ?? '').isNotEmpty;
@@ -253,17 +290,18 @@ class ApiClient {
   }
 
   Future<void> logout() async {
-    final tok = pushDeviceToken;
-    if (tok != null && tok.isNotEmpty) {
-      await unregisterPushToken(tok, silent: true);
-    }
+    // NICHT unregistern – sonst ist Push weg
     token = null;
     adminSecret = null;
     gate = null;
+    repToken = null;
+    _repEmail = null;
+
     _persistCustomerSession = true;
     _persistAdminSession = true;
     _persistRepSession = true;
-    pushDeviceToken = null;
+
+    // pushDeviceToken behalten!
     await _saveSession();
   }
 
