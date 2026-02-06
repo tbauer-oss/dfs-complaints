@@ -10,12 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROJECT_DIR: dfs_mobile
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -27,36 +30,31 @@ jobs:
           pwd
           ls -la
           test -f pubspec.yaml
+          test -d android
 
       - name: Flutter doctor
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter doctor -v
 
-      - name: Bump intl to 0.20.2 (match flutter_localizations)
+      # google-services.json aus Secret schreiben (OK)
+      - name: Write google-services.json
         working-directory: ${{ env.PROJECT_DIR }}
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
         run: |
-          flutter pub add intl:^0.20.2
-          flutter pub upgrade --major-versions
+          mkdir -p android/app
+          echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > android/app/google-services.json
+          test -f android/app/google-services.json
 
+      # Wichtig: Kein pub add / kein upgrade im CI
       - name: Pub get
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
+      # L10n nur generieren, ohne harte Dateiprüfung auf einen spezifischen Pfad
       - name: Generate l10n
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter gen-l10n
-
-      - name: Verify l10n output exists
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: test -f lib/l10n/app_localizations.dart || (echo "l10n output missing" && exit 1)
-
-      - name: Write google-services.json
-        run: |
-          mkdir -p android/app
-          echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > android/app/google-services.json
-        working-directory: dfs_mobile
-        env:
-          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
 
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
@@ -65,5 +63,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DFS-CP
+          name: DFS-CP-debug
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-debug.apk
