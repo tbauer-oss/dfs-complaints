@@ -175,22 +175,29 @@ class PushMessagingService {
 
   Future<void> deactivate(ApiClient api) async {
     if (kIsWeb) return;
-    final options = _firebaseOptions();
-    if (options == null) return;
+
+    // Firebase sicherstellen (mobile nutzt native config)
+    await _ensureFirebase(_firebaseOptions());
 
     final messaging = FirebaseMessaging.instance;
+
     try {
       final current = await messaging.getToken();
       final token = current ?? api.pushDeviceToken;
       if (token != null && token.isNotEmpty) {
         await api.unregisterPushToken(token, silent: true);
+        debugPrint('[push][deactivate] token unregistered');
       }
     } catch (e) {
       debugPrint('[push] unregister failed: $e');
     }
 
-    try { await messaging.deleteToken(); }
-    catch (e) { debugPrint('[push] deleteToken failed: $e'); }
+    try {
+      await messaging.deleteToken();
+      debugPrint('[push][deactivate] token deleted');
+    } catch (e) {
+      debugPrint('[push] deleteToken failed: $e');
+    }
 
     _lastToken = null;
     _lastLang = null;
@@ -251,7 +258,9 @@ class PushMessagingService {
       return;
     }
 
-    if (snapshot.isRuntimeRequired) {
+    // Android: nur dann versuchen, wenn Runtime-Permission wirklich nötig ist
+    if (!snapshot.isRuntimeRequired) {
+      debugPrint('[push][perm] runtime permission not required on this Android version');
       return;
     }
 
@@ -260,14 +269,22 @@ class PushMessagingService {
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
         final dynamic androidDynamic = androidPlugin;
+
+        // flutter_local_notifications >= 13 hat meist requestNotificationsPermission()
         try {
-          await androidDynamic.requestNotificationsPermission();
+          final granted = await androidDynamic.requestNotificationsPermission();
+          debugPrint('[push][perm] android requestNotificationsPermission -> $granted');
+          return;
         } on NoSuchMethodError {
-          try {
-            await androidDynamic.requestPermission();
-          } on NoSuchMethodError catch (_) {
-            debugPrint('[push] Android permission API unavailable');
-          }
+          // ältere Versionen
+        }
+  
+        // fallback
+        try {
+          final granted = await androidDynamic.requestPermission();
+          debugPrint('[push][perm] android requestPermission -> $granted');
+        } on NoSuchMethodError {
+          debugPrint('[push] Android permission API unavailable (update flutter_local_notifications?)');
         }
       }
     } catch (e) {
