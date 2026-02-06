@@ -56,13 +56,25 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter gen-l10n
 
-      - name: Write keystore + key.properties
+      - name: Write keystore + key.properties (HARD CHECK)
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          mkdir -p android/app
-          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/dfs-release.jks
-          test -f android/app/dfs-release.jks
+          set -e
 
+          echo "PWD:"; pwd
+          echo "Tree android before:"; ls -la android || true
+          echo "Tree android/app before:"; ls -la android/app || true
+
+          mkdir -p android/app
+
+          # Keystore schreiben
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/***-release.jks
+
+          # Harte Prüfungen
+          test -f android/app/***-release.jks
+          test -s android/app/***-release.jks  # Datei darf nicht 0 bytes sein
+
+          # key.properties (relativ zu android/app/build.gradle.kts -> file() ist relativ zu android/app)
           cat > android/key.properties <<EOF
           storeFile=***-release.jks
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
@@ -72,7 +84,7 @@ jobs:
 
           echo "---- android/key.properties ----"
           cat android/key.properties
-          echo "---- ls android/app ----"
+          echo "---- ls -la android/app ----"
           ls -la android/app
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -82,7 +94,9 @@ jobs:
 
       - name: Build release APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter build apk --release
+        run: |
+          ls -la android/app
+          flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
