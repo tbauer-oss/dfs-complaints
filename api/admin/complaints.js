@@ -479,7 +479,6 @@ export default async function handler(req, res) {
     pushTokenRemove,
     Status,
   } = await import('../_lib/store.js');
-  const { sendPushToTokens } = await import('../_lib/fcm.js');
   
   try {
     // ----------------------------
@@ -1332,6 +1331,7 @@ export default async function handler(req, res) {
 
       if (statusChanged && sendPushFlag) {
         try {
+          const { sendPushToTokens } = await import('../_lib/fcm.js');
           const email = normEmail(c.email || '');
           if (email) {
             const user = await userByEmail(email);
