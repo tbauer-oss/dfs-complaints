@@ -29,6 +29,10 @@ class NotificationPermissionSnapshot {
     final runtime = sdkInt ?? targetSdk ?? compileSdk ?? 0;
     return runtime >= 33;
   }
+  bool get isSdkUnknown {
+    if (!isAndroid) return false;
+    return sdkInt == null && targetSdk == null && compileSdk == null;
+  }
   bool get isGranted => status == PermissionStatus.granted;
   bool get isPermanentlyDenied => status.isPermanentlyDenied;
 
@@ -48,6 +52,17 @@ class NotificationPermissionService {
   static const String _kRequestCountKey = 'dfs_notifications_request_count';
   static const String _kLastStatusKey = 'dfs_notifications_last_status';
   static const String _kLastRequestAtKey = 'dfs_notifications_last_request_at';
+  static const String _kFirstLaunchPromptedKey = 'dfs_notifications_first_launch_prompted';
+
+  Future<bool> consumeFirstLaunchPromptFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    final prompted = prefs.getBool(_kFirstLaunchPromptedKey) ?? false;
+    if (!prompted) {
+      await prefs.setBool(_kFirstLaunchPromptedKey, true);
+      return true;
+    }
+    return false;
+  }
 
   Future<NotificationPermissionSnapshot> ensureRequested({
     bool force = false,
@@ -56,7 +71,7 @@ class NotificationPermissionService {
     final before = await snapshot();
     debugPrint('[push] notification permission snapshot ($trigger): ${before.toLogString()}');
 
-    if (!before.isAndroid || !before.isRuntimeRequired) {
+    if (!before.isAndroid) {
       return before;
     }
 
@@ -66,6 +81,10 @@ class NotificationPermissionService {
 
     if (!force && before.attempted) {
       debugPrint('[push] notification permission already requested; skipping prompt');
+      return before;
+    }
+
+    if (!before.isRuntimeRequired && !before.isSdkUnknown) {
       return before;
     }
 
@@ -84,6 +103,7 @@ class NotificationPermissionService {
     await prefs.remove(_kRequestCountKey);
     await prefs.remove(_kLastStatusKey);
     await prefs.remove(_kLastRequestAtKey);
+    await prefs.remove(_kFirstLaunchPromptedKey);
     debugPrint('[push] notification permission prompt state reset');
   }
 
