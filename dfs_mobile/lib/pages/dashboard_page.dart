@@ -120,17 +120,27 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   Future<void> _initRep() async {
     if (_repLoading) return;
     setState(() => _repLoading = true);
+
     try {
-      // Session ggf. herstellen
-      if (widget.api.token == null || widget.api.token!.isEmpty) {
+      // NUR restaurieren, wenn token wirklich fehlt.
+      final token = widget.api.token;
+      if (token == null || token.isEmpty) {
         await widget.api.restoreSession();
       }
-      // Vertreter laden
-      final rep = await widget.api.getMyRep(); // Backend: /api/rep/my (JWT)
+
+      // Wenn danach immer noch kein Token: sauber abbrechen (kein Crash, kein endlos grau)
+      final token2 = widget.api.token;
+      if (token2 == null || token2.isEmpty) {
+        if (!mounted) return;
+        setState(() => _myRep = null);
+        return;
+      }
+
+      final rep = await widget.api.getMyRep();
       if (!mounted) return;
       setState(() => _myRep = rep);
-    } catch (_) {
-      // still
+    } catch (e) {
+      debugPrint('[rep] init failed: $e');
     } finally {
       if (mounted) setState(() => _repLoading = false);
     }
