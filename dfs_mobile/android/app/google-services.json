@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1092229682471",
+    "project_id": "dfs-customer-complaint",
+    "storage_bucket": "dfs-customer-complaint.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1092229682471:android:8c6758415616006daec502",
+        "android_client_info": {
+          "package_name": "de.dfs_diamon.dfs_complaints"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9ZQL9P0I7P34EHM2iTX9I8SDtLHcPKo8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

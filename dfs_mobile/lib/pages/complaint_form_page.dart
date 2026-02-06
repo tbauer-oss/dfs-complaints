@@ -1,0 +1,2691 @@
+// lib/pages/complaint_form_page.dart
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart' as fp;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../api/client.dart';
+import '../l10n/app_localizations.dart';
+import '../data/knowledge_base_data.dart';
+import '../models/complaint_attachment.dart';
+import '../models/complaint_draft.dart';
+import '../models/dfs_product.dart';
+import '../services/product_lookup.dart';
+import '../utils/attachment_preview.dart';
+import '../utils/charge_input_formatter.dart';
+import '../utils/gs1_data_matrix_parser.dart';
+import '../widgets/attachment_editor_page.dart';
+import 'knowledge_base_page.dart';
+import 'complaint_summary_page.dart';
+
+enum _AttachmentSource { camera, gallery, files }
+
+class _WizardStep {
+  final String id;
+  final IconData icon;
+  final String title;
+  final String hint;
+  const _WizardStep({required this.id, required this.icon, required this.title, required this.hint});
+}
+
+// KEIN dart:html mehr nötig
+
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
+class ComplaintFormPage extends StatefulWidget {
+  final ApiClient api;
+  final bool wizardMode;
+  final String? draftId;
+  const ComplaintFormPage({super.key, required this.api, this.wizardMode = false, this.draftId});
+  @override
+  State<ComplaintFormPage> createState() => _ComplaintFormPageState();
+}
+
+class _ComplaintFormPageState extends State<ComplaintFormPage> {
+  static const _uploadLimit = 8 * 1024 * 1024;
+  static const _helpPrefKey = 'dfs_complaint_help_collapsed';
+  static const _keywordHints = {
+    'gebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg', 'unbrauchbar'],
+    'abgebrochen': ['bruch', 'gebroch', 'sturz', 'verbieg'],
+    'verbogen': ['verbieg', 'krumm', 'unwucht'],
+    'heiss': ['heiß', 'hitze', 'ueberhitz', 'überhitz'],
+    'heiß': ['heiss', 'hitze', 'ueberhitz', 'überhitz'],
+    'vibration': ['vibri', 'unwucht'],
+    'vibriert': ['vibration', 'unwucht'],
+    'korrosion': ['rost', 'korro', 'verfärb', 'fleck'],
+    'rost': ['korro', 'verfärb'],
+  };
+  String segment = 'Zahnmedizin';
+  final article = TextEditingController();
+  final batch = TextEditingController();
+  final qty = TextEditingController();
+  final expiry = TextEditingController();
+  final desc = TextEditingController();
+  String applied = 'Nein';
+  String injury = 'Nein';
+  final injuryDesc = TextEditingController();
+  String returned = 'Nein';
+  String handling = 'Ersatz';
+  final ProductLookup _productLookup = ProductLookup();
+  DfsProduct? _articleProduct;
+  Timer? _articleLookupDebounce;
+  bool _productLoading = false;
+  bool privacy = false;
+  bool _attachmentsMandatory = false;
+  String? _draftId;
+  final ComplaintDraftStore _draftStore = ComplaintDraftStore();
+
+  // Wichtig: exakt dieser Record-Typ (Name, Bytes, Mime)
+  List<({String name, List<int> bytes, String mime, String? preview})> files = [];
+
+  String? info;
+  String? err;
+  bool busy = false;
+  final ValueNotifier<bool> _busyNotifier = ValueNotifier(false);
+  final ValueNotifier<String?> _wizardError = ValueNotifier(null);
+  final FocusNode _batchFocus = FocusNode();
+
+  Map<String, dynamic>? _account;
+  bool _helpCollapsed = true;
+
+  bool _dirty = false;
+  bool _suppressDirty = false;
+  final List<TextEditingController> _ctrls = [];
+  KnowledgeItem? _autoHelpItem;
+  final ScrollController _scrollCtrl = ScrollController();
+  int _wizardStep = 0;
+  bool _wizardOpened = false;
+  final Map<String, GlobalKey> _sectionKeys = {
+    'segment': GlobalKey(),
+    'product': GlobalKey(),
+    'patient': GlobalKey(),
+    'attachments': GlobalKey(),
+    'resolution': GlobalKey(),
+    'privacy': GlobalKey(),
+  };
+
+  void _markDirty() {
+    if (_suppressDirty || _dirty) return;
+    setState(() => _dirty = true);
+  }
+
+  void _handleDescriptionChanged() {
+    _markDirty();
+    _updateAutoHelp();
+  }
+
+  void _handleArticleChanged() {
+    _markDirty();
+    _articleLookupDebounce?.cancel();
+    _articleLookupDebounce = Timer(const Duration(milliseconds: 180), _updateArticleProduct);
+  }
+
+  Future<void> _ensureProductsLoaded() async {
+    if (_productLoading || _productLookup.hasProducts) return;
+    setState(() => _productLoading = true);
+
+    try {
+      await _productLookup.loadProducts();
+    } catch (e) {
+      debugPrint('Produktliste konnte nicht geladen werden: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _productLoading = false);
+    }
+  }
+
+  Future<void> _updateArticleProduct() async {
+    final value = article.text.trim();
+    if (value.isEmpty) {
+      if (_articleProduct != null) setState(() => _articleProduct = null);
+      return;
+    }
+
+    await _ensureProductsLoaded();
+    if (!mounted) return;
+    setState(() => _articleProduct = _productLookup.byArticle(value));
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls) { c.removeListener(_markDirty); }
+    article.removeListener(_handleArticleChanged);
+    _articleLookupDebounce?.cancel();
+    desc.removeListener(_handleDescriptionChanged);
+    _scrollCtrl.dispose();
+    _batchFocus.dispose();
+    _busyNotifier.dispose();
+    _wizardError.dispose();
+    super.dispose();
+  }
+
+  void _updateAutoHelp() {
+    final t = context.t;
+    final query = desc.text.toLowerCase().trim();
+    if (query.length < 12) {
+      if (_autoHelpItem != null) setState(() => _autoHelpItem = null);
+      return;
+    }
+
+    final tokens = query
+        .split(RegExp(r'[^a-zA-ZäöüÄÖÜß0-9]+'))
+        .map((w) => w.trim())
+        .where((w) => w.length >= 3)
+        .toList();
+
+    KnowledgeItem? best;
+    var bestScore = 0;
+
+    for (final item in knowledgeItems) {
+      final content = '${item.question(t)} ${item.answer(t)}'.toLowerCase();
+      var score = 0;
+
+      if (content.contains(query)) score += 6;
+
+      for (final token in tokens) {
+        final variants = <String>{token};
+        final extra = _keywordHints[token];
+        if (extra != null) variants.addAll(extra);
+        for (final needle in variants) {
+          if (needle.isEmpty) continue;
+          if (content.contains(needle)) score += 2;
+        }
+      }
+
+      if (score == 0) continue;
+      if (score > bestScore) {
+        best = item;
+        bestScore = score;
+      }
+    }
+
+    setState(() => _autoHelpItem = bestScore >= 2 ? best : null);
+  }
+
+  List<_WizardStep> _buildWizardSteps(AppLocalizations t, {required bool isDentist}) {
+    return [
+      _WizardStep(
+        id: 'intro',
+        icon: Icons.celebration_outlined,
+        title: t.complaint_wizard_title,
+        hint: t.complaint_wizard_subtitle,
+      ),
+      _WizardStep(id: 'segment', icon: Icons.flag_outlined, title: t.complaint_wizard_step_overview, hint: t.segment),
+      _WizardStep(id: 'product', icon: Icons.shopping_bag_outlined, title: t.complaint_wizard_step_product, hint: t.article),
+      if (isDentist)
+        _WizardStep(
+          id: 'patient',
+          icon: Icons.favorite_outline,
+          title: t.complaint_wizard_step_patient,
+          hint: t.applied_to_patient,
+        ),
+      _WizardStep(
+        id: 'attachments',
+        icon: Icons.photo_library_outlined,
+        title: t.complaint_wizard_step_attachments,
+        hint: t.attachments_title,
+      ),
+      _WizardStep(
+        id: 'resolution',
+        icon: Icons.handshake_outlined,
+        title: t.complaint_wizard_step_confirmation,
+        hint: t.returned_question,
+      ),
+      _WizardStep(
+        id: 'privacy',
+        icon: Icons.privacy_tip_outlined,
+        title: t.privacy_view,
+        hint: t.complaint_wizard_step_finish,
+      ),
+    ];
+  }
+
+  Widget _wizardAnchor(String id, Widget child) {
+    return KeyedSubtree(key: _sectionKeys[id], child: child);
+  }
+
+  void _removeAttachmentAt(int index) {
+    setState(() {
+      final next = List.of(files)..removeAt(index);
+      files = next;
+      _dirty = true;
+    });
+  }
+
+  Future<void> _editAttachmentAt(int index) async {
+    final file = files[index];
+    if (!file.mime.toLowerCase().startsWith('image/')) return;
+
+    final edited = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AttachmentEditorPage(
+          initialBytes: Uint8List.fromList(file.bytes),
+          title: file.name,
+        ),
+      ),
+    );
+
+    if (edited == null) return;
+
+    final t = context.t;
+    var nextBytes = edited.toList();
+    final compressed = await _compressImage(nextBytes, file.mime);
+    nextBytes = compressed.bytes;
+    final mime = compressed.mime;
+
+    final totalBytes = files.fold<int>(0, (sum, f) => sum + f.bytes.length) - file.bytes.length + nextBytes.length;
+    if (totalBytes > _uploadLimit) {
+      if (mounted) setState(() => err = t.images_too_large);
+      return;
+    }
+
+    final preview = createAttachmentPreview(nextBytes, mime);
+    if (!mounted) return;
+    setState(() {
+      final next = List.of(files);
+      next[index] = (name: file.name, bytes: nextBytes, mime: mime, preview: preview);
+      files = next;
+      err = null;
+      _dirty = true;
+    });
+  }
+
+  Future<void> _showAttachment(({String name, List<int> bytes, String mime, String? preview}) file) async {
+    final isImage = file.mime.toLowerCase().startsWith('image/');
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(file.name, overflow: TextOverflow.ellipsis),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+          child: isImage
+              ? InteractiveViewer(
+                  child: Image.memory(
+                    Uint8List.fromList(file.bytes),
+                    fit: BoxFit.contain,
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.insert_drive_file_outlined, size: 48),
+                    const SizedBox(height: 12),
+                    Text(file.mime, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Text(context.t.attachments_file_unknown, textAlign: TextAlign.center),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.t.close)),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _confirmLeaveIfDirty() async {
+    if (!_dirty) return true;
+    final t = context.t;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(t.unsavedChangesTitle),
+        content: Text(t.unsavedChangesText),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
+          FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: Text(t.leave)),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  Future<void> _handleBack() async { if (await _confirmLeaveIfDirty()) Navigator.of(context).pop(); }
+  Future<void> _handleCancel() async => _handleBack();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrls.addAll([article, batch, qty, expiry, injuryDesc]);
+    article.addListener(_handleArticleChanged);
+    for (final c in _ctrls) { c.addListener(_markDirty); }
+    desc.addListener(_handleDescriptionChanged);
+    _loadAccount();
+    _loadHelpPref();
+    _ensureProductsLoaded();
+    if (widget.draftId != null) _restoreDraft();
+  }
+
+  Future<void> pickFiles() async {
+    if (kIsWeb) {
+      await _pickWithFilePicker();
+      return;
+    }
+
+    final source = await _selectAttachmentSource();
+    if (source == null) return;
+
+    switch (source) {
+      case _AttachmentSource.camera:
+        await _pickFromCamera();
+        break;
+      case _AttachmentSource.gallery:
+        await _pickFromGallery();
+        break;
+      case _AttachmentSource.files:
+        await _pickWithFilePicker();
+        break;
+    }
+  }
+
+  Future<_AttachmentSource?> _selectAttachmentSource() {
+    final t = context.t;
+    return showModalBottomSheet<_AttachmentSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text(t.attachment_source_camera),
+              onTap: () => Navigator.pop(context, _AttachmentSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(t.attachment_source_gallery),
+              onTap: () => Navigator.pop(context, _AttachmentSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file_outlined),
+              title: Text(t.attachment_source_files),
+              onTap: () => Navigator.pop(context, _AttachmentSource.files),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleScanGs1() async {
+    await _ensureProductsLoaded();
+    if (!mounted) return;
+
+    final result = await showModalBottomSheet<Gs1DataMatrixData>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _Gs1ScannerSheet(t: context.t),
+    );
+
+    if (!mounted || result == null) return;
+
+    final t = context.t;
+    final messages = <String>[];
+
+    final product = _productLookup.byGtin(result.gtin);
+
+    setState(() {
+      if (product != null) {
+        article.text = product.articleNumber;
+        _articleProduct = product;
+      } else {
+        article.clear();
+        _articleProduct = null;
+        messages.add(t.gs1_scan_no_product);
+      }
+
+      if (result.lot != null && result.lot!.isNotEmpty) {
+        batch.text = result.lot!;
+      } else {
+        messages.add(t.gs1_scan_missing_lot);
+      }
+
+      info = messages.isEmpty ? t.gs1_scan_success : messages.join(' • ');
+      err = null;
+      _dirty = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(t.gs1_scan_success)),
+    );
+  }
+
+  String _guessMime(String name) {
+    final parts = name.split('.');
+    final ext = parts.length > 1 ? parts.last.toLowerCase() : '';
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  Future<({List<int> bytes, String mime})> _compressImage(List<int> data, String mime) async {
+    try {
+      final image = img.decodeImage(Uint8List.fromList(data));
+      if (image == null) return (bytes: data, mime: mime);
+
+      final maxSide = 1800;
+      final needsResize = image.width > maxSide || image.height > maxSide;
+      final resized = needsResize
+          ? img.copyResize(
+              image,
+              width: (image.width > image.height ? maxSide : null),
+              height: (image.height >= image.width ? maxSide : null),
+              interpolation: img.Interpolation.cubic,
+            )
+          : image;
+      final compressed = img.encodeJpg(resized, quality: 85);
+      return (bytes: compressed, mime: 'image/jpeg');
+    } catch (_) {
+      return (bytes: data, mime: mime);
+    }
+  }
+
+  Future<List<int>?> _cropImage(String path) async {
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: context.t.edit_attachment_tooltip,
+            hideBottomControls: true,
+            lockAspectRatio: false,
+          ),
+          IOSUiSettings(title: context.t.edit_attachment_tooltip),
+        ],
+      );
+      if (cropped == null) return null;
+      return await cropped.readAsBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _applySelection(List<({String name, List<int> bytes, String mime})> selected) async {
+    if (selected.isEmpty) return;
+    final t = context.t;
+
+    int totalBytes = 0;
+    final next = <({String name, List<int> bytes, String mime, String? preview})>[];
+
+    for (final file in selected) {
+      List<int> bytes = file.bytes;
+      String mime = file.mime;
+
+      if (mime.startsWith('image/')) {
+        final compressed = await _compressImage(bytes, mime);
+        bytes = compressed.bytes;
+        mime = compressed.mime;
+      }
+
+      totalBytes += bytes.length;
+      if (totalBytes > _uploadLimit) {
+        if (mounted) setState(() => err = t.images_too_large);
+        return;
+      }
+
+      final preview = createAttachmentPreview(bytes, mime);
+      next.add((name: file.name, bytes: bytes, mime: mime, preview: preview));
+    }
+
+    if (!mounted) return;
+    setState(() {
+      files = next;
+      err = null;
+      _dirty = true;
+    });
+  }
+
+  Future<void> _pickWithFilePicker() async {
+    final res = await fp.FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+    );
+    if (res == null) return;
+
+    final selected = res.files
+        .where((f) => f.bytes != null && f.bytes!.isNotEmpty)
+        .map((f) => (
+              name: f.name,
+              bytes: List<int>.from(f.bytes!),
+              mime: _guessMime(f.name),
+            ))
+        .toList();
+
+    await _applySelection(selected);
+  }
+
+  Future<void> _pickFromGallery() async {
+    final picker = ImagePicker();
+    final result = await picker.pickMultiImage();
+    if (result.isEmpty) return;
+
+    final selected = <({String name, List<int> bytes, String mime})>[];
+    for (final file in result) {
+      final bytes = await file.readAsBytes();
+      selected.add((name: file.name, bytes: bytes, mime: _guessMime(file.name)));
+    }
+
+    await _applySelection(selected);
+  }
+
+  Future<void> _pickFromCamera() async {
+    final picker = ImagePicker();
+    final photo = await picker.pickImage(source: ImageSource.camera, requestFullMetadata: false);
+    if (photo == null) return;
+
+    final originalBytes = await photo.readAsBytes();
+    final cropped = await _cropImage(photo.path);
+    final bytes = cropped ?? originalBytes;
+    await _applySelection([
+      (name: photo.name, bytes: bytes, mime: _guessMime(photo.name)),
+    ]);
+  }
+
+  Widget _attachmentActionButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    String? tooltip,
+  }) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      icon: Icon(icon, size: 18),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+    );
+  }
+
+  // -----------------------------
+  // Hilfsfunktionen für dein Flow
+  // -----------------------------
+  void _resetForm({bool removePersistedDraft = true}) {
+    final t = context.t;
+    final optDentist = t.segment_dentist;
+    final optNo = t.no;
+    final optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement;
+    final previousDraftId = _draftId;
+
+    _suppressDirty = true;
+    setState(() {
+      segment = optDentist;           // Standard: Zahnarzt
+      article.clear();
+      batch.clear();
+      qty.clear();
+      expiry.clear();
+      desc.clear();
+      applied = optNo;
+      injury = optNo;
+      injuryDesc.clear();
+      returned = optReturnedNo;
+      handling = optHandlingRep;
+      privacy = false;
+      files = [];
+      _attachmentsMandatory = false;
+      err = null;
+      info = null;
+      _dirty = false;
+      _autoHelpItem = null;
+      _wizardStep = 0;
+      _draftId = null;
+    });
+    _suppressDirty = false;
+    if (removePersistedDraft) {
+      unawaited(_clearDraft(silent: true, id: previousDraftId));
+    }
+  }
+
+  Future<void> _loadAccount() async {
+    try {
+      final data = await widget.api.accountGet();
+      if (!mounted) return;
+      setState(() => _account = data);
+    } catch (_) {
+      // optional: still usable without Accountdaten
+    }
+  }
+
+  Future<void> _loadHelpPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() => _helpCollapsed = true);
+      await prefs.setBool(_helpPrefKey, true);
+    } catch (_) {}
+  }
+
+  Future<void> _persistHelpPref(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_helpPrefKey, value);
+    } catch (_) {}
+  }
+
+  void _toggleHelpBox() {
+    final next = !_helpCollapsed;
+    setState(() => _helpCollapsed = next);
+    _persistHelpPref(next);
+  }
+
+  List<({String name, List<int> bytes, String mime, String? preview})> _decodeDraftFiles(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <({String name, List<int> bytes, String mime, String? preview})>[];
+
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final map = <String, dynamic>{};
+      entry.forEach((key, value) => map['$key'] = value);
+
+      final encoded = map['bytes']?.toString();
+      if (encoded == null || encoded.isEmpty) continue;
+
+      try {
+        final bytes = base64Decode(encoded);
+        final mime = map['mime']?.toString() ?? 'application/octet-stream';
+        final preview = (map['preview']?.toString().isNotEmpty ?? false)
+            ? map['preview'].toString()
+            : createAttachmentPreview(bytes, mime);
+        out.add((
+          name: map['name']?.toString() ?? 'Attachment',
+          bytes: bytes,
+          mime: mime,
+          preview: preview,
+        ));
+      } catch (_) {}
+    }
+
+    return out;
+  }
+
+  Map<String, dynamic> _buildDraftSnapshot(AppLocalizations t) {
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
+    final optYes = t.yes, optNo = t.no;
+    final optReturnedYes = t.yes, optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement,
+        optHandlingCredit = t.handling_credit,
+        optHandlingRework = t.handling_rework;
+
+    final handlingKey = handling == optHandlingCredit
+        ? 'credit'
+        : handling == optHandlingRework
+            ? 'rework'
+            : 'replacement';
+
+    return {
+      'segmentKey': segment == optLab ? 'lab' : 'dentist',
+      'article': article.text.trim(),
+      'batch': batch.text.trim(),
+      'qty': qty.text.trim(),
+      'expiry': expiry.text.trim(),
+      'desc': desc.text.trim(),
+      'applied': applied == optYes,
+      'injury': injury == optYes,
+      'injuryDesc': injuryDesc.text.trim(),
+      'returned': returned == optReturnedYes,
+      'handlingKey': handlingKey,
+      'privacy': privacy,
+      'files': files
+          .map((f) => {
+                'name': f.name,
+                'mime': f.mime,
+                'bytes': base64Encode(f.bytes),
+                if ((f.preview ?? '').isNotEmpty) 'preview': f.preview,
+              })
+          .toList(growable: false),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Future<void> _saveDraft() async {
+    final t = context.t;
+    try {
+      final snapshot = _buildDraftSnapshot(t);
+      final id = _draftId ?? ComplaintDraft.newId();
+      await _draftStore.save(ComplaintDraft(id: id, data: snapshot));
+      if (!mounted) return;
+      setState(() {
+        err = null;
+        _dirty = false;
+        info = t.draftSaved;
+        _draftId = id;
+      });
+      _resetForm(removePersistedDraft: false);
+      _leaveAfterDraftSave();
+    } catch (e) {
+      debugPrint('Draft could not be saved: $e');
+      if (!mounted) return;
+      setState(() => err = t.draftSaveFailed);
+    }
+  }
+
+  void _leaveAfterDraftSave() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (!(ModalRoute.of(context)?.isCurrent ?? true) && navigator.canPop()) {
+      navigator.pop();
+    }
+    navigator.maybePop();
+  }
+
+  Future<void> _clearDraft({bool silent = false, String? id}) async {
+    final targetId = id ?? _draftId;
+    if (targetId == null) return;
+    try {
+      await _draftStore.delete(targetId);
+      if (!mounted) return;
+      if (silent) {
+        _draftId = null;
+        return;
+      }
+      setState(() {
+        info = context.t.draftCleared;
+        _draftId = null;
+      });
+    } catch (e) {
+      debugPrint('Draft could not be cleared: $e');
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    if (widget.draftId == null) return;
+    try {
+      final draft = await _draftStore.findById(widget.draftId!);
+      if (draft == null) return;
+
+      final map = <String, dynamic>{};
+      draft.data.forEach((key, value) => map['$key'] = value);
+
+      if (!mounted) return;
+
+      final t = context.t;
+      final optDentist = t.segment_dentist, optLab = t.segment_lab;
+      final optYes = t.yes, optNo = t.no;
+      final optReturnedYes = t.yes, optReturnedNo = t.no;
+      final optHandlingRep = t.handling_replacement,
+          optHandlingCredit = t.handling_credit,
+          optHandlingRework = t.handling_rework;
+
+      final handlingKey = map['handlingKey']?.toString();
+      final handlingValue = switch (handlingKey) {
+        'credit' => optHandlingCredit,
+        'rework' => optHandlingRework,
+        _ => optHandlingRep,
+      };
+
+      _suppressDirty = true;
+      setState(() {
+        _draftId = draft!.id;
+        segment = map['segmentKey'] == 'lab' ? optLab : optDentist;
+        article.text = (map['article'] ?? '').toString();
+        batch.text = (map['batch'] ?? '').toString();
+        qty.text = (map['qty'] ?? '').toString();
+        expiry.text = (map['expiry'] ?? '').toString();
+        desc.text = (map['desc'] ?? '').toString();
+        applied = (map['applied'] == true) ? optYes : optNo;
+        injury = (map['injury'] == true) ? optYes : optNo;
+        injuryDesc.text = (map['injuryDesc'] ?? '').toString();
+        returned = (map['returned'] == true) ? optReturnedYes : optReturnedNo;
+        handling = handlingValue;
+        files = _decodeDraftFiles(map['files']);
+        privacy = map['privacy'] == true;
+        err = null;
+        info = t.draftRestored;
+        _dirty = false;
+      });
+      _suppressDirty = false;
+
+      _updateAutoHelp();
+      unawaited(_updateArticleProduct());
+    } catch (e) {
+      debugPrint('Draft could not be restored: $e');
+      _suppressDirty = false;
+    }
+  }
+
+  void _openHelpLink() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => KnowledgeBasePage(api: widget.api),
+    ));
+  }
+
+  List<String> _splitAnswer(String raw) {
+    return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .map((line) => line.replaceFirst(RegExp(r'^[•\-\u2022]\s*'), ''))
+        .toList();
+  }
+
+  void _openSuggestedAnswer(KnowledgeItem item) {
+    final t = context.t;
+    final answers = _splitAnswer(item.answer(t));
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final bottomPadding = MediaQuery.of(ctx).viewPadding.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPadding + 16),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.psychology_outlined, color: theme.colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        t.complaint_auto_help_title,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  knowledgeCategoryLabel(item.category, t),
+                  style: theme.textTheme.labelMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item.question(t),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                ...answers.map(
+                  (a) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 3),
+                          child: Icon(Icons.check_circle_outline, size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(a, style: const TextStyle(height: 1.35))),
+                      ],
+                    ),
+                  ),
+                ),
+                if (answers.isEmpty)
+                  Text(item.answer(t), style: const TextStyle(height: 1.4)),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _openHelpLink();
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: Text(t.complaint_help_link),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String? _validateWizardStep(String id) {
+    final t = context.t;
+    final optDentist = t.segment_dentist;
+    final optYes = t.yes;
+    final isDentist = segment == optDentist;
+    final needsInjuryDesc = isDentist && applied == optYes && injury == optYes;
+    final articleValue = article.text.trim();
+    final batchValue = batch.text.trim();
+    final qtyValue = qty.text.trim();
+    final descValue = desc.text.trim();
+    final attachmentsRequired = _attachmentsMandatory;
+
+    switch (id) {
+      case 'product':
+        if (!isDentist && articleValue.isEmpty) return t.required_fields;
+        if (descValue.isEmpty) return t.required_fields;
+        if (isDentist && qtyValue.isEmpty) return t.required_fields;
+        if (batchValue.isNotEmpty && !_isBatchValid(batchValue)) return t.batch_format_hint;
+        break;
+      case 'patient':
+        if (needsInjuryDesc && injuryDesc.text.trim().isEmpty) return t.required_fields;
+        break;
+      case 'attachments':
+        if (attachmentsRequired && files.isEmpty) return t.required_fields;
+        break;
+      case 'privacy':
+        if (!privacy) return t.privacy_required;
+        break;
+    }
+
+    return null;
+  }
+
+  bool _isBatchValid(String value) => ChargeInputFormatter.pattern.hasMatch(value);
+
+  Widget _buildAutoHelpCard({required bool compact}) {
+    final suggestion = _autoHelpItem;
+    if (suggestion == null) return const SizedBox.shrink();
+
+    final t = context.t;
+    final theme = Theme.of(context);
+    final answers = _splitAnswer(suggestion.answer(t));
+    final preview = answers.isNotEmpty ? answers.first : null;
+
+    return Card(
+      color: theme.colorScheme.secondaryContainer.withOpacity(0.72),
+      elevation: 0,
+      margin: EdgeInsets.only(top: compact ? 4 : 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 14)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(12, compact ? 10 : 12, 12, compact ? 12 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology_alt_outlined, color: theme.colorScheme.primary),
+                SizedBox(width: compact ? 8 : 10),
+                Expanded(
+                  child: Text(
+                    t.complaint_auto_help_title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSecondaryContainer,
+                      fontSize: compact ? 13.5 : 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Chip(
+                visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                label: Text(
+                  knowledgeCategoryLabel(suggestion.category, t),
+                  style: const TextStyle(fontSize: 11),
+                ),
+                avatar: Icon(Icons.folder_open, size: 18, color: theme.colorScheme.primary),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            SizedBox(height: compact ? 4 : 6),
+            Text(
+              t.complaint_auto_help_intro,
+              style: TextStyle(
+                color: theme.colorScheme.onSecondaryContainer.withOpacity(0.9),
+                fontSize: compact ? 12.5 : 13,
+              ),
+            ),
+            SizedBox(height: compact ? 6 : 8),
+            Text(
+              suggestion.question(t),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: compact ? 13.5 : 14),
+            ),
+            if (preview != null) ...[
+              SizedBox(height: compact ? 4 : 6),
+              Text(
+                preview,
+                maxLines: compact ? 3 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(height: 1.35),
+              ),
+            ],
+            SizedBox(height: compact ? 8 : 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14, vertical: compact ? 8 : 10),
+                  minimumSize: Size(compact ? 0 : 40, 0),
+                  textStyle: TextStyle(fontSize: compact ? 12.5 : 13.5),
+                ),
+                onPressed: () => _openSuggestedAnswer(suggestion),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: Text(t.complaint_auto_help_button),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<ComplaintAttachment> _currentAttachments() {
+    return files
+        .map((f) => ComplaintAttachment(
+              name: f.name,
+              bytes: Uint8List.fromList(f.bytes),
+              mime: f.mime,
+            ))
+        .toList(growable: false);
+  }
+
+  Future<void> _showSummary(String ticket, Map<String, dynamic> payload) async {
+    final accountSnapshot = _account == null ? null : Map<String, dynamic>.from(_account!);
+    final result = await Navigator.of(context).push<ComplaintSummaryResult>(
+      MaterialPageRoute(
+        builder: (_) => ComplaintSummaryPage(
+          ticket: ticket,
+          createdAt: DateTime.now(),
+          payload: Map<String, dynamic>.from(payload),
+          account: accountSnapshot,
+          attachments: _currentAttachments(),
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (result == ComplaintSummaryResult.newComplaint) {
+      _resetForm();
+    } else {
+      await _navigateToDashboard();
+    }
+  }
+
+  Future<void> _navigateToDashboard() async {
+    if (!mounted) return;
+    try {
+      // Falls du eine benannte Route hast:
+      Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (r) => false);
+    } catch (_) {
+      // Fallback: so weit wie möglich zurück
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+
+  Future<void> _submitComplaint({VoidCallback? onSuccess}) async {
+    final t = context.t;
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
+    final optYes = t.yes, optNo = t.no;
+    final optReturnedYes = t.yes, optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement, optHandlingCredit = t.handling_credit, optHandlingRework = t.handling_rework;
+
+    if (segment != optDentist && segment != optLab) segment = optDentist;
+    if (applied != optYes && applied != optNo) applied = optNo;
+    if (injury != optYes && injury != optNo) injury = optNo;
+    if (returned != optReturnedYes && returned != optReturnedNo) returned = optReturnedNo;
+    if (![optHandlingRep, optHandlingCredit, optHandlingRework].contains(handling)) handling = optHandlingRep;
+
+    final isDentist = segment == optDentist;
+    final articleValue = article.text.trim();
+    final batchValue = batch.text.trim();
+    final qtyValue = qty.text.trim();
+    final descValue = desc.text.trim();
+    final missingIdentifiers = articleValue.isEmpty && batchValue.isEmpty;
+
+    setState(() { busy = true; err = null; info = null; });
+    _busyNotifier.value = true;
+
+    if (!privacy) { setState(() { err = t.privacy_required; busy = false; }); _busyNotifier.value = false; return; }
+    if (!isDentist && articleValue.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (descValue.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (isDentist && qtyValue.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; }); _busyNotifier.value = false; return;
+    }
+    if (batchValue.isNotEmpty && !_isBatchValid(batchValue)) {
+      setState(() { err = t.batch_format_hint; busy = false; }); _busyNotifier.value = false; return;
+    }
+
+    if (isDentist && batchValue.isEmpty) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+              SizedBox(width: 8),
+              Text('Charge fehlt'),
+            ],
+          ),
+          content: const Text(
+            'Für die korrekte Bearbeitung einer Medizinproduktereklamation ist eine Charge erforderlich. '
+            'Ohne Charge kann eine Reklamation nur als Kulanzfall bearbeitet werden.\n\n'
+            'Möchten Sie die Charge später nachreichen?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Nein')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ja')),
+          ],
+        ),
+      );
+
+      if (proceed != true) {
+        setState(() { busy = false; });
+        _busyNotifier.value = false;
+        _batchFocus.requestFocus();
+        return;
+      }
+    }
+
+    if (missingIdentifiers) {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+              SizedBox(width: 8),
+              Text('Artikelnummer & Charge fehlen'),
+            ],
+          ),
+          content: const Text(
+            'Ohne Artikelnummer und Charge ist die Bearbeitung Ihrer Reklamation stark erschwert. '
+            'In diesem Fall ist das Hochladen von Fotos/Videos verpflichtend.',
+          ),
+          actions: [
+            FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Verstanden')),
+          ],
+        ),
+      );
+      setState(() => _attachmentsMandatory = true);
+    }
+
+    final attachmentsRequired = _attachmentsMandatory;
+    if (attachmentsRequired && files.isEmpty) {
+      setState(() { err = t.required_fields; busy = false; });
+      _busyNotifier.value = false;
+      return;
+    }
+
+    final payload = <String, dynamic>{
+      'segment': segment == optDentist ? 'Zahnmedizin' : 'Dentallabor',
+      'article': articleValue,
+      'batch': batchValue,
+      'qty': qtyValue,
+      'expiry': isDentist ? '' : expiry.text.trim(),
+      'desc': descValue,
+      'applied': isDentist ? (applied == optYes ? 'Ja' : 'Nein') : '',
+      'injury': isDentist ? (injury == optYes ? 'Ja' : 'Nein') : '',
+      'injuryDesc': isDentist ? injuryDesc.text.trim() : '',
+      'returned': (returned == optReturnedYes ? 'Ja' : 'Nein'),
+      'handling': handling == optHandlingRep ? 'Ersatz' : (handling == optHandlingCredit ? 'Gutschrift' : 'Nacharbeit'),
+      'privacy': 'true',
+    };
+
+    try {
+      final res = await widget.api.complaintCreate(payload, files);
+      final ticket = (res?['ticket'] ?? '').toString();
+
+      if (ticket.isEmpty) {
+        setState(() { busy = false; err = t.send_failed; });
+        _busyNotifier.value = false;
+      } else {
+        setState(() { busy = false; _dirty = false; info = null; });
+        _busyNotifier.value = false;
+        await _clearDraft(silent: true);
+        onSuccess?.call();
+        await _showSummary(ticket, payload);
+      }
+    } catch (e) {
+      setState(() {
+        busy = false;
+        err = t.network_cors_error(e.toString());
+      });
+      _busyNotifier.value = false;
+    }
+  }
+
+  // -----------------------------
+  // UI-Helfer (nur Darstellung)
+  // -----------------------------
+  InputDecoration _dec(BuildContext ctx, String label, {String? hint, required bool compact}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      isDense: true,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Theme.of(ctx).colorScheme.outlineVariant),
+      ),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: compact ? 10 : 12,
+      ),
+    );
+  }
+
+  Widget _section({
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+    required bool compact,
+  }) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(14, compact ? 12 : 14, 14, compact ? 14 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 20),
+                SizedBox(width: compact ? 6 : 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(fontSize: compact ? 15 : 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: compact ? 10 : 12),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<({String id, Widget widget})> _buildSections({
+    required bool compact,
+    required AppLocalizations t,
+    required bool isDentist,
+    required bool needInjuryDesc,
+    required bool anchored,
+    required String optDentist,
+    required String optLab,
+    required String optYes,
+    required String optNo,
+    required String optReturnedYes,
+    required String optReturnedNo,
+    required String optHandlingRep,
+    required String optHandlingCredit,
+    required String optHandlingRework,
+  }) {
+    Widget wrap(String id, Widget child) => anchored ? _wizardAnchor(id, child) : child;
+
+    final sections = <({String id, Widget widget})>[];
+    final attachmentsRequired = _attachmentsMandatory;
+
+    sections.add(
+      (id: 'segment', widget: wrap('segment', _section(
+        icon: Icons.person_outline,
+        title: t.segment,
+        compact: compact,
+        children: [
+          DropdownButtonFormField<String>(
+            value: segment,
+            items: [
+              DropdownMenuItem(value: optDentist, child: Text(optDentist)),
+              DropdownMenuItem(value: optLab, child: Text(optLab)),
+            ],
+            onChanged: (v) => setState(() { segment = v ?? optDentist; _dirty = true; }),
+            decoration: _dec(context, t.segment, compact: compact),
+          ),
+        ],
+      ))),
+    );
+
+    sections.add(
+      (id: 'product', widget: wrap('product', _section(
+        icon: Icons.build_outlined,
+        title: isDentist ? t.article : '${t.article} *',
+        compact: compact,
+        children: [
+          TextField(controller: article, decoration: _dec(context, isDentist ? t.article : '${t.article} *', compact: compact)),
+          if (_articleProduct != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                t.article_match_prefix(_articleProduct!.productName),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                      fontSize: compact ? 12 : 13,
+                    ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.qr_code_scanner_outlined),
+              label: Text(t.gs1_scan_button),
+              onPressed: _handleScanGs1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: batch,
+            focusNode: _batchFocus,
+            decoration: _dec(context, t.batch, compact: compact),
+            inputFormatters: isDentist ? [ChargeInputFormatter()] : null,
+            keyboardType: TextInputType.text,
+            textCapitalization: isDentist ? TextCapitalization.characters : TextCapitalization.none,
+            maxLength: isDentist ? 11 : null,
+          ),
+          const SizedBox(height: 10),
+          if (isDentist)
+            TextField(
+              controller: qty,
+              decoration: _dec(context, '${t.qty} *', compact: compact),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            )
+          else
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: qty,
+                  decoration: _dec(context, t.qty, compact: compact),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                ),
+              ),
+              SizedBox(width: compact ? 8 : 10),
+              Expanded(child: TextField(controller: expiry, decoration: _dec(context, t.expiry, compact: compact))),
+            ]),
+          const SizedBox(height: 10),
+          TextField(
+            controller: desc,
+            maxLines: 4,
+            decoration: _dec(context, '${t.problem_desc} *', compact: compact),
+          ),
+          const SizedBox(height: 4),
+          _buildAutoHelpCard(compact: compact),
+        ],
+      ))),
+    );
+
+    if (isDentist) {
+      sections.add(
+        (id: 'patient', widget: wrap('patient', _section(
+          icon: Icons.healing_outlined,
+          title: t.applied_to_patient,
+          compact: compact,
+          children: [
+            DropdownButtonFormField<String>(
+              value: applied,
+              items: [
+                DropdownMenuItem(value: optYes, child: Text(optYes)),
+                DropdownMenuItem(value: optNo, child: Text(optNo)),
+              ],
+              onChanged: (v) => setState(() { applied = v ?? optNo; _dirty = true; }),
+              decoration: _dec(context, t.applied_to_patient, compact: compact),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: injury,
+              items: [
+                DropdownMenuItem(value: optYes, child: Text(optYes)),
+                DropdownMenuItem(value: optNo, child: Text(optNo)),
+              ],
+              onChanged: (v) => setState(() { injury = v ?? optNo; _dirty = true; }),
+              decoration: _dec(context, t.injury_question, compact: compact),
+            ),
+            if (needInjuryDesc) ...[
+              const SizedBox(height: 10),
+              TextField(controller: injuryDesc, maxLines: 3, decoration: _dec(context, t.injury_desc, compact: compact)),
+            ],
+          ],
+        ))),
+      );
+    }
+
+    sections.add(
+      (id: 'attachments', widget: wrap('attachments', _section(
+        icon: Icons.photo_library_outlined,
+        title: attachmentsRequired ? '${t.attachments_title} *' : t.attachments_title,
+        compact: compact,
+        children: [
+          Text(t.attachments_too_large),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (var i = 0; i < files.length; i++) ...[
+                Material(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _showAttachment(files[i]),
+                    child: Container(
+                      width: 140,
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.insert_drive_file_outlined),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(files[i].name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              ),
+                              if (files[i].mime.toLowerCase().startsWith('image/'))
+                                _attachmentActionButton(
+                                  onPressed: () => _editAttachmentAt(i),
+                                  tooltip: t.edit_attachment_tooltip,
+                                  icon: Icons.edit_outlined,
+                                ),
+                              _attachmentActionButton(
+                                onPressed: () => _removeAttachmentAt(i),
+                                icon: Icons.close,
+                              ),
+                            ],
+                          ),
+                          if (files[i].preview != null) ...[
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.memory(Uint8List.fromList(files[i].bytes), height: 70, width: double.infinity, fit: BoxFit.cover),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              FilledButton.icon(
+                onPressed: pickFiles,
+                icon: const Icon(Icons.upload_file_outlined),
+                label: Text(t.add_attachment),
+              ),
+            ],
+          ),
+        ],
+      ))),
+    );
+
+    sections.add(
+      (id: 'resolution', widget: wrap('resolution', _section(
+        icon: Icons.handshake_outlined,
+        title: t.returned_question,
+        compact: compact,
+        children: [
+          DropdownButtonFormField<String>(
+            value: returned,
+            items: [
+              DropdownMenuItem(value: optReturnedYes, child: Text(optReturnedYes)),
+              DropdownMenuItem(value: optReturnedNo, child: Text(optReturnedNo)),
+            ],
+            onChanged: (v) => setState(() { returned = v ?? optReturnedNo; _dirty = true; }),
+            decoration: _dec(context, t.returned_question, compact: compact),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: handling,
+            items: [
+              DropdownMenuItem(value: optHandlingRep, child: Text(optHandlingRep)),
+              DropdownMenuItem(value: optHandlingCredit, child: Text(optHandlingCredit)),
+              DropdownMenuItem(value: optHandlingRework, child: Text(optHandlingRework)),
+            ],
+            onChanged: (v) => setState(() { handling = v ?? optHandlingRep; _dirty = true; }),
+            decoration: _dec(context, t.handling, compact: compact),
+          ),
+        ],
+      ))),
+    );
+
+    sections.add(
+      (id: 'privacy', widget: wrap('privacy', _section(
+        icon: Icons.privacy_tip_outlined,
+        title: t.privacy_view,
+        compact: compact,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(value: privacy, onChanged: (v) => setState(() { privacy = v ?? false; _dirty = true; })),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.privacy_agree),
+                    const SizedBox(height: 4),
+                    InkWell(
+                      onTap: () => Navigator.of(context).pushNamed('/legal/privacy'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.privacy_tip_outlined, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            t.privacy_view,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ))),
+    );
+
+    return sections;
+  }
+
+  Widget _banner({required bool isError, required String text}) {
+    final color = isError ? Colors.red : Colors.green;
+    final bg = isError ? Colors.red.withOpacity(.06) : Colors.green.withOpacity(.06);
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(.25))),
+      child: Row(
+        children: [
+          Icon(isError ? Icons.error_outline : Icons.check_circle_outline, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWizardCard({
+    required List<_WizardStep> steps,
+    required AppLocalizations t,
+    required bool compact,
+    required VoidCallback onOpenWizard,
+  }) {
+    if (steps.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final realSteps = steps.where((s) => s.id != 'intro').toList(growable: false);
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.symmetric(vertical: compact ? 8 : 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(compact ? 12 : 14, compact ? 12 : 14, compact ? 12 : 14, compact ? 12 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.auto_awesome_outlined, color: theme.colorScheme.primary),
+                SizedBox(width: compact ? 8 : 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.complaint_wizard_title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: compact ? 15 : 16)),
+                      const SizedBox(height: 4),
+                      Text(
+                        t.complaint_wizard_subtitle,
+                        style: TextStyle(fontSize: compact ? 12.5 : 13, color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(value: 0, minHeight: compact ? 6 : 8),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              t.complaint_wizard_hint,
+              style: TextStyle(fontSize: compact ? 12 : 12.5, color: theme.colorScheme.onSurfaceVariant, height: 1.4),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final step in realSteps)
+                  Chip(
+                    avatar: Icon(step.icon, size: 18),
+                    label: Text(step.title),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: onOpenWizard,
+                icon: const Icon(Icons.play_circle_outline),
+                label: Text(t.complaintWizardTile),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWizardLaunchButton({
+    required bool compact,
+    required AppLocalizations t,
+    required VoidCallback onTap,
+  }) {
+    final radius = BorderRadius.circular(compact ? 14 : 16);
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: EdgeInsets.only(top: compact ? 8 : 12, bottom: compact ? 2 : 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7C3AED), Color(0xFF9D4EDD), Color(0xFFB388FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7C3AED).withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.18),
+            blurRadius: 12,
+            offset: const Offset(-4, -4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 420;
+
+              Widget buildCta({required bool fullWidth}) {
+                final button = DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 12 : 14,
+                      vertical: compact ? 8 : 10,
+                    ),
+                    child: Row(
+                      mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          context.t.complaint_assist, // <- Lokalisierung über Context
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+
+                return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
+              }
+
+              return Stack(
+                children: [
+                  Positioned(
+                    right: -30,
+                    top: -30,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 420),
+                      width: compact ? 140 : 160,
+                      height: compact ? 140 : 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [Colors.white.withOpacity(0.22), Colors.white.withOpacity(0.01)],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: -40,
+                    bottom: -40,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 420),
+                      width: compact ? 160 : 190,
+                      height: compact ? 160 : 190,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [Colors.white.withOpacity(0.16), Colors.white.withOpacity(0.0)],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.22),
+                              Colors.white.withOpacity(0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            stops: const [0.0, 0.55],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 14 : 18,
+                      vertical: compact ? 14 : 18,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.18),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 26),
+                            ),
+                            SizedBox(width: compact ? 12 : 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    t.complaintWizardTile,
+                                    style: textTheme.titleMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    t.complaint_wizard_hint,
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: Colors.white.withOpacity(0.92),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!isNarrow) ...[
+                              SizedBox(width: compact ? 10 : 14),
+                              buildCta(fullWidth: false),
+                            ],
+                          ],
+                        ),
+                        if (isNarrow) ...[
+                          const SizedBox(height: 14),
+                          buildCta(fullWidth: true),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openWizardFlow({
+    required List<_WizardStep> steps,
+    required AppLocalizations t,
+    required List<({String id, Widget widget})> sections,
+  }) async {
+    if (steps.isEmpty) return;
+
+    final sectionLookup = {for (final entry in sections) entry.id: entry.widget};
+
+    _wizardError.value = null;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _ComplaintWizardOverlay(
+          steps: steps,
+          sectionLookup: sectionLookup,
+          review: null,
+          busyListenable: _busyNotifier,
+          validateStep: _validateWizardStep,
+          errorListenable: _wizardError,
+          onSaveDraft: _saveDraft,
+          onSubmit: () => _submitComplaint(onSuccess: () => Navigator.of(context).pop()),
+          t: t,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t;
+    final width = MediaQuery.of(context).size.width;
+    final compact = width < 420;
+    final optDentist = t.segment_dentist, optLab = t.segment_lab;
+    final optYes = t.yes, optNo = t.no;
+    final optReturnedYes = t.yes, optReturnedNo = t.no;
+    final optHandlingRep = t.handling_replacement, optHandlingCredit = t.handling_credit, optHandlingRework = t.handling_rework;
+
+    if (segment != optDentist && segment != optLab) segment = optDentist;
+    if (applied != optYes && applied != optNo) applied = optNo;
+    if (injury != optYes && injury != optNo) injury = optNo;
+    if (returned != optReturnedYes && returned != optReturnedNo) returned = optReturnedNo;
+    if (![optHandlingRep, optHandlingCredit, optHandlingRework].contains(handling)) handling = optHandlingRep;
+
+    final isDentist = segment == optDentist;
+    final needInjuryDesc = isDentist && applied == optYes && injury == optYes;
+
+    final wizardSteps = _buildWizardSteps(t, isDentist: isDentist);
+
+    final sections = _buildSections(
+      compact: compact,
+      t: t,
+      isDentist: isDentist,
+      needInjuryDesc: needInjuryDesc,
+      anchored: true,
+      optDentist: optDentist,
+      optLab: optLab,
+      optYes: optYes,
+      optNo: optNo,
+      optReturnedYes: optReturnedYes,
+      optReturnedNo: optReturnedNo,
+      optHandlingRep: optHandlingRep,
+      optHandlingCredit: optHandlingCredit,
+      optHandlingRework: optHandlingRework,
+    );
+
+    final wizardSections = _buildSections(
+      compact: compact,
+      t: t,
+      isDentist: isDentist,
+      needInjuryDesc: needInjuryDesc,
+      anchored: false,
+      optDentist: optDentist,
+      optLab: optLab,
+      optYes: optYes,
+      optNo: optNo,
+      optReturnedYes: optReturnedYes,
+      optReturnedNo: optReturnedNo,
+      optHandlingRep: optHandlingRep,
+      optHandlingCredit: optHandlingCredit,
+      optHandlingRework: optHandlingRework,
+    );
+
+    if (widget.wizardMode && !_wizardOpened && wizardSteps.isNotEmpty) {
+      _wizardOpened = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections);
+      });
+    }
+
+    final body = SingleChildScrollView(
+      controller: _scrollCtrl,
+      padding: EdgeInsets.fromLTRB(compact ? 12 : 16, 12, compact ? 12 : 16, 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: compact ? 640 : 800),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Kopfinfo (rein visuell)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(14, compact ? 12 : 14, 14, compact ? 12 : 14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.report_gmailerrorred_outlined),
+                      SizedBox(width: compact ? 8 : 10),
+                      Expanded(
+                        child: Text(
+                          t.reportComplaint,
+                          style: TextStyle(fontSize: compact ? 17 : 18, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              if (widget.wizardMode)
+                _buildWizardCard(
+                  steps: wizardSteps,
+                  t: t,
+                  compact: compact,
+                  onOpenWizard: () => _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections),
+                ),
+
+              if (wizardSteps.isNotEmpty)
+                _buildWizardLaunchButton(
+                  compact: compact,
+                  t: t,
+                  onTap: () => _openWizardFlow(steps: wizardSteps, t: t, sections: wizardSections),
+                ),
+
+              _buildHelpBox(compact: compact),
+
+              Column(
+                children: [
+                  for (final section in sections) section.widget,
+                ],
+              ),
+
+              if (err != null) _banner(isError: true, text: err!),
+              if (info != null) _banner(isError: false, text: info!),
+
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : _saveDraft,
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(t.saveDraft),
+                    ),
+                    OutlinedButton(onPressed: _handleCancel, child: Text(t.cancel)),
+                    ElevatedButton.icon(
+                      onPressed: busy ? null : () => _submitComplaint(),
+                      icon: busy
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.send_outlined),
+                      label: Text(t.send),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return WillPopScope(
+      onWillPop: () async => _confirmLeaveIfDirty(),
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: Text(t.reportComplaint),
+          leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: _handleBack),
+          actions: [ TextButton(onPressed: _handleCancel, child: Text(t.cancel)) ],
+        ),
+        body: body,
+      ),
+    );
+  }
+
+  Widget _buildHelpBox({required bool compact}) {
+    final t = context.t;
+    final theme = Theme.of(context);
+    final textColor = theme.colorScheme.onSecondaryContainer.withOpacity(0.92);
+    final subtleBg = theme.colorScheme.secondaryContainer.withOpacity(0.55);
+
+    return Card(
+      color: subtleBg,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 12 : 16)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(12, compact ? 10 : 12, 12, compact ? 12 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology_alt_outlined, color: theme.colorScheme.primary),
+                SizedBox(width: compact ? 8 : 10),
+                Expanded(
+                  child: Text(
+                    t.complaint_help_title,
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textColor, fontSize: compact ? 13.5 : 14),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _helpCollapsed ? t.complaint_help_expand : t.complaint_help_collapse,
+                  onPressed: _toggleHelpBox,
+                  icon: Icon(_helpCollapsed ? Icons.expand_more : Icons.expand_less, color: textColor),
+                ),
+              ],
+            ),
+            if (!_helpCollapsed) ...[
+              SizedBox(height: compact ? 4 : 6),
+              Text(
+                t.complaint_help_body,
+                style: TextStyle(color: textColor, height: 1.35, fontSize: compact ? 12.5 : 13),
+              ),
+              SizedBox(height: compact ? 8 : 10),
+              Wrap(
+                spacing: compact ? 6 : 8,
+                runSpacing: compact ? 4 : 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Icon(Icons.auto_stories_outlined, size: 20, color: theme.colorScheme.primary),
+                  Text(
+                    t.complaint_help_hint,
+                    style: TextStyle(color: textColor, fontSize: compact ? 12 : 12.5, height: 1.3),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12, vertical: compact ? 7 : 8),
+                      textStyle: TextStyle(fontSize: compact ? 12.5 : 13),
+                    ),
+                    onPressed: _openHelpLink,
+                    icon: const Icon(Icons.library_books_outlined),
+                    label: Text(t.complaint_help_link),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Gs1ScannerSheet extends StatefulWidget {
+  final AppLocalizations t;
+  const _Gs1ScannerSheet({required this.t});
+
+  @override
+  State<_Gs1ScannerSheet> createState() => _Gs1ScannerSheetState();
+}
+
+class _Gs1ScannerSheetState extends State<_Gs1ScannerSheet> {
+  final MobileScannerController _controller = MobileScannerController(
+    formats: const [BarcodeFormat.dataMatrix],
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
+
+  String? _status;
+  bool _handled = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_handled) return;
+    final barcodes = capture.barcodes.where((b) => (b.rawValue?.isNotEmpty ?? false)).toList();
+    if (barcodes.isEmpty) return;
+
+    final barcode = barcodes.first;
+
+    if (barcode.format != BarcodeFormat.dataMatrix) {
+      setState(() => _status = widget.t.gs1_scan_not_datamatrix);
+      return;
+    }
+
+    final parsed = Gs1DataMatrixParser.parse(barcode.rawValue);
+    if (parsed == null) {
+      setState(() => _status = widget.t.gs1_scan_invalid_gtin);
+      return;
+    }
+
+    _handled = true;
+    Navigator.of(context).pop(parsed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(t.gs1_scan_instruction, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            AspectRatio(
+              aspectRatio: 3 / 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: MobileScanner(
+                  controller: _controller,
+                  onDetect: _onDetect,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (_status != null)
+              Text(
+                _status!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+              ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close),
+              label: Text(t.cancel),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComplaintWizardOverlay extends StatefulWidget {
+  final List<_WizardStep> steps;
+  final Map<String, Widget> sectionLookup;
+  final Widget? review;
+  final ValueListenable<bool> busyListenable;
+  final ValueNotifier<String?>? errorListenable;
+  final String? Function(String stepId)? validateStep;
+  final Future<void> Function()? onSaveDraft;
+  final Future<void> Function() onSubmit;
+  final AppLocalizations t;
+  const _ComplaintWizardOverlay({
+    required this.steps,
+    required this.sectionLookup,
+    this.review,
+    required this.busyListenable,
+    this.errorListenable,
+    this.validateStep,
+    this.onSaveDraft,
+    required this.onSubmit,
+    required this.t,
+    super.key,
+  });
+
+  @override
+  State<_ComplaintWizardOverlay> createState() => _ComplaintWizardOverlayState();
+}
+
+class _ComplaintWizardOverlayState extends State<_ComplaintWizardOverlay> {
+  late final PageController _pageCtrl;
+  late final ValueNotifier<String?> _errorNotifier;
+  int _active = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController(initialPage: 0);
+    _errorNotifier = widget.errorListenable ?? ValueNotifier<String?>(null);
+  }
+
+  @override
+  void dispose() {
+    if (widget.errorListenable == null) _errorNotifier.dispose();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int index) {
+    _setStepError(null);
+    final next = index.clamp(0, widget.steps.length - 1);
+    setState(() => _active = next);
+    _pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 240), curve: Curves.easeInOut);
+  }
+
+  void _setStepError(String? message) {
+    _errorNotifier.value = message;
+    if (message == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  bool _validateActiveStep() {
+    if (widget.validateStep == null) return true;
+    final error = widget.validateStep!(widget.steps[_active].id);
+    _setStepError(error);
+    return error == null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final theme = Theme.of(context);
+    final step = widget.steps[_active];
+    final totalWithoutIntro = (widget.steps.length - 1).clamp(0, widget.steps.length - 1);
+    final completed = _active.clamp(0, totalWithoutIntro);
+    final progress = totalWithoutIntro == 0 ? 0.0 : completed / totalWithoutIntro;
+    final isIntro = step.id == 'intro';
+    final isLast = _active == widget.steps.length - 1;
+
+    Widget buildPage(_WizardStep s) {
+      if (s.id == 'intro') {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.emoji_objects_outlined, size: 72, color: theme.colorScheme.primary),
+                const SizedBox(height: 12),
+                Text(
+                  t.complaintWizardTile,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  t.complaint_wizard_subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  t.complaint_wizard_hint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      final content = widget.sectionLookup[s.id];
+      final children = <Widget>[if (content != null) content];
+      if (s.id == 'privacy' && widget.review != null) {
+        children.addAll([const SizedBox(height: 12), widget.review!]);
+      }
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(children: children),
+      );
+    }
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t.back, onPressed: () => Navigator.of(context).pop()),
+        title: Text(t.complaintWizardTile, style: const TextStyle(fontWeight: FontWeight.w800)),
+        actions: [IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close))],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primaryContainer.withOpacity(0.9),
+                theme.colorScheme.surface.withOpacity(0.85),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerHighest.withOpacity(0.9)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 820),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 4),
+                    Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      clipBehavior: Clip.hardEdge,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primaryContainer.withOpacity(0.8),
+                              theme.colorScheme.surface,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: progress),
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                                builder: (_, value, __) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(99),
+                                  child: LinearProgressIndicator(
+                                    value: value,
+                                    minHeight: 8,
+                                    backgroundColor: theme.colorScheme.onSurface.withOpacity(0.06),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primaryContainer.withOpacity(0.6),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: theme.colorScheme.primary.withOpacity(0.2),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(step.icon, size: 20, color: theme.colorScheme.primary),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(step.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                        if (step.hint.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              step.hint,
+                                              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 260),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Text('$completed/$totalWithoutIntro', style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              ValueListenableBuilder<String?>(
+                                valueListenable: _errorNotifier,
+                                builder: (_, err, __) => AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  child: err == null
+                                      ? const SizedBox.shrink()
+                                      : Container(
+                                          key: const ValueKey('wizard-error'),
+                                          margin: const EdgeInsets.only(top: 4),
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.errorContainer.withOpacity(0.9),
+                                            borderRadius: BorderRadius.circular(12),
+                                            boxShadow: [
+                                              BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 4)),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  err,
+                                                  style: TextStyle(
+                                                    color: theme.colorScheme.onErrorContainer,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: PageView(
+                        controller: _pageCtrl,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (i) => setState(() => _active = i),
+                        children: [for (final s in widget.steps) buildPage(s)],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 8, 4, 14),
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: widget.busyListenable,
+                        builder: (_, busy, __) {
+                          final primaryLabel = isLast ? t.send : (isIntro ? t.complaint_wizard_next : t.complaint_wizard_next);
+                          final onSaveDraft = widget.onSaveDraft;
+
+                          return LayoutBuilder(
+                            builder: (_, constraints) {
+                              final compactActions = constraints.maxWidth < 520;
+                              final spacing = compactActions ? 8.0 : 10.0;
+
+                              Widget buildPrimaryButton({required bool expanded}) => expanded
+                                  ? FilledButton.icon(
+                                      style: FilledButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                        elevation: 2,
+                                        shadowColor: theme.colorScheme.primary.withOpacity(0.25),
+                                      ),
+                                      onPressed: busy
+                                          ? null
+                                          : (isLast
+                                              ? () {
+                                                  if (_validateActiveStep()) widget.onSubmit();
+                                                }
+                                              : () {
+                                                  if (_validateActiveStep()) _goTo(_active + 1);
+                                                }),
+                                      icon: busy
+                                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                          : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                                      label: Text(primaryLabel),
+                                    )
+                                  : SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                                          elevation: 2,
+                                          shadowColor: theme.colorScheme.primary.withOpacity(0.25),
+                                        ),
+                                        onPressed: busy
+                                            ? null
+                                            : (isLast
+                                                ? () {
+                                                    if (_validateActiveStep()) widget.onSubmit();
+                                                  }
+                                                : () {
+                                                    if (_validateActiveStep()) _goTo(_active + 1);
+                                                  }),
+                                        icon: busy
+                                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                            : Icon(isLast ? Icons.send_outlined : Icons.navigate_next),
+                                        label: Text(primaryLabel),
+                                      ),
+                                    );
+
+                              final secondaryButtons = <Widget>[
+                                SizedBox(
+                                  width: compactActions ? double.infinity : null,
+                                  child: OutlinedButton.icon(
+                                    onPressed: (busy || isIntro || _active == 0) ? null : () => _goTo(_active - 1),
+                                    icon: const Icon(Icons.chevron_left),
+                                    label: Text(t.complaint_wizard_prev),
+                                  ),
+                                ),
+                                SizedBox(width: spacing, height: spacing),
+                              ];
+
+                              if (onSaveDraft != null) {
+                                secondaryButtons.addAll([
+                                  SizedBox(
+                                    width: compactActions ? double.infinity : null,
+                                    child: TextButton.icon(
+                                      onPressed: busy ? null : onSaveDraft,
+                                      icon: const Icon(Icons.save_outlined),
+                                      label: Text(t.saveDraft),
+                                    ),
+                                  ),
+                                  SizedBox(width: spacing, height: spacing),
+                                ]);
+                              }
+
+                              if (compactActions) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    ...secondaryButtons,
+                                    buildPrimaryButton(expanded: false),
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                children: [
+                                  ...secondaryButtons,
+                                  Expanded(child: buildPrimaryButton(expanded: true)),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,0 +1,504 @@
+// lib/pages/rep_login_page.dart
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../api/client.dart';
+import 'rep_dashboard_page.dart';
+import '../l10n/app_localizations.dart';
+import '../widgets/password_field.dart';
+import '../widgets/legal_footer.dart';
+
+// L10n-Helper
+extension _L10nX on BuildContext {
+  AppLocalizations get t => AppLocalizations.of(this)!;
+}
+
+/// Öffnet den Vertreter-Login als modalen Dialog. Gibt `true` zurück, wenn der Login erfolgreich war.
+Future<bool?> showRepLoginDialog(BuildContext context, ApiClient api) {
+  return showGeneralDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'rep-login',
+    barrierColor: Colors.black.withOpacity(0.55),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (ctx, anim, __) {
+      return SafeArea(
+        child: Center(
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.97, end: 1).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      child: _RepLoginDialog(api: api),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class RepLoginPage extends StatefulWidget {
+  final ApiClient api;
+  const RepLoginPage({super.key, required this.api});
+
+  @override
+  State<RepLoginPage> createState() => _RepLoginPageState();
+}
+
+class _RepLoginPageState extends State<RepLoginPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openLoginDialog());
+  }
+
+  Future<void> _openLoginDialog() async {
+    final ok = await showRepLoginDialog(context, widget.api);
+
+    if (!mounted) return;
+
+    if (ok == true) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => RepDashboardPage(api: widget.api)),
+        (r) => false,
+      );
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: const SizedBox.shrink(),
+      bottomNavigationBar: LegalFooter(api: widget.api),
+    );
+  }
+}
+
+class _RepLoginDialog extends StatefulWidget {
+  final ApiClient api;
+  const _RepLoginDialog({required this.api});
+
+  @override
+  State<_RepLoginDialog> createState() => _RepLoginDialogState();
+}
+
+class _RepLoginDialogState extends State<_RepLoginDialog> {
+  // --- Login (E-Mail + Passwort) ---
+  final _email = TextEditingController();
+  final _pw    = TextEditingController();
+  bool _busy = false;
+  String? _err;
+
+  void _setErr(String? msg) => setState(() => _err = msg);
+  void _setBusy(bool b) => setState(() => _busy = b);
+
+  void _closeWithSuccess() {
+    Navigator.of(context, rootNavigator: true).pop(true);
+  }
+
+  // =========
+  // LOGIN FLOW (E-Mail + Passwort)
+  // =========
+  Future<void> _submitPasswordLogin() async {
+    final t = context.t;
+    _setErr(null);
+    final email = _email.text.trim().toLowerCase();
+    final pw    = _pw.text;
+
+    if (email.isEmpty || !email.contains('@')) {
+      _setErr(t.email_invalid); // NEU
+      return;
+    }
+    if (pw.isEmpty) {
+      _setErr(t.password_required); // NEU
+      return;
+    }
+
+    _setBusy(true);
+    try {
+      final res = await widget.api.repLogin(email, pw);
+      if (!res.ok) {
+        _setErr(t.login_failed_check_credentials); // NEU
+        return;
+      }
+      if (res.mustChange) {
+        await _openChangePwDialog();
+        return;
+      }
+      _closeWithSuccess();
+    } catch (e) {
+      _setErr(t.login_failed_with_error('$e')); // NEU (parametrisierter Key)
+    } finally {
+      _setBusy(false);
+    }
+  }
+
+  // =========
+  // SECRET-REGISTRATION FLOW
+  // =========
+  Future<void> _openSecretDialog() async {
+    final t = context.t;
+    final mailCtrl = TextEditingController(text: _email.text.trim());
+    final secCtrl  = TextEditingController();
+    String? locErr;
+    bool saving = false;
+
+    final want = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(t.register_temp_password_title), // NEU
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: mailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: t.rep_email_label, // NEU
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              PasswordField(
+                controller: secCtrl,
+                decoration: InputDecoration(
+                  labelText: t.temp_password_label, // NEU
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              if (locErr != null) ...[
+                const SizedBox(height: 8),
+                Text(locErr!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx, false),
+              child: Text(t.cancel),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final email = mailCtrl.text.trim().toLowerCase();
+                      final sec   = secCtrl.text.trim();
+                      if (email.isEmpty || !email.contains('@')) {
+                        setS(() => locErr = t.email_invalid); // NEU
+                        return;
+                      }
+                      if (sec.isEmpty) {
+                        setS(() => locErr = t.temp_password_required); // NEU
+                        return;
+                      }
+                      setS(() { saving = true; locErr = null; });
+                      try {
+                        final ok = await widget.api.repLoginWithSecret(email, sec);
+                        if (!ok) {
+                          setS(() {
+                            saving = false;
+                            locErr = t.temp_password_invalid; // NEU
+                          });
+                          return;
+                        }
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      } catch (e) {
+                        setS(() {
+                          saving = false;
+                          locErr = '${t.error ?? 'Fehler'}: $e';
+                        });
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.login),
+              label: Text(t.continueLabel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (want == true) {
+      await _openChangePwDialog();
+    }
+
+    mailCtrl.dispose();
+    secCtrl.dispose();
+  }
+
+  // Dialog zum Passwort-Ändern (nach Secret-Login oder mustChangePw)
+  Future<void> _openChangePwDialog() async {
+    final t = context.t;
+    final aCtrl = TextEditingController();
+    final bCtrl = TextEditingController();
+    String? locErr;
+    bool saving = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(t.new_password_title), // NEU
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PasswordField(
+                controller: aCtrl,
+                decoration: InputDecoration(
+                  labelText: t.new_password_min8, // NEU
+                  border: const OutlineInputBorder(),
+                  helperText: t.password_requirements,
+                ),
+              ),
+              const SizedBox(height: 10),
+              PasswordField(
+                controller: bCtrl,
+                decoration: InputDecoration(
+                  labelText: t.new_password_repeat_label, // NEU
+                  border: const OutlineInputBorder(),
+                  helperText: t.password_requirements,
+                ),
+                onSubmitted: (_) async {
+                  if (!saving) {
+                    await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
+                  }
+                },
+              ),
+              if (locErr != null) ...[
+                const SizedBox(height: 8),
+                Text(locErr!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx, false),
+              child: Text(t.cancel),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
+                    },
+              icon: saving
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.check),
+              label: Text(t.save ?? 'Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    aCtrl.dispose();
+    bCtrl.dispose();
+
+    if (ok == true) {
+      _closeWithSuccess();
+    }
+  }
+
+  Future<void> _submitChangePw(
+    BuildContext ctx,
+    void Function(void Function()) setS,
+    TextEditingController aCtrl,
+    TextEditingController bCtrl,
+    void Function(String?) setLocErr,
+    void Function() markSaving,
+  ) async {
+    final t = ctx.t;
+    final a = aCtrl.text;
+    final b = bCtrl.text;
+    if (a.isEmpty || b.isEmpty) {
+      setS(() => setLocErr(t.password_both_required)); // NEU
+      return;
+    }
+    if (a != b) {
+      setS(() => setLocErr(t.passwordsDontMatch ?? 'Passwörter stimmen nicht überein.'));
+      return;
+    }
+    if (a.length < 8) {
+      setS(() => setLocErr(t.password_min_length)); // NEU
+      return;
+    }
+
+    setS(() { markSaving(); setLocErr(null); });
+    try {
+      await widget.api.repChangePassword(a);
+      if (ctx.mounted) Navigator.pop(ctx, true);
+    } catch (e) {
+      setS(() => setLocErr(t.password_set_failed('$e'))); // NEU (parametrisiert)
+    }
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final t = context.t;
+    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outline.withOpacity(0.22)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black54, blurRadius: 28, offset: Offset(0, 16)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+        child: AutofillGroup(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
+                    ),
+                    child: SvgPicture.asset(
+                      'assets/DFS_Connect_Rep.svg',
+                      height: 60,
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.rep_area ?? 'Vertreterbereich',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          t.rep_login_title,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    color: scheme.outlineVariant,
+                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                t.quick_access_subtitle,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: scheme.onSurface.withOpacity(0.7)),
+              ),
+              const SizedBox(height: 22),
+              TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.username, AutofillHints.email],
+                decoration: InputDecoration(
+                  labelText: t.email,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              PasswordField(
+                controller: _pw,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  labelText: t.password,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => canLogin ? _submitPasswordLogin() : null,
+              ),
+              const SizedBox(height: 12),
+              if (_err != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: canLogin ? _submitPasswordLogin : null,
+                  icon: _busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.login),
+                  label: Text(t.login), // NEU
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(t.or), // NEU
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : _openSecretDialog,
+                  icon: const Icon(Icons.key),
+                  label: Text(t.i_have_temp_password), // NEU
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

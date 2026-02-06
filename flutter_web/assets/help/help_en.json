@@ -1,0 +1,217 @@
+{
+  "sections": [
+    {
+      "id": "customers",
+      "title": "Customers",
+      "audience": "Customer",
+      "description": "Every step from sign-in to approval – with clear to-dos for each phase.",
+      "topics": [
+        {
+          "id": "customer-access",
+          "title": "Access & Profile",
+          "summary": "Sign in, choose language, manage notifications, and keep your customer profile up to date.",
+          "tags": ["Login", "Profile", "Language"],
+          "steps": [
+            {"title": "Sign in or register", "anchor": "login", "description": "Use the \"Login\" or \"Register\" pages. After signing in you land on the customer dashboard."},
+            {"title": "Language & region", "anchor": "locale", "description": "Switch between DE/EN/ES/FR/IT. Filters, downloads, and help content follow your selection."},
+            {"title": "Profile & company data", "anchor": "profile", "description": "Open \"My Account\". Update contacts, phone numbers, and delivery addresses so follow-up questions can be resolved faster."},
+            {"title": "Enable notifications", "anchor": "notifications", "description": "Under \"Settings\" choose whether to receive status updates by email and enable chat notifications."},
+            {"title": "Security & devices", "anchor": "security", "description": "Sign out on shared devices after each session. The system logs recent sign-ins in the \"Security\" area."}
+          ],
+          "tips": [
+            "Use bookmarks: every help topic provides a deep link you can share with your team.",
+            "If you manage multiple sites, add them as separate addresses so tickets are routed correctly.",
+            "Forgot your password? Use the reset link on the login page or contact your representative."],
+          "screenshots": ["[Screenshot: Login with language switch]", "[Screenshot: Account > Profile & Notifications]"],
+          "links": ["#customer-access", "#customer-profile"]
+        },
+        {
+          "id": "complaint-create",
+          "title": "Start a complaint",
+          "summary": "Create a new ticket, complete required fields, upload evidence, and confirm.",
+          "tags": ["Ticket", "Upload", "Step by step"],
+          "steps": [
+            {"title": "Start & context", "anchor": "start", "description": "From the dashboard click \"New Complaint\". Select product line and region so the right QA teams are notified."},
+            {"title": "Product & lot", "anchor": "product", "description": "Enter article number, lot, production date, and quantity. Required fields are highlighted and validated."},
+            {"title": "Images & documents", "anchor": "upload", "description": "Attach photos, reports, or delivery notes. Use annotations to highlight affected areas (max 10 MB total)."},
+            {"title": "Symptoms & expectation", "anchor": "description", "description": "Describe the deviation, when it occurred, and the expected resolution (replacement, credit, analysis)."},
+            {"title": "Review summary", "anchor": "summary", "description": "Check all details. The automatic helper surfaces missing required data and suggests relevant knowledge base articles."},
+            {"title": "Submit & confirmation", "anchor": "submit", "description": "Send the complaint. You receive a ticket number, email confirmation, and a deep link to the ticket view."}
+          ],
+          "tips": [
+            "Use draft mode if evidence is missing. Drafts remain for 14 days.",
+            "Adding delivery notes improves matching with the production lot.",
+            "Check the knowledge base under the form for common issues before you submit."],
+          "screenshots": ["[Screenshot: Dashboard > New Complaint]", "[Screenshot: Form with required fields & upload]"]
+        },
+        {
+          "id": "complaint-track",
+          "title": "Status, chat & documents",
+          "summary": "Read status, answer questions, add files, and view decisions.",
+          "tags": ["Status", "Chat", "Documents"],
+          "steps": [
+            {"title": "Understand status badges", "anchor": "status", "description": "The timeline shows Received, In Progress, Lab Review, Decision, and Closed with timestamps."},
+            {"title": "Chat & follow-ups", "anchor": "messages", "description": "Respond to the ticket chat. New messages appear in notifications and via email."},
+            {"title": "Upload additional files", "anchor": "followup", "description": "Add more photos or lab results. Each upload is versioned with date and user."},
+            {"title": "Reports & CAPA", "anchor": "reports", "description": "Inspection reports, corrective actions, and credits become visible after release. Hidden items are not yet approved."},
+            {"title": "Contact representative", "anchor": "contact", "description": "Use the \"Contact representative\" button for urgent cases. The chat is prioritized and the representative receives a push notification."}
+          ],
+          "tips": [
+            "Short answers with photos speed up processing.",
+            "Use the ticket PDF export to document status and chat history for audits.",
+            "Deep links are personalized—share access via roles instead of forwarding links."],
+          "screenshots": ["[Screenshot: Ticket status & chat]", "[Screenshot: Documents & CAPA]"]
+        },
+        {
+          "id": "customer-knowledge",
+          "title": "Knowledge base & downloads",
+          "summary": "Find articles, browse product catalogs, and contact support without opening a ticket.",
+          "tags": ["FAQ", "Catalog", "Support"],
+          "steps": [
+            {"title": "Search articles", "anchor": "kb-search", "description": "Use search in the help area or the knowledge base page. Filter by product, region, or category."},
+            {"title": "Catalogs & forms", "anchor": "catalog", "description": "Download manuals and safety sheets in the product catalog. Visibility follows your region."},
+            {"title": "Contact support", "anchor": "support", "description": "If nothing fits, submit the contact form. Your request is saved as a ticket draft for quick handoff."}
+          ],
+          "tips": [
+            "Save frequently used articles as favorites to pin them on the dashboard.",
+            "Download the ZIP export for offline reference when traveling.",
+            "Breadcrumbs help you navigate back to related categories quickly."],
+          "screenshots": ["[Screenshot: Knowledge base search]", "[Screenshot: Product catalog download]"]
+        }
+      ]
+    },
+    {
+      "id": "representatives",
+      "title": "Representatives",
+      "audience": "Representative",
+      "description": "Prioritize, evaluate, and release customer cases while coordinating with DFS/PRRC.",
+      "topics": [
+        {
+          "id": "rep-dashboard",
+          "title": "Dashboard & filters",
+          "summary": "Filter all cases by priority, region, and status and save your views.",
+          "tags": ["Filter", "Overview", "Download"],
+          "steps": [
+            {"title": "Login & role switch", "anchor": "login", "description": "Sign in to the representative area. The role switch shows whether you see customer or representative context."},
+            {"title": "Set & save filters", "anchor": "filters", "description": "Combine status, decision, and customer filters. Save frequent filter sets for quick access."},
+            {"title": "Lists & exports", "anchor": "downloads", "description": "Export filtered lists as CSV/PDF. Exports respect the current language."}
+          ],
+          "tips": [
+            "From the customer profile jump directly to open tickets for that company.",
+            "Star urgent tickets to pin them in favorites.",
+            "Sort by \"Recently updated\" to react faster."],
+          "screenshots": ["[Screenshot: Representative dashboard with filters]"]
+        },
+        {
+          "id": "rep-casework",
+          "title": "Ticket work & communication",
+          "summary": "Ask for details, keep internal notes, and reply safely to customers.",
+          "tags": ["Chat", "Notes", "Attachments"],
+          "steps": [
+            {"title": "Open the ticket", "anchor": "open", "description": "Select a ticket. The header shows customer, product, and current phase."},
+            {"title": "Internal notes", "anchor": "notes", "description": "Add internal comments visible only to DFS/PRRC and representatives to avoid confusing the customer."},
+            {"title": "Customer chat", "anchor": "chat", "description": "Reply with clear actions. Attach files directly in the chat."},
+            {"title": "Check attachments", "anchor": "attachments", "description": "Uploads are versioned with user and date. Add missing evidence or request it via chat."}
+          ],
+          "tips": [
+            "Use response templates for recurring guidance (e.g., packaging checks).",
+            "Link customers to the exact form section via deep link when data is missing.",
+            "Update status only when all data is present to avoid rework."],
+          "screenshots": ["[Screenshot: Ticket with chat & internal notes]"]
+        },
+        {
+          "id": "rep-decisions",
+          "title": "Evaluate & release",
+          "summary": "Document decisions, manage visibility, and involve PRRC.",
+          "tags": ["Decision", "PRRC", "Approval"],
+          "steps": [
+            {"title": "Capture the decision", "anchor": "decision", "description": "Open \"Evaluate\". Record decision, rationale, impacted lots, and optional CAPA."},
+            {"title": "Set visibility", "anchor": "visibility", "description": "Choose whether the result is visible to customers or stays internal. PRRC always has read access."},
+            {"title": "Request approval", "anchor": "approval", "description": "Send the draft to PRRC. After approval, customers are notified and documents are published according to visibility."}
+          ],
+          "tips": [
+            "Set a reminder date when evidence is missing.",
+            "PRRC note: every decision needs a source (lab report, customer photo, CAPA).",
+            "When declining, add preventive advice to avoid repeat issues."],
+          "screenshots": ["[Screenshot: Decision dialog]"]
+        },
+        {
+          "id": "rep-knowledge",
+          "title": "Knowledge & catalogs",
+          "summary": "Use response templates, manuals, and product info in representative context.",
+          "tags": ["FAQ", "Manual", "Export"],
+          "steps": [
+            {"title": "Filter by segment", "anchor": "segment", "description": "In knowledge view, filter by segment, region, and language. Saved filters persist for future sessions."},
+            {"title": "Share downloads", "anchor": "share", "description": "Share catalogs via deep link. Visibility follows the assigned role; customers only see customer-visible files."},
+            {"title": "Offline package", "anchor": "offline", "description": "Download the \"Offline advisory\" bundle to show product notes on-site without internet."}
+          ],
+          "tips": [
+            "Favorite articles to surface them on the dashboard.",
+            "Search by product number to jump straight to matching manuals.",
+            "Refresh outdated links—the system flags expiring documents."],
+          "screenshots": ["[Screenshot: Knowledge base with role filter]"]
+        }
+      ]
+    },
+    {
+      "id": "dfs",
+      "title": "DFS Users & PRRC",
+      "audience": "DFS / PRRC",
+      "description": "Internal space for quality assurance, CAPA control, audits, and permissions.",
+      "topics": [
+        {
+          "id": "dfs-overview",
+          "title": "Quality dashboard & routing",
+          "summary": "Triage incoming tickets, assign QA teams, and monitor SLAs.",
+          "tags": ["Triage", "SLA", "Routing"],
+          "steps": [
+            {"title": "Intake review", "anchor": "intake", "description": "Use the admin dashboard to see new tickets with severity and region. Assign QA teams or labs."},
+            {"title": "SLA monitoring", "anchor": "sla", "description": "Traffic lights show when SLA limits are reached. Escalate tickets to representatives or PRRC."},
+            {"title": "Data quality", "anchor": "data", "description": "Flag missing required data. Customers and reps receive automatic prompts to complete details."}
+          ],
+          "tips": [
+            "Use bulk actions to assign multiple tickets to one lab.",
+            "The \"PRRC relevant\" filter highlights regulatory-risk cases.",
+            "CSV exports include audit timestamps for each status change."],
+          "screenshots": ["[Screenshot: Admin dashboard with SLA indicators]"]
+        },
+        {
+          "id": "dfs-capa",
+          "title": "CAPA, reports & permissions",
+          "summary": "Create CAPA items, upload reports, and manage visibility and roles.",
+          "tags": ["CAPA", "QA", "Permissions"],
+          "steps": [
+            {"title": "Create CAPA", "anchor": "capa", "description": "In the admin CAPA dashboard select \"New CAPA\". Link ticket, root cause, action, owners, and due date."},
+            {"title": "Upload reports", "anchor": "reports", "description": "Upload lab reports as PDFs. Link them to a ticket, a CAPA, and a visibility level."},
+            {"title": "Check permissions", "anchor": "roles", "description": "Visibility per document: PRRC-only, Internal (DFS/Representatives), or Customer-visible. Changes create an audit trail."},
+            {"title": "Audit export", "anchor": "export", "description": "Export ticket history, decisions, and documents as a ZIP for audits with timestamps and user IDs."}
+          ],
+          "tips": [
+            "Set reminders for CAPA due dates; owners get email notifications.",
+            "Use tags (segment, region) to find reports faster.",
+            "Combine multiple tickets into one CAPA when they share the same root cause."],
+          "screenshots": ["[Screenshot: CAPA detail with report]"]
+        },
+        {
+          "id": "prrc-safeguards",
+          "title": "PRRC safeguards",
+          "summary": "Document assessments, approvals, rights, and visibility for audits.",
+          "tags": ["PRRC", "Compliance", "Audit"],
+          "steps": [
+            {"title": "Evidence for assessments", "anchor": "assessment", "description": "Attach sources (lab findings, lot checks, customer communication). Each assessment is time-stamped."},
+            {"title": "Document approvals", "anchor": "approval", "description": "Two-stage flow: representative recommendation and PRRC final approval. Both steps are logged."},
+            {"title": "Control rights & visibility", "anchor": "rights", "description": "Set visibility per document: PRRC-only, Internal, or Customer-visible. Each change is audited."},
+            {"title": "Share deep links", "anchor": "links", "description": "Use signed deep links for audits. Links are time-bound and show the current release state."},
+            {"title": "Export PRRC log", "anchor": "log", "description": "Export the PRRC log with all decisions, approvals, sources, and recipients as PDF."}
+          ],
+          "tips": [
+            "Use the PRRC log as an audit attachment.",
+            "Always check visibility before sharing—the app shows the current release level.",
+            "For high-risk cases add an internal CAPA reference to simplify later reviews."],
+          "screenshots": ["[Screenshot: PRRC log & permissions]"],
+          "links": ["#prrc-safeguards", "#prrc-audit"]
+        }
+      ]
+    }
+  ]
+}

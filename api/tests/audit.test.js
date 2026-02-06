@@ -1,0 +1,363 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  AUDIT_FINDING_SEVERITY,
+  auditActionSave,
+  auditFindingSave,
+  auditGet,
+  auditSave,
+  auditorSave,
+  auditorAll,
+  __setRedisClientForTests,
+  isAuditorQualified,
+  auditUpdate,
+} from '../_lib/store.js';
+
+function isoDaysFromNow(days) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
+function buildQualifiedAuditor(name = 'Test Auditor') {
+  return {
+    name,
+    email: `${name.replace(/\s+/g, '.').toLowerCase()}@example.com`,
+    qualifications: {
+      internalAuditorTrainingDate: isoDaysFromNow(-600),
+      experienceYears: 4,
+      requalificationDueDate: isoDaysFromNow(100),
+    },
+  };
+}
+
+function createMockRes() {
+  const headers = new Map();
+  let body = '';
+  return {
+    statusCode: 200,
+    setHeader: (k, v) => headers.set(k, v),
+    getHeader: (k) => headers.get(k),
+    end: (chunk) => {
+      body = chunk?.toString?.() || '';
+    },
+    _getBody: () => body,
+    _headers: headers,
+  };
+}
+
+async function invokeAuditHandler(handler, { method = 'POST', body = {}, headers = {}, query = {} } = {}) {
+  const res = createMockRes();
+  const req = {
+    method,
+    headers: { 'content-type': 'application/json', ...headers },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+    query,
+  };
+  await handler(req, res);
+  const raw = res._getBody();
+  const parsed = raw ? JSON.parse(raw) : {};
+  return { res, parsed };
+}
+
+test('blocks auditor assignment when independence rules conflict', async () => {
+  const auditor = await auditorSave({
+    ...buildQualifiedAuditor('Conflict Auditor'),
+    independenceRules: { restrictedOrgUnits: ['Operations'] },
+  });
+  await assert.rejects(
+    () =>
+      auditSave({
+        title: 'Konflikt-Audit',
+        auditeesOrgUnits: ['Operations'],
+        plannedStart: isoDaysFromNow(1),
+        plannedEnd: isoDaysFromNow(2),
+        scopeText: 'Test Scope',
+        leadAuditorId: auditor.id,
+      }),
+    /Konflikt/,
+  );
+});
+
+test('detects overdue re-qualification', async () => {
+  const auditor = await auditorSave({
+    ...buildQualifiedAuditor('Expired Auditor'),
+    qualifications: {
+      internalAuditorTrainingDate: isoDaysFromNow(-1200),
+      experienceYears: 4,
+      requalificationDueDate: isoDaysFromNow(-1),
+    },
+  });
+  assert.equal(isAuditorQualified(auditor), false);
+});
+
+test('computes default due dates based on finding severity', async () => {
+  const auditor = await auditorSave(buildQualifiedAuditor('DueDate Auditor'));
+  const audit = await auditSave({
+    title: 'Frist-Test',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    leadAuditorId: auditor.id,
+  });
+  const finding = await auditFindingSave({
+    auditId: audit.id,
+    type: AUDIT_FINDING_SEVERITY.MAJOR,
+    description: 'Schwerwiegende Abweichung',
+  });
+  const action = await auditActionSave({ auditId: audit.id, findingId: finding.id, description: 'Frist prüfen' });
+  const due = new Date(action.dueDate).getTime();
+  const anchor = new Date(audit.plannedEnd).getTime();
+  const diffDays = Math.round((due - anchor) / (1000 * 60 * 60 * 24));
+  assert.equal(diffDays, 90);
+});
+
+test('nachaudit triggered for ineffective actions', async () => {
+  const auditor = await auditorSave(buildQualifiedAuditor('Nachaudit Auditor'));
+  const audit = await auditSave({
+    title: 'Nachaudit-Trigger',
+    plannedStart: isoDaysFromNow(-2),
+    plannedEnd: isoDaysFromNow(-1),
+    scopeText: 'Scope',
+    leadAuditorId: auditor.id,
+  });
+  const finding = await auditFindingSave({
+    auditId: audit.id,
+    type: AUDIT_FINDING_SEVERITY.MINOR,
+    description: 'Kleinigkeit',
+  });
+  await auditActionSave({
+    auditId: audit.id,
+    findingId: finding.id,
+    status: 'ineffective',
+    description: 'Wirksamkeit fehlgeschlagen',
+  });
+  const updated = await auditGet(audit.id);
+  assert.equal(updated.status, 'nachauditRequired');
+});
+
+test('maps auditor objects and still blocks unknown auditors without upserting', async () => {
+  const beforeCount = (await auditorAll()).length;
+  const lead = await auditorSave(buildQualifiedAuditor('Primary Lead'));
+  const audit = await auditSave({
+    title: 'Valid Audit',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    orgUnit: 'Operations',
+    leadAuditorId: lead.id,
+  });
+
+  const updated = await auditUpdate(audit.id, { leadAuditor: { id: lead.id, name: 'Alias Lead' } });
+  assert.equal(updated.leadAuditorId, lead.id);
+
+  const withCo = await auditUpdate(audit.id, { coAuditors: [{ id: lead.id }] });
+  assert.deepEqual(withCo.coAuditorIds, [lead.id]);
+
+  await assert.rejects(() => auditUpdate(audit.id, { leadAuditorId: 'does-not-exist' }), /nicht gefunden/);
+  await assert.rejects(() => auditUpdate(audit.id, { coAuditorIds: ['unknown-co'] }), /nicht gefunden/);
+
+  const auditorsAfter = await auditorAll();
+  assert.ok(auditorsAfter.find(a => a.id === lead.id));
+  assert.equal(auditorsAfter.length, beforeCount + 1);
+});
+
+test('generates stable IA audit numbers using yearly redis counter', async () => {
+  const calls = [];
+  const counters = new Map();
+  const fakeRedis = {
+    async incr(key) {
+      const val = (counters.get(key) || 0) + 1;
+      counters.set(key, val);
+      calls.push({ op: 'incr', key, val });
+      return val;
+    },
+    async set(key, value) {
+      calls.push({ op: 'set', key, value });
+      return 'ok';
+    },
+    async get() { return null; },
+    async del() { return null; },
+    async keys() { return []; },
+  };
+
+  __setRedisClientForTests(fakeRedis);
+  const lead = await auditorSave(buildQualifiedAuditor('Counter Lead'));
+
+  const audit2025 = await auditSave({
+    title: 'Counter Audit 1',
+    plannedStart: '2025-01-10T00:00:00.000Z',
+    plannedEnd: '2025-01-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  const audit2025b = await auditSave({
+    title: 'Counter Audit 2',
+    plannedStart: '2025-02-10T00:00:00.000Z',
+    plannedEnd: '2025-02-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  const audit2026 = await auditSave({
+    title: 'Counter Audit 3',
+    plannedStart: '2026-02-10T00:00:00.000Z',
+    plannedEnd: '2026-02-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  __setRedisClientForTests(null);
+
+  assert.equal(audit2025.auditNumber, 'IA-25-01');
+  assert.equal(audit2025.auditNo, 'IA-25-01');
+  assert.equal(audit2025b.auditNumber, 'IA-25-02');
+  assert.equal(audit2026.auditNumber, 'IA-26-01');
+
+  const updated = await auditUpdate(audit2025.id, { title: 'keep number' });
+  assert.equal(updated.auditNumber, 'IA-25-01');
+  assert.ok(calls.some(c => c.op === 'incr' && /audit:counter:25/.test(c.key)));
+});
+
+test('replaces placeholder audit numbers during creation', async () => {
+  const lead = await auditorSave(buildQualifiedAuditor('Placeholder Lead'));
+
+  const audit = await auditSave({
+    title: 'Placeholder Audit',
+    plannedStart: '2030-01-10T00:00:00.000Z',
+    plannedEnd: '2030-01-12T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+    auditNumber: 'TEMP-12345',
+  });
+
+  assert.equal(audit.auditNumber.startsWith('IA-30-'), true);
+  assert.equal(audit.auditNo, audit.auditNumber);
+});
+
+test('keeps audit numbers stable on update attempts', async () => {
+  const lead = await auditorSave(buildQualifiedAuditor('Immutable Lead'));
+
+  const audit = await auditSave({
+    title: 'Immutable Audit',
+    plannedStart: '2031-03-01T00:00:00.000Z',
+    plannedEnd: '2031-03-03T00:00:00.000Z',
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  });
+
+  const updated = await auditUpdate(audit.id, { auditNumber: 'IA-99-99', auditNo: 'IA-99-99', title: 'Updated' });
+
+  assert.equal(updated.auditNumber, audit.auditNumber);
+  assert.equal(updated.auditNo, audit.auditNo);
+  assert.equal(updated.title, 'Updated');
+});
+
+test('enforces independence between auditor org unit and audit org unit', async () => {
+  const lead = await auditorSave({
+    ...buildQualifiedAuditor('Independence Lead'),
+    orgUnit: 'QA',
+  });
+  await assert.rejects(
+    () =>
+      auditSave({
+        title: 'OrgUnit Conflict',
+        plannedStart: isoDaysFromNow(1),
+        plannedEnd: isoDaysFromNow(2),
+        scopeText: 'Scope',
+        orgUnit: 'QA',
+        leadAuditorId: lead.id,
+      }),
+    /eigenen Bereich/,
+  );
+});
+
+test('POST handler accepts leadAuditorId and returns validation details for errors', async () => {
+  process.env.ADMIN_SECRET = 'test-secret';
+  const { default: handler } = await import('../admin/audits.js');
+  const lead = await auditorSave(buildQualifiedAuditor('Handler Lead'));
+
+  const validPayload = {
+    title: 'Handler Audit',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    leadAuditorId: lead.id,
+  };
+  const { res: okRes, parsed: okParsed } = await invokeAuditHandler(handler, {
+    method: 'POST',
+    body: validPayload,
+    headers: { 'x-admin-secret': 'test-secret' },
+  });
+  assert.equal(okRes.statusCode, 200);
+  assert.equal(okParsed.ok, true);
+  assert.equal(okParsed.audit.leadAuditorId, lead.id);
+
+  const invalidPayload = { ...validPayload, title: 'Bad Lead', leadAuditorId: 'unknown-lead' };
+  const { res: badRes, parsed: badParsed } = await invokeAuditHandler(handler, {
+    method: 'POST',
+    body: invalidPayload,
+    headers: { 'x-admin-secret': 'test-secret' },
+  });
+  assert.equal(badRes.statusCode, 400);
+  assert.ok(/Lead Auditor/.test(badParsed.error));
+  assert.ok(Array.isArray(badParsed.details));
+  assert.ok(badParsed.details.some(d => JSON.stringify(d).includes('leadAuditorId')));
+});
+
+test('persists auditors to redis when a redis client is available', async () => {
+  const calls = [];
+  const fakeRedis = {
+    async set(key, value) {
+      calls.push({ op: 'set', key, value });
+      return 'ok';
+    },
+    async incr() { return 1; },
+    async get() { return null; },
+    async del() { return null; },
+  };
+  __setRedisClientForTests(fakeRedis);
+  const auditor = await auditorSave(buildQualifiedAuditor('Redis Auditor'), { persist: true });
+  __setRedisClientForTests(null);
+
+  assert.ok(
+    calls.some(c => c.op === 'set' && typeof c.key === 'string' && c.key.includes(auditor.id)),
+    'redis set should include auditor key',
+  );
+});
+
+test('hydrates lead auditor from redis when memory is cold', async () => {
+  const backing = new Map();
+  const fakeRedis = {
+    async set(key, value) {
+      backing.set(key, value);
+      return 'ok';
+    },
+    async incr() { return 1; },
+    async get(key) {
+      return backing.get(key) || null;
+    },
+    async keys() {
+      return [];
+    },
+  };
+
+  const moduleKey = `../_lib/store.js?cold=${Date.now()}`;
+  const storeWarm = await import(moduleKey);
+  storeWarm.__setRedisClientForTests(fakeRedis);
+  const persistedLead = await storeWarm.auditorSave(buildQualifiedAuditor('Redis Lead Auditor'), { persist: true });
+
+  const storeCold = await import(moduleKey + '-again');
+  storeCold.__setRedisClientForTests(fakeRedis);
+
+  const audit = await storeCold.auditSave({
+    title: 'Cold Start Audit',
+    plannedStart: isoDaysFromNow(1),
+    plannedEnd: isoDaysFromNow(2),
+    scopeText: 'Scope',
+    leadAuditorId: persistedLead.id,
+  });
+
+  assert.equal(audit.leadAuditorId, persistedLead.id);
+});

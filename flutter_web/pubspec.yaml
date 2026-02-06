@@ -1,0 +1,54 @@
+name: dfs_customer_complaint
+description: DFS Connect
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.10+1
+  http: ^1.2.2
+  intl: ^0.19.0
+  url_launcher: ^6.3.0
+  flutter_localizations:
+    sdk: flutter
+  provider: ^6.1.2
+  file_picker: ^10.3.3
+  image_picker: ^1.1.2
+  mobile_scanner: ^6.0.2
+  country_flags: ^2.2.0
+  fl_chart: ^0.69.0
+  file_saver: ^0.2.12
+  shared_preferences: ^2.3.2
+  pdf: ^3.11.0
+  printing: ^5.12.0
+  image: ^4.2.0
+  flutter_markdown: ^0.6.18
+  archive: ^3.4.10
+  signature: ^5.5.0
+  qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/dfs_logo.png
+    - assets/dfs_logo.svg
+    - assets/dfs_logo_hell.svg
+    - assets/dfs_logo_dunkel.svg
+    - assets/DFS_Hell.svg
+    - assets/DFS_Dunkel.svg
+    - assets/DFS_Connect_Rep.svg
+    - assets/DFS_Connect+.svg
+    - lib/data/dfs_products.csv
+    - assets/help/
+    - assets/emojis/
+  generate: true
+
+flutter_intl:
+  enabled: true
+  
