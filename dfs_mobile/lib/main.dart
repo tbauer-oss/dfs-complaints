@@ -45,6 +45,12 @@ Future<void> main() async {
     try {
       await Firebase.initializeApp();
       debugPrint('[push][init] Firebase initialized (main)');
+      try {
+        await PushMessagingService.instance.init();
+        debugPrint('[push][init] Push service pre-init complete (main)');
+      } catch (e) {
+        debugPrint('[push][init] Push service pre-init failed (main): $e');
+      }
     } catch (e) {
       debugPrint('[push][init] Firebase init failed (main): $e');
     }
