@@ -23,6 +23,8 @@ const String _kPrefsUploadStatusKey = 'dfs_push_last_upload_status';
 const String _kPrefsUploadStatusCodeKey = 'dfs_push_last_upload_status_code';
 const String _kPrefsUploadErrorKey = 'dfs_push_last_upload_error';
 const String _kPrefsUploadAtKey = 'dfs_push_last_upload_at';
+const String _kPrefsLastMessageIdKey = 'dfs_push_last_message_id';
+const String _kPrefsLastMessageAtKey = 'dfs_push_last_message_at';
 
 FirebaseOptions? _optionsCache;
 FirebaseOptions? _firebaseOptions() {
@@ -63,6 +65,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       }
     }
   } catch (_) {}
+  await _recordBackgroundMessage(message);
   if (message.notification != null) return;
   await _showBackgroundNotification(message);
 }
@@ -113,7 +116,7 @@ class PushMessagingService {
         return;
       }
     } else if (notificationSnapshot.isRuntimeRequired && !notificationSnapshot.isGranted) {
-      debugPrint('[push] Android notification permission not granted');
+      debugPrint('[push][perm] Android notification permission not granted');
     }
 
     final token = await messaging.getToken();
@@ -206,13 +209,18 @@ class PushMessagingService {
       }
 
       await _configureLocalNotifications();
-      FirebaseMessaging.onMessage.listen(_showNotification);
+      FirebaseMessaging.onMessage.listen((message) {
+        _recordMessageReceived(message);
+        _showNotification(message);
+      });
       FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        debugPrint('[push][event] notification opened: ${message.messageId ?? '-'}');
+        _recordMessageReceived(message);
+        debugPrint('[push][msg] notification opened: ${message.messageId ?? '-'}');
       });
       FirebaseMessaging.instance.getInitialMessage().then((message) {
         if (message != null) {
-          debugPrint('[push][event] initial notification: ${message.messageId ?? '-'}');
+          _recordMessageReceived(message);
+          debugPrint('[push][msg] initial notification: ${message.messageId ?? '-'}');
         }
       });
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -309,6 +317,20 @@ class PushMessagingService {
     await prefs.setString(_kPrefsUploadAtKey, DateTime.now().toIso8601String());
   }
 
+  Future<void> _recordMessageReceived(RemoteMessage message) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messageId = message.messageId ?? message.data['messageId']?.toString() ?? '';
+      if (messageId.isNotEmpty) {
+        await prefs.setString(_kPrefsLastMessageIdKey, messageId);
+      }
+      await prefs.setString(_kPrefsLastMessageAtKey, DateTime.now().toIso8601String());
+      debugPrint('[push][msg] received ${message.messageId ?? '-'}');
+    } catch (e) {
+      debugPrint('[push][msg] record failed: $e');
+    }
+  }
+
   Future<PushDiagnosticsSnapshot> collectDiagnostics() async {
     final permission = await NotificationPermissionService.instance.snapshot();
     final prefs = await SharedPreferences.getInstance();
@@ -318,6 +340,8 @@ class PushMessagingService {
     final uploadStatusCode = prefs.getInt(_kPrefsUploadStatusCodeKey);
     final uploadError = prefs.getString(_kPrefsUploadErrorKey);
     final uploadAt = prefs.getString(_kPrefsUploadAtKey);
+    final lastMessageId = prefs.getString(_kPrefsLastMessageIdKey);
+    final lastMessageAt = prefs.getString(_kPrefsLastMessageAtKey);
 
     String? currentToken;
     if (!kIsWeb) {
@@ -343,6 +367,8 @@ class PushMessagingService {
       lastUploadStatusCode: uploadStatusCode,
       lastUploadError: uploadError,
       lastUploadAt: uploadAt,
+      lastMessageId: lastMessageId,
+      lastMessageAt: lastMessageAt,
       channelInfo: channelInfo,
     );
   }
@@ -395,30 +421,7 @@ class PushMessagingService {
 
     debugPrint('[push][token] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
 
-    try {
-      await _ensureAppInfo();
-      await api.registerPushToken(
-        token,
-        platform: platform,
-        locale: lang,
-        lang: lang.isEmpty ? null : lang,
-        appVersion: _appVersion,
-        appBuild: _appBuild,
-      );
-
-      api.pushDeviceToken = token;
-      await _recordUploadResult(success: true, statusCode: 200);
-      debugPrint('[push][backend] token registered');
-      
-      if (hasAuth) {
-        _lastToken = token;
-        _lastLang = lang;
-      }
-    } catch (e) {
-      final statusCode = e is ApiError ? e.status : 0;
-      await _recordUploadResult(success: false, statusCode: statusCode, error: e.toString());
-      debugPrint('[push][backend] register token failed: $e');
-    }
+    await _registerTokenWithRetry(api, token, platform, lang, hasAuth);
   }
 
   void _showNotification(RemoteMessage message) {
@@ -428,9 +431,10 @@ class PushMessagingService {
     final title = notification?.title ?? dataTitle;
     final body = notification?.body ?? dataBody;
     if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
-      debugPrint('[push][notify] skipped empty notification payload');
+      debugPrint('[push][msg] skipped empty notification payload');
       return;
     }
+    debugPrint('[push][msg] foreground message ${message.messageId ?? '-'} title=$title');
     final androidDetails = AndroidNotificationDetails(
       'complaint-status',
       'Complaint status updates',
@@ -469,6 +473,71 @@ class PushMessagingService {
       debugPrint('[push] package info unavailable: $e');
     }
   }
+
+  bool _shouldRetry(ApiError? error) {
+    if (error == null) return true;
+    if (error.status == 0) return true;
+    if (error.status == 408 || error.status == 429) return true;
+    if (error.status >= 500 && error.status < 600) return true;
+    return false;
+  }
+
+  Future<void> _registerTokenWithRetry(
+    ApiClient api,
+    String token,
+    String platform,
+    String lang,
+    bool hasAuth,
+  ) async {
+    final delays = <Duration>[
+      const Duration(seconds: 1),
+      const Duration(seconds: 2),
+      const Duration(seconds: 5),
+    ];
+    ApiError? lastApiError;
+    Object? lastError;
+
+    for (var attempt = 0; attempt <= delays.length; attempt += 1) {
+      try {
+        await _ensureAppInfo();
+        await api.registerPushToken(
+          token,
+          platform: platform,
+          locale: lang,
+          lang: lang.isEmpty ? null : lang,
+          appVersion: _appVersion,
+          appBuild: _appBuild,
+        );
+
+        api.pushDeviceToken = token;
+        await _recordUploadResult(success: true, statusCode: 200);
+        debugPrint('[push][upload] token registered (attempt ${attempt + 1})');
+
+        if (hasAuth) {
+          _lastToken = token;
+          _lastLang = lang;
+        }
+        return;
+      } catch (e) {
+        lastError = e;
+        lastApiError = e is ApiError ? e : null;
+        final statusCode = lastApiError?.status ?? 0;
+        debugPrint('[push][upload] register failed (attempt ${attempt + 1}): $e');
+
+        if (!_shouldRetry(lastApiError) || attempt == delays.length) {
+          await _recordUploadResult(success: false, statusCode: statusCode, error: e.toString());
+          return;
+        }
+
+        await Future.delayed(delays[attempt]);
+      }
+    }
+
+    if (lastError != null) {
+      final statusCode = lastApiError?.status ?? 0;
+      await _recordUploadResult(success: false, statusCode: statusCode, error: lastError.toString());
+    }
+  }
 }
 
 class PushDiagnosticsSnapshot {
@@ -484,6 +553,8 @@ class PushDiagnosticsSnapshot {
     required this.lastUploadStatusCode,
     required this.lastUploadError,
     required this.lastUploadAt,
+    required this.lastMessageId,
+    required this.lastMessageAt,
     required this.channelInfo,
   });
 
@@ -498,6 +569,8 @@ class PushDiagnosticsSnapshot {
   final int? lastUploadStatusCode;
   final String? lastUploadError;
   final String? lastUploadAt;
+  final String? lastMessageId;
+  final String? lastMessageAt;
   final PushChannelInfo? channelInfo;
 
   String? maskedToken() {
@@ -527,6 +600,7 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
   if ((dataTitle == null || dataTitle.isEmpty) && (dataBody == null || dataBody.isEmpty)) {
     return;
   }
+  debugPrint('[push][msg] background data-only ${message.messageId ?? '-'}');
 
   final plugin = FlutterLocalNotificationsPlugin();
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -584,5 +658,18 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
       details,
       payload: payload,
     );
+  }
+}
+
+Future<void> _recordBackgroundMessage(RemoteMessage message) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final messageId = message.messageId ?? message.data['messageId']?.toString() ?? '';
+    if (messageId.isNotEmpty) {
+      await prefs.setString(_kPrefsLastMessageIdKey, messageId);
+    }
+    await prefs.setString(_kPrefsLastMessageAtKey, DateTime.now().toIso8601String());
+  } catch (e) {
+    debugPrint('[push][msg] background record failed: $e');
   }
 }

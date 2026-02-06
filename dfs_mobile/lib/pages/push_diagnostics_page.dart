@@ -95,6 +95,7 @@ class _PushDiagnosticsPageState extends State<PushDiagnosticsPage> {
               _row('Runtime required', permission.isRuntimeRequired.toString()),
               _row('Attempted', permission.attempted.toString()),
               _row('Request count', permission.requestCount.toString()),
+              _row('First-run prompt flagged', permission.firstLaunchPrompted.toString()),
               _row('Last requested at', permission.lastRequestedAt),
               if (permission.isPermanentlyDenied)
                 Padding(
@@ -119,6 +120,9 @@ class _PushDiagnosticsPageState extends State<PushDiagnosticsPage> {
               _row('Last upload status code', data.lastUploadStatusCode?.toString()),
               _row('Last upload error', data.lastUploadError),
               _row('Last upload at', data.lastUploadAt),
+              const SizedBox(height: 8),
+              _row('Last message id', data.lastMessageId),
+              _row('Last message at', data.lastMessageAt),
               const Divider(height: 28),
               Text(
                 'Notification Channel',
