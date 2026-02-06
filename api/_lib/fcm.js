@@ -20,16 +20,6 @@ function normalizeProjectId(value) {
   return (value || '').toString().trim();
 }
 
-function maskToken(token) {
-  if (!token) return 'unknown';
-  if (token.length <= 12) return token;
-  return `${token.slice(0, 6)}…${token.slice(-4)}`;
-}
-
-function normalizeProjectId(value) {
-  return (value || '').toString().trim();
-}
-
 /**
  * Initialisiert firebase-admin einmalig mit dem Servicekonto
  */
