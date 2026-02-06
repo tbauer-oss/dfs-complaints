@@ -3247,6 +3247,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       );
       if (!mounted) return;
       setState(() => _pushSelfResult = result);
+      debugPrint('[push][admin] self-test response: ${result.provider ?? {}}');
       await _showPushSelfResult(result);
     } catch (e) {
       if (!mounted) return;
@@ -3282,6 +3283,19 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 Text(
                   'Keine registrierten Geräte/Tokens vorhanden.',
                   style: TextStyle(color: cs.error),
+                ),
+              ],
+              if (result.provider != null) ...[
+                const SizedBox(height: 12),
+                Text('Backend-Antwort:', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(
+                  'ok=${result.provider?['ok']} '
+                  'sent=${result.provider?['sent']} '
+                  'total=${result.provider?['total']} '
+                  'success=${result.provider?['successCount']} '
+                  'failed=${result.provider?['failureCount']}',
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
               if (result.errorsSample.isNotEmpty) ...[

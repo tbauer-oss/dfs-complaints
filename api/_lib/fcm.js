@@ -9,6 +9,16 @@ import admin from 'firebase-admin';
 
 let initialized = false;
 
+function maskToken(token) {
+  if (!token) return 'unknown';
+  if (token.length <= 12) return token;
+  return `${token.slice(0, 6)}…${token.slice(-4)}`;
+}
+
+function normalizeProjectId(value) {
+  return (value || '').toString().trim();
+}
+
 /**
  * Initialisiert firebase-admin einmalig mit dem Servicekonto
  */
@@ -31,10 +41,23 @@ function ensureFirebaseAdmin() {
     throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_JSON: ' + err);
   }
 
+  const expectedProjectId = normalizeProjectId(process.env.FIREBASE_PROJECT_ID);
+  const serviceProjectId = normalizeProjectId(serviceAccount?.project_id);
+  if (expectedProjectId && serviceProjectId && expectedProjectId !== serviceProjectId) {
+    throw new Error(
+      `FIREBASE_PROJECT_ID mismatch: expected ${expectedProjectId} but service account is ${serviceProjectId}.`,
+    );
+  }
+
   if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
+      projectId: serviceProjectId || undefined,
     });
+  }
+
+  if (serviceProjectId) {
+    console.log('[fcm] firebase-admin initialized', { projectId: serviceProjectId });
   }
 
   initialized = true;
@@ -80,6 +103,11 @@ export async function sendPushToTokens(tokens, notification, data = {}) {
   };
 
   const res = await messaging.sendEachForMulticast(message);
+  console.log('[fcm] multicast send result', {
+    total: tokens.length,
+    successCount: res.successCount,
+    failureCount: res.failureCount,
+  });
 
   const invalidTokens = [];
   const responses = [];
@@ -96,6 +124,26 @@ export async function sendPushToTokens(tokens, notification, data = {}) {
 
     if (isInvalid) {
       invalidTokens.push(tokens[idx]);
+    }
+
+    if (!r.success && code) {
+      const lowerCode = code.toLowerCase();
+      const lowerMsg = (msg || '').toLowerCase();
+      const shouldLog =
+        lowerCode.includes('registration-token-not-registered') ||
+        lowerCode.includes('invalid-registration-token') ||
+        lowerCode.includes('mismatched-credential') ||
+        lowerMsg.includes('senderid mismatch') ||
+        lowerMsg.includes('sender id mismatch') ||
+        lowerMsg.includes('notregistered') ||
+        lowerMsg.includes('invalidregistration');
+      if (shouldLog) {
+        console.warn('[fcm] send error', {
+          code,
+          message: msg,
+          token: maskToken(tokens[idx]),
+        });
+      }
     }
 
     responses.push({
