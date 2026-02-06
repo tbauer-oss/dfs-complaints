@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         applicationId = "de.dfs_diamon.dfs_complaints" // <- deine Paketkennung
-        minSdk = 21
+        minSdk = 23
         targetSdk = 36
         versionCode = 2
         versionName = "1.0.1"
