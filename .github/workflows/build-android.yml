@@ -59,17 +59,18 @@ jobs:
       - name: Write keystore + key.properties
         working-directory: dfs_mobile
         run: |
-          echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/app/dfs-release.jks
+          mkdir -p android/app
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > android/app/dfs-release.jks
 
-          cat > android/key.properties <<'EOF'
-          storeFile=app/dfs-release.jks
-          storePassword=${ANDROID_STORE_PASSWORD}
+          cat > android/key.properties <<EOF
+          storeFile=../app/dfs-release.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
           keyPassword=${ANDROID_KEY_PASSWORD}
           keyAlias=${ANDROID_KEY_ALIAS}
           EOF
         env:
-          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
@@ -81,4 +82,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DFS-CP-debug
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/dfs-connect_1.0.1.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
