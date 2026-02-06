@@ -95,7 +95,10 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _prefs.load().then((_) => _autoDetectLocale());        // Theme & Sprache laden (triggert Rebuild)
-    WidgetsBinding.instance.addPostFrameCallback((_) => _schedulePushSetup('startup'));
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await NotificationPermissionService.instance.requestOnFirstFrame();
+      _schedulePushSetup('startup');
+    });
     _boot();              // Session-Logik
   }
 

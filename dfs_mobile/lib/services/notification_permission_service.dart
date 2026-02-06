@@ -67,6 +67,16 @@ class NotificationPermissionService {
     return false;
   }
 
+  Future<NotificationPermissionSnapshot> requestOnFirstFrame({
+    String trigger = 'first_frame',
+  }) async {
+    final shouldPrompt = await consumeFirstLaunchPromptFlag();
+    if (!shouldPrompt) {
+      return snapshot();
+    }
+    return ensureRequested(force: true, trigger: trigger);
+  }
+
   Future<NotificationPermissionSnapshot> ensureRequested({
     bool force = false,
     String trigger = 'startup',
