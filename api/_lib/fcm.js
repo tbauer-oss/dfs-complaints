@@ -8,6 +8,17 @@
 import admin from 'firebase-admin';
 
 let initialized = false;
+let cachedProjectId = '';
+
+function maskToken(token) {
+  if (!token) return 'unknown';
+  if (token.length <= 12) return token;
+  return `${token.slice(0, 6)}…${token.slice(-4)}`;
+}
+
+function normalizeProjectId(value) {
+  return (value || '').toString().trim();
+}
 
 function maskToken(token) {
   if (!token) return 'unknown';
@@ -43,6 +54,9 @@ function ensureFirebaseAdmin() {
 
   const expectedProjectId = normalizeProjectId(process.env.FIREBASE_PROJECT_ID);
   const serviceProjectId = normalizeProjectId(serviceAccount?.project_id);
+  if (!expectedProjectId && !serviceProjectId) {
+    throw new Error('FIREBASE_PROJECT_ID is missing and service account has no project_id.');
+  }
   if (expectedProjectId && serviceProjectId && expectedProjectId !== serviceProjectId) {
     throw new Error(
       `FIREBASE_PROJECT_ID mismatch: expected ${expectedProjectId} but service account is ${serviceProjectId}.`,
@@ -56,11 +70,17 @@ function ensureFirebaseAdmin() {
     });
   }
 
-  if (serviceProjectId) {
-    console.log('[fcm] firebase-admin initialized', { projectId: serviceProjectId });
+  cachedProjectId = serviceProjectId || expectedProjectId;
+  if (cachedProjectId) {
+    console.log('[fcm] firebase-admin initialized', { projectId: cachedProjectId });
   }
 
   initialized = true;
+}
+
+export function getFirebaseProjectId() {
+  if (!initialized) return '';
+  return cachedProjectId;
 }
 
 /**

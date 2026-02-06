@@ -3285,6 +3285,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                   style: TextStyle(color: cs.error),
                 ),
               ],
+              if (result.senderProjectId.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Sender-Projekt: ${result.senderProjectId}', style: theme.textTheme.bodySmall),
+              ],
               if (result.provider != null) ...[
                 const SizedBox(height: 12),
                 Text('Backend-Antwort:', style: theme.textTheme.titleSmall),
@@ -4649,6 +4653,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       final ts = dateFmt.format(res.timestamp.toLocal());
       final stats = res.stats;
       final foundTokens = stats?.foundTokens ?? res.totalTokens;
+      final senderProjectId = res.senderProjectId.trim();
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4657,6 +4662,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
+          if (senderProjectId.isNotEmpty) ...[
+            Text('Sender-Projekt: $senderProjectId', style: theme.textTheme.bodySmall),
+          ] else ...[
+            Text('Sender-Projekt: nicht konfiguriert', style: TextStyle(color: cs.error)),
+          ],
           Text('$foundTokens registrierte Geräte in ${res.languages.length} Sprachgruppen.'),
           if ((stats?.invalidTokensRemoved ?? res.invalidTokens) > 0) ...[
             const SizedBox(height: 6),
@@ -18044,6 +18054,8 @@ class AdminPushBroadcastResult {
   final DateTime timestamp;
   final AdminPushStats? stats;
   final List<AdminPushErrorSample> errorsSample;
+  final String senderProjectId;
+  final bool senderConfigured;
 
   AdminPushBroadcastResult({
     required this.dryRun,
@@ -18054,6 +18066,8 @@ class AdminPushBroadcastResult {
     required this.timestamp,
     this.stats,
     List<AdminPushErrorSample>? errorsSample,
+    this.senderProjectId = '',
+    this.senderConfigured = false,
   })  : languages = List.unmodifiable(languages),
         errors = List.unmodifiable(errors),
         errorsSample = List.unmodifiable(errorsSample ?? const []);
@@ -18099,6 +18113,8 @@ class AdminPushBroadcastResult {
           ? AdminPushStats.fromJson(Map<String, dynamic>.from(json['stats'] as Map))
           : null,
       errorsSample: samples,
+      senderProjectId: (json['senderProjectId'] ?? '').toString(),
+      senderConfigured: json['senderConfigured'] == true,
     );
   }
 }
@@ -18163,6 +18179,7 @@ class AdminPushSelfTestResult {
   final String selfUserId;
   final int tokensFound;
   final Map<String, dynamic>? provider;
+  final String senderProjectId;
 
   AdminPushSelfTestResult({
     required this.ok,
@@ -18172,6 +18189,7 @@ class AdminPushSelfTestResult {
     required this.selfUserId,
     required this.tokensFound,
     this.provider,
+    this.senderProjectId = '',
   });
 
   factory AdminPushSelfTestResult.fromJson(Map<String, dynamic> json) {
@@ -18204,6 +18222,7 @@ class AdminPushSelfTestResult {
       provider: json['provider'] is Map
           ? Map<String, dynamic>.from(json['provider'] as Map)
           : null,
+      senderProjectId: (json['senderProjectId'] ?? '').toString(),
     );
   }
 }
