@@ -25893,7 +25893,7 @@ class AdminApi {
       'body': body,
       if (linkUrl != null && linkUrl.trim().isNotEmpty) 'linkUrl': linkUrl.trim(),
     };
-    final res = await _request('POST', '/api/admin/push-test-to-self', body: payload);
+    final res = await _request('POST', '/api/push/test', body: payload);
     if (res.status != 200) {
       throw 'push test-to-self POST: HTTP ${res.status} ${res.responseText}';
     }

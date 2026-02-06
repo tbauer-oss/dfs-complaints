@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -13,6 +14,7 @@ import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'services/push_notifications.dart';
+import 'services/notification_permission_service.dart';
 import 'services/geo_locale_service.dart';
 import 'theme/app_theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -37,9 +39,15 @@ import 'widgets/password_field.dart';
 import 'utils/lang_utils.dart';
 
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+      debugPrint('[push][init] Firebase initialized (main)');
+    } catch (e) {
+      debugPrint('[push][init] Firebase init failed (main): $e');
+    }
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
   if (html.window.navigator.userAgent.contains('Chrome')) {
@@ -135,9 +143,32 @@ class _MyAppState extends State<MyApp> {
       await Future.delayed(const Duration(milliseconds: 600));
       debugPrint('[push][init] scheduling setup ($trigger)');
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
+      await _maybeShowNotificationNudge();
     } catch (e) {
       debugPrint('[push] setup ($trigger) failed: $e');
     }
+  }
+
+  Future<void> _maybeShowNotificationNudge() async {
+    final context = _navKey.currentContext;
+    if (context == null || !mounted) return;
+    final snapshot = await NotificationPermissionService.instance.snapshot();
+    if (!snapshot.isAndroid || !snapshot.isRuntimeRequired || snapshot.isGranted) return;
+    final shouldShow =
+        await NotificationPermissionService.instance.consumeDeniedNudgeIfNeeded(snapshot);
+    if (!shouldShow || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Benachrichtigungen sind deaktiviert. Bitte in den Einstellungen aktivieren.'),
+        action: SnackBarAction(
+          label: 'Einstellungen',
+          onPressed: () async {
+            await NotificationPermissionService.instance.openSettingsIfNeeded(snapshot);
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _openAdmin(BuildContext context) async {

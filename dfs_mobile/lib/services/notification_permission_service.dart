@@ -13,6 +13,7 @@ class NotificationPermissionSnapshot {
     required this.attempted,
     required this.requestCount,
     required this.lastRequestedAt,
+    required this.firstLaunchPrompted,
   });
 
   final bool isAndroid;
@@ -23,6 +24,7 @@ class NotificationPermissionSnapshot {
   final bool attempted;
   final int requestCount;
   final String? lastRequestedAt;
+  final bool firstLaunchPrompted;
 
   bool get isRuntimeRequired {
     if (!isAndroid) return false;
@@ -39,7 +41,7 @@ class NotificationPermissionSnapshot {
   String toLogString() {
     return 'sdk=${sdkInt ?? '-'} targetSdk=${targetSdk ?? '-'} '
         'compileSdk=${compileSdk ?? '-'} status=${status.name} attempted=$attempted '
-        'requests=$requestCount lastAt=${lastRequestedAt ?? '-'}';
+        'requests=$requestCount firstLaunch=$firstLaunchPrompted lastAt=${lastRequestedAt ?? '-'}';
   }
 }
 
@@ -53,6 +55,7 @@ class NotificationPermissionService {
   static const String _kLastStatusKey = 'dfs_notifications_last_status';
   static const String _kLastRequestAtKey = 'dfs_notifications_last_request_at';
   static const String _kFirstLaunchPromptedKey = 'dfs_notifications_first_launch_prompted';
+  static const String _kDeniedNudgeShownKey = 'dfs_notifications_denied_nudge_shown';
 
   Future<bool> consumeFirstLaunchPromptFlag() async {
     final prefs = await SharedPreferences.getInstance();
@@ -69,7 +72,7 @@ class NotificationPermissionService {
     String trigger = 'startup',
   }) async {
     final before = await snapshot();
-    debugPrint('[push] notification permission snapshot ($trigger): ${before.toLogString()}');
+    debugPrint('[push][perm] snapshot ($trigger): ${before.toLogString()}');
 
     if (!before.isAndroid) {
       return before;
@@ -80,7 +83,7 @@ class NotificationPermissionService {
     }
 
     if (!force && before.attempted) {
-      debugPrint('[push] notification permission already requested; skipping prompt');
+      debugPrint('[push][perm] already requested; skipping prompt');
       return before;
     }
 
@@ -93,8 +96,19 @@ class NotificationPermissionService {
     await _recordAttempt(status: status, increment: false);
 
     final after = await snapshot();
-    debugPrint('[push] notification permission result ($trigger): ${after.toLogString()}');
+    debugPrint('[push][perm] result ($trigger): ${after.toLogString()}');
     return after;
+  }
+
+  Future<bool> consumeDeniedNudgeIfNeeded(NotificationPermissionSnapshot snapshot) async {
+    if (!snapshot.isAndroid || !snapshot.isRuntimeRequired) return false;
+    if (snapshot.isGranted) return false;
+    if (!snapshot.attempted) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool(_kDeniedNudgeShownKey) ?? false;
+    if (shown) return false;
+    await prefs.setBool(_kDeniedNudgeShownKey, true);
+    return true;
   }
 
   Future<void> resetPromptState() async {
@@ -104,7 +118,8 @@ class NotificationPermissionService {
     await prefs.remove(_kLastStatusKey);
     await prefs.remove(_kLastRequestAtKey);
     await prefs.remove(_kFirstLaunchPromptedKey);
-    debugPrint('[push] notification permission prompt state reset');
+    await prefs.remove(_kDeniedNudgeShownKey);
+    debugPrint('[push][perm] prompt state reset');
   }
 
   Future<void> openSettingsIfNeeded(NotificationPermissionSnapshot snapshot) async {
@@ -118,6 +133,7 @@ class NotificationPermissionService {
     final attempted = prefs.getBool(_kAttemptedKey) ?? false;
     final requestCount = prefs.getInt(_kRequestCountKey) ?? 0;
     final lastRequestedAt = prefs.getString(_kLastRequestAtKey);
+    final firstLaunchPrompted = prefs.getBool(_kFirstLaunchPromptedKey) ?? false;
     final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     PermissionStatus status = PermissionStatus.denied;
 
@@ -139,6 +155,7 @@ class NotificationPermissionService {
       attempted: attempted,
       requestCount: requestCount,
       lastRequestedAt: lastRequestedAt,
+      firstLaunchPrompted: firstLaunchPrompted,
     );
   }
 
