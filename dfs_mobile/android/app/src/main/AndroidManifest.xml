@@ -9,6 +9,23 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="complaint-status" />
+        <!-- Firebase Messaging: ensure service/receiver are present (in case manifest merge fails) -->
+        <service
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingReceiver"
+            android:exported="false"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true"
