@@ -196,31 +196,51 @@ class ApiClient {
   }
 
   Future<void> restoreSession() async {
-    if (kIsWeb) {
-      final ls = html.window.localStorage;
-      token       = ls['dfs_token'];
-      adminSecret = ls['dfs_admin'];
-      gate        = ls['dfs_gate'];
-      repToken    = ls['dfs_rep_token'];
-      _repEmail   = ls['dfs_rep_email'];
-      pushDeviceToken = ls['dfs_push_token'];
-
-      _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
-      _persistAdminSession = (adminSecret ?? '').isNotEmpty;
-      _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
+    // ✅ Wenn wir schon einen Token haben: NICHT überschreiben
+    if ((token ?? '').isNotEmpty ||
+        (portalToken ?? '').isNotEmpty ||
+        (repToken ?? '').isNotEmpty ||
+        (adminSecret ?? '').isNotEmpty ||
+        (gate ?? '').isNotEmpty) {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    token       = prefs.getString('dfs_token');
-    adminSecret = prefs.getString('dfs_admin');
-    gate        = prefs.getString('dfs_gate');
-    repToken    = prefs.getString('dfs_rep_token');
-    _repEmail   = prefs.getString('dfs_rep_email');
-    pushDeviceToken = prefs.getString('dfs_push_token');
+    try {
+      final ls = html.window.localStorage;
+
+      // Nur übernehmen, wenn wirklich was da ist (sonst In-Memory nicht killen)
+      final t = ls['dfs_token'];
+      if (t != null && t.isNotEmpty) token = t;
+
+      final a = ls['dfs_admin'];
+      if (a != null && a.isNotEmpty) adminSecret = a;
+
+      final g = ls['dfs_gate'];
+      if (g != null && g.isNotEmpty) gate = g;
+
+      final rt = ls['dfs_rep_token'];
+      if (rt != null && rt.isNotEmpty) repToken = rt;
+
+      final re = ls['dfs_rep_email'];
+      if (re != null && re.isNotEmpty) _repEmail = re;
+
+      final pt = ls['dfs_portal_token'];
+      if (pt != null && pt.isNotEmpty) portalToken = pt;
+
+      final storedProfile = ls['dfs_portal_profile'];
+      if (storedProfile != null && storedProfile.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(storedProfile);
+          if (decoded is Map) portalProfile = decoded.cast<String, dynamic>();
+        } catch (_) {}
+      }
+    } catch (_) {
+      // Nicht-Web (Android/iOS): localStorage existiert nicht -> einfach nichts tun
+    }
 
     _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
     _persistAdminSession = (adminSecret ?? '').isNotEmpty;
+    _persistPortalSession = (portalToken ?? '').isNotEmpty;
     _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
   }
 
