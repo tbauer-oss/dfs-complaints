@@ -64,7 +64,7 @@ jobs:
           test -f android/app/dfs-release.jks
 
           cat > android/key.properties <<EOF
-          storeFile=app/dfs-release.jks
+          storeFile=***-release.jks
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
           keyPassword=${ANDROID_KEY_PASSWORD}
           keyAlias=${ANDROID_KEY_ALIAS}
