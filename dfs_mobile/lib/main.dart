@@ -152,14 +152,8 @@ class _MyAppState extends State<MyApp> {
   Future<void> _schedulePushSetup(String trigger) async {
     if (!mounted) return;
 
-    // immer Firebase/Listener bereitstellen (falls du das nicht schon in initState machst)
+    // Firebase/Listener immer bereitstellen
     await push.init();
-
-    // Nur registrieren, wenn Session ready ist
-    if (!api.hasPushAuth) {
-      debugPrint('[push][init] skip setup ($trigger) - no auth yet');
-      return; // kein _pushRequested setzen!
-    }
 
     if (_pushRequested) return;
     _pushRequested = true;
@@ -167,11 +161,20 @@ class _MyAppState extends State<MyApp> {
     try {
       await Future.delayed(const Duration(milliseconds: 600));
       debugPrint('[push][init] scheduling setup ($trigger)');
+
+      // Setup IMMER ausführen: Permission + Token holen + Listener
       await push.setup(api, languageCode: _prefs.locale?.languageCode);
+
+      // Optional: Wenn Auth noch nicht da ist, später nochmal "replay" wenn Login fertig ist
+      if (!api.hasPushAuth) {
+        debugPrint('[push][init] no auth yet -> will replay token after login');
+        // Hier NICHT returnen - setup ist bereits gelaufen.
+      }
+
       await _maybeShowNotificationNudge();
     } catch (e) {
       debugPrint('[push] setup ($trigger) failed: $e');
-      _pushRequested = false;
+      _pushRequested = false; // retry erlauben
     }
   }
 
