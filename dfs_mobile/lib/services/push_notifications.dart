@@ -93,9 +93,10 @@ class PushMessagingService {
     debugPrint('[push][init] setup start');
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
 
+    final forceFirstLaunch = await NotificationPermissionService.instance.consumeFirstLaunchPromptFlag();
     final notificationSnapshot = await NotificationPermissionService.instance.ensureRequested(
       trigger: 'push_setup',
-      force: forcePermissionPrompt,
+      force: forcePermissionPrompt || forceFirstLaunch,
     );
     await _requestLocalPermissions(notificationSnapshot);
 
