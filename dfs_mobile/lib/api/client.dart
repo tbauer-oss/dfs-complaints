@@ -198,7 +198,6 @@ class ApiClient {
   Future<void> restoreSession() async {
     // Wenn wir schon einen Token haben: NICHT überschreiben
     if ((token ?? '').isNotEmpty ||
-        (portalToken ?? '').isNotEmpty ||
         (repToken ?? '').isNotEmpty ||
         (adminSecret ?? '').isNotEmpty ||
         (gate ?? '').isNotEmpty) {
@@ -224,21 +223,10 @@ class ApiClient {
         final re = ls['dfs_rep_email'];
         if (re != null && re.isNotEmpty) _repEmail = re;
 
-        final pt = ls['dfs_portal_token'];
-        if (pt != null && pt.isNotEmpty) portalToken = pt;
-
-        final storedProfile = ls['dfs_portal_profile'];
-        if (storedProfile != null && storedProfile.isNotEmpty) {
-          try {
-            final decoded = jsonDecode(storedProfile);
-            if (decoded is Map) portalProfile = decoded.cast<String, dynamic>();
-          } catch (_) {}
-        }
-
         final pTok = ls['dfs_push_token'];
         if (pTok != null && pTok.isNotEmpty) pushDeviceToken = pTok;
       } catch (_) {
-        // Web sollte hier nicht crashen – aber safe ist safe
+        // safe no-op
       }
     } else {
       // Mobile/Desktop: SharedPreferences lesen
@@ -259,17 +247,6 @@ class ApiClient {
       final re = prefs.getString('dfs_rep_email');
       if (re != null && re.isNotEmpty) _repEmail = re;
 
-      final pt = prefs.getString('dfs_portal_token');
-      if (pt != null && pt.isNotEmpty) portalToken = pt;
-
-      final storedProfile = prefs.getString('dfs_portal_profile');
-      if (storedProfile != null && storedProfile.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(storedProfile);
-          if (decoded is Map) portalProfile = decoded.cast<String, dynamic>();
-        } catch (_) {}
-      }
-
       final pTok = prefs.getString('dfs_push_token');
       if (pTok != null && pTok.isNotEmpty) pushDeviceToken = pTok;
     }
@@ -277,7 +254,6 @@ class ApiClient {
     // Flags (wie gehabt)
     _persistCustomerSession = (token ?? '').isNotEmpty || (gate ?? '').isNotEmpty;
     _persistAdminSession = (adminSecret ?? '').isNotEmpty;
-    _persistPortalSession = (portalToken ?? '').isNotEmpty;
     _persistRepSession = (repToken ?? '').isNotEmpty || (_repEmail ?? '').isNotEmpty;
   }
 
