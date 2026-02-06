@@ -4,7 +4,6 @@ import 'package:country_flags/country_flags.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/lang_utils.dart';
 
-/// Sprachcode -> Flaggen-Ländercode (für EN nehme ich GB)
 const _langToCountry = <String, String>{
   'de': 'de',
   'en': 'gb',
@@ -15,7 +14,6 @@ const _langToCountry = <String, String>{
 
 class LangAction extends StatelessWidget {
   final void Function(Locale)? onLocaleChanged;
-  /// Nur Flaggen anzeigen (kein Text im Menü)
   final bool flagsOnly;
 
   const LangAction({
@@ -49,22 +47,21 @@ class LangAction extends StatelessWidget {
                 children: [
                   CountryFlag.fromCountryCode(
                     flagCode,
-                    theme: const ImageTheme(
+                    theme: ImageTheme(
                       width: 24,
                       height: 16,
-                      shape: RoundedRectangle(2), // Eckenradius in px
+                      shape: const RoundedRectangle(2), // <- const hier ist ok
                     ),
                   ),
                   if (!flagsOnly) ...[
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(langNameFor(t, code)),
-                    ),
+                    Expanded(child: Text(langNameFor(t, code))),
                   ],
-                  if (isActive) const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(Icons.check, size: 14),
-                  ),
+                  if (isActive)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.check, size: 14),
+                    ),
                 ],
               ),
             );
@@ -75,15 +72,14 @@ class LangAction extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: CountryFlag.fromCountryCode(
             currentFlag,
-            theme: const ImageTheme(
+            theme: ImageTheme(
               width: 26,
               height: 18,
-              shape: RoundedRectangle(3),
+              shape: const RoundedRectangle(3),
             ),
           ),
         ),
       ),
     );
   }
-
 }
