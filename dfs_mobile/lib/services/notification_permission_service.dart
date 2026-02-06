@@ -29,6 +29,10 @@ class NotificationPermissionSnapshot {
     final runtime = sdkInt ?? targetSdk ?? compileSdk ?? 0;
     return runtime >= 33;
   }
+  bool get isSdkUnknown {
+    if (!isAndroid) return false;
+    return sdkInt == null && targetSdk == null && compileSdk == null;
+  }
   bool get isGranted => status == PermissionStatus.granted;
   bool get isPermanentlyDenied => status.isPermanentlyDenied;
 
@@ -67,7 +71,7 @@ class NotificationPermissionService {
     final before = await snapshot();
     debugPrint('[push] notification permission snapshot ($trigger): ${before.toLogString()}');
 
-    if (!before.isAndroid || !before.isRuntimeRequired) {
+    if (!before.isAndroid) {
       return before;
     }
 
@@ -77,6 +81,10 @@ class NotificationPermissionService {
 
     if (!force && before.attempted) {
       debugPrint('[push] notification permission already requested; skipping prompt');
+      return before;
+    }
+
+    if (!before.isRuntimeRequired && !before.isSdkUnknown) {
       return before;
     }
 
