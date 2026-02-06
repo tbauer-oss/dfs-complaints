@@ -17,7 +17,7 @@ import 'services/push_notifications.dart';
 import 'services/notification_permission_service.dart';
 import 'services/geo_locale_service.dart';
 import 'theme/app_theme.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
   if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
 
@@ -29,6 +29,7 @@ import 'pages/rep_login_page.dart';
 import 'pages/rep_dashboard_page.dart' hide ThemeAction;
 import 'pages/legal_privacy_page.dart';
 import 'pages/legal_imprint_page.dart';
+import 'pages/push_debug_page.dart';
 import 'widgets/legal_footer.dart';
 import 'pages/reset_password_page.dart';
 
@@ -360,16 +361,33 @@ class _MyAppState extends State<MyApp> {
                             title: Row(
                               children: [
                                 Expanded(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      t.appTitle,
-                                      softWrap: false,
-                                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
+                                  child: Builder(
+                                    builder: (context) {
+                                      Widget title = FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          t.appTitle,
+                                          softWrap: false,
+                                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      );
+                                      if (kDebugMode) {
+                                        title = GestureDetector(
+                                          onLongPress: () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) => PushDebugPage(api: api),
+                                              ),
+                                            );
+                                          },
+                                          child: title,
+                                        );
+                                      }
+                                      return title;
+                                    },
                                   ),
                                 ),
                               ],

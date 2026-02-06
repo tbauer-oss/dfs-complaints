@@ -81,6 +81,7 @@ class PushMessagingService {
   String? _lastLang;
   String? _appVersion;
   String? _appBuild;
+  String? _packageName;
 
   Future<void> setup(
     ApiClient api, {
@@ -93,6 +94,8 @@ class PushMessagingService {
     await _ensureAppInfo();
 
     final messaging = FirebaseMessaging.instance;
+    await messaging.setAutoInitEnabled(true);
+    await _logFirebaseDiagnostics();
     debugPrint('[push][init] setup start');
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
 
@@ -117,10 +120,10 @@ class PushMessagingService {
         return;
       }
     } else if (notificationSnapshot.isRuntimeRequired && !notificationSnapshot.isGranted) {
-      debugPrint('[push][perm] Android notification permission not granted');
+      debugPrint('[push][perm] runtime permission missing (token should still be obtainable)');
     }
 
-    final token = await messaging.getToken();
+    final token = await _getFcmTokenWithRetry(messaging);
     if (token != null && token.isNotEmpty) {
       await _recordTokenReceived(token);
       debugPrint('[push][token] got FCM token from FirebaseMessaging: $token');
@@ -129,10 +132,10 @@ class PushMessagingService {
 
     await _logLastMessageSnapshot();
 
-    _tokenSub ??= messaging.onTokenRefresh.listen((value) {
+    _tokenSub ??= messaging.onTokenRefresh.listen((value) async {
       debugPrint('[push][token] token refreshed');
-      _recordTokenReceived(value);
-      _registerToken(api, value, languageCode);
+      await _recordTokenReceived(value);
+      await _registerToken(api, value, languageCode);
     });
   }
 
@@ -226,7 +229,7 @@ class PushMessagingService {
           debugPrint('[push][msg] initial notification: ${message.messageId ?? '-'}');
         }
       });
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      // Hintergrund-Handler wird zentral in main.dart registriert, um Doppel-Registration zu vermeiden.
       _initialized = true;
       debugPrint('[push][init] Firebase messaging ready');
     }
@@ -335,6 +338,14 @@ class PushMessagingService {
   }
 
   Future<PushDiagnosticsSnapshot> collectDiagnostics() async {
+    return _collectDiagnostics();
+  }
+
+  Future<PushDiagnosticsSnapshot> diagnostics(ApiClient api) async {
+    return _collectDiagnostics(api: api);
+  }
+
+  Future<PushDiagnosticsSnapshot> _collectDiagnostics({ApiClient? api}) async {
     final permission = await NotificationPermissionService.instance.snapshot();
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString(_kPrefsTokenKey);
@@ -347,10 +358,33 @@ class PushMessagingService {
     final lastMessageAt = prefs.getString(_kPrefsLastMessageAtKey);
 
     String? currentToken;
+    String? firebaseProjectId;
+    String? firebaseAppId;
+    String? firebaseSenderId;
+    String? packageName;
+    final apiToken = api?.pushDeviceToken;
     if (!kIsWeb) {
       try {
         await _ensureFirebase(_firebaseOptions());
-        currentToken = await FirebaseMessaging.instance.getToken();
+        await _ensureAppInfo();
+        packageName = _packageName;
+        final options = Firebase.app().options;
+        firebaseProjectId = options.projectId;
+        firebaseAppId = options.appId;
+        firebaseSenderId = options.messagingSenderId;
+        for (var attempt = 0; attempt < 2; attempt += 1) {
+          if (attempt > 0) {
+            await Future.delayed(const Duration(seconds: 1));
+          }
+          try {
+            currentToken = await FirebaseMessaging.instance.getToken();
+          } catch (e) {
+            debugPrint('[push][diag] token retry ${attempt + 1} failed: $e');
+          }
+          if (currentToken != null && currentToken!.isNotEmpty) {
+            break;
+          }
+        }
       } catch (e) {
         debugPrint('[push][diag] token check failed: $e');
       }
@@ -363,6 +397,11 @@ class PushMessagingService {
       androidSdk: permission.sdkInt,
       compileSdk: permission.compileSdk,
       targetSdk: permission.targetSdk,
+      firebaseProjectId: firebaseProjectId,
+      firebaseAppId: firebaseAppId,
+      firebaseSenderId: firebaseSenderId,
+      packageName: packageName,
+      apiToken: apiToken,
       currentToken: currentToken,
       storedToken: storedToken,
       storedTokenAt: storedTokenAt,
@@ -470,14 +509,57 @@ class PushMessagingService {
   }
 
   Future<void> _ensureAppInfo() async {
-    if (_appVersion != null || _appBuild != null) return;
+    if (_appVersion != null || _appBuild != null || _packageName != null) return;
     try {
       final info = await PackageInfo.fromPlatform();
       _appVersion = info.version;
       _appBuild = info.buildNumber;
+      _packageName = info.packageName;
     } catch (e) {
       debugPrint('[push] package info unavailable: $e');
     }
+  }
+
+  Future<void> _logFirebaseDiagnostics() async {
+    try {
+      await _ensureAppInfo();
+      final options = Firebase.app().options;
+      debugPrint(
+        '[push][diag] firebase projectId=${options.projectId} appId=${options.appId} '
+        'senderId=${options.messagingSenderId} package=${_packageName ?? '-'}',
+      );
+    } catch (e) {
+      debugPrint('[push][diag] firebase options unavailable: $e');
+    }
+  }
+
+  Future<String?> _getFcmTokenWithRetry(FirebaseMessaging messaging) async {
+    final delays = <Duration>[
+      Duration.zero,
+      const Duration(seconds: 1),
+      const Duration(seconds: 2),
+      const Duration(seconds: 5),
+      const Duration(seconds: 8),
+    ];
+
+    for (var attempt = 0; attempt < delays.length; attempt += 1) {
+      final delay = delays[attempt];
+      if (delay > Duration.zero) {
+        await Future.delayed(delay);
+      }
+      try {
+        final token = await messaging.getToken();
+        if (token != null && token.isNotEmpty) {
+          return token;
+        }
+      } catch (e) {
+        debugPrint('[push][token] getToken failed (attempt ${attempt + 1}): $e');
+      }
+    }
+
+    debugPrint('[push][token] no FCM token after ${delays.length} attempts');
+    await _recordUploadResult(success: false, statusCode: 0, error: 'TOKEN_NULL');
+    return null;
   }
 
   Future<void> _logLastMessageSnapshot() async {
@@ -567,6 +649,11 @@ class PushDiagnosticsSnapshot {
     required this.androidSdk,
     required this.compileSdk,
     required this.targetSdk,
+    required this.firebaseProjectId,
+    required this.firebaseAppId,
+    required this.firebaseSenderId,
+    required this.packageName,
+    required this.apiToken,
     required this.currentToken,
     required this.storedToken,
     required this.storedTokenAt,
@@ -583,6 +670,11 @@ class PushDiagnosticsSnapshot {
   final int? androidSdk;
   final int? compileSdk;
   final int? targetSdk;
+  final String? firebaseProjectId;
+  final String? firebaseAppId;
+  final String? firebaseSenderId;
+  final String? packageName;
+  final String? apiToken;
   final String? currentToken;
   final String? storedToken;
   final String? storedTokenAt;
