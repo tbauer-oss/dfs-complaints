@@ -490,13 +490,17 @@ class PushMessagingService {
     final notification = message.notification;
     final dataTitle = message.data['title']?.toString();
     final dataBody = message.data['body']?.toString();
+
     final title = notification?.title ?? dataTitle;
     final body = notification?.body ?? dataBody;
+
     if ((title == null || title.isEmpty) && (body == null || body.isEmpty)) {
       debugPrint('[push][msg] skipped empty notification payload');
       return;
     }
+
     debugPrint('[push][msg] foreground message ${message.messageId ?? '-'} title=$title');
+
     final androidDetails = AndroidNotificationDetails(
       'complaint-status',
       'Complaint status updates',
@@ -505,15 +509,37 @@ class PushMessagingService {
       priority: Priority.high,
       ticker: 'complaint-status',
     );
+
     const iosDetails = DarwinNotificationDetails();
-    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-    _localNotifications.show(
-      id: message.hashCode,
-      title: title,
-      body: body,
-      notificationDetails: details,
-      payload: message.data.isEmpty ? null : jsonEncode(message.data),
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
     );
+
+    // ✅ KOMPATIBEL mit alter & neuer flutter_local_notifications API
+    try {
+      final dynamic n = _localNotifications;
+      Function.apply(
+        n.show,
+        const [],
+        {
+          #id: message.hashCode,
+          #title: title,
+          #body: body,
+          #notificationDetails: details,
+          #payload: message.data.isEmpty ? null : jsonEncode(message.data),
+        },
+      );
+    } on NoSuchMethodError {
+      _localNotifications.show(
+        message.hashCode,
+        title,
+        body,
+        details,
+        payload: message.data.isEmpty ? null : jsonEncode(message.data),
+      );
+    }
   }
 
   String _platformLabel() {
