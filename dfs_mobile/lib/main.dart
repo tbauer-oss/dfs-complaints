@@ -150,8 +150,20 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _schedulePushSetup(String trigger) async {
-    if (!mounted || _pushRequested) return;
+    if (!mounted) return;
+
+    // immer Firebase/Listener bereitstellen (falls du das nicht schon in initState machst)
+    await push.init();
+
+    // Nur registrieren, wenn Session ready ist
+    if (!api.hasPushAuth) {
+      debugPrint('[push][init] skip setup ($trigger) - no auth yet');
+      return; // kein _pushRequested setzen!
+    }
+
+    if (_pushRequested) return;
     _pushRequested = true;
+
     try {
       await Future.delayed(const Duration(milliseconds: 600));
       debugPrint('[push][init] scheduling setup ($trigger)');
@@ -159,6 +171,7 @@ class _MyAppState extends State<MyApp> {
       await _maybeShowNotificationNudge();
     } catch (e) {
       debugPrint('[push] setup ($trigger) failed: $e');
+      _pushRequested = false;
     }
   }
 
