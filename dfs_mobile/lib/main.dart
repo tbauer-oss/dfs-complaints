@@ -45,6 +45,12 @@ Future<void> main() async {
     try {
       await Firebase.initializeApp();
       debugPrint('[push][init] Firebase initialized (main)');
+      try {
+        await PushMessagingService.instance.init();
+        debugPrint('[push][init] Push service pre-init complete (main)');
+      } catch (e) {
+        debugPrint('[push][init] Push service pre-init failed (main): $e');
+      }
     } catch (e) {
       debugPrint('[push][init] Firebase init failed (main): $e');
     }
@@ -89,7 +95,10 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _prefs.load().then((_) => _autoDetectLocale());        // Theme & Sprache laden (triggert Rebuild)
-    WidgetsBinding.instance.addPostFrameCallback((_) => _schedulePushSetup('startup'));
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await NotificationPermissionService.instance.requestOnFirstFrame();
+      _schedulePushSetup('startup');
+    });
     _boot();              // Session-Logik
   }
 

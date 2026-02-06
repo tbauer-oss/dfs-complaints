@@ -11,7 +11,7 @@ import {
   readJson,
 } from '../_lib/http.js';
 import { usersList, pushTokenRemove, repPushTokens, repPushTokenRemove } from '../_lib/store.js';
-import { sendPushToTokens } from '../_lib/fcm.js';
+import { sendPushToTokens, getFirebaseProjectId } from '../_lib/fcm.js';
 import { requirePortalAccess } from './_guard.js';
 import { loadRepById } from '../_lib/repsStore.js';
 
@@ -252,6 +252,8 @@ export default async function handler(req, res) {
         errors: [],
         stats,
         errorsSample,
+        senderProjectId: getFirebaseProjectId(),
+        senderConfigured: isPushConfigured(),
         timestamp: new Date().toISOString(),
       });
     }
@@ -280,6 +282,8 @@ export default async function handler(req, res) {
         ],
         stats,
         errorsSample,
+        senderProjectId: getFirebaseProjectId(),
+        senderConfigured: false,
         timestamp: new Date().toISOString(),
       });
     }
@@ -410,6 +414,8 @@ export default async function handler(req, res) {
       errors,
       stats,
       errorsSample: debug ? errorsSample : errorsSample,
+      senderProjectId: getFirebaseProjectId(),
+      senderConfigured: true,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

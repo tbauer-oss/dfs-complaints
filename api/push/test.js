@@ -11,7 +11,7 @@ import {
   readJson,
 } from '../_lib/http.js';
 
-import { sendPushToTokens } from '../_lib/fcm.js';
+import { sendPushToTokens, getFirebaseProjectId } from '../_lib/fcm.js';
 import { adminPushTokens, adminPushTokenRemove } from '../_lib/store.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 
@@ -125,6 +125,7 @@ export default async function handler(req, res) {
       selfUserId: actor?.email || 'admin',
       tokensFound: 0,
       provider: null,
+      senderProjectId: getFirebaseProjectId(),
     });
   }
 
@@ -209,5 +210,6 @@ export default async function handler(req, res) {
           responses: provider.responses,
         }
       : null,
+    senderProjectId: getFirebaseProjectId(),
   });
 }
