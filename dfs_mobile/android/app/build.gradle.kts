@@ -44,7 +44,12 @@ android {
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            val kpFile = rootProject.file("key.properties")
+            if (kpFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                println("key.properties missing -> release will be unsigned")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
             // ProGuard bei Bedarf:
