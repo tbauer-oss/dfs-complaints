@@ -101,6 +101,7 @@ class PushMessagingService {
       trigger: 'push_setup',
       force: forcePermissionPrompt || forceFirstLaunch,
     );
+    debugPrint('[push][perm] status: ${notificationSnapshot.toLogString()}');
     await _requestLocalPermissions(notificationSnapshot);
 
     if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
@@ -125,6 +126,8 @@ class PushMessagingService {
       debugPrint('[push][token] got FCM token from FirebaseMessaging: $token');
       await _registerToken(api, token, languageCode);
     }
+
+    await _logLastMessageSnapshot();
 
     _tokenSub ??= messaging.onTokenRefresh.listen((value) {
       debugPrint('[push][token] token refreshed');
@@ -420,6 +423,9 @@ class PushMessagingService {
     final platform = _platformLabel();
 
     debugPrint('[push][token] FCM token: $token (platform=$platform, lang=${lang.isEmpty ? '-': lang})');
+    if (!hasAuth) {
+      debugPrint('[push][token] no auth session yet; caching token for later upload');
+    }
 
     await _registerTokenWithRetry(api, token, platform, lang, hasAuth);
   }
@@ -471,6 +477,21 @@ class PushMessagingService {
       _appBuild = info.buildNumber;
     } catch (e) {
       debugPrint('[push] package info unavailable: $e');
+    }
+  }
+
+  Future<void> _logLastMessageSnapshot() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastMessageId = prefs.getString(_kPrefsLastMessageIdKey) ?? '';
+      final lastMessageAt = prefs.getString(_kPrefsLastMessageAtKey) ?? '';
+      if (lastMessageId.isEmpty && lastMessageAt.isEmpty) {
+        debugPrint('[push][msg] last receipt: none');
+        return;
+      }
+      debugPrint('[push][msg] last receipt id=${lastMessageId.isEmpty ? '-' : lastMessageId} at=${lastMessageAt.isEmpty ? '-' : lastMessageAt}');
+    } catch (e) {
+      debugPrint('[push][msg] last receipt log failed: $e');
     }
   }
 
