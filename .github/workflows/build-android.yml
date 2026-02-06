@@ -57,17 +57,23 @@ jobs:
         run: flutter gen-l10n
 
       - name: Write keystore + key.properties
-        working-directory: dfs_mobile
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           mkdir -p android/app
-          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > android/app/dfs-release.jks
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/dfs-release.jks
+          test -f android/app/dfs-release.jks
 
           cat > android/key.properties <<EOF
-          storeFile=../app/dfs-release.jks
+          storeFile=app/dfs-release.jks
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
           keyPassword=${ANDROID_KEY_PASSWORD}
           keyAlias=${ANDROID_KEY_ALIAS}
           EOF
+
+          echo "---- android/key.properties ----"
+          cat android/key.properties
+          echo "---- ls android/app ----"
+          ls -la android/app
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -81,5 +87,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DFS-CP-debug
+          name: DFS-CP-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
