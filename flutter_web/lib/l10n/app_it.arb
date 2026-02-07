@@ -994,8 +994,9 @@
   "customerNewsMarketingHook": "Le ultime novità su prodotti e azienda a colpo d'occhio.",
 
   "gsprTileTitle": "GSPR – General Safety and Performance Requirements",
-  "gsprTileSubtitle": "MDR Annex I requirement matrix",
+  "gsprTileSubtitle": "MDR Annex I",
   "gsprPageTitle": "GSPR – General Safety and Performance Requirements",
+  "gsprComingSoon": "Coming soon",
   "gsprDetailTitle": "GSPR Requirement",
   "gsprChapterI": "MDR Annex I – Chapter I: General requirements",
   "gsprChapterII": "MDR Annex I – Chapter II: Requirements regarding design and manufacture",

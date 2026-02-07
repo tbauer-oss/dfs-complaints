@@ -11745,13 +11745,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case AdminView.gspr:
-        return GsprHomePage(
-          api: widget.api,
-          canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('gspr'),
-          isAdmin: _isSuperuser || _portalRole == 'admin',
-          isPrrc: _portalIsPrrc || _portalIsPrrcAuthorized,
-          isQm: _portalIsQm,
-        );
+        return const GsprHomePage();
       case AdminView.internalErrors:
         final access = _evaluateViewAccess(AdminView.internalErrors);
         if (access == AdminAccessDecision.loading) {
