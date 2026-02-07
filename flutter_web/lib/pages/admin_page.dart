@@ -1450,6 +1450,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         rawData.values.any((value) => value is List && value.whereType<String>().contains('changeManagement'));
     final hasInternalErrorsInStored = rawData != null &&
         rawData.values.any((value) => value is List && value.whereType<String>().contains('internalErrors'));
+    final hasPushDevicesInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('pushDevices'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1475,7 +1477,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       // Auswahl existiert.
       if (shouldMergeDefaults ||
           (!hasChangeManagementInStored && defaults.contains('changeManagement')) ||
-          (!hasInternalErrorsInStored && defaults.contains('internalErrors'))) {
+          (!hasInternalErrorsInStored && defaults.contains('internalErrors')) ||
+          (!hasPushDevicesInStored && defaults.contains('pushDevices'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
