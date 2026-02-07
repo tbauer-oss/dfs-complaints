@@ -19,6 +19,7 @@ const KNOWN_TILES = [
   'capaReports',
   'capaDashboard',
   'fmea',
+  'gspr',
   'internalErrors',
   'changeManagement',
   'audits',

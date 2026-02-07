@@ -22,6 +22,7 @@ import '../models/fmea.dart';
 import '../models/supplier_evaluation.dart';
 import '../models/training.dart';
 import '../models/training_signature.dart';
+import '../models/gspr.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -2612,6 +2613,94 @@ class ApiClient {
     if (!_ok2xx(r.statusCode) && r.statusCode != 204) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
+  }
+
+  Future<List<GsprItem>> gsprItems({required String chapter}) async {
+    final path = Uri(path: '/api/gspr/items', queryParameters: {'chapter': chapter}).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final items = decoded is Map && decoded['items'] is List ? decoded['items'] as List : const [];
+    return items
+        .whereType<Map>()
+        .map((e) => GsprItem.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<GsprItem> gsprItem(String id) async {
+    final r = await http.get(_u('/api/gspr/items/$id'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
+    return GsprItem.fromJson(map.cast<String, dynamic>());
+  }
+
+  Future<GsprItem> createGsprItem(GsprItem item) async {
+    final r = await http.post(
+      _u('/api/gspr/items'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(item.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
+    return GsprItem.fromJson(map.cast<String, dynamic>());
+  }
+
+  Future<GsprItem> updateGsprItem(GsprItem item) async {
+    final r = await http.patch(
+      _u('/api/gspr/items/${item.id}'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(item.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
+    return GsprItem.fromJson(map.cast<String, dynamic>());
+  }
+
+  Future<GsprItem> gsprWorkflowAction(
+    String id, {
+    required String action,
+    String? comment,
+    String? reason,
+  }) async {
+    final r = await http.post(
+      _u('/api/gspr/items/$id/workflow'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({
+        'action': action,
+        if (comment != null) 'comment': comment,
+        if (reason != null) 'reason': reason,
+      }),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
+    return GsprItem.fromJson(map.cast<String, dynamic>());
+  }
+
+  Future<List<AuditEvent>> gsprAudit(String id) async {
+    final r = await http.get(_u('/api/gspr/items/$id/audit'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
+    final items = decoded is Map && decoded['events'] is List ? decoded['events'] as List : const [];
+    return items
+        .whereType<Map>()
+        .map((e) => AuditEvent.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   Future<List<DownloadCategory>> adminDeleteDownloadCategory(String name, {bool force = false}) async {
