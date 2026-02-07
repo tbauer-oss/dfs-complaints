@@ -474,6 +474,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                                   mainAxisSpacing: 12,
                                   crossAxisSpacing: 12,
                                   childAspectRatio: 1.1,
+                                  primary: false,
                                   physics: const NeverScrollableScrollPhysics(),
                                   shrinkWrap: true,
                                   children: [
@@ -702,67 +703,76 @@ class NewsTeaserCard extends StatelessWidget {
         borderRadius: radius,
         child: Stack(
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: gradient,
-                borderRadius: radius,
-                border: Border.all(color: scheme.outlineVariant),
-                boxShadow: isDark
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.55),
-                          blurRadius: 28,
-                          offset: const Offset(0, 18),
-                        ),
-                        BoxShadow(
-                          color: scheme.primary.withOpacity(0.22),
-                          blurRadius: 26,
-                          offset: const Offset(0, 16),
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.14),
-                          blurRadius: 24,
-                          offset: const Offset(0, 14),
-                        ),
-                        BoxShadow(
-                          color: scheme.primary.withOpacity(0.12),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+            IgnorePointer(
+              ignoring: true,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: gradient,
+                  borderRadius: radius,
+                  border: Border.all(color: scheme.outlineVariant),
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.55),
+                            blurRadius: 28,
+                            offset: const Offset(0, 18),
+                          ),
+                          BoxShadow(
+                            color: scheme.primary.withOpacity(0.22),
+                            blurRadius: 26,
+                            offset: const Offset(0, 16),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.14),
+                            blurRadius: 24,
+                            offset: const Offset(0, 14),
+                          ),
+                          BoxShadow(
+                            color: scheme.primary.withOpacity(0.12),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                ),
+                child: const SizedBox(height: 96),
               ),
-              child: const SizedBox(height: 96),
             ),
             Positioned(
               left: 0,
               top: 0,
               bottom: 0,
-              child: Container(
-                width: 4,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withOpacity(0.80),
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+              child: IgnorePointer(
+                ignoring: true,
+                child: Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withOpacity(0.80),
+                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                  ),
                 ),
               ),
             ),
             Positioned(
               right: -60,
               top: -25,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withOpacity(isDark ? 0.28 : 0.20),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: scheme.primary.withOpacity(isDark ? 0.25 : 0.18),
-                      blurRadius: 40,
-                      offset: const Offset(0, 18),
-                    ),
-                  ],
+              child: IgnorePointer(
+                ignoring: true,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withOpacity(isDark ? 0.28 : 0.20),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: scheme.primary.withOpacity(isDark ? 0.25 : 0.18),
+                        blurRadius: 40,
+                        offset: const Offset(0, 18),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -940,6 +950,14 @@ class _DashboardTileState extends State<DashboardTile> {
     setState(() => _pressed = value);
   }
 
+  void _handleTap() {
+    assert(() {
+      debugPrint('[dashboard] tile tap: ${widget.label}');
+      return true;
+    }());
+    widget.onTap();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1019,37 +1037,40 @@ class _DashboardTileState extends State<DashboardTile> {
     return Semantics(
       button: true,
       label: widget.label,
-      child: AnimatedScale(
-        scale: _pressed ? 0.975 : 1.0,
+      child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            // Unified tile widget + fixed accent bar alignment
-            // Premium layered shadow for strong tile separation
-            gradient: gradient,
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          // Premium layered shadow for strong tile separation
+          boxShadow: shadows,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _handleTap,
+            onHighlightChanged: _setPressed,
             borderRadius: radius,
-            border: Border.all(
-              color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.65),
-              width: 1.2,
-            ),
-            boxShadow: shadows,
-          ),
-          child: ClipRRect(
-            borderRadius: radius,
-            child: Stack(
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: widget.onTap,
-                    onTapDown: (_) => _setPressed(true),
-                    onTapUp: (_) => _setPressed(false),
-                    onTapCancel: () => _setPressed(false),
-                    borderRadius: radius,
-                    child: Column(
+            child: Ink(
+              decoration: BoxDecoration(
+                // Unified tile widget + fixed accent bar alignment
+                gradient: gradient,
+                borderRadius: radius,
+                border: Border.all(
+                  color: cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.65),
+                  width: 1.2,
+                ),
+              ),
+              child: AnimatedScale(
+                scale: _pressed ? 0.975 : 1.0,
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOutCubic,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Column(
                       mainAxisSize: MainAxisSize.max,
                       children: [
                         Container(
@@ -1132,20 +1153,21 @@ class _DashboardTileState extends State<DashboardTile> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-                IgnorePointer(
-                  child: Positioned.fill(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: Container(
-                        height: 1.2,
-                        color: Colors.white.withOpacity(isDark ? 0.06 : 0.35),
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: true,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            height: 1.2,
+                            color: Colors.white.withOpacity(isDark ? 0.06 : 0.35),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
