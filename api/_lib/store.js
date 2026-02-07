@@ -374,6 +374,22 @@ function normalizePushTokens(list) {
     const appVersion = hasMeta ? (entry.appVersion || '').toString().trim() : '';
     const appBuild = hasMeta ? (entry.appBuild || '').toString().trim() : '';
     const location = hasMeta ? _normalizeLocation(entry.location || {}) : undefined;
+    const tokenHash = hasMeta && (entry.tokenHash || entry.tokenFingerprint)
+      ? (entry.tokenHash || entry.tokenFingerprint).toString()
+      : crypto.createHash('sha256').update(token).digest('hex');
+    const deviceId = hasMeta
+      ? (entry.deviceId || entry.device_id || entry.id || tokenHash).toString()
+      : tokenHash;
+    const deviceLabel = hasMeta
+      ? (entry.deviceLabel || entry.deviceName || entry.device_name || entry.label || '').toString().trim()
+      : '';
+    const isDisabled = hasMeta
+      ? entry.isDisabled === true || entry.disabled === true
+      : false;
+    const disabledAtRaw = hasMeta ? Number(entry.disabledAt) : NaN;
+    const disabledAt = Number.isFinite(disabledAtRaw) ? disabledAtRaw : null;
+    const disabledBy = hasMeta && entry.disabledBy ? entry.disabledBy : null;
+    const disabledReason = hasMeta && entry.disabledReason ? entry.disabledReason : null;
 
     out.push({
       token,
@@ -382,6 +398,13 @@ function normalizePushTokens(list) {
       locale: locale || undefined,
       createdAt,
       updatedAt,
+      tokenHash,
+      deviceId,
+      ...(deviceLabel ? { deviceLabel } : {}),
+      ...(isDisabled ? { isDisabled: true } : {}),
+      ...(disabledAt ? { disabledAt } : {}),
+      ...(disabledBy ? { disabledBy } : {}),
+      ...(disabledReason ? { disabledReason } : {}),
       ...(appVersion ? { appVersion } : {}),
       ...(appBuild ? { appBuild } : {}),
       ...(location ? { location } : {}),
@@ -2077,7 +2100,7 @@ export async function resetPortalUserUiConfig(email) {
   return {};
 }
 
-export async function pushTokensForEmail(email) {
+export async function pushTokensForEmail(email, { includeDisabled = false } = {}) {
   const user = await userByEmail(email);
   if (!user) return [];
   const normalized = normalizePushTokens(user.pushTokens);
@@ -2085,7 +2108,8 @@ export async function pushTokensForEmail(email) {
     try { await userSave({ ...user, pushTokens: normalized }); }
     catch (e) { console.error('pushTokensForEmail/save', e); }
   }
-  return normalized;
+  if (includeDisabled) return normalized;
+  return normalized.filter((token) => token?.isDisabled !== true);
 }
 
 export async function pushTokenRegister(email, token, meta = {}) {
@@ -2106,6 +2130,9 @@ export async function pushTokenRegister(email, token, meta = {}) {
   if (existingIdx >= 0) {
     const prevLoc = tokens[existingIdx].location;
     const nextLoc = location || prevLoc;
+    const tokenHash = tokens[existingIdx].tokenHash || crypto.createHash('sha256').update(tok).digest('hex');
+    const deviceId = tokens[existingIdx].deviceId || tokenHash;
+    const deviceLabel = (meta?.deviceLabel || meta?.deviceName || meta?.device_name || '').toString().trim();
     tokens[existingIdx] = {
       ...tokens[existingIdx],
       platform: platform || tokens[existingIdx].platform,
@@ -2113,10 +2140,14 @@ export async function pushTokenRegister(email, token, meta = {}) {
       locale: locale || tokens[existingIdx].locale,
       appVersion: appVersion || tokens[existingIdx].appVersion,
       appBuild: appBuild || tokens[existingIdx].appBuild,
+      tokenHash,
+      deviceId,
+      ...(deviceLabel ? { deviceLabel } : {}),
       ...(nextLoc ? { location: nextLoc } : {}),
       updatedAt: now,
     };
   } else {
+    const tokenHash = crypto.createHash('sha256').update(tok).digest('hex');
     tokens.push({
       token: tok,
       platform: platform || undefined,
@@ -2124,6 +2155,10 @@ export async function pushTokenRegister(email, token, meta = {}) {
       locale: locale || undefined,
       createdAt: now,
       updatedAt: now,
+      tokenHash,
+      deviceId: tokenHash,
+      ...(meta?.deviceLabel ? { deviceLabel: meta.deviceLabel.toString().trim() } : {}),
+      isDisabled: false,
       ...(appVersion ? { appVersion } : {}),
       ...(appBuild ? { appBuild } : {}),
       ...(location ? { location } : {}),
@@ -2197,6 +2232,27 @@ export async function repPushTokens(repId) {
   return list;
 }
 
+export async function repPushTokensSave(repId, list = []) {
+  const id = (repId || '').toString().trim();
+  if (!id) return [];
+  const normalized = normalizePushTokens(list);
+  const r = getRedis();
+  if (normalized.length > 0) {
+    if (r) {
+      try { await rset(KEY_REP_PUSH(id), normalized); }
+      catch (e) { console.error('repPushTokensSave/save', e); }
+    }
+    mem.repPushTokens.set(id, normalized);
+  } else {
+    if (r) {
+      try { await rdel(KEY_REP_PUSH(id)); }
+      catch (e) { console.error('repPushTokensSave/del', e); }
+    }
+    mem.repPushTokens.delete(id);
+  }
+  return normalized;
+}
+
 export async function repPushTokenRegister(repId, token, meta = {}) {
   const id = (repId || '').toString().trim();
   const tok = (token || '').toString().trim();
@@ -2222,6 +2278,9 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
   if (idx >= 0) {
     const prevLoc = existing[idx].location;
     const nextLoc = location || prevLoc;
+    const tokenHash = existing[idx].tokenHash || crypto.createHash('sha256').update(tok).digest('hex');
+    const deviceId = existing[idx].deviceId || tokenHash;
+    const deviceLabel = (meta?.deviceLabel || meta?.deviceName || meta?.device_name || '').toString().trim();
     existing[idx] = {
       ...existing[idx],
       platform: platform || existing[idx].platform,
@@ -2229,10 +2288,14 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
       locale: locale || existing[idx].locale,
       appVersion: appVersion || existing[idx].appVersion,
       appBuild: appBuild || existing[idx].appBuild,
+      tokenHash,
+      deviceId,
+      ...(deviceLabel ? { deviceLabel } : {}),
       ...(nextLoc ? { location: nextLoc } : {}),
       updatedAt: now,
     };
   } else {
+    const tokenHash = crypto.createHash('sha256').update(tok).digest('hex');
     existing.push({
       token: tok,
       platform: platform || undefined,
@@ -2243,6 +2306,10 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
       ...(location ? { location } : {}),
       createdAt: now,
       updatedAt: now,
+      tokenHash,
+      deviceId: tokenHash,
+      ...(meta?.deviceLabel ? { deviceLabel: meta.deviceLabel.toString().trim() } : {}),
+      isDisabled: false,
     });
   }
 

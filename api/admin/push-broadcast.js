@@ -168,6 +168,7 @@ export default async function handler(req, res) {
           );
           const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
           for (const entry of pushTokens) {
+            if (entry?.isDisabled === true) continue;
             const tok = (entry?.token || '').toString().trim();
             if (!tok) continue;
             const lang = normLang(entry?.lang || entry?.locale || defaultLang);
@@ -183,6 +184,7 @@ export default async function handler(req, res) {
           const defaultLang = normLang(rep?.lang || 'en');
           const pushTokens = await repPushTokens(repId);
           for (const entry of pushTokens) {
+            if (entry?.isDisabled === true) continue;
             const tok = (entry?.token || '').toString().trim();
             if (!tok) continue;
             const lang = normLang(entry?.lang || entry?.locale || defaultLang);
@@ -215,6 +217,7 @@ export default async function handler(req, res) {
         const pushTokens = Array.isArray(user?.pushTokens) ? user.pushTokens : [];
         if (pushTokens.length > 0 && owner) targetUserIds.add(owner);
         for (const entry of pushTokens) {
+          if (entry?.isDisabled === true) continue;
           const tok = (entry?.token || '').toString().trim();
           if (!tok) continue;
           const lang = normLang(entry?.lang || entry?.locale || defaultLang);
