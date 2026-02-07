@@ -75,6 +75,10 @@
       "src": "/api/admin/push/users/([^/]+)/devices$",
       "dest": "/api/admin/push/users/[userId]/devices.js?userId=$1"
     },
+    {
+      "src": "/api/admin/push/devices/([^/]+)$",
+      "dest": "/api/admin/push/devices/[deviceId].js?deviceId=$1"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
