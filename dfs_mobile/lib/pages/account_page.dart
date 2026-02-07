@@ -12,6 +12,8 @@ import '../data/country_geography.dart';
 import '../l10n/app_localizations.dart';
 import '../models/country.dart';
 import '../services/app_prefs_scope.dart';
+import '../services/push_notifications.dart';
+import '../services/push_prefs.dart';
 import '../utils/lang_utils.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/legal_footer.dart';
@@ -44,11 +46,26 @@ class _AccountPageState extends State<AccountPage> {
   String? err;
   Map<String, dynamic>? acc;
   bool _exportBusy = false;
+  bool _pushEnabled = false;
+  bool _pushBusy = false;
+  DateTime? _lastLogin;
+  final PushPrefs _pushPrefs = PushPrefs();
 
   @override
   void initState() {
     super.initState();
+    _loadPushPrefs();
     _load();
+  }
+
+  Future<void> _loadPushPrefs() async {
+    final enabled = await _pushPrefs.getPushEnabled();
+    final lastLogin = await _pushPrefs.getLastLogin();
+    if (!mounted) return;
+    setState(() {
+      _pushEnabled = enabled;
+      _lastLogin = lastLogin;
+    });
   }
 
   Future<void> _load() async {
@@ -64,6 +81,7 @@ class _AccountPageState extends State<AccountPage> {
         await prefs.setLang(lang);
       }
 
+      await _recordLastLogin();
       setState(() {
         acc = data;
       });
@@ -85,6 +103,95 @@ class _AccountPageState extends State<AccountPage> {
       }
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _recordLastLogin() async {
+    final now = DateTime.now();
+    await _pushPrefs.setLastLogin(now);
+    if (!mounted) return;
+    setState(() {
+      _lastLogin = now;
+    });
+  }
+
+  String _localizedText(BuildContext context, {required String de, required String en}) {
+    final code = Localizations.localeOf(context).languageCode.toLowerCase();
+    return code == 'de' ? de : en;
+  }
+
+  String _platformLabel() {
+    if (kIsWeb) return 'Web';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'Android';
+      case TargetPlatform.iOS:
+        return 'iOS';
+      case TargetPlatform.linux:
+        return 'Linux';
+      case TargetPlatform.macOS:
+        return 'macOS';
+      case TargetPlatform.windows:
+        return 'Windows';
+      case TargetPlatform.fuchsia:
+        return 'Fuchsia';
+    }
+  }
+
+  String _formatLastLogin(BuildContext context, DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final input = DateTime(date.year, date.month, date.day);
+    final diffDays = today.difference(input).inDays;
+    if (diffDays == 0) {
+      return _localizedText(context, de: 'heute', en: 'today');
+    }
+    if (diffDays == 1) {
+      return _localizedText(context, de: 'gestern', en: 'yesterday');
+    }
+    return DateFormat('dd.MM.yyyy', Localizations.localeOf(context).toLanguageTag()).format(date);
+  }
+
+  Future<void> _handlePushToggle(bool enabled) async {
+    if (_pushBusy) return;
+    debugPrint('[push-ui] enabled=$enabled');
+    setState(() => _pushBusy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (enabled) {
+        final locale = Localizations.localeOf(context);
+        await PushMessagingService.instance.replayLatestToken(
+          widget.api,
+          languageCode: locale.languageCode,
+        );
+        await _pushPrefs.setPushEnabled(true);
+        if (!mounted) return;
+        setState(() => _pushEnabled = true);
+      } else {
+        await PushMessagingService.instance.deactivate(widget.api);
+        await _pushPrefs.setPushEnabled(false);
+        if (!mounted) return;
+        setState(() => _pushEnabled = false);
+        messenger.showSnackBar(
+          SnackBar(content: Text(_localizedText(context, de: 'Push deaktiviert', en: 'Push disabled'))),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      final text = enabled
+          ? _localizedText(
+              context,
+              de: 'Push-Benachrichtigungen konnten nicht aktiviert werden.',
+              en: 'Push notifications could not be enabled.',
+            )
+          : _localizedText(
+              context,
+              de: 'Push-Benachrichtigungen konnten nicht deaktiviert werden.',
+              en: 'Push notifications could not be disabled.',
+            );
+      messenger.showSnackBar(SnackBar(content: Text(text)));
+    } finally {
+      if (mounted) setState(() => _pushBusy = false);
     }
   }
 
@@ -224,6 +331,7 @@ class _AccountPageState extends State<AccountPage> {
       final theme = Theme.of(context);
       final highlight = theme.colorScheme.primaryContainer.withOpacity(0.55);
       final surfaceTint = theme.colorScheme.surfaceVariant.withOpacity(0.28);
+      final lastLoginText = _lastLogin == null ? '-' : _formatLastLogin(context, _lastLogin!);
 
       return Container(
         color: surfaceTint,
@@ -358,6 +466,63 @@ class _AccountPageState extends State<AccountPage> {
                           Icons.location_on_outlined,
                           t.address ?? 'Adresse',
                           '${_val(acc!['street'])}, ${_val(acc!['zip'])} ${_val(acc!['city'])}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Benachrichtigungen',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Push-Benachrichtigungen'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_pushBusy)
+                                const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              const SizedBox(width: 8),
+                              Switch(
+                                value: _pushEnabled,
+                                onChanged: _pushBusy ? null : _handlePushToggle,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          'Push-Benachrichtigungen sind gerätebezogen. Wenn Sie sich abmelden '
+                          'oder deaktivieren, wird dieses Gerät entfernt.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Aktives Gerät: ${_platformLabel()} • letzte Anmeldung: $lastLoginText',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
                         ),
                       ],
                     ),
