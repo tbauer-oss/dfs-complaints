@@ -79,7 +79,8 @@ export default async function handler(req, res) {
 
   const repEmail = asString(rep?.email);
   const hasRep = repEmail.includes('@');
-  const target = hasRep ? repEmail : QM_MAIL;
+  const target = QM_MAIL;
+  const cc = hasRep ? repEmail : undefined;
   const contactName = asString(user?.contact || user?.contactName || user?.name);
   const company = asString(user?.company || user?.customer || user?.customerName);
   const subject = `[DFS Support] ${cat} von ${user.email}`;
@@ -102,6 +103,7 @@ export default async function handler(req, res) {
       subject,
       text: lines.join('\n'),
       lang: 'de',
+      cc,
     });
   } catch (mailErr) {
     const mapped = mapMailError(mailErr);
@@ -117,7 +119,7 @@ export default async function handler(req, res) {
           name: contactName,
           subject,
           message: text,
-          channel: hasRep ? 'rep' : 'support',
+          channel: 'support',
         },
         lang,
       );
