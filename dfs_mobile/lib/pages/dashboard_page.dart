@@ -474,6 +474,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                                   mainAxisSpacing: 12,
                                   crossAxisSpacing: 12,
                                   childAspectRatio: 1.1,
+                                  primary: false,
                                   physics: const NeverScrollableScrollPhysics(),
                                   shrinkWrap: true,
                                   children: [
@@ -1036,22 +1037,22 @@ class _DashboardTileState extends State<DashboardTile> {
     return Semantics(
       button: true,
       label: widget.label,
-      child: AnimatedScale(
-        scale: _pressed ? 0.975 : 1.0,
+      child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          // Premium layered shadow for strong tile separation
+          boxShadow: shadows,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _handleTap,
+            onHighlightChanged: _setPressed,
             borderRadius: radius,
-            // Premium layered shadow for strong tile separation
-            boxShadow: shadows,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: radius,
-            clipBehavior: Clip.antiAlias,
             child: Ink(
               decoration: BoxDecoration(
                 // Unified tile widget + fixed accent bar alignment
@@ -1062,12 +1063,10 @@ class _DashboardTileState extends State<DashboardTile> {
                   width: 1.2,
                 ),
               ),
-              child: InkWell(
-                onTap: _handleTap,
-                onTapDown: (_) => _setPressed(true),
-                onTapUp: (_) => _setPressed(false),
-                onTapCancel: () => _setPressed(false),
-                borderRadius: radius,
+              child: AnimatedScale(
+                scale: _pressed ? 0.975 : 1.0,
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOutCubic,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

@@ -617,42 +617,45 @@ class _AuroraBackgroundState extends State<_AuroraBackground>
       animation: _c,
       builder: (_, __) {
         final t = _c.value;
-        return CustomPaint(
-          painter: _GradientPainter(base: base, t: t),
-          child: Stack(
-            children: [
-              _movingBlob(
-                size: widget.dense ? 220 : 320,
-                color: blobColorA,
-                alignment: Alignment(
-                  math.sin(t * math.pi * 2) * .7,
-                  math.cos(t * math.pi * 2) * .6,
+        return IgnorePointer(
+          ignoring: true,
+          child: CustomPaint(
+            painter: _GradientPainter(base: base, t: t),
+            child: Stack(
+              children: [
+                _movingBlob(
+                  size: widget.dense ? 220 : 320,
+                  color: blobColorA,
+                  alignment: Alignment(
+                    math.sin(t * math.pi * 2) * .7,
+                    math.cos(t * math.pi * 2) * .6,
+                  ),
                 ),
-              ),
-              _movingBlob(
-                size: widget.dense ? 180 : 260,
-                color: blobColorB,
-                alignment: Alignment(
-                  math.cos(t * math.pi * 2 + 1.2) * .8,
-                  math.sin(t * math.pi * 2 + .8) * .7,
+                _movingBlob(
+                  size: widget.dense ? 180 : 260,
+                  color: blobColorB,
+                  alignment: Alignment(
+                    math.cos(t * math.pi * 2 + 1.2) * .8,
+                    math.sin(t * math.pi * 2 + .8) * .7,
+                  ),
                 ),
-              ),
-              _movingBlob(
-                size: widget.dense ? 140 : 220,
-                color: blobColorC,
-                alignment: Alignment(
-                  math.sin(t * math.pi * 2 + .4) * .9,
-                  math.sin(t * math.pi * 2 + 1.0) * .9,
+                _movingBlob(
+                  size: widget.dense ? 140 : 220,
+                  color: blobColorC,
+                  alignment: Alignment(
+                    math.sin(t * math.pi * 2 + .4) * .9,
+                    math.sin(t * math.pi * 2 + 1.0) * .9,
+                  ),
                 ),
-              ),
-              // Leichte „Glass“-Überlagerung
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: const SizedBox.expand(),
+                // Leichte „Glass“-Überlagerung
+                Positioned.fill(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                    child: const SizedBox.expand(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
