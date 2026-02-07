@@ -17,6 +17,11 @@ class GsprHomePage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
+            t.gsprPageTitle,
+            style: theme.textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
             t.gsprComingSoon,
             style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
           ),
