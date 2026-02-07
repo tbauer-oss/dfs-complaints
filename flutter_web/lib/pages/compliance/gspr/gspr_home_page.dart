@@ -1,75 +1,50 @@
 import 'package:flutter/material.dart';
 
-import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
-import 'gspr_chapter_table.dart';
 
 class GsprHomePage extends StatelessWidget {
-  final ApiClient api;
-  final bool canEdit;
-  final bool isPrrc;
-  final bool isAdmin;
-  final bool isQm;
-
   const GsprHomePage({
     super.key,
-    required this.api,
-    required this.canEdit,
-    required this.isPrrc,
-    required this.isAdmin,
-    required this.isQm,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    return DefaultTabController(
-      length: 3,
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Material(
-            color: Theme.of(context).colorScheme.surface,
-            elevation: 1,
-            child: TabBar(
-              isScrollable: true,
-              tabs: [
-                Tab(text: t.gsprChapterI),
-                Tab(text: t.gsprChapterII),
-                Tab(text: t.gsprChapterIII),
-              ],
-            ),
+          Text(
+            t.gsprComingSoon,
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                GsprChapterTable(
-                  api: api,
-                  chapter: 'I',
-                  canEdit: canEdit,
-                  isAdmin: isAdmin,
-                  isPrrc: isPrrc,
-                  isQm: isQm,
-                ),
-                GsprChapterTable(
-                  api: api,
-                  chapter: 'II',
-                  canEdit: canEdit,
-                  isAdmin: isAdmin,
-                  isPrrc: isPrrc,
-                  isQm: isQm,
-                ),
-                GsprChapterTable(
-                  api: api,
-                  chapter: 'III',
-                  canEdit: canEdit,
-                  isAdmin: isAdmin,
-                  isPrrc: isPrrc,
-                  isQm: isQm,
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 12),
+          _GsprNavCard(label: t.gsprChapterI),
+          const SizedBox(height: 12),
+          _GsprNavCard(label: t.gsprChapterII),
+          const SizedBox(height: 12),
+          _GsprNavCard(label: t.gsprChapterIII),
         ],
+      ),
+    );
+  }
+}
+
+class _GsprNavCard extends StatelessWidget {
+  final String label;
+
+  const _GsprNavCard({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 1,
+      child: ListTile(
+        title: Text(label),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {},
       ),
     );
   }

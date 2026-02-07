@@ -1904,7 +1904,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   static const double _sectionReorderHeight = 40;
   static const String _trainingSectionTitle = 'Connect+ | Training';
   static const String _qualitySectionTitle = 'Connect+ | Quality';
+  static const String _complianceSectionTitle = 'Connect+ | Compliance';
   static const String _trainingSectionSubtitle = '';
+  static const List<String> _complianceTileIds = ['fmea', 'gspr'];
   static const List<String> _trainingTileIds = [
     'trainings',
     'trainingNeeds',
@@ -1930,10 +1932,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     ),
     _DashboardSectionConfig(
       id: 'compliance',
-      title: 'Connect+ | Compliance',
+      title: _complianceSectionTitle,
       subtitle: '',
       defaultExpanded: true,
-      tileIds: ['fmea', 'gspr'],
+      tileIds: _complianceTileIds,
     ),
     _DashboardSectionConfig(
       id: 'training',
@@ -8350,6 +8352,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'Connect+ | Complaints';
       case 'Connect+ Quality':
         return 'Connect+ | Quality';
+      case 'Connect+ Compliance':
+        return _complianceSectionTitle;
       case 'Connect+ Training':
         return 'Connect+ | Training';
       case 'Connect+ Supplier Management':
@@ -8739,11 +8743,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
       _AdminMenuSectionState? trainingSection;
       _AdminMenuSectionState? qualitySection;
+      _AdminMenuSectionState? complianceSection;
       for (final section in sections) {
         if (section.title == _trainingSectionTitle) {
           trainingSection = section;
         } else if (section.title == _qualitySectionTitle) {
           qualitySection = section;
+        } else if (section.title == _complianceSectionTitle) {
+          complianceSection = section;
         }
       }
 
@@ -8764,6 +8771,44 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             if (movedTiles.contains(id) && !trainingSection.tileIds.contains(id)) {
               trainingSection.tileIds.add(id);
             }
+          }
+        }
+      }
+
+      final availableComplianceTiles = _complianceTileIds
+          .where((id) => allowedTiles.contains(id) && !_archivedTileIds.contains(id))
+          .toList();
+      if (complianceSection == null && availableComplianceTiles.isNotEmpty) {
+        complianceSection = _AdminMenuSectionState(
+          title: _complianceSectionTitle,
+          subtitle: _sectionSubtitleForTitle(_complianceSectionTitle),
+          tileIds: <String>[],
+        );
+        final qualityIndex = sections.indexWhere((s) => s.title == _qualitySectionTitle);
+        if (qualityIndex != -1) {
+          sections.insert(qualityIndex + 1, complianceSection);
+        } else {
+          final trainingIndex = sections.indexWhere((s) => s.title == _trainingSectionTitle);
+          final insertIndex = trainingIndex == -1 ? sections.length : trainingIndex;
+          sections.insert(insertIndex, complianceSection);
+        }
+      }
+
+      if (complianceSection != null) {
+        for (final section in sections) {
+          if (section == complianceSection) continue;
+          final movedTiles = section.tileIds.where(_complianceTileIds.contains).toList();
+          if (movedTiles.isEmpty) continue;
+          section.tileIds.removeWhere(_complianceTileIds.contains);
+          for (final id in movedTiles) {
+            if (!complianceSection.tileIds.contains(id)) {
+              complianceSection.tileIds.add(id);
+            }
+          }
+        }
+        for (final id in availableComplianceTiles) {
+          if (!complianceSection.tileIds.contains(id)) {
+            complianceSection.tileIds.add(id);
           }
         }
       }
@@ -11745,13 +11790,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case AdminView.gspr:
-        return GsprHomePage(
-          api: widget.api,
-          canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('gspr'),
-          isAdmin: _isSuperuser || _portalRole == 'admin',
-          isPrrc: _portalIsPrrc || _portalIsPrrcAuthorized,
-          isQm: _portalIsQm,
-        );
+        return const GsprHomePage();
       case AdminView.internalErrors:
         final access = _evaluateViewAccess(AdminView.internalErrors);
         if (access == AdminAccessDecision.loading) {
