@@ -71,6 +71,10 @@
       "src": "/api/chat/v1/conversations/([^/]+)$",
       "dest": "/api/chat/v1/conversations/[id]/index.js?id=$1"
     },
+    {
+      "src": "/api/admin/push/users/([^/]+)/devices$",
+      "dest": "/api/admin/push/users/[userId]/devices.js?userId=$1"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
