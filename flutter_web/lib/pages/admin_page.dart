@@ -8811,6 +8811,18 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             complianceSection.tileIds.add(id);
           }
         }
+        final orderedComplianceTiles = <String>[
+          for (final id in _complianceTileIds)
+            if (complianceSection.tileIds.contains(id)) id,
+        ];
+        for (final id in complianceSection.tileIds) {
+          if (!orderedComplianceTiles.contains(id)) {
+            orderedComplianceTiles.add(id);
+          }
+        }
+        complianceSection.tileIds
+          ..clear()
+          ..addAll(orderedComplianceTiles);
       }
 
       if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
