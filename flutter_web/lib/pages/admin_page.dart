@@ -30,6 +30,7 @@ import '../services/onboarding_prefs.dart';
 import '../services/chat_service.dart';
 import '../services/customer_news_service.dart';
 import '../services/internal_error_service.dart';
+import '../services/ui_prefs.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/skeletons.dart';
 import '../widgets/legal_footer.dart';
@@ -43,6 +44,7 @@ import '../widgets/chat/internal_chat_overview.dart';
 import '../widgets/teams_actions_row.dart';
 import '../widgets/chat/internal_chat_panel.dart';
 import '../widgets/admin/avatar_cropper_dialog.dart';
+import '../widgets/collapsible_section.dart';
 import '../widgets/admin/dashboard_onboarding_texts.dart';
 import '../widgets/admin/global_search_bar.dart';
 import '../widgets/admin/onboarding_tour.dart';
@@ -69,6 +71,38 @@ import 'training_admin_section.dart';
 String _formatError(Object error) {
   final message = AppErrorMapper.map(error);
   return message.message.isEmpty ? message.title : '${message.title} ${message.message}'.trim();
+}
+
+class DashboardSection {
+  final String id;
+  final String title;
+  final String subtitle;
+  final List<Widget> tiles;
+  final bool defaultExpanded;
+
+  const DashboardSection({
+    required this.id,
+    required this.title,
+    required this.tiles,
+    required this.defaultExpanded,
+    this.subtitle = '',
+  });
+}
+
+class _DashboardSectionConfig {
+  final String id;
+  final String title;
+  final String subtitle;
+  final bool defaultExpanded;
+  final List<String> tileIds;
+
+  const _DashboardSectionConfig({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.defaultExpanded,
+    required this.tileIds,
+  });
 }
 
 // ===================================================================
@@ -1857,11 +1891,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   late final Set<String> _menuTileIds;
   late List<_AdminMenuSectionState> _menuSections;
   double _menuTileScale = 1.0;
+  final Map<String, bool> _expandedById = <String, bool>{};
 
   static const double _sectionReorderHeight = 40;
-  static const String _trainingSectionTitle = 'Connect+ Training';
-  static const String _trainingSectionSubtitle =
-      'Schulungsplanung, Bedarf, Durchführung, Wirksamkeitskontrolle & Archiv';
+  static const String _trainingSectionTitle = 'Connect+ | Training';
+  static const String _qualitySectionTitle = 'Connect+ | Quality';
+  static const String _trainingSectionSubtitle = '';
   static const List<String> _trainingTileIds = [
     'trainings',
     'trainingNeeds',
@@ -1870,6 +1905,70 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     'trainingEffectiveness',
     'trainingArchive',
   ];
+  static const List<_DashboardSectionConfig> _dashboardSectionConfigs = [
+    _DashboardSectionConfig(
+      id: 'complaints',
+      title: 'Connect+ | Complaints',
+      subtitle: '',
+      defaultExpanded: true,
+      tileIds: ['open', 'all', 'complaintList', 'prrc', 'stats'],
+    ),
+    _DashboardSectionConfig(
+      id: 'quality',
+      title: _qualitySectionTitle,
+      subtitle: '',
+      defaultExpanded: true,
+      tileIds: ['capaDashboard', 'capaReports', 'internalErrors', 'changeManagement', 'audits'],
+    ),
+    _DashboardSectionConfig(
+      id: 'compliance',
+      title: 'Connect+ | Compliance',
+      subtitle: '',
+      defaultExpanded: true,
+      tileIds: ['fmea'],
+    ),
+    _DashboardSectionConfig(
+      id: 'training',
+      title: _trainingSectionTitle,
+      subtitle: '',
+      defaultExpanded: false,
+      tileIds: _trainingTileIds,
+    ),
+    _DashboardSectionConfig(
+      id: 'business-partners',
+      title: 'Connect+ | Business Partners',
+      subtitle: '',
+      defaultExpanded: false,
+      tileIds: [
+        'approvedSuppliers',
+        'supplierEvaluation',
+        'createSupplier',
+        'pending',
+        'users',
+        'createCustomer',
+        'reps',
+        'downloads',
+        'wiki',
+      ],
+    ),
+    _DashboardSectionConfig(
+      id: 'communication',
+      title: 'Connect+ | Communication',
+      subtitle: '',
+      defaultExpanded: false,
+      tileIds: ['news', 'faq', 'products', 'push', 'internalChat'],
+    ),
+    _DashboardSectionConfig(
+      id: 'system',
+      title: 'Connect+ | System',
+      subtitle: '',
+      defaultExpanded: false,
+      tileIds: ['portalUsers', 'catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity', 'pushDevices'],
+    ),
+  ];
+  static final Map<String, _DashboardSectionConfig> _dashboardSectionConfigByTitle = {
+    for (final config in _dashboardSectionConfigs) config.title: config,
+  };
 
   // Ansicht (Menü / Bereich)
   AdminView _view = AdminView.menu;
@@ -2048,6 +2147,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
     _loadRoleTileVisibility();
     _initMenuLayout();
+    _initSectionExpansion();
     _applyNavOrder(_defaultNavOrder());
     _loadNavOrder();
     _loadAdminUiConfigFromServer();
@@ -8197,54 +8297,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
 
     final sections = [
-      // Neue Kachel "User-Datenbank" im DFS Portal Startscreen (nur für Superuser sichtbar)
-      const _AdminMenuSectionState(
-        title: 'Connect+ Complaints',
-        subtitle: 'Offene Fälle, Suche und Kennzahlen',
-        tileIds: ['open', 'all', 'complaintList', 'prrc', 'stats'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ Quality',
-        subtitle: 'FMEA, CAPA / 8D-Reports und Change Control',
-        tileIds: [
-          'capaDashboard',
-          'capaReports',
-          'fmea',
-          'internalErrors',
-          'changeManagement',
-          'audits',
-        ],
-      ),
-      const _AdminMenuSectionState(
-        title: _trainingSectionTitle,
-        subtitle: _trainingSectionSubtitle,
-        tileIds: _trainingTileIds,
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ Supplier Management',
-        subtitle: 'Zugelassene Lieferanten, Bewertung und Monitoring',
-        tileIds: ['approvedSuppliers', 'supplierEvaluation', 'createSupplier'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ Customer Management',
-        subtitle: 'Anträge prüfen und Kunden anlegen',
-        tileIds: ['pending', 'users', 'createCustomer'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ Sales & Partner Management',
-        subtitle: 'Teams steuern und Wissen bereitstellen',
-        tileIds: ['reps', 'downloads', 'wiki'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ Content & Communication',
-        subtitle: 'Informationen und Push-Kanäle pflegen',
-        tileIds: ['news', 'faq', 'products', 'push', 'internalChat'],
-      ),
-      const _AdminMenuSectionState(
-        title: 'Connect+ System Administration',
-        subtitle: 'Kataloge, Versionen, Testmodus und Monitoring',
-        tileIds: ['portalUsers', 'catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity', 'pushDevices'],
-      ),
+      for (final config in _dashboardSectionConfigs)
+        _AdminMenuSectionState(
+          title: config.title,
+          subtitle: config.subtitle,
+          tileIds: List<String>.from(config.tileIds),
+        ),
     ];
 
     if (!filterAllowed) {
@@ -8259,6 +8317,120 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             ))
         .where((s) => s.tileIds.isNotEmpty)
         .toList();
+  }
+
+  String _sectionExpansionKey(String id) => 'dfs.connectplus.dashboard.section.$id.expanded';
+
+  void _initSectionExpansion() {
+    for (final config in _dashboardSectionConfigs) {
+      final stored = UiPrefs.getBool(_sectionExpansionKey(config.id));
+      _expandedById[config.id] = stored ?? config.defaultExpanded;
+    }
+  }
+
+  String _normalizeSectionTitle(String title) {
+    switch (title.trim()) {
+      case 'Connect+ Complaints':
+        return 'Connect+ | Complaints';
+      case 'Connect+ Quality':
+        return 'Connect+ | Quality';
+      case 'Connect+ Training':
+        return 'Connect+ | Training';
+      case 'Connect+ Supplier Management':
+      case 'Connect+ Customer Management':
+      case 'Connect+ Sales & Partner Management':
+        return 'Connect+ | Business Partners';
+      case 'Connect+ Content & Communication':
+        return 'Connect+ | Communication';
+      case 'Connect+ System Administration':
+        return 'Connect+ | System';
+      default:
+        return title;
+    }
+  }
+
+  String _customSectionId(String title) {
+    final slug = title
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+'), '')
+        .replaceAll(RegExp(r'-+$'), '');
+    return slug.isEmpty ? 'custom' : 'custom.$slug';
+  }
+
+  String _sectionSubtitleForTitle(String title, {String fallback = ''}) {
+    final config = _dashboardSectionConfigByTitle[title];
+    return config?.subtitle ?? fallback;
+  }
+
+  List<_AdminMenuSectionState> _orderMenuSections(List<_AdminMenuSectionState> sections) {
+    final byTitle = <String, _AdminMenuSectionState>{
+      for (final section in sections) section.title: section,
+    };
+    final ordered = <_AdminMenuSectionState>[];
+    for (final config in _dashboardSectionConfigs) {
+      final match = byTitle.remove(config.title);
+      if (match != null) ordered.add(match);
+    }
+    ordered.addAll(byTitle.values);
+    return ordered;
+  }
+
+  List<DashboardSection> _buildDashboardSections({
+    required List<_AdminMenuSectionState> sections,
+    required bool compact,
+    required double tileWidth,
+    required double tileHeight,
+  }) {
+    final built = <DashboardSection>[];
+    for (final section in sections) {
+      if (section.tileIds.isEmpty) continue;
+      final tiles = [
+        for (final tileId in section.tileIds)
+          SizedBox(
+            width: tileWidth,
+            height: tileHeight,
+            child: _buildMenuTile(tileId, compact),
+          ),
+      ];
+      final config = _dashboardSectionConfigByTitle[section.title];
+      built.add(
+        DashboardSection(
+          id: config?.id ?? _customSectionId(section.title),
+          title: section.title,
+          subtitle: section.subtitle,
+          tiles: tiles,
+          defaultExpanded: config?.defaultExpanded ?? true,
+        ),
+      );
+    }
+    return built;
+  }
+
+  bool _sectionExpanded(DashboardSection section) {
+    final current = _expandedById[section.id];
+    if (current != null) return current;
+    final stored = UiPrefs.getBool(_sectionExpansionKey(section.id));
+    final resolved = stored ?? section.defaultExpanded;
+    _expandedById[section.id] = resolved;
+    return resolved;
+  }
+
+  void _setSectionExpanded(DashboardSection section, bool expanded) {
+    setState(() => _expandedById[section.id] = expanded);
+    UiPrefs.setBool(_sectionExpansionKey(section.id), expanded);
+  }
+
+  void _setAllSectionsExpanded(List<DashboardSection> sections, bool expanded) {
+    setState(() {
+      for (final section in sections) {
+        _expandedById[section.id] = expanded;
+      }
+    });
+    for (final section in sections) {
+      UiPrefs.setBool(_sectionExpansionKey(section.id), expanded);
+    }
   }
 
   void _initMenuLayout() {
@@ -8515,29 +8687,42 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (sectionData == null) return defaults.map((s) => s.copy()).toList();
 
       final used = <String>{};
-      final sections = <_AdminMenuSectionState>[];
+      final sectionsByTitle = <String, _AdminMenuSectionState>{};
 
       for (final entry in sectionData) {
         if (entry is! Map) continue;
-        final title = entry['title'] as String?;
-        final subtitle = entry['subtitle'] as String? ?? '';
+        final rawTitle = entry['title'] as String?;
         final tiles = (entry['tiles'] as List?)?.whereType<String>().toList() ?? <String>[];
-        if (title == null) continue;
+        if (rawTitle == null) continue;
+
+        final title = _normalizeSectionTitle(rawTitle);
+        final subtitle = _sectionSubtitleForTitle(title, fallback: entry['subtitle'] as String? ?? '');
 
         final filtered = tiles
             .where((id) =>
                 allowedTiles.contains(id) && _menuTileIds.contains(id) && !_archivedTileIds.contains(id))
             .toList();
         used.addAll(filtered);
-        sections.add(_AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: filtered));
+        final existing = sectionsByTitle[title];
+        if (existing == null) {
+          sectionsByTitle[title] = _AdminMenuSectionState(title: title, subtitle: subtitle, tileIds: filtered);
+        } else {
+          for (final id in filtered) {
+            if (!existing.tileIds.contains(id)) {
+              existing.tileIds.add(id);
+            }
+          }
+        }
       }
+
+      final sections = _orderMenuSections(sectionsByTitle.values.toList());
 
       _AdminMenuSectionState? trainingSection;
       _AdminMenuSectionState? qualitySection;
       for (final section in sections) {
         if (section.title == _trainingSectionTitle) {
           trainingSection = section;
-        } else if (section.title == 'Connect+ Quality') {
+        } else if (section.title == _qualitySectionTitle) {
           qualitySection = section;
         }
       }
@@ -9429,12 +9614,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final visibleSections = _menuEditMode
         ? sections
         : sections.where((section) => section.tileIds.isNotEmpty).toList();
+    final orderedSections = _menuEditMode ? visibleSections : _orderMenuSections(visibleSections);
     final baseTileWidth = isPhone ? 200.0 : 240.0;
     final aspectRatio = isPhone ? 0.94 : 1.05;
     final tileWidth = baseTileWidth * _menuTileScale;
     final tileHeight = tileWidth / aspectRatio;
     final spacing = (isPhone ? 14.0 : 28.0) * _menuTileScale;
     final runSpacing = (isPhone ? 20.0 : 32.0) * _menuTileScale;
+    final dashboardSections = _menuEditMode
+        ? const <DashboardSection>[]
+        : _buildDashboardSections(
+            sections: orderedSections,
+            compact: compact,
+            tileWidth: tileWidth,
+            tileHeight: tileHeight,
+          );
 
     if (!_portalFeedLoading && _portalFeed.isEmpty && _portalFeedErr == null) {
       _loadPortalFeed();
@@ -9539,32 +9733,83 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-        if (_menuEditMode) _buildSectionReorderTarget(index: 0),
-        for (var i = 0; i < visibleSections.length; i++) ...[
-          SliverToBoxAdapter(child: const SizedBox(height: 4)),
+        if (!_menuEditMode)
           SliverToBoxAdapter(
-            child: _buildMenuSectionHeader(
-              visibleSections[i],
-              isFirst: i == 0,
-              index: i,
-            ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, i == visibleSections.length - 1 ? 28 : 12),
-            sliver: SliverToBoxAdapter(
-              child: _buildSectionGrid(
-                sectionIndex: i,
-                section: visibleSections[i],
-                compact: compact,
-                tileWidth: tileWidth,
-                tileHeight: tileHeight,
-                spacing: spacing,
-                runSpacing: runSpacing,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: dashboardSections.isEmpty
+                        ? null
+                        : () => _setAllSectionsExpanded(dashboardSections, true),
+                    icon: const Icon(Icons.unfold_more_outlined, size: 18),
+                    label: const Text('Expand all'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: dashboardSections.isEmpty
+                        ? null
+                        : () => _setAllSectionsExpanded(dashboardSections, false),
+                    icon: const Icon(Icons.unfold_less_outlined, size: 18),
+                    label: const Text('Collapse all'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  ),
+                ],
               ),
             ),
           ),
-          if (_menuEditMode) _buildSectionReorderTarget(index: i + 1),
-        ],
+        if (_menuEditMode) _buildSectionReorderTarget(index: 0),
+        if (_menuEditMode)
+          for (var i = 0; i < orderedSections.length; i++) ...[
+            SliverToBoxAdapter(child: const SizedBox(height: 4)),
+            SliverToBoxAdapter(
+              child: _buildMenuSectionHeader(
+                orderedSections[i],
+                isFirst: i == 0,
+                index: i,
+              ),
+            ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, i == orderedSections.length - 1 ? 28 : 12),
+              sliver: SliverToBoxAdapter(
+                child: _buildSectionGrid(
+                  sectionIndex: i,
+                  section: orderedSections[i],
+                  compact: compact,
+                  tileWidth: tileWidth,
+                  tileHeight: tileHeight,
+                  spacing: spacing,
+                  runSpacing: runSpacing,
+                ),
+              ),
+            ),
+            _buildSectionReorderTarget(index: i + 1),
+          ],
+        if (!_menuEditMode)
+          for (var i = 0; i < dashboardSections.length; i++) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, i == 0 ? 8 : 12, 16, i == dashboardSections.length - 1 ? 16 : 8),
+                child: CollapsibleSection(
+                  title: dashboardSections[i].title,
+                  subtitle: dashboardSections[i].subtitle,
+                  expanded: _sectionExpanded(dashboardSections[i]),
+                  onToggle: () => _setSectionExpanded(
+                    dashboardSections[i],
+                    !_sectionExpanded(dashboardSections[i]),
+                  ),
+                  child: Wrap(
+                    spacing: spacing,
+                    runSpacing: runSpacing,
+                    children: dashboardSections[i].tiles,
+                  ),
+                ),
+              ),
+            ),
+          ],
         if (_menuEditMode)
           SliverToBoxAdapter(
             child: Padding(
@@ -10989,8 +11234,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(section.title, style: titleStyle?.copyWith(color: color)),
-              const SizedBox(height: 4),
-              Text(section.subtitle, style: subtitleStyle?.copyWith(color: color)),
+              if (section.subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(section.subtitle, style: subtitleStyle?.copyWith(color: color)),
+              ],
             ],
           ),
         ),
