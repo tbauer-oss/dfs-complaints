@@ -8775,6 +8775,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         }
       }
 
+      _archivedTileIds.remove('gspr');
       final availableComplianceTiles = _complianceTileIds
           .where((id) => allowedTiles.contains(id) && !_archivedTileIds.contains(id))
           .toList();
