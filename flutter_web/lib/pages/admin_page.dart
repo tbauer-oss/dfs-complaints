@@ -142,6 +142,7 @@ enum AdminView {
   activity,
   createCustomer,
   pushBroadcast,
+  pushDevices,
   approvedSuppliers,
   supplierEvaluation,
   wikiCategories,
@@ -223,6 +224,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'wiki',
     'products',
     'push',
+    'pushDevices',
     'catalogs',
     'appMeta',
     'testMode',
@@ -1448,6 +1450,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         rawData.values.any((value) => value is List && value.whereType<String>().contains('changeManagement'));
     final hasInternalErrorsInStored = rawData != null &&
         rawData.values.any((value) => value is List && value.whereType<String>().contains('internalErrors'));
+    final hasPushDevicesInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('pushDevices'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1473,7 +1477,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       // Auswahl existiert.
       if (shouldMergeDefaults ||
           (!hasChangeManagementInStored && defaults.contains('changeManagement')) ||
-          (!hasInternalErrorsInStored && defaults.contains('internalErrors'))) {
+          (!hasInternalErrorsInStored && defaults.contains('internalErrors')) ||
+          (!hasPushDevicesInStored && defaults.contains('pushDevices'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
@@ -1923,6 +1928,17 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   Object? _pushSelfErr;
   AdminPushSelfTestResult? _pushSelfResult;
 
+  // Push-Geräte (Admin)
+  final _pushDeviceUserSearchCtrl = TextEditingController();
+  List<AdminPushUser> _pushDeviceUsers = [];
+  AdminPushUser? _pushDeviceSelectedUser;
+  List<AdminPushDevice> _pushDeviceDevices = [];
+  bool _pushDeviceUsersLoading = false;
+  Object? _pushDeviceUsersErr;
+  bool _pushDeviceDevicesLoading = false;
+  Object? _pushDeviceDevicesErr;
+  final Set<String> _pushDeviceBusyIds = {};
+
   // Aktivitäts-Check (Kunden & Vertreter)
   final _activityEmailCtrl = TextEditingController();
   String _activityKind = 'customer';
@@ -2106,6 +2122,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _pushBodyCtrl.dispose();
     _pushLinkCtrl.dispose();
     _pushRecipientSearchCtrl.dispose();
+    _pushDeviceUserSearchCtrl.dispose();
     _pushRecipientsSearchTimer?.cancel();
     _activityEmailCtrl.dispose();
     _bulkInternalAllCtrl.dispose();
@@ -3326,6 +3343,142 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  Future<void> _loadPushDeviceUsers({bool force = false}) async {
+    if (!_hasTileAccess('pushDevices')) return;
+    if (_pushDeviceUsersLoading && !force) return;
+    setState(() {
+      _pushDeviceUsersLoading = true;
+      _pushDeviceUsersErr = null;
+    });
+    try {
+      final users = await _api.fetchPushUsers();
+      if (!mounted) return;
+      setState(() {
+        _pushDeviceUsers = users;
+        _pushDeviceUsersErr = null;
+      });
+      if (_pushDeviceSelectedUser == null || !_pushDeviceUsers.any((u) => u.userId == _pushDeviceSelectedUser?.userId)) {
+        if (users.isNotEmpty) {
+          _selectPushDeviceUser(users.first);
+        } else {
+          setState(() {
+            _pushDeviceSelectedUser = null;
+            _pushDeviceDevices = [];
+          });
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pushDeviceUsersErr = e);
+    } finally {
+      if (mounted) setState(() => _pushDeviceUsersLoading = false);
+    }
+  }
+
+  void _selectPushDeviceUser(AdminPushUser user) {
+    if (_pushDeviceSelectedUser?.userId == user.userId) return;
+    setState(() {
+      _pushDeviceSelectedUser = user;
+      _pushDeviceDevices = [];
+      _pushDeviceDevicesErr = null;
+    });
+    _loadPushDevicesForUser(user);
+  }
+
+  Future<void> _loadPushDevicesForUser(AdminPushUser user) async {
+    if (_pushDeviceDevicesLoading) return;
+    setState(() {
+      _pushDeviceDevicesLoading = true;
+      _pushDeviceDevicesErr = null;
+    });
+    try {
+      final devices = await _api.fetchPushDevices(user.userId);
+      if (!mounted) return;
+      setState(() {
+        _pushDeviceDevices = devices;
+        _pushDeviceDevicesErr = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _pushDeviceDevicesErr = e);
+    } finally {
+      if (mounted) setState(() => _pushDeviceDevicesLoading = false);
+    }
+  }
+
+  Future<void> _togglePushDevice(AdminPushDevice device) async {
+    if (_pushDeviceBusyIds.contains(device.deviceId)) return;
+    final previous = device.isDisabled;
+    final target = !previous;
+    setState(() {
+      _pushDeviceBusyIds.add(device.deviceId);
+      device.isDisabled = target;
+    });
+    try {
+      await _api.setPushDeviceDisabled(deviceId: device.deviceId, isDisabled: target);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => device.isDisabled = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_formatError(e))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _pushDeviceBusyIds.remove(device.deviceId));
+      }
+    }
+  }
+
+  Future<void> _deletePushDevice(AdminPushDevice device) async {
+    if (_pushDeviceBusyIds.contains(device.deviceId)) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gerät löschen?'),
+        content: const Text('Das Gerät wird endgültig entfernt.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final idx = _pushDeviceDevices.indexWhere((d) => d.deviceId == device.deviceId);
+    if (idx == -1) return;
+    final removed = _pushDeviceDevices[idx];
+    setState(() {
+      _pushDeviceBusyIds.add(device.deviceId);
+      _pushDeviceDevices.removeAt(idx);
+      final selected = _pushDeviceSelectedUser;
+      if (selected != null) {
+        final userIdx = _pushDeviceUsers.indexWhere((u) => u.userId == selected.userId);
+        if (userIdx != -1) {
+          final updated = _pushDeviceUsers[userIdx].copyWith(
+            devicesCount: (_pushDeviceUsers[userIdx].devicesCount - 1).clamp(0, 9999),
+          );
+          _pushDeviceUsers[userIdx] = updated;
+          _pushDeviceSelectedUser = updated;
+        }
+      }
+    });
+    try {
+      await _api.deletePushDevice(device.deviceId);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _pushDeviceDevices.insert(idx, removed);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_formatError(e))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _pushDeviceBusyIds.remove(device.deviceId));
+      }
+    }
   }
 
   List<String> _composeRepRegionOptions(Iterable<Rep> reps) {
@@ -5010,6 +5163,250 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     );
   }
 
+  List<AdminPushUser> _filteredPushDeviceUsers() {
+    final query = _pushDeviceUserSearchCtrl.text.trim().toLowerCase();
+    if (query.isEmpty) return _pushDeviceUsers;
+    return _pushDeviceUsers.where((user) {
+      return user.name.toLowerCase().contains(query) ||
+          user.email.toLowerCase().contains(query) ||
+          (user.customerRef ?? '').toLowerCase().contains(query);
+    }).toList();
+  }
+
+  Widget _buildPushDevicesPanel() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    if (_pushDeviceUsers.isEmpty && !_pushDeviceUsersLoading && _pushDeviceUsersErr == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadPushDeviceUsers());
+    }
+
+    final users = _filteredPushDeviceUsers();
+    final selected = _pushDeviceSelectedUser;
+
+    String formatMaybe(DateTime? dt) => dt == null ? '–' : _formatTimestamp(dt);
+
+    Widget buildUserList() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _pushDeviceUserSearchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Benutzer suchen…',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          if (_pushDeviceUsersLoading) const LinearProgressIndicator(),
+          if (_pushDeviceUsersErr != null) ...[
+            const SizedBox(height: 8),
+            Text(_formatError(_pushDeviceUsersErr!), style: TextStyle(color: cs.error)),
+          ],
+          const SizedBox(height: 8),
+          Expanded(
+            child: users.isEmpty
+                ? const Center(child: Text('Keine Benutzer gefunden.'))
+                : ListView.separated(
+                    itemCount: users.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final user = users[index];
+                      final isSelected = selected?.userId == user.userId;
+                      final roleLabel = user.role == 'rep' ? 'Vertreter' : 'Kunde';
+                      final roleColor = user.role == 'rep' ? cs.primary : cs.tertiary;
+                      return ListTile(
+                        selected: isSelected,
+                        title: Text(user.name),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(user.email),
+                            if (user.customerRef != null && user.customerRef!.isNotEmpty)
+                              Text('Kundennr.: ${user.customerRef}', style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Chip(
+                              label: Text(roleLabel),
+                              backgroundColor: roleColor.withOpacity(0.12),
+                              labelStyle: TextStyle(color: roleColor, fontSize: 12),
+                            ),
+                            Text('${user.devicesCount} Geräte', style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                        onTap: () => _selectPushDeviceUser(user),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      );
+    }
+
+    Widget buildDeviceList() {
+      if (selected == null) {
+        return Center(
+          child: Text(
+            'Bitte links einen Benutzer auswählen.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        );
+      }
+
+      if (_pushDeviceDevicesLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      if (_pushDeviceDevicesErr != null) {
+        return Center(
+          child: Text(
+            _formatError(_pushDeviceDevicesErr!),
+            style: TextStyle(color: cs.error),
+          ),
+        );
+      }
+
+      if (_pushDeviceDevices.isEmpty) {
+        return const Center(child: Text('Keine Geräte registriert.'));
+      }
+
+      return ListView.separated(
+        itemCount: _pushDeviceDevices.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final device = _pushDeviceDevices[index];
+          final label = device.deviceLabel.isNotEmpty ? device.deviceLabel : 'Unbekanntes Gerät';
+          final platform = device.platform.isNotEmpty ? device.platform : 'Unbekannte Plattform';
+          final busy = _pushDeviceBusyIds.contains(device.deviceId);
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: cs.surface,
+              border: Border.all(color: cs.outlineVariant),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(label, style: theme.textTheme.titleMedium),
+                          const SizedBox(height: 4),
+                          Text(platform, style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    Chip(
+                      label: Text(device.isDisabled ? 'Deaktiviert (Admin)' : 'Aktiv'),
+                      backgroundColor: device.isDisabled ? cs.errorContainer : cs.primaryContainer,
+                      labelStyle: TextStyle(
+                        color: device.isDisabled ? cs.onErrorContainer : cs.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    Text('Erstellt: ${formatMaybe(device.createdAt)}', style: theme.textTheme.bodySmall),
+                    Text('Zuletzt aktiv: ${formatMaybe(device.lastSeenAt)}', style: theme.textTheme.bodySmall),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Fingerprint: ${device.tokenHashOrFingerprint}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : () => _togglePushDevice(device),
+                      icon: Icon(device.isDisabled ? Icons.check_circle_outline : Icons.block_outlined),
+                      label: Text(device.isDisabled ? 'Aktivieren' : 'Deaktivieren'),
+                    ),
+                    TextButton.icon(
+                      onPressed: busy ? null : () => _deletePushDevice(device),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Löschen'),
+                      style: TextButton.styleFrom(foregroundColor: cs.error),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Push-Geräte', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text(
+              'Push-Benachrichtigungen sind gerätebezogen. Admin kann Geräte deaktivieren oder löschen.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 900;
+                final listHeight = constraints.maxHeight.isFinite ? constraints.maxHeight : 520.0;
+                final userList = SizedBox(
+                  height: listHeight,
+                  child: buildUserList(),
+                );
+                final deviceList = SizedBox(
+                  height: listHeight,
+                  child: buildDeviceList(),
+                );
+
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      userList,
+                      const SizedBox(height: 16),
+                      deviceList,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 340, child: userList),
+                    const SizedBox(width: 16),
+                    Expanded(child: deviceList),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSystemHealthPanel() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -6154,6 +6551,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.createCustomer => 'Neuen Kunden anlegen',
       AdminView.activity       => 'Aktivitätsübersicht',
       AdminView.pushBroadcast  => 'Push-Benachrichtigungen',
+      AdminView.pushDevices    => 'Push-Geräte',
       AdminView.approvedSuppliers => 'Zugelassene Lieferanten',
       AdminView.wikiCategories => 'Vertreter-Wiki Kategorien',
       AdminView.wikiArticles   => 'Vertreter-Wiki Artikel',
@@ -6857,6 +7255,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       setState(() => _view = view);
     }
 
+    if (view == AdminView.pushDevices) {
+      _loadPushDeviceUsers();
+    }
+
     if (shouldRefreshFaq) {
       _refreshFaq();
     }
@@ -7354,6 +7756,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'createCustomer';
       case AdminView.pushBroadcast:
         return 'push';
+      case AdminView.pushDevices:
+        return 'pushDevices';
       case AdminView.approvedSuppliers:
         return 'approvedSuppliers';
       case AdminView.wikiCategories:
@@ -7594,6 +7998,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 ? '${_pushResult!.totalTokens}'
                 : null,
           ),
+          _AdminNavItem(
+            label: 'Push-Geräte',
+            icon: Icons.phonelink_ring_outlined,
+            view: AdminView.pushDevices,
+          ),
         ],
       ),
       _AdminNavSection(
@@ -7760,6 +8169,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.products;
         case 'push':
           return AdminView.pushBroadcast;
+        case 'pushDevices':
+          return AdminView.pushDevices;
         case 'catalogs':
           return AdminView.catalogs;
         case 'systemHealth':
@@ -7832,7 +8243,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       const _AdminMenuSectionState(
         title: 'Connect+ System Administration',
         subtitle: 'Kataloge, Versionen, Testmodus und Monitoring',
-        tileIds: ['portalUsers', 'catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity'],
+        tileIds: ['portalUsers', 'catalogs', 'appMeta', 'testMode', 'systemHealth', 'activity', 'pushDevices'],
       ),
     ];
 
@@ -7876,6 +8287,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('trainingEffectiveness');
     _ensureMenuTilePresent('trainingArchive');
     _ensureMenuTilePresent('portalUsers');
+    _ensureMenuTilePresent('pushDevices');
     _ensureMenuTilePresent('complaintList');
     _ensureMenuTilePresent('internalChat');
     _ensureMenuTilePresent('approvedSuppliers');
@@ -7910,6 +8322,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('trainingSessions');
         _ensureMenuTilePresent('trainingEffectiveness');
         _ensureMenuTilePresent('trainingArchive');
+        _ensureMenuTilePresent('pushDevices');
         _ensureMenuTilePresent('approvedSuppliers');
         _ensureMenuTilePresent('supplierEvaluation');
         _ensureMenuTilePresent('createSupplier');
@@ -7922,6 +8335,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         setState(() => _menuSections = sections);
         _ensureMenuTilePresent('downloads');
         _ensureMenuTilePresent('portalUsers');
+        _ensureMenuTilePresent('pushDevices');
         _ensureMenuTilePresent('complaintList');
         _ensureMenuTilePresent('prrc');
         _ensureMenuTilePresent('capaReports');
@@ -7969,6 +8383,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         setState(() => _menuSections = sections);
         _ensureMenuTilePresent('downloads');
         _ensureMenuTilePresent('portalUsers');
+        _ensureMenuTilePresent('pushDevices');
         _ensureMenuTilePresent('complaintList');
         _ensureMenuTilePresent('prrc');
         _ensureMenuTilePresent('capaReports');
@@ -8349,6 +8764,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'Artikelliste';
       case 'push':
         return 'Push-Broadcasts';
+      case 'pushDevices':
+        return 'Push-Geräte';
       case 'portalUsers':
         return 'User-Datenbank';
       case 'catalogs':
@@ -10234,6 +10651,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           actionIcon: resolvedActionIcon,
           onActionTap: onActionTap,
         );
+      case 'pushDevices':
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: 'Push-Geräte',
+          subtitle: 'Geräte & Tokens verwalten',
+          icon: Icons.phonelink_ring_outlined,
+          colorA: AdminPalette.indigoA,
+          colorB: AdminPalette.indigoB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.pushDevices),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
       case 'internalChat':
         return _buildDashboardTile(
           tileId: tileId,
@@ -11134,6 +11566,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return _buildCreateCustomerPanel();
       case AdminView.pushBroadcast:
         return _buildPushBroadcastPanel();
+      case AdminView.pushDevices:
+        return _buildPushDevicesPanel();
       case AdminView.approvedSuppliers:
         return ApprovedSuppliersPage(
           api: widget.api,
@@ -18248,6 +18682,87 @@ class AdminPushRecipient {
       displayName: name.isNotEmpty ? name : email,
       email: email,
       company: (json['company'] ?? '').toString(),
+    );
+  }
+}
+
+class AdminPushUser {
+  final String userId;
+  final String name;
+  final String email;
+  final String role;
+  final String? customerRef;
+  final int devicesCount;
+
+  AdminPushUser({
+    required this.userId,
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.customerRef,
+    required this.devicesCount,
+  });
+
+  AdminPushUser copyWith({int? devicesCount}) {
+    return AdminPushUser(
+      userId: userId,
+      name: name,
+      email: email,
+      role: role,
+      customerRef: customerRef,
+      devicesCount: devicesCount ?? this.devicesCount,
+    );
+  }
+
+  factory AdminPushUser.fromJson(Map<String, dynamic> json) {
+    return AdminPushUser(
+      userId: json['userId']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      role: json['role']?.toString() ?? 'customer',
+      customerRef: json['customerRef']?.toString(),
+      devicesCount: (json['devicesCount'] is num) ? (json['devicesCount'] as num).toInt() : 0,
+    );
+  }
+}
+
+class AdminPushDevice {
+  final String deviceId;
+  final String platform;
+  final String deviceLabel;
+  final DateTime? createdAt;
+  final DateTime? lastSeenAt;
+  final String tokenHashOrFingerprint;
+  bool isDisabled;
+
+  AdminPushDevice({
+    required this.deviceId,
+    required this.platform,
+    required this.deviceLabel,
+    required this.createdAt,
+    required this.lastSeenAt,
+    required this.tokenHashOrFingerprint,
+    required this.isDisabled,
+  });
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    }
+    return DateTime.tryParse(value.toString());
+  }
+
+  factory AdminPushDevice.fromJson(Map<String, dynamic> json) {
+    return AdminPushDevice(
+      deviceId: json['deviceId']?.toString() ?? '',
+      platform: json['platform']?.toString() ?? '',
+      deviceLabel: json['deviceLabel']?.toString() ?? '',
+      createdAt: _parseDate(json['createdAt']),
+      lastSeenAt: _parseDate(json['lastSeenAt']),
+      tokenHashOrFingerprint: json['tokenHashOrFingerprint']?.toString() ?? '',
+      isDisabled: json['isDisabled'] == true,
     );
   }
 }
@@ -25861,6 +26376,55 @@ class AdminApi {
     });
     if (res.status != 200 && res.status != 204) {
       throw 'admin faq DELETE entry: HTTP ${res.status} ${res.responseText}';
+    }
+  }
+
+  Future<List<AdminPushUser>> fetchPushUsers() async {
+    final res = await _request('GET', '/api/admin/push/users');
+    if (res.status != 200) {
+      throw 'push users GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText?.trim() ?? '';
+    if (txt.isEmpty) return const [];
+    final decoded = jsonDecode(txt);
+    final items = decoded is Map && decoded['users'] is List ? decoded['users'] as List : const [];
+    return items
+        .whereType<Map>()
+        .map((e) => AdminPushUser.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  Future<List<AdminPushDevice>> fetchPushDevices(String userId) async {
+    final encoded = Uri.encodeComponent(userId);
+    final res = await _request('GET', '/api/admin/push/users/$encoded/devices');
+    if (res.status != 200) {
+      throw 'push devices GET: HTTP ${res.status} ${res.responseText}';
+    }
+    final txt = res.responseText?.trim() ?? '';
+    if (txt.isEmpty) return const [];
+    final decoded = jsonDecode(txt);
+    final items = decoded is Map && decoded['devices'] is List ? decoded['devices'] as List : const [];
+    return items
+        .whereType<Map>()
+        .map((e) => AdminPushDevice.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  Future<void> setPushDeviceDisabled({required String deviceId, required bool isDisabled}) async {
+    final encoded = Uri.encodeComponent(deviceId);
+    final res = await _request('PATCH', '/api/admin/push/devices/$encoded', body: {
+      'isDisabled': isDisabled,
+    });
+    if (res.status != 200) {
+      throw 'push device PATCH: HTTP ${res.status} ${res.responseText}';
+    }
+  }
+
+  Future<void> deletePushDevice(String deviceId) async {
+    final encoded = Uri.encodeComponent(deviceId);
+    final res = await _request('DELETE', '/api/admin/push/devices/$encoded');
+    if (res.status != 200 && res.status != 204) {
+      throw 'push device DELETE: HTTP ${res.status} ${res.responseText}';
     }
   }
 
