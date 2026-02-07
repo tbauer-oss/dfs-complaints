@@ -103,6 +103,8 @@ const mem = {
   capaInternalErrors: new Map(),
   changeRecords: new Map(),
   fmeas: new Map(),
+  gsprItems: new Map(),
+  gsprAudit: new Map(),
   auditors: new Map(),
   auditorIndex: new Set(),
   auditPrograms: new Map(),
@@ -4043,6 +4045,220 @@ async function syncFmeaRiskLinks(fmea, risk, prevRisk) {
     const list = (capa.fmeaRiskNumbers || []).map(String).filter(n => n !== riskNumber);
     await capaSave({ ...capa, fmeaRiskNumbers: list });
   }
+}
+
+/* =====================================================================
+   GSPR – Grundlegende Sicherheits- und Leistungsanforderungen
+   ===================================================================== */
+
+const KEY_GSPR_ITEM = (id) => `${P}gspr:item:${id}`;
+const KEY_GSPR_AUDIT = (id) => `${P}gspr:audit:${id}`;
+const GSPR_STATUSES = new Set(['DRAFT', 'QM_REVIEW', 'PRRC_REVIEW', 'APPROVED', 'REJECTED']);
+
+function normalizeGsprStatus(value) {
+  const v = String(value || '').trim().toUpperCase();
+  if (GSPR_STATUSES.has(v)) return v;
+  return 'DRAFT';
+}
+
+function normalizeGsprEvidence(raw = {}) {
+  return {
+    type: _text(raw.type, 40),
+    label: _text(raw.label, 200),
+    ref: _text(raw.ref, 200),
+  };
+}
+
+function normalizeGsprLink(raw = {}) {
+  return {
+    type: _text(raw.type, 40),
+    label: _text(raw.label, 200),
+    targetRef: _text(raw.targetRef ?? raw.ref, 200),
+  };
+}
+
+function normalizeGsprItem(input = {}) {
+  const now = Date.now();
+  const normalized = { ...input };
+  normalized.id = (normalized.id || `gspr_${crypto.randomUUID()}`).toString();
+  normalized.chapter = ['I', 'II', 'III'].includes(normalized.chapter) ? normalized.chapter : 'I';
+  normalized.gsprCode = _text(normalized.gsprCode, 80);
+  normalized.annexRefDe = _text(normalized.annexRefDe, 240);
+  normalized.annexRefEn = _text(normalized.annexRefEn, 240);
+  normalized.requirementTitleDe = _text(normalized.requirementTitleDe, 240);
+  normalized.requirementTitleEn = _text(normalized.requirementTitleEn, 240);
+  normalized.textDe = _text(normalized.textDe, 5000);
+  normalized.textEn = _text(normalized.textEn, 5000);
+  normalized.applicable = normalized.applicable !== false;
+  normalized.justificationNa = _text(normalized.justificationNa, 1200);
+  normalized.implementation = _text(normalized.implementation, 2000);
+  normalized.evidence = Array.isArray(normalized.evidence)
+    ? normalized.evidence.map(normalizeGsprEvidence)
+    : [];
+  normalized.links = Array.isArray(normalized.links)
+    ? normalized.links.map(normalizeGsprLink)
+    : [];
+  normalized.status = normalizeGsprStatus(normalized.status);
+  normalized.version = Number.isFinite(Number(normalized.version)) ? Number(normalized.version) : 1;
+  normalized.updatedAt = parseDate(normalized.updatedAt) || now;
+  normalized.updatedBy = _text(normalized.updatedBy, 120);
+  normalized.approvedAt = parseDate(normalized.approvedAt);
+  normalized.approvedBy = _text(normalized.approvedBy, 120);
+  return normalized;
+}
+
+function normalizeGsprAuditEvent(event = {}) {
+  return {
+    id: (event.id || `gspr_audit_${crypto.randomUUID()}`).toString(),
+    gsprItemId: _text(event.gsprItemId, 120),
+    timestamp: parseDate(event.timestamp) || Date.now(),
+    actorUserId: _text(event.actorUserId, 120),
+    actorName: _text(event.actorName, 120),
+    action: _text(event.action, 80),
+    fromStatus: _text(event.fromStatus, 40),
+    toStatus: _text(event.toStatus, 40),
+    comment: _text(event.comment, 1200),
+  };
+}
+
+async function gsprAuditSave(itemId, events) {
+  const key = KEY_GSPR_AUDIT(itemId);
+  const r = getRedis();
+  if (r) await rset(key, events); else {
+    if (!mem.gsprAudit) mem.gsprAudit = new Map();
+    mem.gsprAudit.set(itemId, events);
+  }
+}
+
+export async function gsprAuditList(itemId) {
+  if (!itemId) return [];
+  const key = KEY_GSPR_AUDIT(itemId);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.gsprAudit?.get?.(itemId) ?? null;
+  const list = Array.isArray(direct) ? direct.map(normalizeGsprAuditEvent) : [];
+  return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+export async function gsprAddAuditEvent(itemId, event) {
+  const list = await gsprAuditList(itemId);
+  const updated = [normalizeGsprAuditEvent(event), ...list];
+  await gsprAuditSave(itemId, updated);
+  return updated;
+}
+
+export async function gsprAll() {
+  const r = getRedis();
+  if (r) {
+    const keys = await rkeys(`${P}gspr:item:*`);
+    const vals = await Promise.all(keys.map((key) => rget(key)));
+    const list = [];
+    keys.forEach((key, index) => {
+      const val = vals[index];
+      if (!val) return;
+      const id = key.replace(`${P}gspr:item:`, '');
+      list.push(normalizeGsprItem({ ...val, id }));
+    });
+    list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    return list;
+  }
+  const list = Array.from(mem.gsprItems?.values?.() || []).map(v => normalizeGsprItem(v));
+  list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return list;
+}
+
+export async function gsprAllByChapter(chapter) {
+  const list = await gsprAll();
+  if (!chapter) return list;
+  return list.filter((item) => item.chapter === chapter);
+}
+
+export async function gsprGet(id) {
+  if (!id) return null;
+  const key = KEY_GSPR_ITEM(id);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.gsprItems?.get?.(id) ?? null;
+  return direct ? normalizeGsprItem({ ...direct, id }) : null;
+}
+
+export async function gsprSave(record) {
+  const data = normalizeGsprItem(record);
+  const key = KEY_GSPR_ITEM(data.id);
+  const r = getRedis();
+  if (r) await rset(key, data); else {
+    if (!mem.gsprItems) mem.gsprItems = new Map();
+    mem.gsprItems.set(data.id, data);
+  }
+  return data;
+}
+
+export async function gsprUpdate(id, patch) {
+  const current = await gsprGet(id);
+  if (!current) return null;
+  const updated = normalizeGsprItem({ ...current, ...patch, updatedAt: Date.now() });
+  return await gsprSave(updated);
+}
+
+export async function gsprWorkflowAction(id, { action, actor, comment, reason }) {
+  const item = await gsprGet(id);
+  if (!item) return null;
+  const now = Date.now();
+  let nextStatus = item.status;
+  let nextVersion = item.version;
+  let approvedAt = item.approvedAt;
+  let approvedBy = item.approvedBy;
+  let auditAction = 'STATUS_CHANGE';
+  const requiresJustification = item.applicable === false && !String(item.justificationNa || '').trim();
+
+  switch (action) {
+    case 'submit_to_qm_review':
+      if (requiresJustification) throw new Error('justification required');
+      nextStatus = 'QM_REVIEW';
+      break;
+    case 'submit_to_prrc_review':
+      if (requiresJustification) throw new Error('justification required');
+      nextStatus = 'PRRC_REVIEW';
+      break;
+    case 'return_to_draft':
+      nextStatus = 'DRAFT';
+      break;
+    case 'approve':
+      nextStatus = 'APPROVED';
+      approvedAt = now;
+      approvedBy = actor?.email || '';
+      break;
+    case 'request_change':
+      nextStatus = 'DRAFT';
+      nextVersion = Number(item.version || 1) + 1;
+      approvedAt = null;
+      approvedBy = '';
+      auditAction = 'OVERRIDE';
+      break;
+    default:
+      throw new Error('invalid action');
+  }
+
+  const updated = await gsprSave({
+    ...item,
+    status: nextStatus,
+    version: nextVersion,
+    updatedAt: now,
+    updatedBy: actor?.email || item.updatedBy,
+    approvedAt,
+    approvedBy,
+  });
+
+  await gsprAddAuditEvent(item.id, {
+    gsprItemId: item.id,
+    timestamp: now,
+    actorUserId: actor?.email || '',
+    actorName: actor?.displayName || actor?.email || '',
+    action: auditAction,
+    fromStatus: item.status,
+    toStatus: nextStatus,
+    comment: comment || reason || '',
+  });
+
+  return updated;
 }
 
 /* =====================================================================

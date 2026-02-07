@@ -693,6 +693,12 @@ class _MyAppState extends State<MyApp> {
                     portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
+              '/compliance/gspr': (_) => AdminPage(
+                    api: api,
+                    portalProfile: api.portalProfile,
+                    onMetaUpdated: (meta) => setState(() => _appMeta = meta),
+                    initialView: AdminView.gspr,
+                  ),
               '/admin/prrc': (ctx) => PrrcDashboardPage(
                     api: api,
                     portalProfile: api.portalProfile,

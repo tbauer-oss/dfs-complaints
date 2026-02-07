@@ -61,6 +61,7 @@ import 'complaint_list_page.dart';
 import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
+import 'compliance/gspr/gspr_home_page.dart';
 import 'change_management_page.dart';
 import 'supplier_evaluation_page.dart';
 import 'approved_suppliers_page.dart';
@@ -156,6 +157,7 @@ enum AdminView {
   capaReports,
   capaDashboard,
   fmea,
+  gspr,
   internalErrors,
   changeManagement,
   prrc,
@@ -244,6 +246,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'gspr',
     'internalErrors',
     'changeManagement',
     'prrc',
@@ -286,6 +289,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'gspr',
     'internalErrors',
     'changeManagement',
     'prrc',
@@ -322,6 +326,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'complaintList',
     'internalChat',
     'fmea',
+    'gspr',
     'internalErrors',
     'audits',
     'trainings',
@@ -344,6 +349,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'gspr',
     'internalErrors',
     'changeManagement',
     'prrc',
@@ -367,6 +373,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'capaReports',
     'capaDashboard',
     'fmea',
+    'gspr',
     'internalErrors',
     'changeManagement',
     'prrc',
@@ -419,6 +426,7 @@ const Map<String, List<String>> _DEFAULT_ROLE_TILES = {
     'prrc',
     'internalErrors',
     'changeManagement',
+    'gspr',
     'internalChat',
     'stats',
     'audits',
@@ -1925,7 +1933,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       title: 'Connect+ | Compliance',
       subtitle: '',
       defaultExpanded: true,
-      tileIds: ['fmea'],
+      tileIds: ['fmea', 'gspr'],
     ),
     _DashboardSectionConfig(
       id: 'training',
@@ -6624,6 +6632,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
 
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context)!;
     final title = switch (_view) {
       AdminView.menu           => 'DFS Connect+ | Your Digital Quality Hub',
       AdminView.all            => 'Alle Reklamationen',
@@ -6631,6 +6640,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaReports    => 'CAPA / 8D-Reports',
       AdminView.capaDashboard  => 'CAPA-Dashboard',
       AdminView.fmea           => 'FMEA',
+      AdminView.gspr           => t.gsprPageTitle,
       AdminView.internalErrors => 'Interne Fehlererfassung',
       AdminView.changeManagement => 'Change Management',
       AdminView.prrc           => 'PRRC-Einstufungen',
@@ -7814,6 +7824,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'capaDashboard';
       case AdminView.fmea:
         return 'fmea';
+      case AdminView.gspr:
+        return 'gspr';
       case AdminView.internalErrors:
         return 'internalErrors';
       case AdminView.changeManagement:
@@ -7878,6 +7890,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         AdminView.all,
         AdminView.complaintList,
         AdminView.fmea,
+        AdminView.gspr,
         AdminView.internalErrors,
         AdminView.audits,
         AdminView.trainings,
@@ -7896,6 +7909,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaReports,
       AdminView.capaDashboard,
       AdminView.fmea,
+      AdminView.gspr,
       AdminView.internalErrors,
       AdminView.changeManagement,
       AdminView.prrc,
@@ -8232,6 +8246,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           return AdminView.capaDashboard;
         case 'fmea':
           return AdminView.fmea;
+        case 'gspr':
+          return AdminView.gspr;
         case 'internalErrors':
           return AdminView.internalErrors;
         case 'changeManagement':
@@ -8449,6 +8465,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('capaReports');
     _ensureMenuTilePresent('capaDashboard');
     _ensureMenuTilePresent('fmea');
+    _ensureMenuTilePresent('gspr');
     _ensureMenuTilePresent('internalErrors');
     _ensureMenuTilePresent('changeManagement');
     _ensureMenuTilePresent('audits');
@@ -8485,6 +8502,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('gspr');
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
@@ -8513,6 +8531,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('gspr');
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
@@ -8561,6 +8580,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaReports');
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
+        _ensureMenuTilePresent('gspr');
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
@@ -8896,6 +8916,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   String _tileLabel(String tileId) {
+    final t = AppLocalizations.of(context)!;
     switch (tileId) {
       case 'open':
         return 'Offene Reklamationen';
@@ -8909,6 +8930,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return 'CAPA-Dashboard';
       case 'fmea':
         return 'FMEA';
+      case 'gspr':
+        return t.gsprTileTitle;
       case 'internalErrors':
         return 'Interne Fehlererfassung';
       case 'prrc':
@@ -10311,6 +10334,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     IconData? actionIcon,
   }) {
     final theme = Theme.of(context);
+    final t = AppLocalizations.of(context)!;
     final resolvedActionLabel =
         onActionTap == null ? null : (actionLabel ?? 'Kachel einblenden');
     final resolvedActionIcon = onActionTap == null ? null : (actionIcon ?? Icons.unarchive_outlined);
@@ -10416,6 +10440,21 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorB: AdminPalette.amberB,
           compact: compact,
           onTap: isPreview ? () {} : () => setState(() => _view = AdminView.fmea),
+          registerOnboarding: registerOnboarding,
+          actionLabel: resolvedActionLabel,
+          actionIcon: resolvedActionIcon,
+          onActionTap: onActionTap,
+        );
+      case 'gspr':
+        return _buildDashboardTile(
+          tileId: tileId,
+          label: t.gsprTileTitle,
+          subtitle: t.gsprTileSubtitle,
+          icon: Icons.rule_outlined,
+          colorA: AdminPalette.blueA,
+          colorB: AdminPalette.blueB,
+          compact: compact,
+          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.gspr),
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
@@ -11704,6 +11743,14 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         return AdminFmeaPage(
           api: widget.api,
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
+        );
+      case AdminView.gspr:
+        return GsprHomePage(
+          api: widget.api,
+          canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('gspr'),
+          isAdmin: _isSuperuser || _portalRole == 'admin',
+          isPrrc: _portalIsPrrc || _portalIsPrrcAuthorized,
+          isQm: _portalIsQm,
         );
       case AdminView.internalErrors:
         final access = _evaluateViewAccess(AdminView.internalErrors);
