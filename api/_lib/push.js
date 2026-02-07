@@ -334,6 +334,7 @@ export async function sendComplaintStatusPush(complaint) {
   const customerLang = user ? detectCustomerLang(user, complaint) : 'en';
   const customerTokens = Array.isArray(user?.pushTokens)
     ? user.pushTokens
+        .filter((p) => p?.isDisabled !== true)
         .map((p) => (p && p.token ? p.token.toString().trim() : ''))
         .filter((t) => t.length > 0)
     : [];
