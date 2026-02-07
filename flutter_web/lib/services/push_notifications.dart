@@ -686,6 +686,11 @@ class PushMessagingService {
   }
 }
 
+class PushNotifications {
+  PushNotifications._();
+  static final PushMessagingService instance = PushMessagingService.instance;
+}
+
 class PushDiagnosticsSnapshot {
   PushDiagnosticsSnapshot({
     required this.permission,

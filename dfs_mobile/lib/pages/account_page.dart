@@ -160,7 +160,7 @@ class _AccountPageState extends State<AccountPage> {
     try {
       if (enabled) {
         final locale = Localizations.localeOf(context);
-        await PushNotifications.instance.replayLatestToken(
+        await PushMessagingService.instance.replayLatestToken(
           widget.api,
           languageCode: locale.languageCode,
         );
@@ -168,7 +168,7 @@ class _AccountPageState extends State<AccountPage> {
         if (!mounted) return;
         setState(() => _pushEnabled = true);
       } else {
-        await PushNotifications.instance.deactivate(widget.api);
+        await PushMessagingService.instance.deactivate(widget.api);
         await _pushPrefs.setPushEnabled(false);
         if (!mounted) return;
         setState(() => _pushEnabled = false);
