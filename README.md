@@ -29,3 +29,8 @@
 - Nummernlogik für Trainings (`TRN-YYYY-####`) über Redis-/In-Memory-Counter, Soft-Delete der Trainingsdatensätze und automatisches Zuweisen von Fragebögen bei Teilnehmerstatus „attended“.
 - PDF-Exporte für Einzel-Schulungen (`/api/admin/training-pdf?id=...`) und Jahresprogramme (`/api/admin/training-program-pdf?year=...`).
 - Tests für Nummern- und Fragebogen-Zuweisung (`node --test api/tests/training.test.js`).
+
+## Push-Geräteverwaltung (Admin)
+- Superuser-APIs für Push-Geräte: `/api/admin/push/users`, `/api/admin/push/users/:userId/devices`, `/api/admin/push/devices/:deviceId` (toggle/delete), ohne Roh-Tokens.
+- Admin-UI „Push-Geräte“ mit Suche, Rollenanzeige (Kunde/Vertreter), Gerätestatus sowie Enable/Disable/Delete-Aktionen.
+- Versandlogik filtert admin-deaktivierte Tokens aus, sonst unverändert.
