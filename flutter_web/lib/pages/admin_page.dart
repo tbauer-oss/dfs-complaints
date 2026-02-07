@@ -1494,6 +1494,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         rawData.values.any((value) => value is List && value.whereType<String>().contains('internalErrors'));
     final hasPushDevicesInStored = rawData != null &&
         rawData.values.any((value) => value is List && value.whereType<String>().contains('pushDevices'));
+    final hasGsprInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('gspr'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1520,7 +1522,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (shouldMergeDefaults ||
           (!hasChangeManagementInStored && defaults.contains('changeManagement')) ||
           (!hasInternalErrorsInStored && defaults.contains('internalErrors')) ||
-          (!hasPushDevicesInStored && defaults.contains('pushDevices'))) {
+          (!hasPushDevicesInStored && defaults.contains('pushDevices')) ||
+          (!hasGsprInStored && defaults.contains('gspr'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
@@ -8406,6 +8409,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final built = <DashboardSection>[];
     for (final section in sections) {
       if (section.tileIds.isEmpty) continue;
+      if (section.title == _complianceSectionTitle) {
+        debugPrint('COMPLIANCE TILES: ${section.tileIds.map((t) => t).toList()}');
+      }
       final tiles = [
         for (final tileId in section.tileIds)
           SizedBox(
@@ -8776,7 +8782,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       }
 
       _archivedTileIds.remove('gspr');
-      final availableComplianceTiles = _complianceTileIds
+      final complianceTiles = List<String>.from(_complianceTileIds);
+      final availableComplianceTiles = complianceTiles
           .where((id) => allowedTiles.contains(id) && !_archivedTileIds.contains(id))
           .toList();
       if (complianceSection == null && availableComplianceTiles.isNotEmpty) {
@@ -8807,23 +8814,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
             }
           }
         }
-        for (final id in availableComplianceTiles) {
-          if (!complianceSection.tileIds.contains(id)) {
-            complianceSection.tileIds.add(id);
-          }
-        }
-        final orderedComplianceTiles = <String>[
-          for (final id in _complianceTileIds)
-            if (complianceSection.tileIds.contains(id)) id,
-        ];
-        for (final id in complianceSection.tileIds) {
-          if (!orderedComplianceTiles.contains(id)) {
-            orderedComplianceTiles.add(id);
-          }
-        }
         complianceSection.tileIds
           ..clear()
-          ..addAll(orderedComplianceTiles);
+          ..addAll(availableComplianceTiles);
       }
 
       if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
