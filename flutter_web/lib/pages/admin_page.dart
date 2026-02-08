@@ -8412,8 +8412,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (section.title == _complianceSectionTitle) {
         debugPrint('COMPLIANCE TILES: ${section.tileIds.map((t) => t).toList()}');
       }
+      final visibleTileIds = _visibleTileIdsForSection(section);
       final tiles = [
-        for (final tileId in section.tileIds)
+        for (final tileId in visibleTileIds)
           SizedBox(
             width: tileWidth,
             height: tileHeight,
@@ -8432,6 +8433,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       );
     }
     return built;
+  }
+
+  List<String> _visibleTileIdsForSection(_AdminMenuSectionState section) {
+    if (section.title != _complianceSectionTitle) return section.tileIds;
+    return section.tileIds.where(_complianceTileIds.contains).toList();
   }
 
   bool _sectionExpanded(DashboardSection section) {
@@ -9965,12 +9971,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     required double spacing,
     required double runSpacing,
   }) {
+    final tileIds = _visibleTileIdsForSection(section);
     if (!_menuEditMode) {
       return Wrap(
         spacing: spacing,
         runSpacing: runSpacing,
         children: [
-          for (final tileId in section.tileIds)
+          for (final tileId in tileIds)
             SizedBox(
               width: tileWidth,
               height: tileHeight,
@@ -9981,12 +9988,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
 
     final tiles = <Widget>[];
-    for (var tileIndex = 0; tileIndex < section.tileIds.length; tileIndex++) {
+    for (var tileIndex = 0; tileIndex < tileIds.length; tileIndex++) {
       tiles.add(
         _buildDraggableTile(
           sectionIndex: sectionIndex,
           tileIndex: tileIndex,
-          tileId: section.tileIds[tileIndex],
+          tileId: tileIds[tileIndex],
           compact: compact,
           tileWidth: tileWidth,
           tileHeight: tileHeight,
@@ -9997,7 +10004,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     tiles.add(
       _buildDropTarget(
         sectionIndex: sectionIndex,
-        insertIndex: section.tileIds.length,
+        insertIndex: tileIds.length,
         compact: compact,
         tileWidth: tileWidth,
         tileHeight: tileHeight,

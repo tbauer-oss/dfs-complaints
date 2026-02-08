@@ -16,6 +16,7 @@ import 'utils/lang_utils.dart';
 // Seiten
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
+import 'pages/compliance/gspr/gspr_chapter_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/help_center_page.dart';
 import 'pages/training_admin_section.dart';
@@ -768,6 +769,18 @@ class _MyAppState extends State<MyApp> {
                   builder: (_) => TrainingSignaturePage(api: api),
                   settings: settings,
                 );
+              }
+
+              if (name.startsWith('/compliance/gspr/chapter')) {
+                final uri = Uri.tryParse(name);
+                final segments = uri?.pathSegments ?? const [];
+                if (segments.length >= 4) {
+                  final chapter = segments[3].toUpperCase();
+                  return MaterialPageRoute(
+                    builder: (_) => GsprChapterPage(chapter: chapter),
+                    settings: settings,
+                  );
+                }
               }
 
               if (name.startsWith('/admin/training')) {

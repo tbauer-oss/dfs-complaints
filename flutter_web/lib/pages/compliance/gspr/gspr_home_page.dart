@@ -26,11 +26,20 @@ class GsprHomePage extends StatelessWidget {
             style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
           ),
           const SizedBox(height: 12),
-          _GsprNavCard(label: t.gsprChapterI),
+          _GsprNavCard(
+            label: t.gsprChapterI,
+            onTap: () => Navigator.of(context).pushNamed('/compliance/gspr/chapter/I'),
+          ),
           const SizedBox(height: 12),
-          _GsprNavCard(label: t.gsprChapterII),
+          _GsprNavCard(
+            label: t.gsprChapterII,
+            onTap: () => Navigator.of(context).pushNamed('/compliance/gspr/chapter/II'),
+          ),
           const SizedBox(height: 12),
-          _GsprNavCard(label: t.gsprChapterIII),
+          _GsprNavCard(
+            label: t.gsprChapterIII,
+            onTap: () => Navigator.of(context).pushNamed('/compliance/gspr/chapter/III'),
+          ),
         ],
       ),
     );
@@ -39,8 +48,9 @@ class GsprHomePage extends StatelessWidget {
 
 class _GsprNavCard extends StatelessWidget {
   final String label;
+  final VoidCallback onTap;
 
-  const _GsprNavCard({required this.label});
+  const _GsprNavCard({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +59,7 @@ class _GsprNavCard extends StatelessWidget {
       child: ListTile(
         title: Text(label),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () {},
+        onTap: onTap,
       ),
     );
   }

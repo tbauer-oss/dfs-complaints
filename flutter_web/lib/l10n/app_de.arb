@@ -1003,6 +1003,8 @@
   "gsprTileSubtitle": "MDR Anhang I",
   "gsprPageTitle": "GSPR – Grundlegende Sicherheits- und Leistungsanforderungen",
   "gsprComingSoon": "In Vorbereitung",
+  "empty_state_no_items": "Keine Einträge vorhanden.",
+  "create_new_gspr_item": "Neuen GSPR-Eintrag anlegen",
   "gsprDetailTitle": "GSPR-Anforderung",
   "gsprChapterI": "MDR Anhang I – Kapitel I: Allgemeine Anforderungen",
   "gsprChapterII": "MDR Anhang I – Kapitel II: Anforderungen an Auslegung und Herstellung",
