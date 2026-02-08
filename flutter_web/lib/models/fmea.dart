@@ -253,6 +253,8 @@ class FmeaRecord {
   final DateTime? updatedAt;
   final String createdBy;
   final String updatedBy;
+  final bool active;
+  final DateTime? archivedAt;
   final Map<String, int> riskMatrix;
   final List<FmeaRiskEntry> risks;
 
@@ -271,6 +273,8 @@ class FmeaRecord {
     this.updatedAt,
     this.createdBy = '',
     this.updatedBy = '',
+    this.active = true,
+    this.archivedAt,
     this.riskMatrix = const {'red': 15, 'yellow': 8},
     this.risks = const [],
   });
@@ -315,6 +319,8 @@ class FmeaRecord {
       updatedAt: _parseDate(json['updatedAt']),
       createdBy: (json['createdBy'] ?? '').toString(),
       updatedBy: (json['updatedBy'] ?? '').toString(),
+      active: json['active'] == null ? true : _parseBool(json['active']),
+      archivedAt: _parseDate(json['archivedAt']),
       riskMatrix: {
         'red': (rm['red'] is num) ? (rm['red'] as num).toInt() : 15,
         'yellow': (rm['yellow'] is num) ? (rm['yellow'] as num).toInt() : 8,
@@ -338,6 +344,8 @@ class FmeaRecord {
         'updatedAt': updatedAt?.millisecondsSinceEpoch,
         'createdBy': createdBy,
         'updatedBy': updatedBy,
+        'active': active,
+        'archivedAt': archivedAt?.millisecondsSinceEpoch,
         'riskMatrix': riskMatrix,
         'risks': risks.map((e) => e.toJson()).toList(),
       };
@@ -358,6 +366,8 @@ class FmeaRecord {
     DateTime? updatedAt,
     String? createdBy,
     String? updatedBy,
+    bool? active,
+    DateTime? archivedAt,
     Map<String, int>? riskMatrix,
     List<FmeaRiskEntry>? risks,
   }) {
@@ -376,6 +386,8 @@ class FmeaRecord {
       updatedAt: updatedAt ?? this.updatedAt,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
+      active: active ?? this.active,
+      archivedAt: archivedAt ?? this.archivedAt,
       riskMatrix: riskMatrix ?? this.riskMatrix,
       risks: risks ?? this.risks,
     );

@@ -1,307 +1,301 @@
 import 'package:flutter/foundation.dart';
 
-enum WorkflowStatus {
+enum GsprStatus {
   draft,
-  qmReview,
-  prrcReview,
+  inReview,
   approved,
-  rejected,
 }
 
-WorkflowStatus workflowStatusFromString(String? value) {
-  switch ((value ?? '').toUpperCase()) {
-    case 'QM_REVIEW':
-      return WorkflowStatus.qmReview;
-    case 'PRRC_REVIEW':
-      return WorkflowStatus.prrcReview;
-    case 'APPROVED':
-      return WorkflowStatus.approved;
-    case 'REJECTED':
-      return WorkflowStatus.rejected;
-    case 'DRAFT':
+GsprStatus gsprStatusFromString(String? value) {
+  switch ((value ?? '').toLowerCase()) {
+    case 'in_review':
+      return GsprStatus.inReview;
+    case 'approved':
+      return GsprStatus.approved;
+    case 'draft':
     default:
-      return WorkflowStatus.draft;
+      return GsprStatus.draft;
   }
 }
 
-String workflowStatusToString(WorkflowStatus status) {
+String gsprStatusToString(GsprStatus status) {
   switch (status) {
-    case WorkflowStatus.qmReview:
-      return 'QM_REVIEW';
-    case WorkflowStatus.prrcReview:
-      return 'PRRC_REVIEW';
-    case WorkflowStatus.approved:
-      return 'APPROVED';
-    case WorkflowStatus.rejected:
-      return 'REJECTED';
-    case WorkflowStatus.draft:
+    case GsprStatus.inReview:
+      return 'in_review';
+    case GsprStatus.approved:
+      return 'approved';
+    case GsprStatus.draft:
     default:
-      return 'DRAFT';
+      return 'draft';
   }
 }
 
 @immutable
-class EvidenceRef {
-  final String type;
-  final String label;
-  final String ref;
-
-  const EvidenceRef({
-    required this.type,
-    required this.label,
-    required this.ref,
-  });
-
-  factory EvidenceRef.fromJson(Map<String, dynamic> json) {
-    return EvidenceRef(
-      type: (json['type'] ?? '').toString(),
-      label: (json['label'] ?? '').toString(),
-      ref: (json['ref'] ?? '').toString(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'type': type,
-        'label': label,
-        'ref': ref,
-      };
-}
-
-@immutable
-class LinkRef {
-  final String type;
-  final String label;
-  final String targetRef;
-
-  const LinkRef({
-    required this.type,
-    required this.label,
-    required this.targetRef,
-  });
-
-  factory LinkRef.fromJson(Map<String, dynamic> json) {
-    return LinkRef(
-      type: (json['type'] ?? '').toString(),
-      label: (json['label'] ?? '').toString(),
-      targetRef: (json['targetRef'] ?? json['ref'] ?? '').toString(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'type': type,
-        'label': label,
-        'targetRef': targetRef,
-      };
-}
-
-@immutable
-class GsprItem {
+class GsprRequirement {
   final String id;
-  final String chapter;
-  final String gsprCode;
-  final String annexRefDe;
-  final String annexRefEn;
-  final String? requirementTitleDe;
-  final String? requirementTitleEn;
-  final String textDe;
-  final String textEn;
-  final bool applicable;
-  final String? justificationNa;
-  final String? implementation;
-  final List<EvidenceRef> evidence;
-  final List<LinkRef> links;
-  final WorkflowStatus status;
-  final int version;
-  final DateTime updatedAt;
-  final String updatedBy;
-  final DateTime? approvedAt;
-  final String? approvedBy;
+  final String ref;
+  final int chapter;
+  final String title;
+  final String fullText;
+  final int sort;
 
-  const GsprItem({
+  const GsprRequirement({
     required this.id,
+    required this.ref,
     required this.chapter,
-    required this.gsprCode,
-    required this.annexRefDe,
-    required this.annexRefEn,
-    required this.requirementTitleDe,
-    required this.requirementTitleEn,
-    required this.textDe,
-    required this.textEn,
+    required this.title,
+    required this.fullText,
+    required this.sort,
+  });
+
+  factory GsprRequirement.fromJson(Map<String, dynamic> json) {
+    return GsprRequirement(
+      id: (json['id'] ?? '').toString(),
+      ref: (json['ref'] ?? '').toString(),
+      chapter: (json['chapter'] is num) ? (json['chapter'] as num).toInt() : 0,
+      title: (json['title'] ?? '').toString(),
+      fullText: (json['fullText'] ?? '').toString(),
+      sort: (json['sort'] is num) ? (json['sort'] as num).toInt() : 0,
+    );
+  }
+}
+
+@immutable
+class GsprAssessment {
+  final String id;
+  final String tdId;
+  final String requirementId;
+  final bool applicable;
+  final String standards;
+  final String edition;
+  final String supportingDocs;
+  final String revision;
+  final DateTime? date;
+  final String comments;
+  final String additionalDataRequired;
+  final GsprStatus status;
+  final int version;
+  final DateTime? updatedAt;
+  final String updatedBy;
+
+  const GsprAssessment({
+    required this.id,
+    required this.tdId,
+    required this.requirementId,
     required this.applicable,
-    required this.justificationNa,
-    required this.implementation,
-    required this.evidence,
-    required this.links,
+    required this.standards,
+    required this.edition,
+    required this.supportingDocs,
+    required this.revision,
+    required this.date,
+    required this.comments,
+    required this.additionalDataRequired,
     required this.status,
     required this.version,
     required this.updatedAt,
     required this.updatedBy,
-    required this.approvedAt,
-    required this.approvedBy,
   });
 
-  factory GsprItem.empty({required String chapter}) {
-    final now = DateTime.now();
-    return GsprItem(
+  factory GsprAssessment.empty({required String tdId, required String requirementId}) {
+    return GsprAssessment(
       id: '',
-      chapter: chapter,
-      gsprCode: '',
-      annexRefDe: '',
-      annexRefEn: '',
-      requirementTitleDe: '',
-      requirementTitleEn: '',
-      textDe: '',
-      textEn: '',
+      tdId: tdId,
+      requirementId: requirementId,
       applicable: true,
-      justificationNa: '',
-      implementation: '',
-      evidence: const [],
-      links: const [],
-      status: WorkflowStatus.draft,
+      standards: '',
+      edition: '',
+      supportingDocs: '',
+      revision: '',
+      date: null,
+      comments: '',
+      additionalDataRequired: '',
+      status: GsprStatus.draft,
       version: 1,
-      updatedAt: now,
+      updatedAt: DateTime.now(),
       updatedBy: '',
-      approvedAt: null,
-      approvedBy: null,
     );
   }
 
-  factory GsprItem.fromJson(Map<String, dynamic> json) {
-    return GsprItem(
+  factory GsprAssessment.fromJson(Map<String, dynamic> json) {
+    return GsprAssessment(
       id: (json['id'] ?? '').toString(),
-      chapter: (json['chapter'] ?? '').toString(),
-      gsprCode: (json['gsprCode'] ?? '').toString(),
-      annexRefDe: (json['annexRefDe'] ?? '').toString(),
-      annexRefEn: (json['annexRefEn'] ?? '').toString(),
-      requirementTitleDe: json['requirementTitleDe']?.toString(),
-      requirementTitleEn: json['requirementTitleEn']?.toString(),
-      textDe: (json['textDe'] ?? '').toString(),
-      textEn: (json['textEn'] ?? '').toString(),
-      applicable: json['applicable'] == true,
-      justificationNa: json['justificationNa']?.toString(),
-      implementation: json['implementation']?.toString(),
-      evidence: (json['evidence'] as List<dynamic>? ?? const [])
-          .whereType<Map>()
-          .map((e) => EvidenceRef.fromJson(e.cast<String, dynamic>()))
-          .toList(growable: false),
-      links: (json['links'] as List<dynamic>? ?? const [])
-          .whereType<Map>()
-          .map((e) => LinkRef.fromJson(e.cast<String, dynamic>()))
-          .toList(growable: false),
-      status: workflowStatusFromString(json['status']?.toString()),
+      tdId: (json['tdId'] ?? '').toString(),
+      requirementId: (json['requirementId'] ?? '').toString(),
+      applicable: json['applicable'] != false,
+      standards: (json['standards'] ?? '').toString(),
+      edition: (json['edition'] ?? '').toString(),
+      supportingDocs: (json['supportingDocs'] ?? '').toString(),
+      revision: (json['revision'] ?? '').toString(),
+      date: DateTime.tryParse(json['date']?.toString() ?? ''),
+      comments: (json['comments'] ?? '').toString(),
+      additionalDataRequired: (json['additionalDataRequired'] ?? '').toString(),
+      status: gsprStatusFromString(json['status']?.toString()),
       version: (json['version'] is num) ? (json['version'] as num).toInt() : 1,
-      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
       updatedBy: (json['updatedBy'] ?? '').toString(),
-      approvedAt: DateTime.tryParse(json['approvedAt']?.toString() ?? ''),
-      approvedBy: json['approvedBy']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'chapter': chapter,
-        'gsprCode': gsprCode,
-        'annexRefDe': annexRefDe,
-        'annexRefEn': annexRefEn,
-        'requirementTitleDe': requirementTitleDe,
-        'requirementTitleEn': requirementTitleEn,
-        'textDe': textDe,
-        'textEn': textEn,
+        'tdId': tdId,
+        'requirementId': requirementId,
         'applicable': applicable,
-        'justificationNa': justificationNa,
-        'implementation': implementation,
-        'evidence': evidence.map((e) => e.toJson()).toList(),
-        'links': links.map((e) => e.toJson()).toList(),
-        'status': workflowStatusToString(status),
+        'standards': standards,
+        'edition': edition,
+        'supportingDocs': supportingDocs,
+        'revision': revision,
+        'date': date?.toIso8601String(),
+        'comments': comments,
+        'additionalDataRequired': additionalDataRequired,
+        'status': gsprStatusToString(status),
         'version': version,
-        'updatedAt': updatedAt.toIso8601String(),
+        'updatedAt': updatedAt?.toIso8601String(),
         'updatedBy': updatedBy,
-        'approvedAt': approvedAt?.toIso8601String(),
-        'approvedBy': approvedBy,
       };
 
-  GsprItem copyWith({
+  GsprAssessment copyWith({
     String? id,
-    String? chapter,
-    String? gsprCode,
-    String? annexRefDe,
-    String? annexRefEn,
-    String? requirementTitleDe,
-    String? requirementTitleEn,
-    String? textDe,
-    String? textEn,
+    String? tdId,
+    String? requirementId,
     bool? applicable,
-    String? justificationNa,
-    String? implementation,
-    List<EvidenceRef>? evidence,
-    List<LinkRef>? links,
-    WorkflowStatus? status,
+    String? standards,
+    String? edition,
+    String? supportingDocs,
+    String? revision,
+    DateTime? date,
+    String? comments,
+    String? additionalDataRequired,
+    GsprStatus? status,
     int? version,
     DateTime? updatedAt,
     String? updatedBy,
-    DateTime? approvedAt,
-    String? approvedBy,
   }) {
-    return GsprItem(
+    return GsprAssessment(
       id: id ?? this.id,
-      chapter: chapter ?? this.chapter,
-      gsprCode: gsprCode ?? this.gsprCode,
-      annexRefDe: annexRefDe ?? this.annexRefDe,
-      annexRefEn: annexRefEn ?? this.annexRefEn,
-      requirementTitleDe: requirementTitleDe ?? this.requirementTitleDe,
-      requirementTitleEn: requirementTitleEn ?? this.requirementTitleEn,
-      textDe: textDe ?? this.textDe,
-      textEn: textEn ?? this.textEn,
+      tdId: tdId ?? this.tdId,
+      requirementId: requirementId ?? this.requirementId,
       applicable: applicable ?? this.applicable,
-      justificationNa: justificationNa ?? this.justificationNa,
-      implementation: implementation ?? this.implementation,
-      evidence: evidence ?? this.evidence,
-      links: links ?? this.links,
+      standards: standards ?? this.standards,
+      edition: edition ?? this.edition,
+      supportingDocs: supportingDocs ?? this.supportingDocs,
+      revision: revision ?? this.revision,
+      date: date ?? this.date,
+      comments: comments ?? this.comments,
+      additionalDataRequired: additionalDataRequired ?? this.additionalDataRequired,
       status: status ?? this.status,
       version: version ?? this.version,
       updatedAt: updatedAt ?? this.updatedAt,
       updatedBy: updatedBy ?? this.updatedBy,
-      approvedAt: approvedAt ?? this.approvedAt,
-      approvedBy: approvedBy ?? this.approvedBy,
     );
   }
 }
 
 @immutable
-class AuditEvent {
-  final String id;
-  final String gsprItemId;
-  final DateTime timestamp;
-  final String actorUserId;
-  final String actorName;
-  final String action;
-  final String? fromStatus;
-  final String? toStatus;
-  final String? comment;
+class GsprChapterEntry {
+  final GsprRequirement requirement;
+  final GsprAssessment assessment;
 
-  const AuditEvent({
-    required this.id,
-    required this.gsprItemId,
-    required this.timestamp,
-    required this.actorUserId,
-    required this.actorName,
-    required this.action,
-    required this.fromStatus,
-    required this.toStatus,
-    required this.comment,
+  const GsprChapterEntry({
+    required this.requirement,
+    required this.assessment,
   });
 
-  factory AuditEvent.fromJson(Map<String, dynamic> json) {
-    return AuditEvent(
-      id: (json['id'] ?? '').toString(),
-      gsprItemId: (json['gsprItemId'] ?? '').toString(),
-      timestamp: DateTime.tryParse(json['timestamp']?.toString() ?? '') ?? DateTime.now(),
-      actorUserId: (json['actorUserId'] ?? '').toString(),
-      actorName: (json['actorName'] ?? '').toString(),
-      action: (json['action'] ?? '').toString(),
-      fromStatus: json['fromStatus']?.toString(),
-      toStatus: json['toStatus']?.toString(),
-      comment: json['comment']?.toString(),
+  factory GsprChapterEntry.fromJson(Map<String, dynamic> json, {required String tdId}) {
+    final req = GsprRequirement.fromJson((json['requirement'] as Map).cast<String, dynamic>());
+    final assessmentJson = json['assessment'] is Map ? json['assessment'] as Map : <String, dynamic>{};
+    final assessment = assessmentJson.isNotEmpty
+        ? GsprAssessment.fromJson(assessmentJson.cast<String, dynamic>())
+        : GsprAssessment.empty(tdId: tdId, requirementId: req.id);
+    return GsprChapterEntry(requirement: req, assessment: assessment);
+  }
+}
+
+@immutable
+class GsprChapterResponse {
+  final List<GsprChapterEntry> items;
+  final GsprStatus status;
+  final bool readOnly;
+
+  const GsprChapterResponse({
+    required this.items,
+    required this.status,
+    required this.readOnly,
+  });
+
+  factory GsprChapterResponse.fromJson(Map<String, dynamic> json, {required String tdId}) {
+    final list = (json['items'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((e) => GsprChapterEntry.fromJson(e.cast<String, dynamic>(), tdId: tdId))
+        .toList(growable: false);
+    return GsprChapterResponse(
+      items: list,
+      status: gsprStatusFromString(json['status']?.toString()),
+      readOnly: json['readOnly'] == true,
+    );
+  }
+}
+
+@immutable
+class GsprSummaryChapter {
+  final int chapter;
+  final int total;
+  final int assessed;
+  final int notApplicable;
+
+  const GsprSummaryChapter({
+    required this.chapter,
+    required this.total,
+    required this.assessed,
+    required this.notApplicable,
+  });
+
+  factory GsprSummaryChapter.fromJson(Map<String, dynamic> json) {
+    return GsprSummaryChapter(
+      chapter: (json['chapter'] is num) ? (json['chapter'] as num).toInt() : 0,
+      total: (json['total'] is num) ? (json['total'] as num).toInt() : 0,
+      assessed: (json['assessed'] is num) ? (json['assessed'] as num).toInt() : 0,
+      notApplicable: (json['notApplicable'] is num) ? (json['notApplicable'] as num).toInt() : 0,
+    );
+  }
+}
+
+@immutable
+class GsprSummary {
+  final String tdId;
+  final GsprStatus status;
+  final List<GsprSummaryChapter> chapters;
+  final DateTime? submittedAt;
+  final String submittedBy;
+  final DateTime? approvedAt;
+  final String approvedBy;
+  final bool readOnly;
+
+  const GsprSummary({
+    required this.tdId,
+    required this.status,
+    required this.chapters,
+    required this.submittedAt,
+    required this.submittedBy,
+    required this.approvedAt,
+    required this.approvedBy,
+    required this.readOnly,
+  });
+
+  factory GsprSummary.fromJson(Map<String, dynamic> json) {
+    final chapters = (json['chapters'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((e) => GsprSummaryChapter.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+    return GsprSummary(
+      tdId: (json['tdId'] ?? '').toString(),
+      status: gsprStatusFromString(json['status']?.toString()),
+      chapters: chapters,
+      submittedAt: DateTime.tryParse(json['submittedAt']?.toString() ?? ''),
+      submittedBy: (json['submittedBy'] ?? '').toString(),
+      approvedAt: DateTime.tryParse(json['approvedAt']?.toString() ?? ''),
+      approvedBy: (json['approvedBy'] ?? '').toString(),
+      readOnly: json['readOnly'] == true,
     );
   }
 }

@@ -17,6 +17,7 @@ import 'utils/lang_utils.dart';
 import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/compliance/gspr/gspr_chapter_page.dart';
+import 'pages/compliance/gspr/gspr_state.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/help_center_page.dart';
 import 'pages/training_admin_section.dart';
@@ -776,8 +777,16 @@ class _MyAppState extends State<MyApp> {
                 final segments = uri?.pathSegments ?? const [];
                 if (segments.length >= 4) {
                   final chapter = segments[3].toUpperCase();
+                  final args = settings.arguments;
+                  final gsprArgs = args is GsprChapterArgs ? args : null;
+                  final access = gsprArgs?.access ?? GsprAccess.fromProfile(api.portalProfile);
                   return MaterialPageRoute(
-                    builder: (_) => GsprChapterPage(chapter: chapter),
+                    builder: (_) => GsprChapterPage(
+                      chapter: chapter,
+                      api: api,
+                      access: access,
+                      tdOverride: gsprArgs?.td,
+                    ),
                     settings: settings,
                   );
                 }
