@@ -1911,6 +1911,47 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   static const String _complianceSectionTitle = 'Connect+ | Compliance';
   static const String _trainingSectionSubtitle = '';
   static const List<String> _complianceTileIds = ['fmea', 'gspr'];
+  static const Set<String> _renderableTileIds = {
+    'open',
+    'all',
+    'complaintList',
+    'capaReports',
+    'capaDashboard',
+    'fmea',
+    'gspr',
+    'internalErrors',
+    'changeManagement',
+    'prrc',
+    'stats',
+    'pending',
+    'users',
+    'createCustomer',
+    'reps',
+    'news',
+    'downloads',
+    'faq',
+    'wiki',
+    'products',
+    'audits',
+    'trainings',
+    'trainingNeeds',
+    'trainingProgram',
+    'trainingSessions',
+    'trainingEffectiveness',
+    'trainingArchive',
+    'approvedSuppliers',
+    'supplierEvaluation',
+    'createSupplier',
+    'push',
+    'pushDevices',
+    'internalChat',
+    'catalogs',
+    'portalUsers',
+    'appMeta',
+    'testMode',
+    'systemHealth',
+    'activity',
+  };
   static const List<String> _trainingTileIds = [
     'trainings',
     'trainingNeeds',
@@ -8440,8 +8481,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   List<String> _visibleTileIdsForSection(_AdminMenuSectionState section) {
-    if (section.title != _complianceSectionTitle) return section.tileIds;
-    return section.tileIds.where(_complianceTileIds.contains).toList();
+    if (section.title != _complianceSectionTitle) {
+      return section.tileIds.where(_renderableTileIds.contains).toList();
+    }
+    return section.tileIds
+        .where(_complianceTileIds.contains)
+        .where(_renderableTileIds.contains)
+        .toList();
   }
 
   bool _sectionExpanded(DashboardSection section) {
@@ -8646,6 +8692,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   void _ensureMenuTilePresent(String tileId) {
     final allowedTiles = _allowedTilesForActor();
+    if (!_renderableTileIds.contains(tileId)) return;
     if (!_menuTileIds.contains(tileId) || !allowedTiles.contains(tileId)) return;
 
     final alreadyVisible = _menuSections.any((s) => s.tileIds.contains(tileId));
@@ -8740,7 +8787,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
         final filtered = tiles
             .where((id) =>
-                allowedTiles.contains(id) && _menuTileIds.contains(id) && !_archivedTileIds.contains(id))
+                _renderableTileIds.contains(id) &&
+                allowedTiles.contains(id) &&
+                _menuTileIds.contains(id) &&
+                !_archivedTileIds.contains(id))
             .toList();
         used.addAll(filtered);
         final existing = sectionsByTitle[title];
@@ -8832,7 +8882,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (sections.isEmpty) return defaults.map((s) => s.copy()).toList();
 
       for (final id in _menuTileIds) {
-        if (used.contains(id) || _archivedTileIds.contains(id) || !allowedTiles.contains(id)) continue;
+        if (!_renderableTileIds.contains(id) ||
+            used.contains(id) ||
+            _archivedTileIds.contains(id) ||
+            !allowedTiles.contains(id)) {
+          continue;
+        }
         final targetTitle = _tileDefaultSection[id];
         final targetSection = sections.firstWhere(
           (s) => s.title == targetTitle,
