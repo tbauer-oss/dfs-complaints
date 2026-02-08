@@ -62,6 +62,7 @@ import 'capa_overview_page.dart';
 import 'capa_detail_page.dart';
 import 'admin_fmea_page.dart';
 import 'compliance/gspr/gspr_home_page.dart';
+import 'compliance/gspr/gspr_state.dart';
 import 'change_management_page.dart';
 import 'supplier_evaluation_page.dart';
 import 'approved_suppliers_page.dart';
@@ -11880,7 +11881,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           canEdit: (_portalIsQm || _isSuperuser || _portalRole == 'admin') && _canWriteTile('fmea'),
         );
       case AdminView.gspr:
-        return const GsprHomePage();
+        return GsprHomePage(
+          api: widget.api,
+          access: GsprAccess.fromProfile(_portalProfile),
+        );
       case AdminView.internalErrors:
         final access = _evaluateViewAccess(AdminView.internalErrors);
         if (access == AdminAccessDecision.loading) {

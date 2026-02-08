@@ -2615,92 +2615,80 @@ class ApiClient {
     }
   }
 
-  Future<List<GsprItem>> gsprItems({required String chapter}) async {
-    final path = Uri(path: '/api/gspr/items', queryParameters: {'chapter': chapter}).toString();
+  Future<GsprSummary> gsprSummary({required String tdId}) async {
+    final path = Uri(path: '/api/gspr/summary', queryParameters: {'tdId': tdId}).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
-    final items = decoded is Map && decoded['items'] is List ? decoded['items'] as List : const [];
-    return items
-        .whereType<Map>()
-        .map((e) => GsprItem.fromJson(e.cast<String, dynamic>()))
-        .toList(growable: false);
+    if (decoded is Map) {
+      return GsprSummary.fromJson(decoded.cast<String, dynamic>());
+    }
+    throw ApiError(r.statusCode, 'Ungültige GSPR-Zusammenfassung');
   }
 
-  Future<GsprItem> gsprItem(String id) async {
-    final r = await http.get(_u('/api/gspr/items/$id'), headers: _adminHeaders(auth: true));
+  Future<GsprChapterResponse> gsprChapter({required String tdId, required String chapter}) async {
+    final path = Uri(
+      path: '/api/gspr/chapter',
+      queryParameters: {'tdId': tdId, 'chapter': chapter},
+    ).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
-    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
-    return GsprItem.fromJson(map.cast<String, dynamic>());
+    if (decoded is Map) {
+      return GsprChapterResponse.fromJson(decoded.cast<String, dynamic>(), tdId: tdId);
+    }
+    throw ApiError(r.statusCode, 'Ungültige GSPR-Kapitel-Antwort');
   }
 
-  Future<GsprItem> createGsprItem(GsprItem item) async {
+  Future<GsprAssessment> updateGsprAssessment(GsprAssessment assessment) async {
+    final r = await http.put(
+      _u('/api/gspr/assessment/${assessment.id}'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode(assessment.toJson()),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final map = decoded is Map && decoded['assessment'] is Map ? decoded['assessment'] as Map : decoded;
+    return GsprAssessment.fromJson(map.cast<String, dynamic>());
+  }
+
+  Future<void> submitGsprTd(String tdId) async {
     final r = await http.post(
-      _u('/api/gspr/items'),
+      _u('/api/gspr/td/$tdId/submit'),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode(item.toJson()),
     );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
-    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
-    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
-    return GsprItem.fromJson(map.cast<String, dynamic>());
   }
 
-  Future<GsprItem> updateGsprItem(GsprItem item) async {
-    final r = await http.patch(
-      _u('/api/gspr/items/${item.id}'),
-      headers: _adminHeaders(auth: true),
-      body: jsonEncode(item.toJson()),
-    );
-    if (!_ok2xx(r.statusCode)) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
-    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
-    return GsprItem.fromJson(map.cast<String, dynamic>());
-  }
-
-  Future<GsprItem> gsprWorkflowAction(
-    String id, {
-    required String action,
-    String? comment,
-    String? reason,
-  }) async {
+  Future<void> approveGsprTd(String tdId) async {
     final r = await http.post(
-      _u('/api/gspr/items/$id/workflow'),
+      _u('/api/gspr/td/$tdId/approve'),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode({
-        'action': action,
-        if (comment != null) 'comment': comment,
-        if (reason != null) 'reason': reason,
-      }),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<GsprAssessment> newGsprAssessmentVersion(String assessmentId) async {
+    final r = await http.post(
+      _u('/api/gspr/assessment/$assessmentId/new-version'),
+      headers: _adminHeaders(auth: true),
     );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }
     final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
-    final map = decoded is Map && decoded['item'] is Map ? decoded['item'] as Map : decoded;
-    return GsprItem.fromJson(map.cast<String, dynamic>());
-  }
-
-  Future<List<AuditEvent>> gsprAudit(String id) async {
-    final r = await http.get(_u('/api/gspr/items/$id/audit'), headers: _adminHeaders(auth: true));
-    if (!_ok2xx(r.statusCode)) {
-      throw ApiError(r.statusCode, _extractMessage(r.body));
-    }
-    final decoded = r.body.trim().isNotEmpty ? jsonDecode(r.body) : <String, dynamic>{};
-    final items = decoded is Map && decoded['events'] is List ? decoded['events'] as List : const [];
-    return items
-        .whereType<Map>()
-        .map((e) => AuditEvent.fromJson(e.cast<String, dynamic>()))
-        .toList(growable: false);
+    final map = decoded is Map && decoded['assessment'] is Map ? decoded['assessment'] as Map : decoded;
+    return GsprAssessment.fromJson(map.cast<String, dynamic>());
   }
 
   Future<List<DownloadCategory>> adminDeleteDownloadCategory(String name, {bool force = false}) async {

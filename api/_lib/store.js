@@ -13,6 +13,7 @@ import {
   normalizeEvaluationTranslations,
   normalizeReportLinksMap,
 } from './departments.js';
+import { GSPR_REQUIREMENTS, GSPR_REQUIREMENTS_BY_ID, gsprRequirementsByChapter } from './gsprRequirements.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -103,6 +104,10 @@ const mem = {
   capaInternalErrors: new Map(),
   changeRecords: new Map(),
   fmeas: new Map(),
+  gsprAssessments: new Map(),
+  gsprAssessmentIndex: new Map(),
+  gsprAssessmentHistory: new Map(),
+  gsprTdSignoff: new Map(),
   gsprItems: new Map(),
   gsprAudit: new Map(),
   auditors: new Map(),
@@ -3848,6 +3853,8 @@ function normalizeFmeaRecord(raw = {}) {
   base.revision = Number.isFinite(revisionNumber) && revisionNumber > 0
     ? Math.round(revisionNumber).toString()
     : '1';
+  base.active = base.active === undefined ? true : Boolean(base.active);
+  base.archivedAt = normalizeDateValue(base.archivedAt) || null;
   base.prrcApproved = base.prrcApproved === true || base.prrcApproved === 'true' || base.prrcApproved === 1;
   base.prrcName = (base.prrcName || '').toString();
   base.prrcDate = base.prrcDate ? normalizeDateValue(base.prrcDate) : null;
@@ -4259,6 +4266,283 @@ export async function gsprWorkflowAction(id, { action, actor, comment, reason })
   });
 
   return updated;
+}
+
+/* =====================================================================
+   GSPR Annex I – Requirements, Assessments, Signoff
+   ===================================================================== */
+
+const KEY_GSPR_ASSESSMENT = (id) => `${P}gspr:assessment:${id}`;
+const KEY_GSPR_ASSESSMENT_INDEX = (tdId) => `${P}gspr:td:${tdId}:assessments`;
+const KEY_GSPR_ASSESSMENT_HISTORY = (id) => `${P}gspr:assessment:${id}:history`;
+const KEY_GSPR_TD_SIGNOFF = (tdId) => `${P}gspr:td:${tdId}:signoff`;
+
+const GSPR_TD_STATUSES = new Set(['draft', 'in_review', 'approved']);
+
+function normalizeGsprTdStatus(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (GSPR_TD_STATUSES.has(v)) return v;
+  return 'draft';
+}
+
+function normalizeGsprAssessment(input = {}) {
+  const now = nowIso();
+  const normalized = { ...input };
+  normalized.id = (normalized.id || `gspr_assessment_${crypto.randomUUID()}`).toString();
+  normalized.tdId = _text(normalized.tdId, 120);
+  normalized.requirementId = _text(normalized.requirementId, 40);
+  normalized.applicable = normalized.applicable !== false;
+  normalized.standards = _text(normalized.standards, 2000);
+  normalized.edition = _text(normalized.edition, 240);
+  normalized.supportingDocs = _text(normalized.supportingDocs, 4000);
+  normalized.revision = _text(normalized.revision, 240);
+  normalized.date = parseDate(normalized.date);
+  normalized.comments = _text(normalized.comments, 4000);
+  normalized.additionalDataRequired = _text(normalized.additionalDataRequired, 2000);
+  normalized.status = normalizeGsprTdStatus(normalized.status);
+  normalized.version = Number.isFinite(Number(normalized.version)) ? Number(normalized.version) : 1;
+  normalized.updatedAt = parseDate(normalized.updatedAt) || now;
+  normalized.updatedBy = _text(normalized.updatedBy, 120);
+  return normalized;
+}
+
+function normalizeGsprAssessmentHistory(entry = {}) {
+  return {
+    id: (entry.id || `gspr_assessment_hist_${crypto.randomUUID()}`).toString(),
+    assessmentId: _text(entry.assessmentId, 120),
+    version: Number.isFinite(Number(entry.version)) ? Number(entry.version) : 1,
+    snapshot: entry.snapshot || {},
+    changedAt: parseDate(entry.changedAt) || nowIso(),
+    changedBy: _text(entry.changedBy, 120),
+  };
+}
+
+function normalizeGsprTdSignoff(input = {}) {
+  return {
+    tdId: _text(input.tdId, 120),
+    status: normalizeGsprTdStatus(input.status),
+    submittedAt: parseDate(input.submittedAt),
+    submittedBy: _text(input.submittedBy, 120),
+    approvedAt: parseDate(input.approvedAt),
+    approvedBy: _text(input.approvedBy, 120),
+    approvedHash: _text(input.approvedHash, 200),
+  };
+}
+
+async function gsprAssessmentIndexGet(tdId) {
+  if (!tdId) return [];
+  const key = KEY_GSPR_ASSESSMENT_INDEX(tdId);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.gsprAssessmentIndex?.get?.(tdId) ?? null;
+  return Array.isArray(direct) ? direct.map((v) => v.toString()) : [];
+}
+
+async function gsprAssessmentIndexSave(tdId, list) {
+  const key = KEY_GSPR_ASSESSMENT_INDEX(tdId);
+  const unique = Array.from(new Set((list || []).map((v) => v.toString()).filter(Boolean)));
+  const r = getRedis();
+  if (r) await rset(key, unique); else {
+    if (!mem.gsprAssessmentIndex) mem.gsprAssessmentIndex = new Map();
+    mem.gsprAssessmentIndex.set(tdId, unique);
+  }
+  return unique;
+}
+
+async function gsprAssessmentHistoryList(assessmentId) {
+  if (!assessmentId) return [];
+  const key = KEY_GSPR_ASSESSMENT_HISTORY(assessmentId);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.gsprAssessmentHistory?.get?.(assessmentId) ?? null;
+  const list = Array.isArray(direct) ? direct.map(normalizeGsprAssessmentHistory) : [];
+  return list.sort((a, b) => (b.changedAt || '').localeCompare(a.changedAt || ''));
+}
+
+async function gsprAssessmentHistoryAdd(assessment, actor) {
+  if (!assessment?.id) return [];
+  const list = await gsprAssessmentHistoryList(assessment.id);
+  const entry = normalizeGsprAssessmentHistory({
+    assessmentId: assessment.id,
+    version: assessment.version,
+    snapshot: assessment,
+    changedAt: nowIso(),
+    changedBy: actor?.email || actor?.id || '',
+  });
+  const updated = [entry, ...list];
+  const key = KEY_GSPR_ASSESSMENT_HISTORY(assessment.id);
+  const r = getRedis();
+  if (r) await rset(key, updated); else {
+    if (!mem.gsprAssessmentHistory) mem.gsprAssessmentHistory = new Map();
+    mem.gsprAssessmentHistory.set(assessment.id, updated);
+  }
+  return updated;
+}
+
+export async function gsprTdSignoffGet(tdId) {
+  if (!tdId) return null;
+  const key = KEY_GSPR_TD_SIGNOFF(tdId);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.gsprTdSignoff?.get?.(tdId) ?? null;
+  if (!direct) return normalizeGsprTdSignoff({ tdId, status: 'draft' });
+  return normalizeGsprTdSignoff({ ...direct, tdId });
+}
+
+export async function gsprTdSignoffSave(tdId, patch = {}) {
+  if (!tdId) return null;
+  const current = await gsprTdSignoffGet(tdId);
+  const next = normalizeGsprTdSignoff({ ...current, ...patch, tdId });
+  const key = KEY_GSPR_TD_SIGNOFF(tdId);
+  const r = getRedis();
+  if (r) await rset(key, next); else {
+    if (!mem.gsprTdSignoff) mem.gsprTdSignoff = new Map();
+    mem.gsprTdSignoff.set(tdId, next);
+  }
+  return next;
+}
+
+export async function gsprAssessmentGet(id) {
+  if (!id) return null;
+  const key = KEY_GSPR_ASSESSMENT(id);
+  const r = getRedis();
+  const direct = r ? await rget(key) : mem.gsprAssessments?.get?.(id) ?? null;
+  return direct ? normalizeGsprAssessment({ ...direct, id }) : null;
+}
+
+export async function gsprAssessmentSave(record) {
+  const data = normalizeGsprAssessment(record);
+  const key = KEY_GSPR_ASSESSMENT(data.id);
+  const r = getRedis();
+  if (r) await rset(key, data); else {
+    if (!mem.gsprAssessments) mem.gsprAssessments = new Map();
+    mem.gsprAssessments.set(data.id, data);
+  }
+  if (data.tdId) {
+    const currentIndex = await gsprAssessmentIndexGet(data.tdId);
+    if (!currentIndex.includes(data.id)) {
+      await gsprAssessmentIndexSave(data.tdId, [...currentIndex, data.id]);
+    }
+  }
+  return data;
+}
+
+export async function gsprAssessmentsByTd(tdId) {
+  if (!tdId) return [];
+  let ids = await gsprAssessmentIndexGet(tdId);
+  const r = getRedis();
+  if (!ids.length && r) {
+    const keys = await rkeys(`${P}gspr:assessment:*`);
+    if (keys.length) {
+      const vals = await Promise.all(keys.map((key) => rget(key)));
+      const matched = [];
+      keys.forEach((key, index) => {
+        const val = vals[index];
+        if (!val) return;
+        if ((val.tdId || '') === tdId) {
+          const id = key.replace(`${P}gspr:assessment:`, '');
+          matched.push(id);
+        }
+      });
+      ids = await gsprAssessmentIndexSave(tdId, matched);
+    }
+  }
+  const list = [];
+  for (const id of ids) {
+    const assessment = await gsprAssessmentGet(id);
+    if (assessment) list.push(assessment);
+  }
+  return list;
+}
+
+export async function gsprAssessmentsByTdAndChapter(tdId, chapter) {
+  const list = await gsprAssessmentsByTd(tdId);
+  if (!chapter) return list;
+  const reqs = gsprRequirementsByChapter(chapter);
+  const ids = new Set(reqs.map((req) => req.id));
+  return list.filter((item) => ids.has(item.requirementId));
+}
+
+export async function gsprEnsureAssessmentsForTd(tdId, { status, actor } = {}) {
+  if (!tdId) return [];
+  const existing = await gsprAssessmentsByTd(tdId);
+  const byRequirement = new Map(existing.map((a) => [a.requirementId, a]));
+  const currentStatus = normalizeGsprTdStatus(status);
+  const created = [];
+  for (const requirement of GSPR_REQUIREMENTS) {
+    if (byRequirement.has(requirement.id)) continue;
+    const assessment = await gsprAssessmentSave({
+      tdId,
+      requirementId: requirement.id,
+      status: currentStatus,
+      applicable: true,
+      standards: '',
+      edition: '',
+      supportingDocs: '',
+      revision: '',
+      date: null,
+      comments: '',
+      additionalDataRequired: '',
+      version: 1,
+      updatedAt: nowIso(),
+      updatedBy: actor?.email || '',
+    });
+    created.push(assessment);
+  }
+  return [...existing, ...created];
+}
+
+export async function gsprAssessmentUpdate(id, patch, actor) {
+  const current = await gsprAssessmentGet(id);
+  if (!current) return null;
+  await gsprAssessmentHistoryAdd(current, actor);
+  const updated = normalizeGsprAssessment({
+    ...current,
+    ...patch,
+    updatedAt: nowIso(),
+    updatedBy: actor?.email || current.updatedBy,
+  });
+  return await gsprAssessmentSave(updated);
+}
+
+export async function gsprAssessmentNewVersion(id, actor) {
+  const current = await gsprAssessmentGet(id);
+  if (!current) return null;
+  await gsprAssessmentHistoryAdd(current, actor);
+  const updated = normalizeGsprAssessment({
+    ...current,
+    version: Number(current.version || 1) + 1,
+    status: 'draft',
+    updatedAt: nowIso(),
+    updatedBy: actor?.email || current.updatedBy,
+  });
+  return await gsprAssessmentSave(updated);
+}
+
+export function gsprAssessmentHasContent(assessment) {
+  if (!assessment) return false;
+  const fields = [assessment.standards, assessment.supportingDocs, assessment.comments];
+  return fields.some((v) => String(v || '').trim().length > 0);
+}
+
+export function gsprAssessmentRequirement(assessment) {
+  if (!assessment) return null;
+  return GSPR_REQUIREMENTS_BY_ID.get(assessment.requirementId) || null;
+}
+
+export function gsprTdApprovedHash(assessments) {
+  const payload = (assessments || [])
+    .map((a) => ({
+      requirementId: a.requirementId,
+      applicable: a.applicable,
+      standards: a.standards,
+      edition: a.edition,
+      supportingDocs: a.supportingDocs,
+      revision: a.revision,
+      date: a.date,
+      comments: a.comments,
+      additionalDataRequired: a.additionalDataRequired,
+      version: a.version,
+    }))
+    .sort((a, b) => String(a.requirementId).localeCompare(String(b.requirementId)));
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
 /* =====================================================================
