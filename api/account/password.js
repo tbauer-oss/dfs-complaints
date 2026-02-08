@@ -21,7 +21,15 @@ export default async function handler(req, res) {
   const auth = getAuthUser(req);
   if (!auth) return bad(res, 'unauthorized', 401);
 
-  const body = typeof req.body === 'object' ? req.body : JSON.parse(req.body ?? '{}');
+  let body = req.body;
+  if (typeof body !== 'object') {
+    try {
+      body = JSON.parse(req.body ?? '{}');
+    } catch (error) {
+      console.error('[account/password] invalid json body', error);
+      return bad(res, 'invalid json body', 400);
+    }
+  }
   const oldPw = body?.oldPassword || '';
   const newPw = body?.newPassword || '';
 
