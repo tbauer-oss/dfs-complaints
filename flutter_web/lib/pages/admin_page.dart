@@ -8412,8 +8412,11 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       if (section.title == _complianceSectionTitle) {
         debugPrint('COMPLIANCE TILES: ${section.tileIds.map((t) => t).toList()}');
       }
+      final visibleTileIds = section.title == _complianceSectionTitle
+          ? section.tileIds.where(_complianceTileIds.contains).toList()
+          : section.tileIds;
       final tiles = [
-        for (final tileId in section.tileIds)
+        for (final tileId in visibleTileIds)
           SizedBox(
             width: tileWidth,
             height: tileHeight,

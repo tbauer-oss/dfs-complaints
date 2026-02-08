@@ -997,6 +997,8 @@
   "gsprTileSubtitle": "MDR Annex I",
   "gsprPageTitle": "GSPR – General Safety and Performance Requirements",
   "gsprComingSoon": "Coming soon",
+  "empty_state_no_items": "No items yet.",
+  "create_new_gspr_item": "Create new GSPR item",
   "gsprDetailTitle": "GSPR Requirement",
   "gsprChapterI": "MDR Annex I – Chapter I: General requirements",
   "gsprChapterII": "MDR Annex I – Chapter II: Requirements regarding design and manufacture",
