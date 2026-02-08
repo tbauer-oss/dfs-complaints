@@ -45,8 +45,13 @@ export default async function handler(req, res) {
 
   const passhash = await bcrypt.hash(newPw, 10);
   const updatedUser = { ...u, passhash, passwordHash: passhash };
-  const isPortalUser = u.type === 'portal' || u.kind === 'staff';
-
+  const type = String(u.type || '').toLowerCase();
+  const kind = String(u.kind || '').toLowerCase();
+  const isPortalUser = type === 'portal' || type === 'staff'
+    || kind === 'portal' || kind === 'staff'
+    || Object.prototype.hasOwnProperty.call(u || {}, 'portalStatus')
+    || Object.prototype.hasOwnProperty.call(u || {}, 'role');
+  
   if (isPortalUser) {
     await portalUserSave(updatedUser);
   } else {
