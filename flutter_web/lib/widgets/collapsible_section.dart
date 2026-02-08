@@ -64,35 +64,11 @@ class CollapsibleSection extends StatelessWidget {
         ),
         const Divider(height: 16),
         AnimatedCrossFade(
-          firstChild: Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: child,
-          ),
+          firstChild: child,
           secondChild: const SizedBox.shrink(),
           crossFadeState: expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
           duration: const Duration(milliseconds: 220),
           sizeCurve: Curves.easeInOut,
-          layoutBuilder: (topChild, topKey, bottomChild, bottomKey) {
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  key: bottomKey,
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  child: bottomChild,
-                ),
-                Positioned(
-                  key: topKey,
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  child: topChild,
-                ),
-              ],
-            );
-          },
         ),
       ],
     );
