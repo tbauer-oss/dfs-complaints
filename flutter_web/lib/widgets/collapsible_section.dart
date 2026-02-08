@@ -64,7 +64,10 @@ class CollapsibleSection extends StatelessWidget {
         ),
         const Divider(height: 16),
         AnimatedCrossFade(
-          firstChild: child,
+          firstChild: Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: child,
+          ),
           secondChild: const SizedBox.shrink(),
           crossFadeState: expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
           duration: const Duration(milliseconds: 220),
