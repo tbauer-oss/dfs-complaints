@@ -1876,6 +1876,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   // Admin-Dashboard-Bearbeitung
   bool _menuEditMode = false;
+  bool _menuTileDragActive = false;
   final Set<String> _archivedTileIds = <String>{};
   final Map<String, Set<String>> _roleTileVisibility = {
     for (final entry in _DEFAULT_ROLE_TILES.entries) entry.key: entry.value.toSet(),
@@ -7130,7 +7131,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
                 ),
                 icon: Icon(_menuEditMode ? Icons.close : Icons.edit_outlined),
                 label: Text(_menuEditMode ? 'Bearbeitung schließen' : 'Bearbeiten'),
-                onPressed: () => setState(() => _menuEditMode = !_menuEditMode),
+                onPressed: () => setState(() {
+                  _menuEditMode = !_menuEditMode;
+                  if (!_menuEditMode) _menuTileDragActive = false;
+                }),
               ),
               const SizedBox(height: 6),
               Text(
@@ -9910,7 +9914,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: OutlinedButton.icon(
-                  onPressed: () => setState(() => _menuEditMode = false),
+                  onPressed: () => setState(() {
+                    _menuEditMode = false;
+                    _menuTileDragActive = false;
+                  }),
                   icon: const Icon(Icons.close_outlined),
                   label: const Text('Bearbeitung schließen'),
                 ),
@@ -10001,16 +10008,18 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       );
     }
 
-    tiles.add(
-      _buildDropTarget(
-        sectionIndex: sectionIndex,
-        insertIndex: tileIds.length,
-        compact: compact,
-        tileWidth: tileWidth,
-        tileHeight: tileHeight,
-        highlightLabel: 'Hierhin verschieben',
-      ),
-    );
+    if (_menuTileDragActive) {
+      tiles.add(
+        _buildDropTarget(
+          sectionIndex: sectionIndex,
+          insertIndex: tileIds.length,
+          compact: compact,
+          tileWidth: tileWidth,
+          tileHeight: tileHeight,
+          highlightLabel: 'Hierhin verschieben',
+        ),
+      );
+    }
 
     return Wrap(
       spacing: spacing,
@@ -10177,6 +10186,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         feedback: buildFeedback(),
         dragAnchorStrategy: pointerDragAnchorStrategy,
         childWhenDragging: childWhenDragging,
+        onDragStarted: () => _setMenuDragActive(true),
+        onDragEnd: (_) => _setMenuDragActive(false),
+        onDraggableCanceled: (_, __) => _setMenuDragActive(false),
+        onDragCompleted: () => _setMenuDragActive(false),
         child: buildChild(_buildMenuTile(tileId, compact)),
       );
     }
@@ -10186,8 +10199,17 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       feedback: buildFeedback(),
       dragAnchorStrategy: pointerDragAnchorStrategy,
       childWhenDragging: childWhenDragging,
+      onDragStarted: () => _setMenuDragActive(true),
+      onDragEnd: (_) => _setMenuDragActive(false),
+      onDraggableCanceled: (_, __) => _setMenuDragActive(false),
+      onDragCompleted: () => _setMenuDragActive(false),
       child: buildChild(_buildMenuTile(tileId, compact)),
     );
+  }
+
+  void _setMenuDragActive(bool value) {
+    if (_menuTileDragActive == value) return;
+    setState(() => _menuTileDragActive = value);
   }
 
   bool _useLongPressDrag() {
