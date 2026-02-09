@@ -6,6 +6,14 @@ enum GsprStatus {
   approved,
 }
 
+enum GsprAssessmentStatus {
+  notAssessed,
+  fulfilled,
+  partial,
+  notFulfilled,
+  notApplicable,
+}
+
 GsprStatus gsprStatusFromString(String? value) {
   switch ((value ?? '').toLowerCase()) {
     case 'in_review':
@@ -30,22 +38,58 @@ String gsprStatusToString(GsprStatus status) {
   }
 }
 
+GsprAssessmentStatus gsprAssessmentStatusFromString(String? value) {
+  switch ((value ?? '').toLowerCase()) {
+    case 'fulfilled':
+      return GsprAssessmentStatus.fulfilled;
+    case 'partial':
+      return GsprAssessmentStatus.partial;
+    case 'not_fulfilled':
+      return GsprAssessmentStatus.notFulfilled;
+    case 'not_applicable':
+      return GsprAssessmentStatus.notApplicable;
+    case 'not_assessed':
+    default:
+      return GsprAssessmentStatus.notAssessed;
+  }
+}
+
+String gsprAssessmentStatusToString(GsprAssessmentStatus status) {
+  switch (status) {
+    case GsprAssessmentStatus.fulfilled:
+      return 'fulfilled';
+    case GsprAssessmentStatus.partial:
+      return 'partial';
+    case GsprAssessmentStatus.notFulfilled:
+      return 'not_fulfilled';
+    case GsprAssessmentStatus.notApplicable:
+      return 'not_applicable';
+    case GsprAssessmentStatus.notAssessed:
+    default:
+      return 'not_assessed';
+  }
+}
+
 @immutable
 class GsprRequirement {
   final String id;
   final String ref;
   final int chapter;
   final String title;
+  final String sortKey;
+  final String? parentId;
+  final int level;
   final String fullText;
-  final int sort;
 
   const GsprRequirement({
     required this.id,
     required this.ref,
     required this.chapter,
     required this.title,
+    required this.sortKey,
+    required this.parentId,
+    required this.level,
     required this.fullText,
-    required this.sort,
   });
 
   factory GsprRequirement.fromJson(Map<String, dynamic> json) {
@@ -54,10 +98,43 @@ class GsprRequirement {
       ref: (json['ref'] ?? '').toString(),
       chapter: (json['chapter'] is num) ? (json['chapter'] as num).toInt() : 0,
       title: (json['title'] ?? '').toString(),
+      sortKey: (json['sortKey'] ?? '').toString(),
+      parentId: json['parentId']?.toString(),
+      level: (json['level'] is num) ? (json['level'] as num).toInt() : 0,
       fullText: (json['fullText'] ?? '').toString(),
-      sort: (json['sort'] is num) ? (json['sort'] as num).toInt() : 0,
     );
   }
+}
+
+@immutable
+class GsprEvidence {
+  final String docId;
+  final String revision;
+  final String link;
+  final String label;
+
+  const GsprEvidence({
+    required this.docId,
+    required this.revision,
+    required this.link,
+    required this.label,
+  });
+
+  factory GsprEvidence.fromJson(Map<String, dynamic> json) {
+    return GsprEvidence(
+      docId: (json['docId'] ?? '').toString(),
+      revision: (json['revision'] ?? '').toString(),
+      link: (json['link'] ?? '').toString(),
+      label: (json['label'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'docId': docId,
+        'revision': revision,
+        'link': link,
+        'label': label,
+      };
 }
 
 @immutable
@@ -66,6 +143,11 @@ class GsprAssessment {
   final String tdId;
   final String requirementId;
   final bool applicable;
+  final GsprAssessmentStatus status;
+  final String rationale;
+  final List<GsprEvidence> evidence;
+  final String owner;
+  final DateTime? dueDate;
   final String standards;
   final String edition;
   final String supportingDocs;
@@ -73,7 +155,6 @@ class GsprAssessment {
   final DateTime? date;
   final String comments;
   final String additionalDataRequired;
-  final GsprStatus status;
   final int version;
   final DateTime? updatedAt;
   final String updatedBy;
@@ -83,6 +164,11 @@ class GsprAssessment {
     required this.tdId,
     required this.requirementId,
     required this.applicable,
+    required this.status,
+    required this.rationale,
+    required this.evidence,
+    required this.owner,
+    required this.dueDate,
     required this.standards,
     required this.edition,
     required this.supportingDocs,
@@ -90,7 +176,6 @@ class GsprAssessment {
     required this.date,
     required this.comments,
     required this.additionalDataRequired,
-    required this.status,
     required this.version,
     required this.updatedAt,
     required this.updatedBy,
@@ -102,6 +187,11 @@ class GsprAssessment {
       tdId: tdId,
       requirementId: requirementId,
       applicable: true,
+      status: GsprAssessmentStatus.notAssessed,
+      rationale: '',
+      evidence: const [],
+      owner: '',
+      dueDate: null,
       standards: '',
       edition: '',
       supportingDocs: '',
@@ -109,7 +199,6 @@ class GsprAssessment {
       date: null,
       comments: '',
       additionalDataRequired: '',
-      status: GsprStatus.draft,
       version: 1,
       updatedAt: DateTime.now(),
       updatedBy: '',
@@ -122,6 +211,14 @@ class GsprAssessment {
       tdId: (json['tdId'] ?? '').toString(),
       requirementId: (json['requirementId'] ?? '').toString(),
       applicable: json['applicable'] != false,
+      status: gsprAssessmentStatusFromString(json['status']?.toString()),
+      rationale: (json['rationale'] ?? '').toString(),
+      evidence: (json['evidence'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((entry) => GsprEvidence.fromJson(entry.cast<String, dynamic>()))
+          .toList(growable: false),
+      owner: (json['owner'] ?? '').toString(),
+      dueDate: DateTime.tryParse(json['dueDate']?.toString() ?? ''),
       standards: (json['standards'] ?? '').toString(),
       edition: (json['edition'] ?? '').toString(),
       supportingDocs: (json['supportingDocs'] ?? '').toString(),
@@ -129,7 +226,6 @@ class GsprAssessment {
       date: DateTime.tryParse(json['date']?.toString() ?? ''),
       comments: (json['comments'] ?? '').toString(),
       additionalDataRequired: (json['additionalDataRequired'] ?? '').toString(),
-      status: gsprStatusFromString(json['status']?.toString()),
       version: (json['version'] is num) ? (json['version'] as num).toInt() : 1,
       updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
       updatedBy: (json['updatedBy'] ?? '').toString(),
@@ -141,6 +237,11 @@ class GsprAssessment {
         'tdId': tdId,
         'requirementId': requirementId,
         'applicable': applicable,
+        'status': gsprAssessmentStatusToString(status),
+        'rationale': rationale,
+        'evidence': evidence.map((e) => e.toJson()).toList(growable: false),
+        'owner': owner,
+        'dueDate': dueDate?.toIso8601String(),
         'standards': standards,
         'edition': edition,
         'supportingDocs': supportingDocs,
@@ -148,7 +249,6 @@ class GsprAssessment {
         'date': date?.toIso8601String(),
         'comments': comments,
         'additionalDataRequired': additionalDataRequired,
-        'status': gsprStatusToString(status),
         'version': version,
         'updatedAt': updatedAt?.toIso8601String(),
         'updatedBy': updatedBy,
@@ -159,6 +259,11 @@ class GsprAssessment {
     String? tdId,
     String? requirementId,
     bool? applicable,
+    GsprAssessmentStatus? status,
+    String? rationale,
+    List<GsprEvidence>? evidence,
+    String? owner,
+    DateTime? dueDate,
     String? standards,
     String? edition,
     String? supportingDocs,
@@ -166,7 +271,6 @@ class GsprAssessment {
     DateTime? date,
     String? comments,
     String? additionalDataRequired,
-    GsprStatus? status,
     int? version,
     DateTime? updatedAt,
     String? updatedBy,
@@ -176,6 +280,11 @@ class GsprAssessment {
       tdId: tdId ?? this.tdId,
       requirementId: requirementId ?? this.requirementId,
       applicable: applicable ?? this.applicable,
+      status: status ?? this.status,
+      rationale: rationale ?? this.rationale,
+      evidence: evidence ?? this.evidence,
+      owner: owner ?? this.owner,
+      dueDate: dueDate ?? this.dueDate,
       standards: standards ?? this.standards,
       edition: edition ?? this.edition,
       supportingDocs: supportingDocs ?? this.supportingDocs,
@@ -183,7 +292,6 @@ class GsprAssessment {
       date: date ?? this.date,
       comments: comments ?? this.comments,
       additionalDataRequired: additionalDataRequired ?? this.additionalDataRequired,
-      status: status ?? this.status,
       version: version ?? this.version,
       updatedAt: updatedAt ?? this.updatedAt,
       updatedBy: updatedBy ?? this.updatedBy,

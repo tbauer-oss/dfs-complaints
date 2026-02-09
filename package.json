@@ -1,0 +1,16 @@
+{
+  "name": "dfs-complaints",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:gspr": "tsx scripts/generate_gspr_from_johner.ts"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -10,7 +10,7 @@ import {
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
 } from '../_lib/store.js';
-import { gsprRequirementsByChapter } from '../_lib/gsprRequirements.js';
+import { gsprItemsByChapter } from '../_lib/gsprRequirements.js';
 
 const GSPR_TILE = 'gspr';
 
@@ -35,15 +35,15 @@ export default async function handler(req, res) {
     const assessmentByRequirement = new Map(assessments.map((a) => [a.requirementId, a]));
 
     const chapters = [1, 2, 3].map((chapter) => {
-      const requirements = gsprRequirementsByChapter(chapter);
+      const requirements = gsprItemsByChapter(chapter);
       const total = requirements.length;
       let assessed = 0;
       let notApplicable = 0;
       for (const requirement of requirements) {
         const assessment = assessmentByRequirement.get(requirement.id);
         if (!assessment) continue;
-        if (assessment.applicable === false) notApplicable += 1;
-        if (assessment.applicable === false || gsprAssessmentHasContent(assessment)) {
+        if (assessment.status === 'not_applicable') notApplicable += 1;
+        if (gsprAssessmentHasContent(assessment)) {
           assessed += 1;
         }
       }

@@ -13,7 +13,7 @@ import {
   normalizeEvaluationTranslations,
   normalizeReportLinksMap,
 } from './departments.js';
-import { GSPR_REQUIREMENTS, GSPR_REQUIREMENTS_BY_ID, gsprRequirementsByChapter } from './gsprRequirements.js';
+import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter } from './gsprRequirements.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -4278,6 +4278,13 @@ const KEY_GSPR_ASSESSMENT_HISTORY = (id) => `${P}gspr:assessment:${id}:history`;
 const KEY_GSPR_TD_SIGNOFF = (tdId) => `${P}gspr:td:${tdId}:signoff`;
 
 const GSPR_TD_STATUSES = new Set(['draft', 'in_review', 'approved']);
+const GSPR_ASSESSMENT_STATUSES = new Set([
+  'fulfilled',
+  'partial',
+  'not_fulfilled',
+  'not_applicable',
+  'not_assessed',
+]);
 
 function normalizeGsprTdStatus(value) {
   const v = String(value || '').trim().toLowerCase();
@@ -4285,13 +4292,37 @@ function normalizeGsprTdStatus(value) {
   return 'draft';
 }
 
+function normalizeGsprAssessmentStatus(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (GSPR_ASSESSMENT_STATUSES.has(v)) return v;
+  return 'not_assessed';
+}
+
+function buildGsprAssessmentId(tdId, requirementId) {
+  const safeTd = String(tdId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeReq = String(requirementId || '').replace(/[^a-zA-Z0-9_.-]/g, '_');
+  return `gspr_assessment_${safeTd}_${safeReq}`;
+}
+
 function normalizeGsprAssessment(input = {}) {
   const now = nowIso();
   const normalized = { ...input };
-  normalized.id = (normalized.id || `gspr_assessment_${crypto.randomUUID()}`).toString();
   normalized.tdId = _text(normalized.tdId, 120);
-  normalized.requirementId = _text(normalized.requirementId, 40);
-  normalized.applicable = normalized.applicable !== false;
+  normalized.requirementId = _text(normalized.requirementId, 80);
+  normalized.id = (normalized.id || buildGsprAssessmentId(normalized.tdId, normalized.requirementId)).toString();
+  normalized.status = normalizeGsprAssessmentStatus(normalized.status);
+  normalized.rationale = _text(normalized.rationale, 4000);
+  normalized.evidence = Array.isArray(normalized.evidence)
+    ? normalized.evidence.map((entry) => ({
+        docId: _text(entry?.docId, 200),
+        revision: _text(entry?.revision, 120),
+        link: _text(entry?.link, 500),
+        label: _text(entry?.label, 200),
+      }))
+    : [];
+  normalized.owner = _text(normalized.owner, 200);
+  normalized.dueDate = parseDate(normalized.dueDate);
+  normalized.applicable = normalized.status !== 'not_applicable';
   normalized.standards = _text(normalized.standards, 2000);
   normalized.edition = _text(normalized.edition, 240);
   normalized.supportingDocs = _text(normalized.supportingDocs, 4000);
@@ -4299,7 +4330,6 @@ function normalizeGsprAssessment(input = {}) {
   normalized.date = parseDate(normalized.date);
   normalized.comments = _text(normalized.comments, 4000);
   normalized.additionalDataRequired = _text(normalized.additionalDataRequired, 2000);
-  normalized.status = normalizeGsprTdStatus(normalized.status);
   normalized.version = Number.isFinite(Number(normalized.version)) ? Number(normalized.version) : 1;
   normalized.updatedAt = parseDate(normalized.updatedAt) || now;
   normalized.updatedBy = _text(normalized.updatedBy, 120);
@@ -4455,7 +4485,7 @@ export async function gsprAssessmentsByTd(tdId) {
 export async function gsprAssessmentsByTdAndChapter(tdId, chapter) {
   const list = await gsprAssessmentsByTd(tdId);
   if (!chapter) return list;
-  const reqs = gsprRequirementsByChapter(chapter);
+  const reqs = gsprItemsByChapter(chapter);
   const ids = new Set(reqs.map((req) => req.id));
   return list.filter((item) => ids.has(item.requirementId));
 }
@@ -4464,14 +4494,17 @@ export async function gsprEnsureAssessmentsForTd(tdId, { status, actor } = {}) {
   if (!tdId) return [];
   const existing = await gsprAssessmentsByTd(tdId);
   const byRequirement = new Map(existing.map((a) => [a.requirementId, a]));
-  const currentStatus = normalizeGsprTdStatus(status);
   const created = [];
-  for (const requirement of GSPR_REQUIREMENTS) {
+  for (const requirement of GSPR_ITEMS) {
     if (byRequirement.has(requirement.id)) continue;
     const assessment = await gsprAssessmentSave({
       tdId,
       requirementId: requirement.id,
-      status: currentStatus,
+      status: 'not_assessed',
+      rationale: '',
+      evidence: [],
+      owner: '',
+      dueDate: null,
       applicable: true,
       standards: '',
       edition: '',
@@ -4509,7 +4542,7 @@ export async function gsprAssessmentNewVersion(id, actor) {
   const updated = normalizeGsprAssessment({
     ...current,
     version: Number(current.version || 1) + 1,
-    status: 'draft',
+    status: 'not_assessed',
     updatedAt: nowIso(),
     updatedBy: actor?.email || current.updatedBy,
   });
@@ -4518,13 +4551,16 @@ export async function gsprAssessmentNewVersion(id, actor) {
 
 export function gsprAssessmentHasContent(assessment) {
   if (!assessment) return false;
-  const fields = [assessment.standards, assessment.supportingDocs, assessment.comments];
-  return fields.some((v) => String(v || '').trim().length > 0);
+  if (assessment.status === 'not_assessed') return false;
+  if (['not_applicable', 'partial', 'not_fulfilled'].includes(assessment.status)) {
+    return String(assessment.rationale || '').trim().length > 0;
+  }
+  return true;
 }
 
 export function gsprAssessmentRequirement(assessment) {
   if (!assessment) return null;
-  return GSPR_REQUIREMENTS_BY_ID.get(assessment.requirementId) || null;
+  return GSPR_ITEMS_BY_ID.get(assessment.requirementId) || null;
 }
 
 export function gsprTdApprovedHash(assessments) {
@@ -4532,6 +4568,11 @@ export function gsprTdApprovedHash(assessments) {
     .map((a) => ({
       requirementId: a.requirementId,
       applicable: a.applicable,
+      status: a.status,
+      rationale: a.rationale,
+      evidence: a.evidence,
+      owner: a.owner,
+      dueDate: a.dueDate,
       standards: a.standards,
       edition: a.edition,
       supportingDocs: a.supportingDocs,

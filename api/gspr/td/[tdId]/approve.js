@@ -5,7 +5,6 @@ import { handlePreflight, setCors, ok, bad } from '../../../_lib/http.js';
 import { requirePortalAccess } from '../../../admin/_guard.js';
 import {
   fmeaGet,
-  gsprAssessmentUpdate,
   gsprAssessmentsByTd,
   gsprEnsureAssessmentsForTd,
   gsprTdApprovedHash,
@@ -35,10 +34,6 @@ export default async function handler(req, res) {
 
     await gsprEnsureAssessmentsForTd(tdId, { status: 'in_review', actor });
     const assessments = await gsprAssessmentsByTd(tdId);
-
-    for (const assessment of assessments) {
-      await gsprAssessmentUpdate(assessment.id, { status: 'approved' }, actor);
-    }
 
     const approvedHash = gsprTdApprovedHash(assessments);
     const signoff = await gsprTdSignoffSave(tdId, {
