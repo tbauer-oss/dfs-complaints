@@ -39,6 +39,14 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
   List<GsprChapterEntry> _entries = const [];
   GsprStatus _status = GsprStatus.draft;
   bool _readOnly = false;
+  String _search = '';
+  bool _filterOpen = false;
+  bool _filterIssues = false;
+  bool _filterNa = false;
+  bool _filterMissingEvidence = false;
+  String? _selectedId;
+  Set<String> _expanded = {};
+  GsprAssessment? _draftAssessment;
 
   FmeaRecord? get _td => widget.tdOverride ?? GsprTdState.selectedTd.value;
 
@@ -63,12 +71,35 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
         _status = response.status;
         _readOnly = response.readOnly;
       });
+      if (_entries.isNotEmpty && _selectedId == null) {
+        _setSelected(_entries.first.requirement.id);
+      }
+      _ensureDefaultExpansion();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _ensureDefaultExpansion() {
+    if (_entries.isEmpty) return;
+    final expanded = <String>{};
+    for (final entry in _entries) {
+      if (entry.requirement.level == 0) {
+        expanded.add(entry.requirement.id);
+      }
+    }
+    setState(() => _expanded = expanded);
+  }
+
+  void _setSelected(String id) {
+    final entry = _entries.firstWhere((e) => e.requirement.id == id, orElse: () => _entries.first);
+    setState(() {
+      _selectedId = id;
+      _draftAssessment = entry.assessment;
+    });
   }
 
   String _statusLabel(AppLocalizations t, GsprStatus status) {
@@ -80,6 +111,54 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
       case GsprStatus.draft:
       default:
         return t.gsprStatusDraft;
+    }
+  }
+
+  String _assessmentStatusLabel(AppLocalizations t, GsprAssessmentStatus status) {
+    switch (status) {
+      case GsprAssessmentStatus.fulfilled:
+        return t.gsprAssessmentStatusFulfilled;
+      case GsprAssessmentStatus.partial:
+        return t.gsprAssessmentStatusPartial;
+      case GsprAssessmentStatus.notFulfilled:
+        return t.gsprAssessmentStatusNotFulfilled;
+      case GsprAssessmentStatus.notApplicable:
+        return t.gsprAssessmentStatusNotApplicable;
+      case GsprAssessmentStatus.notAssessed:
+      default:
+        return t.gsprAssessmentStatusNotAssessed;
+    }
+  }
+
+  IconData _assessmentStatusIcon(GsprAssessmentStatus status) {
+    switch (status) {
+      case GsprAssessmentStatus.fulfilled:
+        return Icons.check_circle;
+      case GsprAssessmentStatus.partial:
+        return Icons.warning;
+      case GsprAssessmentStatus.notFulfilled:
+        return Icons.cancel;
+      case GsprAssessmentStatus.notApplicable:
+        return Icons.block;
+      case GsprAssessmentStatus.notAssessed:
+      default:
+        return Icons.radio_button_unchecked;
+    }
+  }
+
+  Color _assessmentStatusColor(ThemeData theme, GsprAssessmentStatus status) {
+    switch (status) {
+      case GsprAssessmentStatus.fulfilled:
+        return theme.colorScheme.tertiary;
+      case GsprAssessmentStatus.partial:
+        return theme.colorScheme.secondary;
+      case GsprAssessmentStatus.notFulfilled:
+        return theme.colorScheme.error;
+      case GsprAssessmentStatus.notApplicable:
+        return theme.colorScheme.outline;
+      case GsprAssessmentStatus.notAssessed:
+      default:
+        return theme.colorScheme.onSurfaceVariant;
     }
   }
 
@@ -97,23 +176,138 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
 
   bool get _canEdit => widget.access.canEdit && !_readOnly && _status != GsprStatus.approved;
 
-  bool get _canSubmit {
-    if (!_canEdit) return false;
-    if (_status != GsprStatus.draft) return false;
-    return _entries.every((entry) {
-      if (!entry.assessment.applicable) return true;
-      return entry.assessment.standards.trim().isNotEmpty ||
-          entry.assessment.supportingDocs.trim().isNotEmpty ||
-          entry.assessment.comments.trim().isNotEmpty;
-    });
+  bool _assessmentComplete(GsprAssessment assessment) {
+    if (assessment.status == GsprAssessmentStatus.notAssessed) return false;
+    if ([
+      GsprAssessmentStatus.notApplicable,
+      GsprAssessmentStatus.partial,
+      GsprAssessmentStatus.notFulfilled,
+    ].contains(assessment.status)) {
+      return assessment.rationale.trim().isNotEmpty;
+    }
+    return true;
   }
 
-  Future<void> _toggleApplicable(GsprChapterEntry entry, bool value) async {
-    final updated = entry.assessment.copyWith(applicable: value);
-    await _saveAssessment(updated);
+  bool get _canSubmit => _entries.every((entry) => _assessmentComplete(entry.assessment));
+
+  bool _matchesSearch(GsprChapterEntry entry) {
+    if (_search.trim().isEmpty) return true;
+    final query = _search.trim().toLowerCase();
+    return entry.requirement.id.toLowerCase().contains(query) ||
+        entry.requirement.ref.toLowerCase().contains(query) ||
+        entry.requirement.title.toLowerCase().contains(query) ||
+        entry.requirement.fullText.toLowerCase().contains(query);
   }
 
-  Future<void> _saveAssessment(GsprAssessment assessment) async {
+  bool _matchesFilters(GsprChapterEntry entry) {
+    final status = entry.assessment.status;
+    if (_filterOpen && status != GsprAssessmentStatus.notAssessed) return false;
+    if (_filterIssues &&
+        !(status == GsprAssessmentStatus.partial || status == GsprAssessmentStatus.notFulfilled)) {
+      return false;
+    }
+    if (_filterNa && status != GsprAssessmentStatus.notApplicable) return false;
+    if (_filterMissingEvidence && entry.assessment.evidence.isNotEmpty) return false;
+    return true;
+  }
+
+  Map<String, GsprChapterEntry> _entryById() {
+    return {for (final entry in _entries) entry.requirement.id: entry};
+  }
+
+  Map<String?, List<GsprChapterEntry>> _entriesByParent(Set<String> visibleIds) {
+    final map = <String?, List<GsprChapterEntry>>{};
+    for (final entry in _entries) {
+      if (!visibleIds.contains(entry.requirement.id)) continue;
+      final parent = entry.requirement.parentId;
+      map.putIfAbsent(parent, () => []).add(entry);
+    }
+    for (final list in map.values) {
+      list.sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
+    }
+    return map;
+  }
+
+  Set<String> _visibleIds() {
+    if (_search.trim().isEmpty && !_filterOpen && !_filterIssues && !_filterNa && !_filterMissingEvidence) {
+      return _entries.map((e) => e.requirement.id).toSet();
+    }
+    final byId = _entryById();
+    final matches = <String>{};
+    for (final entry in _entries) {
+      if (_matchesSearch(entry) && _matchesFilters(entry)) {
+        matches.add(entry.requirement.id);
+      }
+    }
+    final visible = <String>{};
+    for (final id in matches) {
+      var current = id;
+      while (true) {
+        if (!visible.add(current)) break;
+        final parent = byId[current]?.requirement.parentId;
+        if (parent == null) break;
+        current = parent;
+      }
+    }
+    return visible;
+  }
+
+  List<GsprChapterEntry> _flattenTree(Map<String?, List<GsprChapterEntry>> byParent, Set<String> visibleIds) {
+    final result = <GsprChapterEntry>[];
+    void visit(String? parentId) {
+      final children = byParent[parentId] ?? const [];
+      for (final entry in children) {
+        if (!visibleIds.contains(entry.requirement.id)) continue;
+        result.add(entry);
+        if (_expanded.contains(entry.requirement.id)) {
+          visit(entry.requirement.id);
+        }
+      }
+    }
+    visit(null);
+    return result;
+  }
+
+  _GsprProgress _progressForItems(List<GsprChapterEntry> items) {
+    final total = items.length;
+    final assessed = items.where((e) => e.assessment.status != GsprAssessmentStatus.notAssessed).length;
+    final notApplicable =
+        items.where((e) => e.assessment.status == GsprAssessmentStatus.notApplicable).length;
+    final open = total - assessed;
+    return _GsprProgress(total: total, assessed: assessed, open: open, notApplicable: notApplicable);
+  }
+
+  List<GsprChapterEntry> _descendants(String rootId, Map<String?, List<GsprChapterEntry>> byParent) {
+    final result = <GsprChapterEntry>[];
+    void walk(String id) {
+      final children = byParent[id] ?? const [];
+      for (final entry in children) {
+        result.add(entry);
+        walk(entry.requirement.id);
+      }
+    }
+    walk(rootId);
+    return result;
+  }
+
+  Future<void> _saveAssessment() async {
+    final assessment = _draftAssessment;
+    if (assessment == null) return;
+    final t = AppLocalizations.of(context)!;
+
+    if ([
+      GsprAssessmentStatus.notApplicable,
+      GsprAssessmentStatus.partial,
+      GsprAssessmentStatus.notFulfilled,
+    ].contains(assessment.status)) {
+      if (assessment.rationale.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.gsprValidationRationaleRequired)),
+        );
+        return;
+      }
+    }
+
     setState(() => _submitting = true);
     try {
       final saved = await widget.api.updateGsprAssessment(assessment);
@@ -124,34 +318,13 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
                 ? GsprChapterEntry(requirement: entry.requirement, assessment: saved)
                 : entry)
             .toList(growable: false);
+        _draftAssessment = saved;
       });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  Future<void> _openDialog(GsprChapterEntry entry) async {
-    final updated = await showDialog<GsprAssessment>(
-      context: context,
-      builder: (context) => GsprAssessmentDialog(
-        api: widget.api,
-        entry: entry,
-        canEdit: widget.access.canEdit,
-        readOnly: _readOnly || _status == GsprStatus.approved,
-      ),
-    );
-    if (updated != null) {
-      setState(() {
-        _entries = _entries
-            .map((e) => e.assessment.id == updated.id
-                ? GsprChapterEntry(requirement: e.requirement, assessment: updated)
-                : e)
-            .toList(growable: false);
-      });
-      await _load();
     }
   }
 
@@ -187,11 +360,6 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
     }
   }
 
-  String _truncate(String text, {int limit = 120}) {
-    if (text.length <= limit) return text;
-    return '${text.substring(0, limit)}…';
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -204,6 +372,12 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
         body: Center(child: Text(t.gsprSelectTdHint)),
       );
     }
+
+    final visibleIds = _visibleIds();
+    final byId = _entryById();
+    final byParent = _entriesByParent(visibleIds);
+    final flatEntries = _flattenTree(byParent, visibleIds);
+    final chapterProgress = _progressForItems(_entries);
 
     return Scaffold(
       appBar: AppBar(
@@ -259,136 +433,389 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
                     children: [
                       Text('${t.gsprSummaryStatusLabel}: ${_statusLabel(t, _status)}'),
                       const Spacer(),
-                      if (!_canSubmit && _status == GsprStatus.draft)
-                        Text(
-                          t.gsprSubmitIncompleteHint,
-                          style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                        ),
+                      Text(
+                        '${chapterProgress.assessed}/${chapterProgress.total} ${t.gsprSummaryAssessedLabel}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${chapterProgress.open} ${t.gsprSummaryOpenLabel}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${chapterProgress.notApplicable} ${t.gsprSummaryNotApplicableLabel}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                if (!_canSubmit && _status == GsprStatus.draft)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    child: Text(
+                      t.gsprSubmitIncompleteHint,
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: LinearProgressIndicator(
+                    value: chapterProgress.total == 0
+                        ? 0
+                        : chapterProgress.assessed / chapterProgress.total,
+                  ),
+                ),
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: [
-                        DataColumn(label: Text(t.gsprColumnNumber)),
-                        DataColumn(label: Text(t.gsprColumnRequirement)),
-                        DataColumn(label: Text(t.gsprColumnApplicable)),
-                        DataColumn(label: Text(t.gsprColumnStatus)),
-                        DataColumn(label: Text(t.gsprColumnVersion)),
-                        DataColumn(label: Text(t.gsprColumnUpdated)),
-                      ],
-                      rows: _entries.map((entry) {
-                        final assessment = entry.assessment;
-                        final updated = assessment.updatedAt != null
-                            ? DateFormat('yyyy-MM-dd').format(assessment.updatedAt!)
-                            : '—';
-                        return DataRow(
-                          onSelectChanged: (_) => _openDialog(entry),
-                          cells: [
-                            DataCell(Text(entry.requirement.ref)),
-                            DataCell(Text(_truncate(entry.requirement.fullText))),
-                            DataCell(
-                              Switch(
-                                value: assessment.applicable,
-                                onChanged: _canEdit ? (value) => _toggleApplicable(entry, value) : null,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 360,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                              child: TextField(
+                                decoration: InputDecoration(
+                                  labelText: t.gsprSearchLabel,
+                                  prefixIcon: const Icon(Icons.search),
+                                ),
+                                onChanged: (value) => setState(() => _search = value),
                               ),
                             ),
-                            DataCell(Text(_statusLabel(t, assessment.status))),
-                            DataCell(Text(assessment.version.toString())),
-                            DataCell(Text(updated)),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  FilterChip(
+                                    label: Text(t.gsprFilterOpenOnly),
+                                    selected: _filterOpen,
+                                    onSelected: (value) => setState(() => _filterOpen = value),
+                                  ),
+                                  FilterChip(
+                                    label: Text(t.gsprFilterIssuesOnly),
+                                    selected: _filterIssues,
+                                    onSelected: (value) => setState(() => _filterIssues = value),
+                                  ),
+                                  FilterChip(
+                                    label: Text(t.gsprFilterNaOnly),
+                                    selected: _filterNa,
+                                    onSelected: (value) => setState(() => _filterNa = value),
+                                  ),
+                                  FilterChip(
+                                    label: Text(t.gsprFilterMissingEvidence),
+                                    selected: _filterMissingEvidence,
+                                    onSelected: (value) => setState(() => _filterMissingEvidence = value),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: flatEntries.length,
+                                itemBuilder: (context, index) {
+                                  final entry = flatEntries[index];
+                                  final isSelected = entry.requirement.id == _selectedId;
+                                  final hasChildren = (byParent[entry.requirement.id] ?? const []).isNotEmpty;
+                                  final status = entry.assessment.status;
+                                  final color = _assessmentStatusColor(theme, status);
+                                  final isTopLevel = entry.requirement.level == 0;
+                                  final progress = isTopLevel
+                                      ? _progressForItems([
+                                          entry,
+                                          ..._descendants(entry.requirement.id, byParent),
+                                        ])
+                                      : null;
+                                  return InkWell(
+                                    onTap: () => _setSelected(entry.requirement.id),
+                                    child: Container(
+                                      color: isSelected
+                                          ? theme.colorScheme.primaryContainer.withOpacity(0.4)
+                                          : null,
+                                      padding: EdgeInsets.fromLTRB(16 + entry.requirement.level * 12.0, 8, 12, 8),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (hasChildren)
+                                            IconButton(
+                                              iconSize: 18,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                                              icon: Icon(
+                                                _expanded.contains(entry.requirement.id)
+                                                    ? Icons.expand_more
+                                                    : Icons.chevron_right,
+                                              ),
+                                              onPressed: () {
+                                                setState(() {
+                                                  if (_expanded.contains(entry.requirement.id)) {
+                                                    _expanded.remove(entry.requirement.id);
+                                                  } else {
+                                                    _expanded.add(entry.requirement.id);
+                                                  }
+                                                });
+                                              },
+                                            )
+                                          else
+                                            const SizedBox(width: 24),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '${entry.requirement.ref} ${entry.requirement.title}',
+                                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                                  ),
+                                                ),
+                                                if (progress != null)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 4),
+                                                    child: Text(
+                                                      '${progress.assessed}/${progress.total} ${t.gsprSummaryAssessedLabel}',
+                                                      style: theme.textTheme.bodySmall,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(_assessmentStatusIcon(status), size: 18, color: color),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ],
-                        );
-                      }).toList(),
-                    ),
+                        ),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: _selectedId == null
+                            ? Center(child: Text(t.gsprSelectRequirementHint))
+                            : _buildDetailPane(
+                                t,
+                                theme,
+                                byId[_selectedId!],
+                              ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
     );
   }
-}
 
-class GsprAssessmentDialog extends StatefulWidget {
-  final ApiClient api;
-  final GsprChapterEntry entry;
-  final bool canEdit;
-  final bool readOnly;
+  Widget _buildDetailPane(AppLocalizations t, ThemeData theme, GsprChapterEntry? entry) {
+    if (entry == null) return const SizedBox.shrink();
+    final assessment = _draftAssessment ?? entry.assessment;
+    final updatedAt = assessment.updatedAt != null
+        ? DateFormat('yyyy-MM-dd HH:mm').format(assessment.updatedAt!)
+        : '—';
+    final needsRationale = [
+      GsprAssessmentStatus.notApplicable,
+      GsprAssessmentStatus.partial,
+      GsprAssessmentStatus.notFulfilled,
+    ].contains(assessment.status);
 
-  const GsprAssessmentDialog({
-    super.key,
-    required this.api,
-    required this.entry,
-    required this.canEdit,
-    required this.readOnly,
-  });
-
-  @override
-  State<GsprAssessmentDialog> createState() => _GsprAssessmentDialogState();
-}
-
-class _GsprAssessmentDialogState extends State<GsprAssessmentDialog> {
-  late GsprAssessment _assessment;
-  late TextEditingController _standardsCtrl;
-  late TextEditingController _editionCtrl;
-  late TextEditingController _supportingDocsCtrl;
-  late TextEditingController _revisionCtrl;
-  late TextEditingController _dateCtrl;
-  late TextEditingController _commentsCtrl;
-  late TextEditingController _additionalCtrl;
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _assessment = widget.entry.assessment;
-    _standardsCtrl = TextEditingController(text: _assessment.standards);
-    _editionCtrl = TextEditingController(text: _assessment.edition);
-    _supportingDocsCtrl = TextEditingController(text: _assessment.supportingDocs);
-    _revisionCtrl = TextEditingController(text: _assessment.revision);
-    _dateCtrl = TextEditingController(text: _formatDate(_assessment.date));
-    _commentsCtrl = TextEditingController(text: _assessment.comments);
-    _additionalCtrl = TextEditingController(text: _assessment.additionalDataRequired);
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${t.gsprColumnNumber} ${entry.requirement.ref}', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(entry.requirement.fullText),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<GsprAssessmentStatus>(
+            value: assessment.status,
+            decoration: InputDecoration(labelText: t.gsprAssessmentStatusLabel),
+            items: GsprAssessmentStatus.values
+                .map(
+                  (status) => DropdownMenuItem(
+                    value: status,
+                    child: Text(_assessmentStatusLabel(t, status)),
+                  ),
+                )
+                .toList(),
+            onChanged: !_canEdit
+                ? null
+                : (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _draftAssessment = assessment.copyWith(status: value);
+                    });
+                  },
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            enabled: _canEdit,
+            maxLines: 3,
+            controller: TextEditingController(text: assessment.rationale)
+              ..selection = TextSelection.collapsed(offset: assessment.rationale.length),
+            decoration: InputDecoration(
+              labelText: t.gsprAssessmentRationaleLabel,
+              helperText: needsRationale ? t.gsprAssessmentRationaleRequiredHint : null,
+            ),
+            onChanged: (value) => setState(() {
+              _draftAssessment = assessment.copyWith(rationale: value);
+            }),
+          ),
+          const SizedBox(height: 12),
+          Text(t.gsprEvidenceTitle, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Expanded(
+            child: ListView(
+              children: [
+                ...assessment.evidence.asMap().entries.map((entryIndex) {
+                  final index = entryIndex.key;
+                  final evidence = entryIndex.value;
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  enabled: _canEdit,
+                                  decoration: InputDecoration(labelText: t.gsprEvidenceDocId),
+                                  controller: TextEditingController(text: evidence.docId)
+                                    ..selection = TextSelection.collapsed(offset: evidence.docId.length),
+                                  onChanged: (value) => _updateEvidence(index, evidence.copyWith(docId: value)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  enabled: _canEdit,
+                                  decoration: InputDecoration(labelText: t.gsprEvidenceRevision),
+                                  controller: TextEditingController(text: evidence.revision)
+                                    ..selection = TextSelection.collapsed(offset: evidence.revision.length),
+                                  onChanged: (value) => _updateEvidence(index, evidence.copyWith(revision: value)),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            enabled: _canEdit,
+                            decoration: InputDecoration(labelText: t.gsprEvidenceLink),
+                            controller: TextEditingController(text: evidence.link)
+                              ..selection = TextSelection.collapsed(offset: evidence.link.length),
+                            onChanged: (value) => _updateEvidence(index, evidence.copyWith(link: value)),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            enabled: _canEdit,
+                            decoration: InputDecoration(labelText: t.gsprEvidenceLabel),
+                            controller: TextEditingController(text: evidence.label)
+                              ..selection = TextSelection.collapsed(offset: evidence.label.length),
+                            onChanged: (value) => _updateEvidence(index, evidence.copyWith(label: value)),
+                          ),
+                          if (_canEdit)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => _removeEvidence(index),
+                                icon: const Icon(Icons.delete_outline),
+                                label: Text(t.gsprEvidenceRemove),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                if (_canEdit)
+                  TextButton.icon(
+                    onPressed: _addEvidence,
+                    icon: const Icon(Icons.add),
+                    label: Text(t.gsprEvidenceAdd),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  enabled: _canEdit,
+                  decoration: InputDecoration(labelText: t.gsprAssessmentOwnerLabel),
+                  controller: TextEditingController(text: assessment.owner)
+                    ..selection = TextSelection.collapsed(offset: assessment.owner.length),
+                  onChanged: (value) => setState(() {
+                    _draftAssessment = assessment.copyWith(owner: value);
+                  }),
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: _canEdit ? () => _pickDueDate(assessment) : null,
+                  child: AbsorbPointer(
+                    child: TextField(
+                      decoration: InputDecoration(labelText: t.gsprAssessmentDueDateLabel),
+                      controller: TextEditingController(
+                        text: assessment.dueDate == null
+                            ? ''
+                            : DateFormat('yyyy-MM-dd').format(assessment.dueDate!),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('${t.gsprColumnUpdated}: $updatedAt'),
+                Text('${t.gsprFieldUpdatedBy}: ${assessment.updatedBy.isEmpty ? '—' : assessment.updatedBy}'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_canEdit)
+                FilledButton(
+                  onPressed: _submitting ? null : _saveAssessment,
+                  child: Text(t.gsprSave),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _standardsCtrl.dispose();
-    _editionCtrl.dispose();
-    _supportingDocsCtrl.dispose();
-    _revisionCtrl.dispose();
-    _dateCtrl.dispose();
-    _commentsCtrl.dispose();
-    _additionalCtrl.dispose();
-    super.dispose();
+  void _addEvidence() {
+    final assessment = _draftAssessment;
+    if (assessment == null) return;
+    setState(() {
+      final updated = [...assessment.evidence, const GsprEvidence(docId: '', revision: '', link: '', label: '')];
+      _draftAssessment = assessment.copyWith(evidence: updated);
+    });
   }
 
-  bool get _readOnly => widget.readOnly || !widget.canEdit;
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    return DateFormat('yyyy-MM-dd').format(date);
+  void _removeEvidence(int index) {
+    final assessment = _draftAssessment;
+    if (assessment == null) return;
+    setState(() {
+      final updated = [...assessment.evidence]..removeAt(index);
+      _draftAssessment = assessment.copyWith(evidence: updated);
+    });
   }
 
-  String _statusLabel(AppLocalizations t, GsprStatus status) {
-    switch (status) {
-      case GsprStatus.approved:
-        return t.gsprStatusApproved;
-      case GsprStatus.inReview:
-        return t.gsprStatusInReview;
-      case GsprStatus.draft:
-      default:
-        return t.gsprStatusDraft;
-    }
+  void _updateEvidence(int index, GsprEvidence updatedEvidence) {
+    final assessment = _draftAssessment;
+    if (assessment == null) return;
+    setState(() {
+      final updated = [...assessment.evidence];
+      updated[index] = updatedEvidence;
+      _draftAssessment = assessment.copyWith(evidence: updated);
+    });
   }
 
-  Future<void> _pickDate() async {
-    if (_readOnly) return;
-    final initial = _assessment.date ?? DateTime.now();
+  Future<void> _pickDueDate(GsprAssessment assessment) async {
+    final initial = assessment.dueDate ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -397,167 +824,38 @@ class _GsprAssessmentDialogState extends State<GsprAssessmentDialog> {
     );
     if (picked != null) {
       setState(() {
-        _dateCtrl.text = DateFormat('yyyy-MM-dd').format(picked);
+        _draftAssessment = assessment.copyWith(dueDate: picked);
       });
     }
   }
+}
 
-  Future<void> _save() async {
-    final t = AppLocalizations.of(context)!;
-    final hasContent = _standardsCtrl.text.trim().isNotEmpty ||
-        _supportingDocsCtrl.text.trim().isNotEmpty ||
-        _commentsCtrl.text.trim().isNotEmpty;
-    if (_assessment.applicable && !hasContent) {
-      setState(() => _error = t.gsprValidationContentRequired);
-      return;
-    }
-    if (_revisionCtrl.text.trim().isNotEmpty && _dateCtrl.text.trim().isEmpty) {
-      setState(() => _error = t.gsprValidationDateRequired);
-      return;
-    }
+class _GsprProgress {
+  final int total;
+  final int assessed;
+  final int open;
+  final int notApplicable;
 
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      final updated = _assessment.copyWith(
-        applicable: _assessment.applicable,
-        standards: _standardsCtrl.text.trim(),
-        edition: _editionCtrl.text.trim(),
-        supportingDocs: _supportingDocsCtrl.text.trim(),
-        revision: _revisionCtrl.text.trim(),
-        date: _dateCtrl.text.trim().isEmpty ? null : DateTime.tryParse(_dateCtrl.text.trim()),
-        comments: _commentsCtrl.text.trim(),
-        additionalDataRequired: _additionalCtrl.text.trim(),
-      );
-      final saved = await widget.api.updateGsprAssessment(updated);
-      if (!mounted) return;
-      Navigator.of(context).pop(saved);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
+  const _GsprProgress({
+    required this.total,
+    required this.assessed,
+    required this.open,
+    required this.notApplicable,
+  });
+}
 
-  Future<void> _newVersion() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      final saved = await widget.api.newGsprAssessmentVersion(_assessment.id);
-      if (!mounted) return;
-      Navigator.of(context).pop(saved);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = AppLocalizations.of(context)!;
-    final updatedAt = _assessment.updatedAt != null
-        ? DateFormat('yyyy-MM-dd HH:mm').format(_assessment.updatedAt!)
-        : '—';
-
-    return AlertDialog(
-      title: Text(t.gsprEditTitle),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${t.gsprColumnNumber} ${widget.entry.requirement.ref}'),
-              const SizedBox(height: 8),
-              Text(widget.entry.requirement.fullText),
-              const SizedBox(height: 16),
-              SwitchListTile(
-                title: Text(t.gsprFieldApplicable),
-                value: _assessment.applicable,
-                onChanged: _readOnly
-                    ? null
-                    : (value) => setState(() => _assessment = _assessment.copyWith(applicable: value)),
-              ),
-              TextField(
-                controller: _standardsCtrl,
-                enabled: !_readOnly,
-                decoration: InputDecoration(labelText: t.gsprFieldStandards),
-              ),
-              TextField(
-                controller: _editionCtrl,
-                enabled: !_readOnly,
-                decoration: InputDecoration(labelText: t.gsprFieldEdition),
-              ),
-              TextField(
-                controller: _supportingDocsCtrl,
-                enabled: !_readOnly,
-                maxLines: 3,
-                decoration: InputDecoration(labelText: t.gsprFieldSupportingDocs),
-              ),
-              TextField(
-                controller: _revisionCtrl,
-                enabled: !_readOnly,
-                decoration: InputDecoration(labelText: t.gsprFieldRevision),
-              ),
-              GestureDetector(
-                onTap: _pickDate,
-                child: AbsorbPointer(
-                  child: TextField(
-                    controller: _dateCtrl,
-                    enabled: !_readOnly,
-                    decoration: InputDecoration(labelText: t.gsprFieldDate),
-                  ),
-                ),
-              ),
-              TextField(
-                controller: _commentsCtrl,
-                enabled: !_readOnly,
-                maxLines: 3,
-                decoration: InputDecoration(labelText: t.gsprFieldComments),
-              ),
-              TextField(
-                controller: _additionalCtrl,
-                enabled: !_readOnly,
-                maxLines: 2,
-                decoration: InputDecoration(labelText: t.gsprFieldAdditionalData),
-              ),
-              const SizedBox(height: 16),
-              Text('${t.gsprFieldStatus}: ${_statusLabel(t, _assessment.status)}'),
-              Text('${t.gsprColumnVersion}: ${_assessment.version}'),
-              Text('${t.gsprFieldUpdatedAt}: $updatedAt'),
-              Text('${t.gsprFieldUpdatedBy}: ${_assessment.updatedBy.isEmpty ? '—' : _assessment.updatedBy}'),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        if (_assessment.status == GsprStatus.approved && widget.canEdit)
-          TextButton(
-            onPressed: _saving ? null : _newVersion,
-            child: Text(t.gsprNewVersion),
-          ),
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: Text(t.gsprCancel),
-        ),
-        if (!_readOnly)
-          FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(t.gsprSave),
-          ),
-      ],
+extension on GsprEvidence {
+  GsprEvidence copyWith({
+    String? docId,
+    String? revision,
+    String? link,
+    String? label,
+  }) {
+    return GsprEvidence(
+      docId: docId ?? this.docId,
+      revision: revision ?? this.revision,
+      link: link ?? this.link,
+      label: label ?? this.label,
     );
   }
 }

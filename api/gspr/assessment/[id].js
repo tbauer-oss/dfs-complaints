@@ -33,11 +33,12 @@ export default async function handler(req, res) {
         return bad(res, 'td approved; create new version', 409);
       }
 
-      if (body.revision && !body.date) {
-        return bad(res, 'date required when revision is set', 400);
-      }
-
       const patch = {
+        status: body.status,
+        rationale: body.rationale,
+        evidence: body.evidence,
+        owner: body.owner,
+        dueDate: body.dueDate,
         applicable: body.applicable,
         standards: body.standards,
         edition: body.edition,
@@ -47,6 +48,12 @@ export default async function handler(req, res) {
         comments: body.comments,
         additionalDataRequired: body.additionalDataRequired,
       };
+
+      if (['not_applicable', 'partial', 'not_fulfilled'].includes(String(body.status))) {
+        if (!String(body.rationale || '').trim()) {
+          return bad(res, 'rationale required for selected status', 400);
+        }
+      }
 
       const updated = await gsprAssessmentUpdate(id, patch, actor);
       return ok(res, { ok: true, assessment: updated });

@@ -6,7 +6,6 @@ import { requirePortalAccess } from '../../../admin/_guard.js';
 import {
   fmeaGet,
   gsprAssessmentHasContent,
-  gsprAssessmentUpdate,
   gsprAssessmentsByTd,
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffSave,
@@ -32,19 +31,12 @@ export default async function handler(req, res) {
     await gsprEnsureAssessmentsForTd(tdId, { status: 'draft', actor });
     const assessments = await gsprAssessmentsByTd(tdId);
 
-    const invalid = assessments.filter((assessment) => {
-      if (assessment.applicable === false) return false;
-      return !gsprAssessmentHasContent(assessment);
-    });
+    const invalid = assessments.filter((assessment) => !gsprAssessmentHasContent(assessment));
 
     if (invalid.length > 0) {
       return bad(res, 'not all applicable requirements are filled', 400, {
         missingRequirementIds: invalid.map((i) => i.requirementId),
       });
-    }
-
-    for (const assessment of assessments) {
-      await gsprAssessmentUpdate(assessment.id, { status: 'in_review' }, actor);
     }
 
     const signoff = await gsprTdSignoffSave(tdId, {
