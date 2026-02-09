@@ -4,12 +4,12 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 import {
-  fmeaGet,
   gsprAssessmentsByTd,
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
 } from '../_lib/store.js';
 import { GSPR_ITEMS } from '../_lib/gsprRequirements.js';
+import { resolveGsprTdInfo } from '../_lib/gsprTdOptions.js';
 
 const GSPR_TILE = 'gspr';
 const OPEN_STATUSES = new Set(['not_assessed', 'partial', 'not_fulfilled']);
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
     const tdId = (req.query?.tdId || '').toString();
     if (!tdId) return bad(res, 'tdId missing', 400);
 
-    const td = await fmeaGet(tdId);
+    const td = await resolveGsprTdInfo(tdId);
     if (!td) return bad(res, 'td not found', 404);
 
     const signoff = await gsprTdSignoffGet(tdId);
@@ -127,7 +127,7 @@ export default async function handler(req, res) {
 
       rows.push({
         tdId,
-        mdrTd: td.mdrTd,
+        mdrTd: td.mdrTd || td.label || tdId,
         requirementId: requirement.id,
         ref: requirement.ref,
         title: requirement.title,

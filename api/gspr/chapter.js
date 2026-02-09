@@ -4,12 +4,12 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 import {
-  fmeaGet,
   gsprAssessmentsByTdAndChapter,
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
 } from '../_lib/store.js';
 import { gsprItemsByChapter } from '../_lib/gsprRequirements.js';
+import { resolveGsprTdInfo } from '../_lib/gsprTdOptions.js';
 
 const GSPR_TILE = 'gspr';
 
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const chapter = parseChapter(req.query?.chapter);
     if (!chapter) return bad(res, 'invalid chapter', 400);
 
-    const td = await fmeaGet(tdId);
+    const td = await resolveGsprTdInfo(tdId);
     if (!td) return bad(res, 'td not found', 404);
 
     const signoff = await gsprTdSignoffGet(tdId);
@@ -67,9 +67,7 @@ export default async function handler(req, res) {
       td: {
         id: td.id,
         mdrTd: td.mdrTd,
-        title: td.title,
-        productGroup: td.productGroup,
-        medicalProduct: td.medicalProduct,
+        label: td.label,
         active: td.active !== false,
         archivedAt: td.archivedAt || null,
       },

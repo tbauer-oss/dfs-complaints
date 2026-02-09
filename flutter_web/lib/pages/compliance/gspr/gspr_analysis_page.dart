@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 
 import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../models/fmea.dart';
 import '../../../models/gspr.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
@@ -20,7 +19,7 @@ enum _GsprGroupBy {
 class GsprAnalysisTab extends StatefulWidget {
   final ApiClient api;
   final GsprAccess access;
-  final FmeaRecord? td;
+  final GsprTdOption? td;
 
   const GsprAnalysisTab({
     super.key,
