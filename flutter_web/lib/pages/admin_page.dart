@@ -8482,13 +8482,13 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   List<String> _visibleTileIdsForSection(_AdminMenuSectionState section) {
-    if (section.title != _complianceSectionTitle) {
-      return section.tileIds.where(_renderableTileIds.contains).toList();
-    }
-    return section.tileIds
-        .where(_complianceTileIds.contains)
-        .where(_renderableTileIds.contains)
-        .toList();
+    final filtered = section.tileIds
+        .where(_menuTileIds.contains)
+        .where(_renderableTileIds.contains);
+    final visible = section.title == _complianceSectionTitle
+        ? filtered.where(_complianceTileIds.contains)
+        : filtered;
+    return LinkedHashSet<String>.from(visible).toList();
   }
 
   bool _sectionExpanded(DashboardSection section) {
