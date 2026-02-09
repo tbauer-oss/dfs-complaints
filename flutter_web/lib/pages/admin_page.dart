@@ -1911,7 +1911,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   static const String _qualitySectionTitle = 'Connect+ | Quality';
   static const String _complianceSectionTitle = 'Connect+ | Compliance';
   static const String _trainingSectionSubtitle = '';
-  static const List<String> _complianceTileIds = ['fmea', 'gspr'];
   static const Set<String> _renderableTileIds = {
     'open',
     'all',
