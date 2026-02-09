@@ -786,6 +786,7 @@ class _MyAppState extends State<MyApp> {
                       api: api,
                       access: access,
                       tdOverride: gsprArgs?.td,
+                      initialRequirementId: gsprArgs?.initialRequirementId,
                     ),
                     settings: settings,
                   );

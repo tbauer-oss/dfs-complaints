@@ -13,7 +13,7 @@ import {
   normalizeEvaluationTranslations,
   normalizeReportLinksMap,
 } from './departments.js';
-import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter } from './gsprRequirements.js';
+import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems } from './gsprRequirements.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -4495,7 +4495,7 @@ export async function gsprEnsureAssessmentsForTd(tdId, { status, actor } = {}) {
   const existing = await gsprAssessmentsByTd(tdId);
   const byRequirement = new Map(existing.map((a) => [a.requirementId, a]));
   const created = [];
-  for (const requirement of GSPR_ITEMS) {
+  for (const requirement of gsprAssessableItems()) {
     if (byRequirement.has(requirement.id)) continue;
     const assessment = await gsprAssessmentSave({
       tdId,

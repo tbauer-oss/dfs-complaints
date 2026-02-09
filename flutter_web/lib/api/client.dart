@@ -2644,6 +2644,49 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige GSPR-Kapitel-Antwort');
   }
 
+  Future<GsprAnalysisResponse> gsprAnalysis({
+    required String tdId,
+    String? chapter,
+    List<GsprAssessmentStatus> statuses = const [],
+    bool onlyOpen = false,
+    bool onlyOverdue = false,
+    bool onlyDueSoon = false,
+    bool onlyMissingEvidence = false,
+    String owner = '',
+    String search = '',
+    int dueSoonDays = 14,
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final params = <String, String>{
+      'tdId': tdId,
+      'page': page.toString(),
+      'pageSize': pageSize.toString(),
+      'dueSoonDays': dueSoonDays.toString(),
+    };
+    if (chapter != null && chapter.isNotEmpty) params['chapter'] = chapter;
+    if (statuses.isNotEmpty) {
+      params['status'] = statuses.map(gsprAssessmentStatusToString).join(',');
+    }
+    if (onlyOpen) params['openOnly'] = 'true';
+    if (onlyOverdue) params['overdueOnly'] = 'true';
+    if (onlyDueSoon) params['dueSoonOnly'] = 'true';
+    if (onlyMissingEvidence) params['missingEvidenceOnly'] = 'true';
+    if (owner.trim().isNotEmpty) params['owner'] = owner.trim();
+    if (search.trim().isNotEmpty) params['search'] = search.trim();
+
+    final path = Uri(path: '/api/gspr/analysis', queryParameters: params).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is Map) {
+      return GsprAnalysisResponse.fromJson(decoded.cast<String, dynamic>());
+    }
+    throw ApiError(r.statusCode, 'Ungültige GSPR-Analyse-Antwort');
+  }
+
   Future<GsprAssessment> updateGsprAssessment(GsprAssessment assessment) async {
     final r = await http.put(
       _u('/api/gspr/assessment/${assessment.id}'),

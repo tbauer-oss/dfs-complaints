@@ -11,6 +11,20 @@ type GsprItem = {
   sortKey: string;
   parentId: string | null;
   level: number;
+  text: string;
+  isAssessable: boolean;
+  contextIds: string[];
+  contextText: string | null;
+};
+
+type GsprItemRaw = {
+  id: string;
+  ref: string;
+  chapter: number;
+  title: string;
+  sortKey: string;
+  parentId: string | null;
+  level: number;
   fullText: string;
 };
 
@@ -138,7 +152,7 @@ function finalizeText(lines: string[]): string {
   return text;
 }
 
-function createSummary(items: GsprItem[]): Summary {
+function createSummary(items: GsprItemRaw[]): Summary {
   const byChapter: Record<number, number> = {};
   const byLevel: Record<number, number> = {};
   for (const item of items) {
@@ -164,13 +178,13 @@ async function generate() {
   const slice = sliceBetween(rawText, START_MARKER, END_MARKER);
   const lines = slice.split('\n');
 
-  const items: GsprItem[] = [];
+  const items: GsprItemRaw[] = [];
   let currentChapter: number | null = null;
   let currentNumberId: string | null = null;
   let currentLetterId: string | null = null;
   let dashCounter = 0;
   let buffer: string[] = [];
-  let currentItem: GsprItem | null = null;
+  let currentItem: GsprItemRaw | null = null;
 
   const flushCurrent = () => {
     if (!currentItem) return;
@@ -180,7 +194,7 @@ async function generate() {
     buffer = [];
   };
 
-  const startItem = (item: GsprItem, initialText?: string) => {
+  const startItem = (item: GsprItemRaw, initialText?: string) => {
     flushCurrent();
     currentItem = item;
     buffer = [];
@@ -311,9 +325,9 @@ async function generate() {
   const timestamp = new Date().toISOString();
   const header = `// Generated from ${SOURCE_URL} at ${timestamp}`;
 
-  const tsOutput = `${header}\n\nexport type GsprItem = {\n  id: string;\n  ref: string;\n  chapter: number;\n  title: string;\n  sortKey: string;\n  parentId: string | null;\n  level: number;\n  fullText: string;\n};\n\nexport const GSPR_ITEMS: GsprItem[] = ${JSON.stringify(filtered, null, 2)} as const;\n\nexport const GSPR_ITEMS_BY_ID = new Map(GSPR_ITEMS.map((x) => [x.id, x]));\n\nexport function gsprItemsByChapter(chapter: number) {\n  return GSPR_ITEMS.filter((item) => item.chapter === chapter).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n\nexport function gsprChildren(parentId: string) {\n  return GSPR_ITEMS.filter((item) => item.parentId === parentId).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n`;
+  const tsOutput = `${header}\n\nexport type GsprItemRaw = {\n  id: string;\n  ref: string;\n  chapter: number;\n  title: string;\n  sortKey: string;\n  parentId: string | null;\n  level: number;\n  fullText: string;\n};\n\nexport type GsprItem = {\n  id: string;\n  ref: string;\n  chapter: number;\n  title: string;\n  sortKey: string;\n  parentId: string | null;\n  level: number;\n  text: string;\n  isAssessable: boolean;\n  contextIds: string[];\n  contextText: string | null;\n};\n\nconst GSPR_ITEMS_RAW: GsprItemRaw[] = ${JSON.stringify(filtered, null, 2)} as const;\n\nfunction buildGsprItems(raw: GsprItemRaw[]) {\n  const rawById = new Map(raw.map((item) => [item.id, item]));\n  const childrenByParent = new Map<string, GsprItemRaw[]>();\n  for (const item of raw) {\n    if (!item.parentId) continue;\n    if (!childrenByParent.has(item.parentId)) childrenByParent.set(item.parentId, []);\n    childrenByParent.get(item.parentId)?.push(item);\n  }\n\n  const isAssessable = new Map<string, boolean>();\n  for (const item of raw) {\n    const children = childrenByParent.get(item.id) || [];\n    if (children.length === 0) {\n      isAssessable.set(item.id, true);\n      continue;\n    }\n    const hasListChildren = children.some((child) => child.level >= 3);\n    const endsWithColon = item.fullText.trim().endsWith(':');\n    isAssessable.set(item.id, !(hasListChildren || endsWithColon));\n  }\n\n  const items = raw.map((item) => {\n    const assessable = isAssessable.get(item.id) ?? true;\n    const contextIds: string[] = [];\n    const contextTexts: string[] = [];\n    if (assessable) {\n      let current = item.parentId;\n      while (current) {\n        const parent = rawById.get(current);\n        if (!parent) break;\n        if (isAssessable.get(parent.id) === false) {\n          contextIds.unshift(parent.id);\n          if (parent.fullText.trim()) {\n            contextTexts.unshift(parent.fullText);\n          }\n        }\n        current = parent.parentId;\n      }\n    }\n    return {\n      id: item.id,\n      ref: item.ref,\n      chapter: item.chapter,\n      title: item.title,\n      sortKey: item.sortKey,\n      parentId: item.parentId,\n      level: item.level,\n      text: item.fullText,\n      isAssessable: assessable,\n      contextIds,\n      contextText: contextTexts.length ? contextTexts.join('\\n\\n') : null,\n    };\n  });\n\n  const itemsById = new Map(items.map((item) => [item.id, item]));\n  return { items, itemsById };\n}\n\nconst { items: GSPR_ITEMS, itemsById: GSPR_ITEMS_BY_ID } = buildGsprItems(GSPR_ITEMS_RAW);\n\nexport { GSPR_ITEMS, GSPR_ITEMS_BY_ID };\n\nexport function gsprItemsByChapter(chapter: number) {\n  return GSPR_ITEMS.filter((item) => item.chapter === chapter).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n\nexport function gsprChildren(parentId: string) {\n  return GSPR_ITEMS.filter((item) => item.parentId === parentId).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n`;
 
-  const jsOutput = `${header}\n\nexport const GSPR_ITEMS = ${JSON.stringify(filtered, null, 2)};\n\nexport const GSPR_ITEMS_BY_ID = new Map(GSPR_ITEMS.map((x) => [x.id, x]));\n\nexport function gsprItemsByChapter(chapter) {\n  return GSPR_ITEMS.filter((item) => item.chapter === chapter).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n\nexport function gsprChildren(parentId) {\n  return GSPR_ITEMS.filter((item) => item.parentId === parentId).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n`;
+  const jsOutput = `${header}\n\nconst GSPR_ITEMS_RAW = ${JSON.stringify(filtered, null, 2)};\n\nfunction buildGsprItems(raw) {\n  const rawById = new Map(raw.map((item) => [item.id, item]));\n  const childrenByParent = new Map();\n  for (const item of raw) {\n    if (!item.parentId) continue;\n    if (!childrenByParent.has(item.parentId)) childrenByParent.set(item.parentId, []);\n    childrenByParent.get(item.parentId).push(item);\n  }\n\n  const isAssessable = new Map();\n  for (const item of raw) {\n    const children = childrenByParent.get(item.id) || [];\n    if (children.length === 0) {\n      isAssessable.set(item.id, true);\n      continue;\n    }\n    const hasListChildren = children.some((child) => child.level >= 3);\n    const endsWithColon = item.fullText.trim().endsWith(':');\n    isAssessable.set(item.id, !(hasListChildren || endsWithColon));\n  }\n\n  const items = raw.map((item) => {\n    const assessable = isAssessable.get(item.id) ?? true;\n    const contextIds = [];\n    const contextTexts = [];\n    if (assessable) {\n      let current = item.parentId;\n      while (current) {\n        const parent = rawById.get(current);\n        if (!parent) break;\n        if (isAssessable.get(parent.id) === false) {\n          contextIds.unshift(parent.id);\n          if (parent.fullText.trim()) {\n            contextTexts.unshift(parent.fullText);\n          }\n        }\n        current = parent.parentId;\n      }\n    }\n    return {\n      id: item.id,\n      ref: item.ref,\n      chapter: item.chapter,\n      title: item.title,\n      sortKey: item.sortKey,\n      parentId: item.parentId,\n      level: item.level,\n      text: item.fullText,\n      isAssessable: assessable,\n      contextIds,\n      contextText: contextTexts.length ? contextTexts.join('\\n\\n') : null,\n    };\n  });\n\n  const itemsById = new Map(items.map((item) => [item.id, item]));\n  return { items, itemsById };\n}\n\nconst { items: GSPR_ITEMS, itemsById: GSPR_ITEMS_BY_ID } = buildGsprItems(GSPR_ITEMS_RAW);\n\nexport { GSPR_ITEMS, GSPR_ITEMS_BY_ID };\n\nexport function gsprItemsByChapter(chapter) {\n  return GSPR_ITEMS.filter((item) => item.chapter === chapter).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n\nexport function gsprChildren(parentId) {\n  return GSPR_ITEMS.filter((item) => item.parentId === parentId).sort((a, b) => a.sortKey.localeCompare(b.sortKey));\n}\n`;
 
   await fs.writeFile(OUTPUT_TS, tsOutput, 'utf8');
   await fs.writeFile(OUTPUT_JS, jsOutput, 'utf8');

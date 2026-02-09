@@ -5,6 +5,14 @@ export { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprChildren };
 export const GSPR_REQUIREMENTS = GSPR_ITEMS.filter((item) => item.level === 0);
 export const GSPR_REQUIREMENTS_BY_ID = GSPR_ITEMS_BY_ID;
 
+export function gsprAssessableItems() {
+  return GSPR_ITEMS.filter((item) => item.isAssessable);
+}
+
+export function gsprAssessableItemsByChapter(chapter) {
+  return gsprItemsByChapter(chapter).filter((item) => item.isAssessable);
+}
+
 export function gsprRequirementsByChapter(chapter) {
   return gsprItemsByChapter(chapter);
 }

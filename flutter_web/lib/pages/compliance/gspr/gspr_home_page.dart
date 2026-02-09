@@ -4,6 +4,7 @@ import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/fmea.dart';
 import '../../../models/gspr.dart';
+import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
 
@@ -114,77 +115,85 @@ class _GsprHomePageState extends State<GsprHomePage> {
     final theme = Theme.of(context);
     final selected = GsprTdState.selectedTd.value;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(t.gsprPageTitle, style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 12),
-          if (_loading) const LinearProgressIndicator(),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-            ),
-          DropdownButtonFormField<FmeaRecord>(
-            value: selected,
-            decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
-            items: _tds
-                .map(
-                  (td) => DropdownMenuItem(
-                    value: td,
-                    child: Text(_tdLabel(td)),
-                  ),
-                )
-                .toList(),
-            onChanged: (td) {
-              setState(() {
-                GsprTdState.selectedTd.value = td;
-                _summary = null;
-              });
-              if (td != null) {
-                _loadSummary(td.id);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          if (selected != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '${t.gsprSelectTdLabel}: ${_tdLabel(selected)}',
-                style: theme.textTheme.bodySmall,
+    return DefaultTabController(
+      length: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.gsprPageTitle, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            if (_loading) const LinearProgressIndicator(),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
               ),
+            DropdownButtonFormField<FmeaRecord>(
+              value: selected,
+              decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
+              items: _tds
+                  .map(
+                    (td) => DropdownMenuItem(
+                      value: td,
+                      child: Text(_tdLabel(td)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (td) {
+                setState(() {
+                  GsprTdState.selectedTd.value = td;
+                  _summary = null;
+                });
+                if (td != null) {
+                  _loadSummary(td.id);
+                }
+              },
             ),
-          if (selected == null)
-            Text(
-              t.gsprSelectTdHint,
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-            ),
-          if (selected != null && _summary != null && _summary!.readOnly)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                t.gsprTdReadOnlyHint,
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+            const SizedBox(height: 16),
+            if (selected != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '${t.gsprSelectTdLabel}: ${_tdLabel(selected)}',
+                  style: theme.textTheme.bodySmall,
+                ),
               ),
+            if (selected == null)
+              Text(
+                t.gsprSelectTdHint,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+              ),
+            if (selected != null && _summary != null && _summary!.readOnly)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  t.gsprTdReadOnlyHint,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                ),
+              ),
+            TabBar(
+              tabs: [
+                Tab(text: t.gsprTabAssessments),
+                Tab(text: t.gsprTabAnalysis),
+              ],
             ),
-          if (selected != null && _summary != null)
+            const SizedBox(height: 12),
             Expanded(
-              child: ListView(
-                children: _summary!.chapters.map((chapter) {
-                  final label = _chapterLabel(t, chapter.chapter);
-                  return _GsprSummaryCard(
-                    label: label,
-                    summary: chapter,
-                    statusLabel: _statusLabel(t, _summary!.status),
-                    onTap: () => _openChapter(_roman(chapter.chapter)),
-                  );
-                }).toList(),
+              child: TabBarView(
+                children: [
+                  _buildSummaryTab(t, theme, selected),
+                  GsprAnalysisTab(
+                    api: widget.api,
+                    access: widget.access,
+                    td: selected,
+                  ),
+                ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -199,6 +208,31 @@ class _GsprHomePageState extends State<GsprHomePage> {
       default:
         return 'I';
     }
+  }
+
+  Widget _buildSummaryTab(AppLocalizations t, ThemeData theme, FmeaRecord? selected) {
+    if (selected == null) {
+      return Center(
+        child: Text(
+          t.gsprSelectTdHint,
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+        ),
+      );
+    }
+    if (_summary == null) {
+      return const SizedBox.shrink();
+    }
+    return ListView(
+      children: _summary!.chapters.map((chapter) {
+        final label = _chapterLabel(t, chapter.chapter);
+        return _GsprSummaryCard(
+          label: label,
+          summary: chapter,
+          statusLabel: _statusLabel(t, _summary!.status),
+          onTap: () => _openChapter(_roman(chapter.chapter)),
+        );
+      }).toList(),
+    );
   }
 }
 

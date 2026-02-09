@@ -1,6 +1,6 @@
 // Generated from https://mdr-selector.johner-institut.de/mdr_de.html at 2026-02-09T11:34:27.747Z
 
-export const GSPR_ITEMS = [
+const GSPR_ITEMS_RAW = [
   {
     "id": "1",
     "ref": "1",
@@ -2453,7 +2453,67 @@ export const GSPR_ITEMS = [
   }
 ];
 
-export const GSPR_ITEMS_BY_ID = new Map(GSPR_ITEMS.map((x) => [x.id, x]));
+function buildGsprItems(raw) {
+  const rawById = new Map(raw.map((item) => [item.id, item]));
+  const childrenByParent = new Map();
+  for (const item of raw) {
+    if (!item.parentId) continue;
+    if (!childrenByParent.has(item.parentId)) childrenByParent.set(item.parentId, []);
+    childrenByParent.get(item.parentId).push(item);
+  }
+
+  const isAssessable = new Map();
+  for (const item of raw) {
+    const children = childrenByParent.get(item.id) || [];
+    if (children.length === 0) {
+      isAssessable.set(item.id, true);
+      continue;
+    }
+    const hasListChildren = children.some((child) => child.level >= 3);
+    const endsWithColon = item.fullText.trim().endsWith(':');
+    isAssessable.set(item.id, !(hasListChildren || endsWithColon));
+  }
+
+  const items = raw.map((item) => {
+    const assessable = isAssessable.get(item.id) ?? true;
+    const contextIds = [];
+    const contextTexts = [];
+    if (assessable) {
+      let current = item.parentId;
+      while (current) {
+        const parent = rawById.get(current);
+        if (!parent) break;
+        if (isAssessable.get(parent.id) === false) {
+          contextIds.unshift(parent.id);
+          if (parent.fullText.trim()) {
+            contextTexts.unshift(parent.fullText);
+          }
+        }
+        current = parent.parentId;
+      }
+    }
+    return {
+      id: item.id,
+      ref: item.ref,
+      chapter: item.chapter,
+      title: item.title,
+      sortKey: item.sortKey,
+      parentId: item.parentId,
+      level: item.level,
+      text: item.fullText,
+      isAssessable: assessable,
+      contextIds,
+      contextText: contextTexts.length ? contextTexts.join('\n\n') : null,
+    };
+  });
+
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  return { items, itemsById };
+}
+
+const { items: GSPR_ITEMS, itemsById: GSPR_ITEMS_BY_ID } = buildGsprItems(GSPR_ITEMS_RAW);
+
+export { GSPR_ITEMS, GSPR_ITEMS_BY_ID };
 
 export function gsprItemsByChapter(chapter) {
   return GSPR_ITEMS.filter((item) => item.chapter === chapter).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
