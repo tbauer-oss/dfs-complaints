@@ -4,13 +4,13 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 import {
-  fmeaGet,
   gsprAssessmentsByTd,
   gsprAssessmentHasContent,
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
 } from '../_lib/store.js';
 import { gsprAssessableItemsByChapter } from '../_lib/gsprRequirements.js';
+import { resolveGsprTdInfo } from '../_lib/gsprTdOptions.js';
 
 const GSPR_TILE = 'gspr';
 
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     const tdId = (req.query?.tdId || '').toString();
     if (!tdId) return bad(res, 'tdId missing', 400);
 
-    const td = await fmeaGet(tdId);
+    const td = await resolveGsprTdInfo(tdId);
     if (!td) return bad(res, 'td not found', 404);
 
     const signoff = await gsprTdSignoffGet(tdId);

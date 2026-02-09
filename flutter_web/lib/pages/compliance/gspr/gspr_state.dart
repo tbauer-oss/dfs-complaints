@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../models/fmea.dart';
+import '../../../models/gspr.dart';
 
 class GsprTdState {
-  static final ValueNotifier<FmeaRecord?> selectedTd = ValueNotifier<FmeaRecord?>(null);
+  static final ValueNotifier<GsprTdOption?> selectedTd = ValueNotifier<GsprTdOption?>(null);
 }
 
 class GsprAccess {

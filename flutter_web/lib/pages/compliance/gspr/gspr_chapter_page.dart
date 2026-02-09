@@ -3,12 +3,11 @@ import 'package:intl/intl.dart';
 
 import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../models/fmea.dart';
 import '../../../models/gspr.dart';
 import 'gspr_state.dart';
 
 class GsprChapterArgs {
-  final FmeaRecord td;
+  final GsprTdOption td;
   final GsprAccess access;
   final String? initialRequirementId;
 
@@ -23,7 +22,7 @@ class GsprChapterPage extends StatefulWidget {
   final String chapter;
   final ApiClient api;
   final GsprAccess access;
-  final FmeaRecord? tdOverride;
+  final GsprTdOption? tdOverride;
   final String? initialRequirementId;
 
   const GsprChapterPage({
@@ -55,7 +54,7 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
   Set<String> _expanded = {};
   GsprAssessment? _draftAssessment;
 
-  FmeaRecord? get _td => widget.tdOverride ?? GsprTdState.selectedTd.value;
+  GsprTdOption? get _td => widget.tdOverride ?? GsprTdState.selectedTd.value;
 
   @override
   void initState() {
@@ -459,7 +458,7 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
           children: [
             Text(t.gsprPageTitle),
             Text(
-              '${td.mdrTd} · ${_chapterLabel(t)}',
+              '${td.displayCode} · ${_chapterLabel(t)}',
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           ],

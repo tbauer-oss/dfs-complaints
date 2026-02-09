@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../models/fmea.dart';
 import '../../../models/gspr.dart';
 import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
@@ -25,7 +24,7 @@ class GsprHomePage extends StatefulWidget {
 class _GsprHomePageState extends State<GsprHomePage> {
   bool _loading = false;
   String? _error;
-  List<FmeaRecord> _tds = const [];
+  List<GsprTdOption> _tds = const [];
   GsprSummary? _summary;
 
   @override
@@ -40,13 +39,28 @@ class _GsprHomePageState extends State<GsprHomePage> {
       _error = null;
     });
     try {
-      final list = await widget.api.adminFmeas();
+      final list = await widget.api.gsprTdOptions();
       if (!mounted) return;
-      list.sort((a, b) => a.mdrTd.compareTo(b.mdrTd));
-      setState(() => _tds = list);
+      list.sort((a, b) => compareGsprTdLabels(a.label, b.label));
       final selected = GsprTdState.selectedTd.value;
+      GsprTdOption? matched;
       if (selected != null) {
-        await _loadSummary(selected.id);
+        for (final entry in list) {
+          if (entry.id == selected.id) {
+            matched = entry;
+            break;
+          }
+        }
+      }
+      setState(() => _tds = list);
+      if (matched != null) {
+        GsprTdState.selectedTd.value = matched;
+        await _loadSummary(matched.id);
+      } else {
+        setState(() {
+          GsprTdState.selectedTd.value = null;
+          _summary = null;
+        });
       }
     } catch (e) {
       if (!mounted) return;
@@ -65,12 +79,6 @@ class _GsprHomePageState extends State<GsprHomePage> {
       if (!mounted) return;
       setState(() => _error = e.toString());
     }
-  }
-
-  String _tdLabel(FmeaRecord td) {
-    final title = td.title.isNotEmpty ? td.title : td.productGroup;
-    if (title.isNotEmpty) return '${td.mdrTd} – $title';
-    return td.mdrTd;
   }
 
   String _statusLabel(AppLocalizations t, GsprStatus status) {
@@ -130,14 +138,14 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
               ),
-            DropdownButtonFormField<FmeaRecord>(
+            DropdownButtonFormField<GsprTdOption>(
               value: selected,
               decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
               items: _tds
                   .map(
                     (td) => DropdownMenuItem(
                       value: td,
-                      child: Text(_tdLabel(td)),
+                      child: Text(td.displayLabel),
                     ),
                   )
                   .toList(),
@@ -156,7 +164,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  '${t.gsprSelectTdLabel}: ${_tdLabel(selected)}',
+                  '${t.gsprSelectTdLabel}: ${selected.displayLabel}',
                   style: theme.textTheme.bodySmall,
                 ),
               ),
@@ -210,7 +218,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
     }
   }
 
-  Widget _buildSummaryTab(AppLocalizations t, ThemeData theme, FmeaRecord? selected) {
+  Widget _buildSummaryTab(AppLocalizations t, ThemeData theme, GsprTdOption? selected) {
     if (selected == null) {
       return Center(
         child: Text(

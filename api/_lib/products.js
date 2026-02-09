@@ -117,6 +117,10 @@ async function _getProducts() {
   return await _loadProductsFromDisk();
 }
 
+export async function getProducts() {
+  return await _getProducts();
+}
+
 export async function getProductIndex() {
   if (_cache.index) return _cache.index;
   const products = await _getProducts();
@@ -138,4 +142,3 @@ export async function getProductByArticle(articleNumber) {
 export function normalizeArticleNumber(value) {
   return _normalizeArticleNumber(value);
 }
-

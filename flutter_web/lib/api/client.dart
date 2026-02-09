@@ -2615,6 +2615,23 @@ class ApiClient {
     }
   }
 
+  Future<List<GsprTdOption>> gsprTdOptions() async {
+    final r = await http.get(_u('/api/gspr/td-options'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final list = decoded is Map && decoded['options'] is List
+        ? decoded['options'] as List
+        : decoded is List
+            ? decoded
+            : <dynamic>[];
+    return list
+        .whereType<Map>()
+        .map((entry) => GsprTdOption.fromJson(entry.cast<String, dynamic>()))
+        .toList();
+  }
+
   Future<GsprSummary> gsprSummary({required String tdId}) async {
     final path = Uri(path: '/api/gspr/summary', queryParameters: {'tdId': tdId}).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));

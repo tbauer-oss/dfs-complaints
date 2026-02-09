@@ -14,6 +14,84 @@ enum GsprAssessmentStatus {
   notApplicable,
 }
 
+String normalizeGsprTdLabel(String value) {
+  var text = value.trim();
+  if (text.isEmpty) return '';
+  text = text.replaceAll(RegExp(r'\s+'), ' ');
+  text = text.replaceAll(RegExp(r'\s*[-–—]\s*'), ' – ');
+  text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text;
+}
+
+String gsprTdCodeFromLabel(String label) {
+  final normalized = normalizeGsprTdLabel(label);
+  if (!normalized.startsWith('MDR-TD')) return '';
+  final parts = normalized.split(' – ');
+  return parts.first.trim();
+}
+
+int? gsprTdIndexFromLabel(String label) {
+  final code = gsprTdCodeFromLabel(label);
+  final match = RegExp(r'^MDR-TD\s*([0-9]+)').firstMatch(code);
+  if (match == null) return null;
+  final idx = int.tryParse(match.group(1) ?? '');
+  return idx;
+}
+
+int compareGsprTdLabels(String a, String b) {
+  final aIndex = gsprTdIndexFromLabel(a);
+  final bIndex = gsprTdIndexFromLabel(b);
+  if (aIndex != null && bIndex != null && aIndex != bIndex) return aIndex - bIndex;
+  if (aIndex != null && bIndex == null) return -1;
+  if (aIndex == null && bIndex != null) return 1;
+  return a.compareTo(b);
+}
+
+List<String> dedupeAndSortGsprTdLabels(Iterable<String> raw) {
+  final deduped = <String>{};
+  for (final entry in raw) {
+    final normalized = normalizeGsprTdLabel(entry);
+    if (!normalized.startsWith('MDR-TD')) continue;
+    deduped.add(normalized);
+  }
+  final list = deduped.toList()..sort(compareGsprTdLabels);
+  return list;
+}
+
+@immutable
+class GsprTdOption {
+  final String id;
+  final String label;
+  final String mdrTd;
+  final bool hasFmea;
+
+  const GsprTdOption({
+    required this.id,
+    required this.label,
+    required this.mdrTd,
+    required this.hasFmea,
+  });
+
+  String get displayLabel => label.isNotEmpty ? label : id;
+  String get displayCode {
+    if (mdrTd.isNotEmpty) return mdrTd;
+    final code = gsprTdCodeFromLabel(label);
+    return code.isNotEmpty ? code : id;
+  }
+
+  factory GsprTdOption.fromJson(Map<String, dynamic> json) {
+    final label = (json['label'] ?? '').toString();
+    final id = (json['key'] ?? json['id'] ?? label).toString();
+    final mdrTd = (json['mdrTd'] ?? gsprTdCodeFromLabel(label)).toString();
+    return GsprTdOption(
+      id: id,
+      label: normalizeGsprTdLabel(label),
+      mdrTd: mdrTd,
+      hasFmea: json['hasFmea'] == true,
+    );
+  }
+}
+
 GsprStatus gsprStatusFromString(String? value) {
   switch ((value ?? '').toLowerCase()) {
     case 'in_review':
