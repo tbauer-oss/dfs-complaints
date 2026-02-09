@@ -4,6 +4,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad, readJson } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { gsprAssessmentGet, gsprAssessmentUpdate, gsprTdSignoffGet } from '../../_lib/store.js';
+import { GSPR_ITEMS_BY_ID } from '../../_lib/gsprRequirements.js';
 
 const GSPR_TILE = 'gspr';
 
@@ -23,6 +24,10 @@ export default async function handler(req, res) {
       const body = readJson(req) || {};
       const current = await gsprAssessmentGet(id);
       if (!current) return bad(res, 'not found', 404);
+      const requirement = GSPR_ITEMS_BY_ID.get(current.requirementId);
+      if (!requirement?.isAssessable) {
+        return bad(res, 'requirement is not assessable', 400);
+      }
 
       if (body.tdId && body.tdId !== current.tdId) {
         return bad(res, 'tdId mismatch', 400);

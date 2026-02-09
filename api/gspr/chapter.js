@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
     const requirements = gsprItemsByChapter(chapter);
     const items = requirements.map((requirement) => {
-      const assessment = assessmentByRequirement.get(requirement.id);
+      const assessment = requirement.isAssessable ? assessmentByRequirement.get(requirement.id) : null;
       return {
         requirement,
         assessment: assessment || null,

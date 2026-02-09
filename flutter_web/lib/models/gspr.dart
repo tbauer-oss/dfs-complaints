@@ -79,7 +79,10 @@ class GsprRequirement {
   final String sortKey;
   final String? parentId;
   final int level;
-  final String fullText;
+  final String text;
+  final bool isAssessable;
+  final List<String> contextIds;
+  final String? contextText;
 
   const GsprRequirement({
     required this.id,
@@ -89,8 +92,13 @@ class GsprRequirement {
     required this.sortKey,
     required this.parentId,
     required this.level,
-    required this.fullText,
+    required this.text,
+    required this.isAssessable,
+    required this.contextIds,
+    required this.contextText,
   });
+
+  String get fullText => text;
 
   factory GsprRequirement.fromJson(Map<String, dynamic> json) {
     return GsprRequirement(
@@ -101,7 +109,12 @@ class GsprRequirement {
       sortKey: (json['sortKey'] ?? '').toString(),
       parentId: json['parentId']?.toString(),
       level: (json['level'] is num) ? (json['level'] as num).toInt() : 0,
-      fullText: (json['fullText'] ?? '').toString(),
+      text: (json['text'] ?? json['fullText'] ?? '').toString(),
+      isAssessable: json['isAssessable'] != false,
+      contextIds: (json['contextIds'] as List<dynamic>? ?? const [])
+          .map((entry) => entry.toString())
+          .toList(growable: false),
+      contextText: json['contextText']?.toString(),
     );
   }
 }
@@ -302,7 +315,7 @@ class GsprAssessment {
 @immutable
 class GsprChapterEntry {
   final GsprRequirement requirement;
-  final GsprAssessment assessment;
+  final GsprAssessment? assessment;
 
   const GsprChapterEntry({
     required this.requirement,
@@ -314,8 +327,124 @@ class GsprChapterEntry {
     final assessmentJson = json['assessment'] is Map ? json['assessment'] as Map : <String, dynamic>{};
     final assessment = assessmentJson.isNotEmpty
         ? GsprAssessment.fromJson(assessmentJson.cast<String, dynamic>())
-        : GsprAssessment.empty(tdId: tdId, requirementId: req.id);
+        : (req.isAssessable ? GsprAssessment.empty(tdId: tdId, requirementId: req.id) : null);
     return GsprChapterEntry(requirement: req, assessment: assessment);
+  }
+}
+
+@immutable
+class GsprAnalysisSummary {
+  final int total;
+  final int fulfilled;
+  final int notApplicable;
+  final int open;
+  final int overdue;
+  final int dueSoon;
+
+  const GsprAnalysisSummary({
+    required this.total,
+    required this.fulfilled,
+    required this.notApplicable,
+    required this.open,
+    required this.overdue,
+    required this.dueSoon,
+  });
+
+  factory GsprAnalysisSummary.fromJson(Map<String, dynamic> json) {
+    return GsprAnalysisSummary(
+      total: (json['total'] is num) ? (json['total'] as num).toInt() : 0,
+      fulfilled: (json['fulfilled'] is num) ? (json['fulfilled'] as num).toInt() : 0,
+      notApplicable: (json['notApplicable'] is num) ? (json['notApplicable'] as num).toInt() : 0,
+      open: (json['open'] is num) ? (json['open'] as num).toInt() : 0,
+      overdue: (json['overdue'] is num) ? (json['overdue'] as num).toInt() : 0,
+      dueSoon: (json['dueSoon'] is num) ? (json['dueSoon'] as num).toInt() : 0,
+    );
+  }
+}
+
+@immutable
+class GsprAnalysisRow {
+  final String tdId;
+  final String mdrTd;
+  final String requirementId;
+  final String ref;
+  final String title;
+  final int chapter;
+  final GsprAssessmentStatus status;
+  final String owner;
+  final DateTime? dueDate;
+  final DateTime? updatedAt;
+  final bool missingEvidence;
+  final bool overdue;
+  final bool dueSoon;
+
+  const GsprAnalysisRow({
+    required this.tdId,
+    required this.mdrTd,
+    required this.requirementId,
+    required this.ref,
+    required this.title,
+    required this.chapter,
+    required this.status,
+    required this.owner,
+    required this.dueDate,
+    required this.updatedAt,
+    required this.missingEvidence,
+    required this.overdue,
+    required this.dueSoon,
+  });
+
+  factory GsprAnalysisRow.fromJson(Map<String, dynamic> json) {
+    return GsprAnalysisRow(
+      tdId: (json['tdId'] ?? '').toString(),
+      mdrTd: (json['mdrTd'] ?? '').toString(),
+      requirementId: (json['requirementId'] ?? '').toString(),
+      ref: (json['ref'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      chapter: (json['chapter'] is num) ? (json['chapter'] as num).toInt() : 0,
+      status: gsprAssessmentStatusFromString(json['status']?.toString()),
+      owner: (json['owner'] ?? '').toString(),
+      dueDate: DateTime.tryParse(json['dueDate']?.toString() ?? ''),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
+      missingEvidence: json['missingEvidence'] == true,
+      overdue: json['overdue'] == true,
+      dueSoon: json['dueSoon'] == true,
+    );
+  }
+}
+
+@immutable
+class GsprAnalysisResponse {
+  final String tdId;
+  final GsprAnalysisSummary summary;
+  final int total;
+  final int page;
+  final int pageSize;
+  final List<GsprAnalysisRow> items;
+
+  const GsprAnalysisResponse({
+    required this.tdId,
+    required this.summary,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+    required this.items,
+  });
+
+  factory GsprAnalysisResponse.fromJson(Map<String, dynamic> json) {
+    final summaryMap = json['summary'] is Map ? json['summary'] as Map : <String, dynamic>{};
+    final list = (json['items'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((entry) => GsprAnalysisRow.fromJson(entry.cast<String, dynamic>()))
+        .toList(growable: false);
+    return GsprAnalysisResponse(
+      tdId: (json['tdId'] ?? '').toString(),
+      summary: GsprAnalysisSummary.fromJson(summaryMap.cast<String, dynamic>()),
+      total: (json['total'] is num) ? (json['total'] as num).toInt() : list.length,
+      page: (json['page'] is num) ? (json['page'] as num).toInt() : 1,
+      pageSize: (json['pageSize'] is num) ? (json['pageSize'] as num).toInt() : list.length,
+      items: list,
+    );
   }
 }
 
