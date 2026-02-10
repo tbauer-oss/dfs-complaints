@@ -106,9 +106,9 @@ async function loadMdrTdValues() {
   const buf = await fs.readFile(CSV_PATH);
   let content;
   try {
-    content = buf.toString('utf8');
+    content = new TextDecoder('utf-8', { fatal: true }).decode(buf);
   } catch (_) {
-    content = buf.toString('latin1');
+    content = new TextDecoder('latin1').decode(buf);
   }
 
   const previewLines = content.split(/\r?\n/).slice(0, 3);
