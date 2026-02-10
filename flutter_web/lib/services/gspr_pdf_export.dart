@@ -1,11 +1,24 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/gspr.dart';
+
+const _maxRowsPerChapter = 1800;
+const _maxChunksPerRequirement = 40;
+const _maxTotalRows = 3200;
+const _webMaxRowsPerChapter = 120;
+const _webMaxChunksPerRequirement = 3;
+const _webMaxTotalRows = 240;
+const _yieldEveryRows = 120;
+const _webYieldEveryRows = 20;
+const _webLightMaxRowsTotal = 120;
+const _webLightMaxRowsPerChapter = 45;
+
 
 class DfsCiTheme {
   final PdfColor primaryColor;
@@ -94,15 +107,47 @@ class _ExportRow {
   });
 }
 
+class _ExportLimits {
+  final int maxRowsPerChapter;
+  final int maxChunksPerRequirement;
+  final int maxTotalRows;
+
+  const _ExportLimits({
+    required this.maxRowsPerChapter,
+    required this.maxChunksPerRequirement,
+    required this.maxTotalRows,
+  });
+}
+
+_ExportLimits _currentLimits() {
+  if (kIsWeb) {
+    return const _ExportLimits(
+      maxRowsPerChapter: _webMaxRowsPerChapter,
+      maxChunksPerRequirement: _webMaxChunksPerRequirement,
+      maxTotalRows: _webMaxTotalRows,
+    );
+  }
+  return const _ExportLimits(
+    maxRowsPerChapter: _maxRowsPerChapter,
+    maxChunksPerRequirement: _maxChunksPerRequirement,
+    maxTotalRows: _maxTotalRows,
+  );
+}
+
 Future<Uint8List> buildGsprPdf({
   required String mdrTd,
   required GsprExportModel model,
   required DfsCiTheme ci,
 }) async {
+  debugPrint('[GSPR][PDF] Build requested for $mdrTd.');
   final fonts = await _loadBundledFonts(ci);
+  debugPrint('[GSPR][PDF] Fonts loaded.');
   final logoBytes = await _loadLogoBytes();
+  debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
-  final sections = _buildSections(model);
+  final sections = kIsWeb ? _buildSectionsLightweightWeb(model) : await _buildSections(model);
+  final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
+  debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
   final textTheme = _buildTextTheme(ci);
   final generatedDate = _formatDate(model.generatedAt);
   final docIdentifier = sanitizeText('GSPR Report - $mdrTd - generated $generatedDate');
@@ -159,7 +204,9 @@ Future<Uint8List> buildGsprPdf({
     ),
   );
 
-  return doc.save();
+  final pdfBytes = await doc.save();
+  debugPrint('[GSPR][PDF] Document saved (${pdfBytes.length} bytes).');
+  return pdfBytes;
 }
 
 pw.TextStyle _style(_PdfTextTheme t, {bool bold = false, PdfColor? color, double? size}) {
@@ -400,8 +447,90 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
   return result;
 }
 
-List<_ExportSection> _buildSections(GsprExportModel model) {
+List<_ExportSection> _buildSectionsLightweightWeb(GsprExportModel model) {
   final sections = <_ExportSection>[];
+  var totalRows = 0;
+
+  for (final chapter in model.chapters) {
+    if (totalRows >= _webLightMaxRowsTotal) break;
+
+    final safeChapterTitle = sanitizeText(chapter.chapterTitle);
+    final rows = <_ExportRow>[];
+
+    final sorted = [...chapter.entries]
+      ..sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
+
+    for (final entry in sorted) {
+      if (rows.length >= _webLightMaxRowsPerChapter || totalRows >= _webLightMaxRowsTotal) {
+        break;
+      }
+
+      final req = entry.requirement;
+      final assessment = entry.assessment;
+      final requirement = _truncate('${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}', 220);
+      final evidence = _evidenceLines(assessment);
+
+      rows.add(
+        _ExportRow(
+          chapterTitle: safeChapterTitle,
+          isChapterBand: false,
+          isSectionRow: !req.isAssessable,
+          mdrRef: _truncate(_safe(req.ref), 70),
+          requirement: requirement,
+          status: _statusText(assessment, req.isAssessable),
+          evaluation: _truncate(_evaluationText(assessment), 140),
+          rationale: _truncate(_rationaleText(assessment), 120),
+          evidence: evidence.isEmpty ? const [] : [_truncate(evidence.first, 120)],
+          owner: _truncate(_safe(assessment?.owner), 32),
+          dueDate: _formatDate(assessment?.dueDate),
+          lastUpdate: _formatDate(assessment?.updatedAt),
+          comments: _truncate(_commentsText(assessment), 120),
+        ),
+      );
+      totalRows++;
+    }
+
+    if (rows.isNotEmpty) {
+      if (rows.length >= _webLightMaxRowsPerChapter || totalRows >= _webLightMaxRowsTotal) {
+        rows.add(
+          const _ExportRow(
+            chapterTitle: '',
+            isChapterBand: false,
+            isSectionRow: false,
+            mdrRef: '',
+            requirement: '',
+            status: '',
+            evaluation: '',
+            rationale: '',
+            evidence: const [],
+            owner: '',
+            dueDate: '',
+            lastUpdate: '',
+            comments: 'Web export shortened for browser performance.',
+          ),
+        );
+      }
+      sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
+    }
+  }
+
+  return sections;
+}
+
+Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
+  final limits = _currentLimits();
+  final sections = <_ExportSection>[];
+  var rowsSinceLastYield = 0;
+  var totalRows = 0;
+  final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
+
+  Future<void> yieldToUiIfNeeded() async {
+    if (rowsSinceLastYield >= yieldEveryRows) {
+      rowsSinceLastYield = 0;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
   for (final chapter in model.chapters) {
     final rows = <_ExportRow>[];
     final safeChapterTitle = sanitizeText(chapter.chapterTitle);
@@ -414,12 +543,27 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
       list.sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
     }
 
-    void walk(String? parentId) {
+    final visited = <String>{};
+
+    Future<void> walk(String? parentId) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
+        if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
+          return;
+        }
+
         final req = entry.requirement;
+        final reqId = req.id.trim();
+        final reqKey = reqId.isNotEmpty
+            ? reqId
+            : '${req.sortKey}|${req.parentId ?? ''}|${req.ref}|${req.title}|${req.level}';
+        if (!visited.add(reqKey)) {
+          debugPrint('[GSPR][PDF] Skipping recursive requirement reference: $reqKey');
+          continue;
+        }
+
         final assessment = entry.assessment;
-        final hasChildren = (byParent[req.id] ?? const []).isNotEmpty;
+        final hasChildren = reqId.isNotEmpty && (byParent[reqId] ?? const []).isNotEmpty;
         final isSection = !req.isAssessable && hasChildren;
         final status = isSection ? '' : _statusText(assessment, req.isAssessable);
         final requirementText = '${'  ' * req.level}${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}'.trim();
@@ -430,9 +574,15 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
           comments: _commentsText(assessment),
           evidence: _evidenceLines(assessment),
         );
+        final limitedChunks = chunks.length > limits.maxChunksPerRequirement
+            ? chunks.take(limits.maxChunksPerRequirement).toList(growable: false)
+            : chunks;
 
-        for (var i = 0; i < chunks.length; i++) {
-          final chunk = chunks[i];
+        for (var i = 0; i < limitedChunks.length; i++) {
+          if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
+            break;
+          }
+          final chunk = limitedChunks[i];
           rows.add(
             _ExportRow(
               chapterTitle: safeChapterTitle,
@@ -450,14 +600,74 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
               comments: chunk.comments,
             ),
           );
+          rowsSinceLastYield++;
+          totalRows++;
+          await yieldToUiIfNeeded();
         }
 
-        walk(req.id);
+        if (chunks.length > limits.maxChunksPerRequirement && rows.length < limits.maxRowsPerChapter) {
+          rows.add(
+            _ExportRow(
+              chapterTitle: safeChapterTitle,
+              isChapterBand: false,
+              isSectionRow: false,
+              mdrRef: '',
+              requirement: '…',
+              status: '',
+              evaluation: '',
+              rationale: '',
+              evidence: const [],
+              owner: '',
+              dueDate: '',
+              lastUpdate: '',
+              comments: 'Content truncated for export performance.',
+            ),
+          );
+          rowsSinceLastYield++;
+          totalRows++;
+          await yieldToUiIfNeeded();
+        }
+
+        if (reqId.isNotEmpty && reqId != parentId) {
+          await walk(reqId);
+        }
       }
     }
 
-    walk(null);
+    await walk(null);
+    if (rows.isEmpty) {
+      await walk('');
+    }
+
+    if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
+      rows.add(
+        _ExportRow(
+          chapterTitle: '',
+          isChapterBand: false,
+          isSectionRow: false,
+          mdrRef: '',
+          requirement: '',
+          status: '',
+          evaluation: '',
+          rationale: '',
+          evidence: const [],
+          owner: '',
+          dueDate: '',
+          lastUpdate: '',
+          comments: totalRows >= limits.maxTotalRows
+              ? 'Export truncated: dataset too large for browser export.'
+              : 'Export truncated: too many rows in this chapter.',
+        ),
+      );
+      debugPrint('[GSPR][PDF] Row limit reached (chapter=${limits.maxRowsPerChapter}, total=${limits.maxTotalRows}): $safeChapterTitle');
+    }
+
     sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
+    await Future<void>.delayed(Duration.zero);
+    if (totalRows >= limits.maxTotalRows) {
+      debugPrint('[GSPR][PDF] Total row limit reached (${limits.maxTotalRows}); stopping at chapter $safeChapterTitle.');
+      break;
+    }
   }
   return sections;
 }
@@ -628,6 +838,12 @@ List<String> _evidenceLines(GsprAssessment? assessment) {
 
 String _safe(String? value) => sanitizeText(value ?? '');
 
+String _truncate(String value, int maxLength) {
+  final clean = sanitizeText(value);
+  if (clean.length <= maxLength) return clean;
+  return '${clean.substring(0, maxLength - 1)}…';
+}
+
 String _formatDate(DateTime? value) {
   if (value == null) return '';
   return DateFormat('yyyy-MM-dd').format(value);
@@ -646,9 +862,14 @@ class _PdfFonts {
 Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
   if (ci.baseFont != null && ci.boldFont != null) {
     final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+    final baseFont = ci.baseFont;
+    final boldFont = ci.boldFont;
+    if (baseFont == null || boldFont == null) {
+      throw StateError('Custom CI fonts were expected but not available.');
+    }
     return _PdfFonts(
-      base: ci.baseFont!,
-      bold: ci.boldFont!,
+      base: baseFont,
+      bold: boldFont,
       fallback: pw.Font.ttf(fallbackData),
     );
   }
@@ -664,12 +885,23 @@ Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
 }
 
 Future<Uint8List?> _loadLogoBytes() async {
-  try {
-    final bytes = await rootBundle.load('assets/dfs_logo.png');
-    return bytes.buffer.asUint8List();
-  } catch (_) {
-    return null;
+  const logoCandidates = [
+    'flutter_web/assets/dfs_logo.png',
+    'assets/dfs_logo.png',
+  ];
+
+  for (final path in logoCandidates) {
+    try {
+      final bytes = await rootBundle.load(path);
+      debugPrint('[GSPR][PDF] Loaded logo asset: $path');
+      return bytes.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('[GSPR][PDF] Failed to load logo asset $path: $e');
+    }
   }
+
+  debugPrint('[GSPR][PDF] Proceeding without logo.');
+  return null;
 }
 
 String sanitizeText(String input) {
