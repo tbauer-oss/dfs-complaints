@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -98,11 +99,13 @@ Future<Uint8List> buildGsprPdf({
   required GsprExportModel model,
   required DfsCiTheme ci,
 }) async {
+  final fonts = await _loadBundledFonts(ci);
+  final logoBytes = await _loadLogoBytes();
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
-  final rows = _buildRows(model);
+  final sections = _buildSections(model);
   final textTheme = _buildTextTheme(ci);
   final generatedDate = _formatDate(model.generatedAt);
-  final docIdentifier = 'GSPR Report – $mdrTd – generated $generatedDate';
+  final docIdentifier = sanitizeText('GSPR Report - $mdrTd - generated $generatedDate');
 
   const pageMargin = 20.0;
   final columnWidths = <int, pw.TableColumnWidth>{
@@ -123,8 +126,9 @@ Future<Uint8List> buildGsprPdf({
       pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.all(pageMargin),
       theme: pw.ThemeData.withFont(
-        base: ci.baseFont,
-        bold: ci.boldFont,
+        base: fonts.base,
+        bold: fonts.bold,
+        fontFallback: [fonts.fallback],
       ),
       header: (context) => pw.Column(
         children: [
@@ -133,6 +137,7 @@ Future<Uint8List> buildGsprPdf({
             textTheme: textTheme,
             mdrTd: mdrTd,
             generatedDate: generatedDate,
+            logoBytes: logoBytes,
           ),
           _tableHeaderBand(ci, textTheme),
         ],
@@ -144,11 +149,11 @@ Future<Uint8List> buildGsprPdf({
         identifier: docIdentifier,
       ),
       build: (context) => [
-        pw.Table(
-          border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
+        ..._buildSectionTables(
+          sections: sections,
+          ci: ci,
+          textTheme: textTheme,
           columnWidths: columnWidths,
-          defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
-          children: _buildTableRows(rows, ci, textTheme),
         ),
       ],
     ),
@@ -169,8 +174,8 @@ class _PdfTextTheme {
 }
 
 _PdfTextTheme _buildTextTheme(DfsCiTheme ci) {
-  final base = pw.TextStyle(fontSize: 8, color: ci.neutralDark, lineSpacing: 1.35);
-  final bold = pw.TextStyle(fontSize: 8, color: ci.neutralDark, fontWeight: pw.FontWeight.bold, lineSpacing: 1.35);
+  final base = pw.TextStyle(fontSize: 7.2, color: ci.neutralDark, lineSpacing: 1.22);
+  final bold = pw.TextStyle(fontSize: 7.2, color: ci.neutralDark, fontWeight: pw.FontWeight.bold, lineSpacing: 1.22);
   return _PdfTextTheme(base: base, bold: bold);
 }
 
@@ -179,7 +184,9 @@ pw.Widget _buildHeader({
   required _PdfTextTheme textTheme,
   required String mdrTd,
   required String generatedDate,
+  required Uint8List? logoBytes,
 }) {
+  final titleText = sanitizeText('DFS Connect+ - GSPR Report');
   return pw.Container(
     margin: const pw.EdgeInsets.only(bottom: 10),
     padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 8),
@@ -192,11 +199,11 @@ pw.Widget _buildHeader({
       children: [
         pw.Expanded(
           flex: 3,
-          child: pw.Text('DFS Connect+ – GSPR Report', style: _style(textTheme, bold: true, color: ci.primaryColor, size: 12)),
+          child: pw.Text(titleText, style: _style(textTheme, bold: true, color: ci.primaryColor, size: 12)),
         ),
         pw.Expanded(
           flex: 2,
-          child: pw.Text('MDR-TD: $mdrTd', style: _style(textTheme, bold: true, size: 9)),
+          child: pw.Text(sanitizeText('MDR-TD: $mdrTd'), style: _style(textTheme, bold: true, size: 9)),
         ),
         pw.Expanded(
           flex: 2,
@@ -205,18 +212,24 @@ pw.Widget _buildHeader({
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                pw.Text('Date: $generatedDate', style: _style(textTheme, size: 8)),
+                pw.Text(sanitizeText('Date: $generatedDate'), style: _style(textTheme, size: 8)),
                 pw.SizedBox(height: 4),
-                pw.Container(
-                  width: 48,
-                  height: 18,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: ci.neutralMid, width: 0.6),
-                    color: PdfColors.white,
+                if (logoBytes != null)
+                  pw.ConstrainedBox(
+                    constraints: const pw.BoxConstraints(maxHeight: 20, maxWidth: 64),
+                    child: pw.Image(pw.MemoryImage(logoBytes), fit: pw.BoxFit.contain),
+                  )
+                else
+                  pw.Container(
+                    width: 48,
+                    height: 18,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: ci.neutralMid, width: 0.6),
+                      color: PdfColors.white,
+                    ),
+                    alignment: pw.Alignment.center,
+                    child: pw.Text('DFS', style: _style(textTheme, size: 7, color: ci.neutralMid)),
                   ),
-                  alignment: pw.Alignment.center,
-                  child: pw.Text('LOGO', style: _style(textTheme, size: 6, color: ci.neutralMid)),
-                ),
               ],
             ),
           ),
@@ -238,8 +251,8 @@ pw.Widget _buildFooter({
     decoration: pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: ci.neutralMid, width: 0.4))),
     child: pw.Row(
       children: [
-        pw.Expanded(child: pw.Text(identifier, style: _style(textTheme, size: 7, color: ci.neutralDark))),
-        pw.Text('Page ${context.pageNumber} / ${context.pagesCount}', style: _style(textTheme, size: 7, color: ci.neutralDark)),
+        pw.Expanded(child: pw.Text(sanitizeText(identifier), style: _style(textTheme, size: 7, color: ci.neutralDark))),
+        pw.Text(sanitizeText('Page ${context.pageNumber} / ${context.pagesCount}'), style: _style(textTheme, size: 7, color: ci.neutralDark)),
       ],
     ),
   );
@@ -248,7 +261,7 @@ pw.Widget _buildFooter({
 pw.Widget _tableHeaderBand(DfsCiTheme ci, _PdfTextTheme textTheme) {
   pw.Widget cell(String text) => pw.Padding(
         padding: const pw.EdgeInsets.all(5),
-        child: pw.Text(text, style: _style(textTheme, bold: true, size: 7.5, color: ci.primaryColor)),
+        child: pw.Text(sanitizeText(text), style: _style(textTheme, bold: true, size: 7.8, color: ci.primaryColor)),
       );
 
   return pw.Container(
@@ -288,40 +301,66 @@ pw.Widget _tableHeaderBand(DfsCiTheme ci, _PdfTextTheme textTheme) {
   );
 }
 
+List<pw.Widget> _buildSectionTables({
+  required List<_ExportSection> sections,
+  required DfsCiTheme ci,
+  required _PdfTextTheme textTheme,
+  required Map<int, pw.TableColumnWidth> columnWidths,
+}) {
+  final widgets = <pw.Widget>[];
+  for (var i = 0; i < sections.length; i++) {
+    final section = sections[i];
+    widgets
+      ..add(_buildChapterBand(section.chapterTitle, ci, textTheme))
+      ..add(
+        pw.Table(
+          border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
+          columnWidths: columnWidths,
+          defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+          children: _buildTableRows(section.rows, ci, textTheme),
+        ),
+      );
+    if (i != sections.length - 1) {
+      widgets.add(pw.SizedBox(height: 4));
+    }
+  }
+  return widgets;
+}
+
+pw.Widget _buildChapterBand(String chapterTitle, DfsCiTheme ci, _PdfTextTheme textTheme) {
+  return pw.Container(
+    width: double.infinity,
+    margin: const pw.EdgeInsets.only(top: 2, bottom: 3),
+    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: pw.BoxDecoration(
+      color: ci.secondaryColor.shade(0.86),
+      border: pw.Border.all(color: ci.neutralMid, width: 0.4),
+    ),
+    child: pw.Text(
+      sanitizeText(chapterTitle),
+      style: _style(textTheme, bold: true, size: 8.5, color: ci.primaryColor),
+    ),
+  );
+}
+
 List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfTextTheme textTheme) {
   final result = <pw.TableRow>[];
 
   for (var i = 0; i < rows.length; i++) {
     final row = rows[i];
-    if (row.isChapterBand) {
-      result.add(
-        pw.TableRow(
-          decoration: pw.BoxDecoration(color: ci.secondaryColor.shade(0.86)),
-          children: [
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(6),
-              child: pw.Text(row.chapterTitle, style: _style(textTheme, bold: true, size: 8.5, color: ci.primaryColor)),
-            ),
-            ...List.generate(9, (_) => pw.SizedBox()),
-          ],
-        ),
-      );
-      continue;
-    }
-
     final bg = row.isSectionRow
         ? ci.neutralLight
         : (i.isEven ? PdfColors.white : PdfColor.fromInt(0xFFFAFBFD));
 
     pw.Widget txt(String value, {bool bold = false}) => pw.Padding(
-          padding: const pw.EdgeInsets.all(4),
-          child: pw.Text(value, style: _style(textTheme, bold: bold, size: 7.5)),
+          padding: const pw.EdgeInsets.all(3.5),
+          child: pw.Text(sanitizeText(value), style: _style(textTheme, bold: bold, size: 7.2)),
         );
 
     final evidenceWidget = pw.Padding(
-      padding: const pw.EdgeInsets.all(4),
+      padding: const pw.EdgeInsets.all(3.5),
       child: row.evidence.isEmpty
-          ? pw.Text('', style: _style(textTheme, size: 7.5))
+          ? pw.Text('', style: _style(textTheme, size: 7.2))
           : pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: row.evidence
@@ -330,8 +369,8 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
                         child: pw.Row(
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Text('• ', style: _style(textTheme, size: 7.5)),
-                            pw.Expanded(child: pw.Text(item, style: _style(textTheme, size: 7.5))),
+                            pw.Text('- ', style: _style(textTheme, size: 7.2)),
+                            pw.Expanded(child: pw.Text(sanitizeText(item), style: _style(textTheme, size: 7.2))),
                           ],
                         ),
                       ))
@@ -361,26 +400,11 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
   return result;
 }
 
-List<_ExportRow> _buildRows(GsprExportModel model) {
-  final rows = <_ExportRow>[];
+List<_ExportSection> _buildSections(GsprExportModel model) {
+  final sections = <_ExportSection>[];
   for (final chapter in model.chapters) {
-    rows.add(
-      _ExportRow(
-        chapterTitle: chapter.chapterTitle,
-        isChapterBand: true,
-        isSectionRow: false,
-        mdrRef: '',
-        requirement: '',
-        status: '',
-        evaluation: '',
-        rationale: '',
-        evidence: const [],
-        owner: '',
-        dueDate: '',
-        lastUpdate: '',
-        comments: '',
-      ),
-    );
+    final rows = <_ExportRow>[];
+    final safeChapterTitle = sanitizeText(chapter.chapterTitle);
 
     final byParent = <String?, List<GsprChapterEntry>>{};
     for (final entry in chapter.entries) {
@@ -411,7 +435,7 @@ List<_ExportRow> _buildRows(GsprExportModel model) {
           final chunk = chunks[i];
           rows.add(
             _ExportRow(
-              chapterTitle: chapter.chapterTitle,
+              chapterTitle: safeChapterTitle,
               isChapterBand: false,
               isSectionRow: isSection,
               mdrRef: i == 0 ? _safe(req.ref) : '',
@@ -433,8 +457,16 @@ List<_ExportRow> _buildRows(GsprExportModel model) {
     }
 
     walk(null);
+    sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
   }
-  return rows;
+  return sections;
+}
+
+class _ExportSection {
+  final String chapterTitle;
+  final List<_ExportRow> rows;
+
+  const _ExportSection({required this.chapterTitle, required this.rows});
 }
 
 class _RowChunk {
@@ -493,7 +525,7 @@ List<_RowChunk> _splitForPage({
 }
 
 List<String> _chunkText(String text, int limit) {
-  final value = text.trim();
+  final value = sanitizeText(text);
   if (value.isEmpty) return const [];
   final words = value.split(RegExp(r'\s+'));
   final chunks = <String>[];
@@ -594,11 +626,57 @@ List<String> _evidenceLines(GsprAssessment? assessment) {
       .toList(growable: false);
 }
 
-String _safe(String? value) => (value ?? '').trim();
+String _safe(String? value) => sanitizeText(value ?? '');
 
 String _formatDate(DateTime? value) {
   if (value == null) return '';
   return DateFormat('yyyy-MM-dd').format(value);
+}
+
+
+
+class _PdfFonts {
+  final pw.Font base;
+  final pw.Font bold;
+  final pw.Font fallback;
+
+  const _PdfFonts({required this.base, required this.bold, required this.fallback});
+}
+
+Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
+  if (ci.baseFont != null && ci.boldFont != null) {
+    final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+    return _PdfFonts(
+      base: ci.baseFont!,
+      bold: ci.boldFont!,
+      fallback: pw.Font.ttf(fallbackData),
+    );
+  }
+
+  final baseData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Regular.ttf');
+  final boldData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Bold.ttf');
+  final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+  return _PdfFonts(
+    base: pw.Font.ttf(baseData),
+    bold: pw.Font.ttf(boldData),
+    fallback: pw.Font.ttf(fallbackData),
+  );
+}
+
+Future<Uint8List?> _loadLogoBytes() async {
+  try {
+    final bytes = await rootBundle.load('assets/dfs_logo.png');
+    return bytes.buffer.asUint8List();
+  } catch (_) {
+    return null;
+  }
+}
+
+String sanitizeText(String input) {
+  final withoutInvisible = input
+      .replaceAll(RegExp(r'[\u00AD\u200B-\u200D\uFEFF]'), '')
+      .replaceAll(RegExp(r'[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]'), '');
+  return withoutInvisible.trim();
 }
 
 Future<Uint8List> buildGsprPdfWorstCaseDebug() async {
