@@ -233,123 +233,128 @@ class _GsprHomePageState extends State<GsprHomePage> {
       );
     }
 
-    return DefaultTabController(
-      length: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(t.gsprPageTitle, style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 12),
-            if (_loading) const LinearProgressIndicator(),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Material(
-                  color: theme.colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    return Stack(
+      children: [
+        DefaultTabController(
+          length: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.gsprPageTitle, style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 12),
+                if (_loading) const LinearProgressIndicator(),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: theme.colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                DropdownButtonFormField<GsprTdOption>(
+                  value: selected,
+                  decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
+                  items: _tds
+                      .map(
+                        (td) => DropdownMenuItem(
+                          value: td,
+                          child: Text(td.displayLabel),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (td) {
+                    setState(() {
+                      GsprTdState.selectedTd.value = td;
+                      _summary = null;
+                    });
+                    if (td != null) {
+                      _loadSummary(td.id);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (selected != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _error!,
-                            style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                            '${t.gsprSelectTdLabel}: ${selected.displayLabel}',
+                            style: theme.textTheme.bodySmall,
                           ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: _exportingPdf || !canExport ? null : _exportPdf,
+                          icon: _exportingPdf
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.picture_as_pdf_outlined),
+                          label: const Text('Export PDF'),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-            DropdownButtonFormField<GsprTdOption>(
-              value: selected,
-              decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
-              items: _tds
-                  .map(
-                    (td) => DropdownMenuItem(
-                      value: td,
-                      child: Text(td.displayLabel),
+                if (selected == null)
+                  Text(
+                    t.gsprSelectTdHint,
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                  ),
+                if (selected != null && _summary != null && _summary!.readOnly)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      t.gsprTdReadOnlyHint,
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
                     ),
-                  )
-                  .toList(),
-              onChanged: (td) {
-                setState(() {
-                  GsprTdState.selectedTd.value = td;
-                  _summary = null;
-                });
-                if (td != null) {
-                  _loadSummary(td.id);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            if (selected != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${t.gsprSelectTdLabel}: ${selected.displayLabel}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _exportingPdf || !canExport ? null : _exportPdf,
-                      icon: _exportingPdf
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.picture_as_pdf_outlined),
-                      label: const Text('Export PDF'),
-                    ),
+                  ),
+                TabBar(
+                  tabs: [
+                    Tab(text: t.gsprTabAssessments),
+                    Tab(text: t.gsprTabAnalysis),
                   ],
                 ),
-              ),
-            if (selected == null)
-              Text(
-                t.gsprSelectTdHint,
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-              ),
-            if (selected != null && _summary != null && _summary!.readOnly)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  t.gsprTdReadOnlyHint,
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildSummaryTab(t, theme, selected),
+                      GsprAnalysisTab(
+                        api: widget.api,
+                        access: widget.access,
+                        td: selected,
+                        onOpenChapter: _openChapterInternal,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            TabBar(
-              tabs: [
-                Tab(text: t.gsprTabAssessments),
-                Tab(text: t.gsprTabAnalysis),
               ],
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildSummaryTab(t, theme, selected),
-                  GsprAnalysisTab(
-                    api: widget.api,
-                    access: widget.access,
-                    td: selected,
-                    onOpenChapter: _openChapterInternal,
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+        if (_exportingPdf) _buildExportOverlay(theme),
+      ],
     );
   }
 
@@ -363,6 +368,59 @@ class _GsprHomePageState extends State<GsprHomePage> {
       default:
         return 'I';
     }
+  }
+
+
+  Widget _buildExportOverlay(ThemeData theme) {
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: Container(
+          color: theme.colorScheme.scrim.withOpacity(0.26),
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Card(
+              elevation: 10,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.picture_as_pdf_outlined, color: theme.colorScheme.primary),
+                        const SizedBox(width: 10),
+                        Text(
+                          'PDF wird erstellt…',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Bitte einen Moment warten. Der Export läuft im Hintergrund und wird anschließend automatisch geöffnet.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: const LinearProgressIndicator(minHeight: 10),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Große Datensätze können etwas länger dauern.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildSummaryTab(AppLocalizations t, ThemeData theme, GsprTdOption? selected) {
