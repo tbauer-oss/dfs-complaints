@@ -147,7 +147,7 @@ Future<Uint8List> buildGsprPdf({
         pw.Table(
           border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
           columnWidths: columnWidths,
-          verticalAlignment: pw.TableCellVerticalAlignment.top,
+          defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
           children: _buildTableRows(rows, ci, textTheme),
         ),
       ],
