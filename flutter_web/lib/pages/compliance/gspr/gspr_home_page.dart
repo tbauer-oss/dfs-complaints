@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:printing/printing.dart';
 
 import '../../../api/client.dart';
@@ -40,31 +41,57 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
   Future<void> _exportPdf() async {
     final selected = GsprTdState.selectedTd.value;
-    if (selected == null || _exportingPdf) return;
+    final localizations = AppLocalizations.of(context);
+    if (selected == null || _summary == null || _exportingPdf) {
+      if (mounted) {
+        final snackBarMessage = localizations?.gsprSelectTdHint ?? 'Please select an MDR-TD before exporting.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(snackBarMessage)));
+      }
+      return;
+    }
 
     setState(() {
       _exportingPdf = true;
       _error = null;
     });
     try {
+      debugPrint('[GSPR][Export] Start export for TD ${selected.id} (${selected.displayCode}).');
       final chapters = <GsprExportChapter>[];
       for (final chapter in const ['I', 'II', 'III']) {
         final response = await widget.api.gsprChapter(tdId: selected.id, chapter: chapter);
+        final chapterIndex = chapter == 'I' ? 1 : chapter == 'II' ? 2 : 3;
+        final chapterLabel = localizations != null ? _chapterLabel(localizations, chapterIndex) : 'Chapter $chapter';
         chapters.add(
           GsprExportChapter(
-            chapterTitle: _chapterLabel(AppLocalizations.of(context)!, chapter == 'I' ? 1 : chapter == 'II' ? 2 : 3),
+            chapterTitle: chapterLabel,
             entries: response.items,
           ),
         );
       }
+      debugPrint('[GSPR][Export] Loaded chapter data (${chapters.length} chapter(s)).');
 
       final bytes = await buildGsprPdf(
         mdrTd: selected.displayCode,
         model: GsprExportModel(chapters: chapters, generatedAt: DateTime.now()),
         ci: DfsCiTheme.defaults(),
       );
+      debugPrint('[GSPR][Export] PDF built (${bytes.length} bytes).');
 
-      await Printing.layoutPdf(onLayout: (_) async => bytes);
+      final filename = 'gspr_${selected.displayCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      if (kIsWeb) {
+        debugPrint('[GSPR][Export] Web detected: using Printing.sharePdf to avoid layout preview OOM.');
+        await Printing.sharePdf(bytes: bytes, filename: filename);
+        debugPrint('[GSPR][Export] Printing.sharePdf started successfully.');
+      } else {
+        try {
+          await Printing.layoutPdf(onLayout: (_) async => bytes);
+          debugPrint('[GSPR][Export] Printing.layoutPdf started successfully.');
+        } catch (layoutError) {
+          debugPrint('[GSPR][Export] Printing.layoutPdf failed: $layoutError');
+          await Printing.sharePdf(bytes: bytes, filename: filename);
+          debugPrint('[GSPR][Export] Fallback Printing.sharePdf started successfully.');
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -177,6 +204,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final selected = GsprTdState.selectedTd.value;
+    final canExport = selected != null && _summary != null;
 
     if (_activeChapter != null) {
       return Padding(
@@ -273,7 +301,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                       ),
                     ),
                     FilledButton.icon(
-                      onPressed: _exportingPdf ? null : _exportPdf,
+                      onPressed: _exportingPdf || !canExport ? null : _exportPdf,
                       icon: _exportingPdf
                           ? const SizedBox(
                               width: 16,
