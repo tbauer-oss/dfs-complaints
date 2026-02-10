@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 
 import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/gspr.dart';
+import '../../../services/gspr_pdf_export.dart';
 import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
@@ -28,11 +30,50 @@ class _GsprHomePageState extends State<GsprHomePage> {
   GsprSummary? _summary;
   String? _activeChapter;
   String? _initialRequirementId;
+  bool _exportingPdf = false;
 
   @override
   void initState() {
     super.initState();
     _loadTds();
+  }
+
+  Future<void> _exportPdf() async {
+    final selected = GsprTdState.selectedTd.value;
+    if (selected == null || _exportingPdf) return;
+
+    setState(() {
+      _exportingPdf = true;
+      _error = null;
+    });
+    try {
+      final chapters = <GsprExportChapter>[];
+      for (final chapter in const ['I', 'II', 'III']) {
+        final response = await widget.api.gsprChapter(tdId: selected.id, chapter: chapter);
+        chapters.add(
+          GsprExportChapter(
+            chapterTitle: _chapterLabel(AppLocalizations.of(context)!, chapter == 'I' ? 1 : chapter == 'II' ? 2 : 3),
+            entries: response.items,
+          ),
+        );
+      }
+
+      final bytes = await buildGsprPdf(
+        mdrTd: selected.displayCode,
+        model: GsprExportModel(chapters: chapters, generatedAt: DateTime.now()),
+        ci: DfsCiTheme.defaults(),
+      );
+
+      await Printing.layoutPdf(onLayout: (_) async => bytes);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) {
+        setState(() => _exportingPdf = false);
+      }
+    }
   }
 
   Future<void> _loadTds() async {
@@ -223,9 +264,26 @@ class _GsprHomePageState extends State<GsprHomePage> {
             if (selected != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  '${t.gsprSelectTdLabel}: ${selected.displayLabel}',
-                  style: theme.textTheme.bodySmall,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${t.gsprSelectTdLabel}: ${selected.displayLabel}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _exportingPdf ? null : _exportPdf,
+                      icon: _exportingPdf
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Export PDF'),
+                    ),
+                  ],
                 ),
               ),
             if (selected == null)
