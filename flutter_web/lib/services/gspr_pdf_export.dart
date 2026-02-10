@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -99,8 +100,11 @@ Future<Uint8List> buildGsprPdf({
   required GsprExportModel model,
   required DfsCiTheme ci,
 }) async {
+  debugPrint('[GSPR][PDF] Build requested for $mdrTd.');
   final fonts = await _loadBundledFonts(ci);
+  debugPrint('[GSPR][PDF] Fonts loaded.');
   final logoBytes = await _loadLogoBytes();
+  debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
   final sections = _buildSections(model);
   final textTheme = _buildTextTheme(ci);
@@ -159,7 +163,9 @@ Future<Uint8List> buildGsprPdf({
     ),
   );
 
-  return doc.save();
+  final pdfBytes = await doc.save();
+  debugPrint('[GSPR][PDF] Document saved (${pdfBytes.length} bytes).');
+  return pdfBytes;
 }
 
 pw.TextStyle _style(_PdfTextTheme t, {bool bold = false, PdfColor? color, double? size}) {
@@ -646,9 +652,14 @@ class _PdfFonts {
 Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
   if (ci.baseFont != null && ci.boldFont != null) {
     final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+    final baseFont = ci.baseFont;
+    final boldFont = ci.boldFont;
+    if (baseFont == null || boldFont == null) {
+      throw StateError('Custom CI fonts were expected but not available.');
+    }
     return _PdfFonts(
-      base: ci.baseFont!,
-      bold: ci.boldFont!,
+      base: baseFont,
+      bold: boldFont,
       fallback: pw.Font.ttf(fallbackData),
     );
   }
@@ -664,12 +675,23 @@ Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
 }
 
 Future<Uint8List?> _loadLogoBytes() async {
-  try {
-    final bytes = await rootBundle.load('assets/dfs_logo.png');
-    return bytes.buffer.asUint8List();
-  } catch (_) {
-    return null;
+  const logoCandidates = [
+    'flutter_web/assets/dfs_logo.png',
+    'assets/dfs_logo.png',
+  ];
+
+  for (final path in logoCandidates) {
+    try {
+      final bytes = await rootBundle.load(path);
+      debugPrint('[GSPR][PDF] Loaded logo asset: $path');
+      return bytes.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('[GSPR][PDF] Failed to load logo asset $path: $e');
+    }
   }
+
+  debugPrint('[GSPR][PDF] Proceeding without logo.');
+  return null;
 }
 
 String sanitizeText(String input) {
