@@ -10,7 +10,12 @@ import '../models/gspr.dart';
 
 const _maxRowsPerChapter = 1800;
 const _maxChunksPerRequirement = 40;
+const _maxTotalRows = 3200;
+const _webMaxRowsPerChapter = 120;
+const _webMaxChunksPerRequirement = 3;
+const _webMaxTotalRows = 240;
 const _yieldEveryRows = 120;
+const _webYieldEveryRows = 20;
 
 
 class DfsCiTheme {
@@ -98,6 +103,33 @@ class _ExportRow {
     required this.lastUpdate,
     required this.comments,
   });
+}
+
+class _ExportLimits {
+  final int maxRowsPerChapter;
+  final int maxChunksPerRequirement;
+  final int maxTotalRows;
+
+  const _ExportLimits({
+    required this.maxRowsPerChapter,
+    required this.maxChunksPerRequirement,
+    required this.maxTotalRows,
+  });
+}
+
+_ExportLimits _currentLimits() {
+  if (kIsWeb) {
+    return const _ExportLimits(
+      maxRowsPerChapter: _webMaxRowsPerChapter,
+      maxChunksPerRequirement: _webMaxChunksPerRequirement,
+      maxTotalRows: _webMaxTotalRows,
+    );
+  }
+  return const _ExportLimits(
+    maxRowsPerChapter: _maxRowsPerChapter,
+    maxChunksPerRequirement: _maxChunksPerRequirement,
+    maxTotalRows: _maxTotalRows,
+  );
 }
 
 Future<Uint8List> buildGsprPdf({
@@ -414,11 +446,14 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
 }
 
 Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
+  final limits = _currentLimits();
   final sections = <_ExportSection>[];
   var rowsSinceLastYield = 0;
+  var totalRows = 0;
+  final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
 
   Future<void> yieldToUiIfNeeded() async {
-    if (rowsSinceLastYield >= _yieldEveryRows) {
+    if (rowsSinceLastYield >= yieldEveryRows) {
       rowsSinceLastYield = 0;
       await Future<void>.delayed(Duration.zero);
     }
@@ -441,7 +476,7 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
     Future<void> walk(String? parentId) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
-        if (rows.length >= _maxRowsPerChapter) {
+        if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
           return;
         }
 
@@ -467,12 +502,12 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
           comments: _commentsText(assessment),
           evidence: _evidenceLines(assessment),
         );
-        final limitedChunks = chunks.length > _maxChunksPerRequirement
-            ? chunks.take(_maxChunksPerRequirement).toList(growable: false)
+        final limitedChunks = chunks.length > limits.maxChunksPerRequirement
+            ? chunks.take(limits.maxChunksPerRequirement).toList(growable: false)
             : chunks;
 
         for (var i = 0; i < limitedChunks.length; i++) {
-          if (rows.length >= _maxRowsPerChapter) {
+          if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
             break;
           }
           final chunk = limitedChunks[i];
@@ -494,10 +529,11 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
             ),
           );
           rowsSinceLastYield++;
+          totalRows++;
           await yieldToUiIfNeeded();
         }
 
-        if (chunks.length > _maxChunksPerRequirement && rows.length < _maxRowsPerChapter) {
+        if (chunks.length > limits.maxChunksPerRequirement && rows.length < limits.maxRowsPerChapter) {
           rows.add(
             _ExportRow(
               chapterTitle: safeChapterTitle,
@@ -516,6 +552,7 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
             ),
           );
           rowsSinceLastYield++;
+          totalRows++;
           await yieldToUiIfNeeded();
         }
 
@@ -530,9 +567,9 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
       await walk('');
     }
 
-    if (rows.length >= _maxRowsPerChapter) {
+    if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
       rows.add(
-        const _ExportRow(
+        _ExportRow(
           chapterTitle: '',
           isChapterBand: false,
           isSectionRow: false,
@@ -545,14 +582,20 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
           owner: '',
           dueDate: '',
           lastUpdate: '',
-          comments: 'Export truncated: too many rows in this chapter.',
+          comments: totalRows >= limits.maxTotalRows
+              ? 'Export truncated: dataset too large for browser export.'
+              : 'Export truncated: too many rows in this chapter.',
         ),
       );
-      debugPrint('[GSPR][PDF] Chapter row limit reached ($_maxRowsPerChapter): $safeChapterTitle');
+      debugPrint('[GSPR][PDF] Row limit reached (chapter=${limits.maxRowsPerChapter}, total=${limits.maxTotalRows}): $safeChapterTitle');
     }
 
     sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
     await Future<void>.delayed(Duration.zero);
+    if (totalRows >= limits.maxTotalRows) {
+      debugPrint('[GSPR][PDF] Total row limit reached (${limits.maxTotalRows}); stopping at chapter $safeChapterTitle.');
+      break;
+    }
   }
   return sections;
 }
