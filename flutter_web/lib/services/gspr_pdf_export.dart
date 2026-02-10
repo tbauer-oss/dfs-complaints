@@ -10,6 +10,7 @@ import '../models/gspr.dart';
 
 const _maxRowsPerChapter = 1800;
 const _maxChunksPerRequirement = 40;
+const _yieldEveryRows = 120;
 
 
 class DfsCiTheme {
@@ -110,7 +111,7 @@ Future<Uint8List> buildGsprPdf({
   final logoBytes = await _loadLogoBytes();
   debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
-  final sections = _buildSections(model);
+  final sections = await _buildSections(model);
   final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
   debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
   final textTheme = _buildTextTheme(ci);
@@ -412,8 +413,17 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
   return result;
 }
 
-List<_ExportSection> _buildSections(GsprExportModel model) {
+Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
   final sections = <_ExportSection>[];
+  var rowsSinceLastYield = 0;
+
+  Future<void> yieldToUiIfNeeded() async {
+    if (rowsSinceLastYield >= _yieldEveryRows) {
+      rowsSinceLastYield = 0;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
   for (final chapter in model.chapters) {
     final rows = <_ExportRow>[];
     final safeChapterTitle = sanitizeText(chapter.chapterTitle);
@@ -428,7 +438,7 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
 
     final visited = <String>{};
 
-    void walk(String? parentId) {
+    Future<void> walk(String? parentId) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
         if (rows.length >= _maxRowsPerChapter) {
@@ -483,6 +493,8 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
               comments: chunk.comments,
             ),
           );
+          rowsSinceLastYield++;
+          await yieldToUiIfNeeded();
         }
 
         if (chunks.length > _maxChunksPerRequirement && rows.length < _maxRowsPerChapter) {
@@ -503,17 +515,19 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
               comments: 'Content truncated for export performance.',
             ),
           );
+          rowsSinceLastYield++;
+          await yieldToUiIfNeeded();
         }
 
         if (reqId.isNotEmpty && reqId != parentId) {
-          walk(reqId);
+          await walk(reqId);
         }
       }
     }
 
-    walk(null);
+    await walk(null);
     if (rows.isEmpty) {
-      walk('');
+      await walk('');
     }
 
     if (rows.length >= _maxRowsPerChapter) {
@@ -538,6 +552,7 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
     }
 
     sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
+    await Future<void>.delayed(Duration.zero);
   }
   return sections;
 }

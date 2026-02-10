@@ -54,6 +54,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
       _exportingPdf = true;
       _error = null;
     });
+    await Future<void>.delayed(const Duration(milliseconds: 32));
     try {
       debugPrint('[GSPR][Export] Start export for TD ${selected.id} (${selected.displayCode}).');
       final chapters = <GsprExportChapter>[];
