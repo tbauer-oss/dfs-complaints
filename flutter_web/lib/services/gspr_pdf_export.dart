@@ -420,10 +420,17 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
       list.sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
     }
 
+    final visited = <String>{};
+
     void walk(String? parentId) {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
         final req = entry.requirement;
+        if (req.id.isNotEmpty && !visited.add(req.id)) {
+          debugPrint('[GSPR][PDF] Skipping recursive requirement reference: ${req.id}');
+          continue;
+        }
+
         final assessment = entry.assessment;
         final hasChildren = (byParent[req.id] ?? const []).isNotEmpty;
         final isSection = !req.isAssessable && hasChildren;

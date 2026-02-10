@@ -77,17 +77,19 @@ class _GsprHomePageState extends State<GsprHomePage> {
       );
       debugPrint('[GSPR][Export] PDF built (${bytes.length} bytes).');
 
-      try {
-        await Printing.layoutPdf(onLayout: (_) async => bytes);
-        debugPrint('[GSPR][Export] Printing.layoutPdf started successfully.');
-      } catch (layoutError) {
-        debugPrint('[GSPR][Export] Printing.layoutPdf failed: $layoutError');
-        if (kIsWeb) {
-          final filename = 'gspr_${selected.displayCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final filename = 'gspr_${selected.displayCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      if (kIsWeb) {
+        debugPrint('[GSPR][Export] Web detected: using Printing.sharePdf to avoid layout preview OOM.');
+        await Printing.sharePdf(bytes: bytes, filename: filename);
+        debugPrint('[GSPR][Export] Printing.sharePdf started successfully.');
+      } else {
+        try {
+          await Printing.layoutPdf(onLayout: (_) async => bytes);
+          debugPrint('[GSPR][Export] Printing.layoutPdf started successfully.');
+        } catch (layoutError) {
+          debugPrint('[GSPR][Export] Printing.layoutPdf failed: $layoutError');
           await Printing.sharePdf(bytes: bytes, filename: filename);
           debugPrint('[GSPR][Export] Fallback Printing.sharePdf started successfully.');
-        } else {
-          rethrow;
         }
       }
     } catch (e) {
