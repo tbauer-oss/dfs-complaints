@@ -64,7 +64,12 @@ class _GsprHomePageState extends State<GsprHomePage> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() {
+        _error = e.toString();
+        _tds = const [];
+        GsprTdState.selectedTd.value = null;
+        _summary = null;
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -136,7 +141,26 @@ class _GsprHomePageState extends State<GsprHomePage> {
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                child: Material(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.error_outline, color: theme.colorScheme.onErrorContainer),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             DropdownButtonFormField<GsprTdOption>(
               value: selected,

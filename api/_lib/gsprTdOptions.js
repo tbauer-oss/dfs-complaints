@@ -1,5 +1,10 @@
+import fs from 'fs/promises';
+import path from 'path';
+
 import { fmeaAll, fmeaGet } from './store.js';
-import { getProducts } from './products.js';
+
+const MDR_TD_PREFIX = 'MDR-TD';
+const CSV_PATH = path.join(process.cwd(), 'dfs_mobile', 'assets', 'data', 'dfs_products.csv');
 
 export function normalizeTdLabel(value) {
   let text = (value ?? '').toString().trim();
@@ -10,9 +15,16 @@ export function normalizeTdLabel(value) {
   return text;
 }
 
+function normalizeTdValue(value) {
+  let text = (value ?? '').toString().trim();
+  if (!text) return '';
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+}
+
 export function parseMdrTd(label) {
   const normalized = normalizeTdLabel(label);
-  if (!normalized.startsWith('MDR-TD')) return '';
+  if (!normalized.startsWith(MDR_TD_PREFIX)) return '';
   const parts = normalized.split(' – ');
   return parts[0].trim();
 }
@@ -42,40 +54,102 @@ function fmeaLabel(fmea) {
   return mdrTd;
 }
 
-export async function gsprTdOptions() {
-  const products = await getProducts();
-  const byLabel = new Map();
+function detectDelimiter(line) {
+  const commaCount = (line.match(/,/g) || []).length;
+  const semiCount = (line.match(/;/g) || []).length;
+  return semiCount > commaCount ? ';' : ',';
+}
 
-  for (const product of products) {
-    const raw = (product?.tdNumberAndName || '').toString().trim();
-    if (!raw.startsWith('MDR-TD')) continue;
-    const normalized = normalizeTdLabel(raw);
-    if (!normalized.startsWith('MDR-TD')) continue;
-    if (!byLabel.has(normalized)) {
-      byLabel.set(normalized, {
-        label: normalized,
-        mdrTd: parseMdrTd(normalized),
-      });
+function parseCsvRows(content, delimiter) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (char === '"') {
+      const next = content[i + 1];
+      if (inQuotes && next === '"') {
+        field += '"';
+        i++;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
     }
+
+    if (!inQuotes && char === delimiter) {
+      row.push(field);
+      field = '';
+      continue;
+    }
+
+    if (!inQuotes && (char === '\n' || char === '\r')) {
+      if (char === '\r' && content[i + 1] === '\n') i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+      continue;
+    }
+
+    field += char;
   }
 
+  row.push(field);
+  if (row.length > 1 || row[0]?.trim()) rows.push(row);
+  return rows;
+}
+
+async function loadMdrTdValues() {
+  const buf = await fs.readFile(CSV_PATH);
+  let content;
+  try {
+    content = buf.toString('utf8');
+  } catch (_) {
+    content = buf.toString('latin1');
+  }
+
+  const previewLines = content.split(/\r?\n/).slice(0, 3);
+  const headerLine = previewLines.find((line) => line.trim().length > 0) || '';
+  const delimiter = detectDelimiter(headerLine);
+  const rows = parseCsvRows(content, delimiter);
+  const values = new Set();
+
+  for (const row of rows) {
+    if (!row || row.length === 0) continue;
+    const normalized = normalizeTdValue(row[0]);
+    if (!normalized.startsWith(MDR_TD_PREFIX)) continue;
+    values.add(normalized);
+  }
+
+  if (values.size === 0) {
+    console.error('[gspr/td-options] no MDR-TD entries parsed', {
+      path: CSV_PATH,
+      preview: previewLines,
+    });
+  }
+
+  return Array.from(values);
+}
+
+export async function gsprTdOptions() {
+  const tdValues = await loadMdrTdValues();
   const fmeas = await fmeaAll();
-  const fmeaByLabel = new Map();
   const fmeaByMdrTd = new Map();
   for (const fmea of fmeas) {
     const mdrTd = (fmea?.mdrTd || '').toString().trim();
     if (mdrTd) fmeaByMdrTd.set(mdrTd, fmea);
-    const normalizedLabel = normalizeTdLabel(fmeaLabel(fmea));
-    if (normalizedLabel) fmeaByLabel.set(normalizedLabel, fmea);
   }
 
-  const options = Array.from(byLabel.values())
-    .map((entry) => {
-      const fmea = fmeaByLabel.get(entry.label) || fmeaByMdrTd.get(entry.mdrTd);
+  const options = tdValues
+    .map((label) => {
+      const fmea = fmeaByMdrTd.get(label) || null;
       return {
-        key: fmea ? fmea.id : entry.label,
-        label: entry.label,
-        mdrTd: entry.mdrTd,
+        key: label,
+        label,
+        mdrTd: label,
         hasFmea: Boolean(fmea),
       };
     })
