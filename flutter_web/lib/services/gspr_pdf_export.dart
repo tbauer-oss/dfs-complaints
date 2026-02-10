@@ -8,6 +8,10 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/gspr.dart';
 
+const _maxRowsPerChapter = 1800;
+const _maxChunksPerRequirement = 40;
+
+
 class DfsCiTheme {
   final PdfColor primaryColor;
   final PdfColor secondaryColor;
@@ -107,6 +111,8 @@ Future<Uint8List> buildGsprPdf({
   debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
   final sections = _buildSections(model);
+  final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
+  debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
   final textTheme = _buildTextTheme(ci);
   final generatedDate = _formatDate(model.generatedAt);
   final docIdentifier = sanitizeText('GSPR Report - $mdrTd - generated $generatedDate');
@@ -425,14 +431,22 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
     void walk(String? parentId) {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
+        if (rows.length >= _maxRowsPerChapter) {
+          return;
+        }
+
         final req = entry.requirement;
-        if (req.id.isNotEmpty && !visited.add(req.id)) {
-          debugPrint('[GSPR][PDF] Skipping recursive requirement reference: ${req.id}');
+        final reqId = req.id.trim();
+        final reqKey = reqId.isNotEmpty
+            ? reqId
+            : '${req.sortKey}|${req.parentId ?? ''}|${req.ref}|${req.title}|${req.level}';
+        if (!visited.add(reqKey)) {
+          debugPrint('[GSPR][PDF] Skipping recursive requirement reference: $reqKey');
           continue;
         }
 
         final assessment = entry.assessment;
-        final hasChildren = (byParent[req.id] ?? const []).isNotEmpty;
+        final hasChildren = reqId.isNotEmpty && (byParent[reqId] ?? const []).isNotEmpty;
         final isSection = !req.isAssessable && hasChildren;
         final status = isSection ? '' : _statusText(assessment, req.isAssessable);
         final requirementText = '${'  ' * req.level}${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}'.trim();
@@ -443,9 +457,15 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
           comments: _commentsText(assessment),
           evidence: _evidenceLines(assessment),
         );
+        final limitedChunks = chunks.length > _maxChunksPerRequirement
+            ? chunks.take(_maxChunksPerRequirement).toList(growable: false)
+            : chunks;
 
-        for (var i = 0; i < chunks.length; i++) {
-          final chunk = chunks[i];
+        for (var i = 0; i < limitedChunks.length; i++) {
+          if (rows.length >= _maxRowsPerChapter) {
+            break;
+          }
+          final chunk = limitedChunks[i];
           rows.add(
             _ExportRow(
               chapterTitle: safeChapterTitle,
@@ -465,11 +485,58 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
           );
         }
 
-        walk(req.id);
+        if (chunks.length > _maxChunksPerRequirement && rows.length < _maxRowsPerChapter) {
+          rows.add(
+            _ExportRow(
+              chapterTitle: safeChapterTitle,
+              isChapterBand: false,
+              isSectionRow: false,
+              mdrRef: '',
+              requirement: '…',
+              status: '',
+              evaluation: '',
+              rationale: '',
+              evidence: const [],
+              owner: '',
+              dueDate: '',
+              lastUpdate: '',
+              comments: 'Content truncated for export performance.',
+            ),
+          );
+        }
+
+        if (reqId.isNotEmpty && reqId != parentId) {
+          walk(reqId);
+        }
       }
     }
 
     walk(null);
+    if (rows.isEmpty) {
+      walk('');
+    }
+
+    if (rows.length >= _maxRowsPerChapter) {
+      rows.add(
+        const _ExportRow(
+          chapterTitle: '',
+          isChapterBand: false,
+          isSectionRow: false,
+          mdrRef: '',
+          requirement: '',
+          status: '',
+          evaluation: '',
+          rationale: '',
+          evidence: const [],
+          owner: '',
+          dueDate: '',
+          lastUpdate: '',
+          comments: 'Export truncated: too many rows in this chapter.',
+        ),
+      );
+      debugPrint('[GSPR][PDF] Chapter row limit reached ($_maxRowsPerChapter): $safeChapterTitle');
+    }
+
     sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
   }
   return sections;
