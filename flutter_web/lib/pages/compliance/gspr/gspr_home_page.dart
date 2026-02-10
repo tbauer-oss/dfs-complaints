@@ -26,6 +26,8 @@ class _GsprHomePageState extends State<GsprHomePage> {
   String? _error;
   List<GsprTdOption> _tds = const [];
   GsprSummary? _summary;
+  String? _activeChapter;
+  String? _initialRequirementId;
 
   @override
   void initState() {
@@ -111,15 +113,22 @@ class _GsprHomePageState extends State<GsprHomePage> {
   }
 
   void _openChapter(String chapter) {
-    final td = GsprTdState.selectedTd.value;
-    if (td == null) return;
-    Navigator.of(context).pushNamed(
-      '/compliance/gspr/chapter/$chapter',
-      arguments: GsprChapterArgs(
-        td: td,
-        access: widget.access,
-      ),
-    );
+    _openChapterInternal(chapter);
+  }
+
+  void _openChapterInternal(String chapter, {String? initialRequirementId}) {
+    if (GsprTdState.selectedTd.value == null) return;
+    setState(() {
+      _activeChapter = chapter;
+      _initialRequirementId = initialRequirementId;
+    });
+  }
+
+  void _closeChapterInternal() {
+    setState(() {
+      _activeChapter = null;
+      _initialRequirementId = null;
+    });
   }
 
   @override
@@ -127,6 +136,33 @@ class _GsprHomePageState extends State<GsprHomePage> {
     final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final selected = GsprTdState.selectedTd.value;
+
+    if (_activeChapter != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextButton.icon(
+              onPressed: _closeChapterInternal,
+              icon: const Icon(Icons.arrow_back),
+              label: Text(MaterialLocalizations.of(context).backButtonTooltip),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: GsprChapterPage(
+                chapter: _activeChapter!,
+                api: widget.api,
+                access: widget.access,
+                tdOverride: selected,
+                initialRequirementId: _initialRequirementId,
+                key: ValueKey('${_activeChapter!}:${selected?.id ?? ''}:${_initialRequirementId ?? ''}'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return DefaultTabController(
       length: 2,
@@ -220,6 +256,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                     api: widget.api,
                     access: widget.access,
                     td: selected,
+                    onOpenChapter: _openChapterInternal,
                   ),
                 ],
               ),

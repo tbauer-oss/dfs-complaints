@@ -20,12 +20,14 @@ class GsprAnalysisTab extends StatefulWidget {
   final ApiClient api;
   final GsprAccess access;
   final GsprTdOption? td;
+  final void Function(String chapter, {String? initialRequirementId})? onOpenChapter;
 
   const GsprAnalysisTab({
     super.key,
     required this.api,
     required this.access,
     required this.td,
+    this.onOpenChapter,
   });
 
   @override
@@ -183,6 +185,13 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
   void _openRequirement(GsprAnalysisRow row) {
     final td = widget.td;
     if (td == null) return;
+    if (widget.onOpenChapter != null) {
+      widget.onOpenChapter!(
+        _romanChapter(row.chapter),
+        initialRequirementId: row.requirementId,
+      );
+      return;
+    }
     Navigator.of(context).pushNamed(
       '/compliance/gspr/chapter/${_romanChapter(row.chapter)}',
       arguments: GsprChapterArgs(
