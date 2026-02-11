@@ -446,7 +446,6 @@ List<pw.TableRow> _buildTableRows(
 
 Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
   final sections = <_ExportSection>[];
-  final limits = _currentLimits();
   var totalRows = 0;
   var rowsSinceLastYield = 0;
   final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
