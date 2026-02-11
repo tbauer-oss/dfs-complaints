@@ -3,12 +3,12 @@
 ## Source
 The generator fetches the consolidated German MDR Annex I text from:
 
-- https://mdr-selector.johner-institut.de/mdr_de.html
+- https://eur-lex.europa.eu/legal-content/de/ALL/?uri=CELEX:32017R0745
 
 Only the content between the following markers is extracted (inclusive start, exclusive end):
 
-- `## ANHANG I: GRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN`
-- `## ANHANG II: TECHNISCHE DOKUMENTATION`
+- `ANHANG I\nGRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN`
+- `ANHANG II\nTECHNISCHE DOKUMENTATION` (excluded; marks the end)
 
 ## Atomic items
 "Atomic" means every requirement is separated into an independently assessable clause:
