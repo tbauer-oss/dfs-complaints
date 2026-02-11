@@ -182,6 +182,32 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
     }
   }
 
+  int _compareNatural(String left, String right) {
+    final leftParts = RegExp(r'\d+|\D+').allMatches(left).map((m) => m.group(0)!).toList();
+    final rightParts = RegExp(r'\d+|\D+').allMatches(right).map((m) => m.group(0)!).toList();
+    final max = leftParts.length < rightParts.length ? leftParts.length : rightParts.length;
+    for (var i = 0; i < max; i++) {
+      final a = leftParts[i];
+      final b = rightParts[i];
+      final aNum = int.tryParse(a);
+      final bNum = int.tryParse(b);
+      if (aNum != null && bNum != null) {
+        final diff = aNum.compareTo(bNum);
+        if (diff != 0) return diff;
+        continue;
+      }
+      final diff = a.toLowerCase().compareTo(b.toLowerCase());
+      if (diff != 0) return diff;
+    }
+    return leftParts.length.compareTo(rightParts.length);
+  }
+
+  int _compareRowsByNaturalRef(GsprAnalysisRow a, GsprAnalysisRow b) {
+    final refCompare = _compareNatural(a.ref, b.ref);
+    if (refCompare != 0) return refCompare;
+    return a.requirementId.compareTo(b.requirementId);
+  }
+
   void _openRequirement(GsprAnalysisRow row) {
     final td = widget.td;
     if (td == null) return;
@@ -203,7 +229,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
   }
 
   Map<String, List<GsprAnalysisRow>> _groupRows(List<GsprAnalysisRow> rows, AppLocalizations t) {
-    final sortedRows = [...rows]..sort((a, b) => a.ref.compareTo(b.ref));
+    final sortedRows = [...rows]..sort(_compareRowsByNaturalRef);
     if (_groupBy == _GsprGroupBy.none) {
       return {'': sortedRows};
     }
@@ -249,9 +275,9 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
 
   Map<int, TableColumnWidth> _columnWidths(double tableWidth) {
     const widths = <int, double>{
-      0: 120,
+      0: 180,
       1: 120,
-      2: 320,
+      2: 360,
       3: 160,
       4: 160,
       5: 120,
@@ -340,7 +366,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
             children: [
               _TableCell(text: row.mdrTd.isNotEmpty ? row.mdrTd : row.tdId, onTap: tapHandler),
               _TableCell(text: row.ref, onTap: tapHandler),
-              _TableCell(text: row.title, onTap: tapHandler),
+              _TableCell(text: row.title, onTap: tapHandler, maxLines: 2),
               _TableCell(
                 onTap: tapHandler,
                 child: Row(
@@ -404,7 +430,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
           elevation: 1,
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: GsprAnalysisHeaderBar(
               response: response,
               statusFilters: _statusFilters,
@@ -509,7 +535,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
                                     : minTableWidth;
                                 final tableHeight = constraints.maxHeight;
                                 final rowsViewportHeight =
-                                    (tableHeight - headerHeight).clamp(120.0, double.infinity);
+                                    (tableHeight - headerHeight).clamp(260.0, double.infinity);
 
                                 return Scrollbar(
                                   controller: _tableHorizontalController,
@@ -677,28 +703,33 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
     }
 
     final completed = summary.fulfilled + summary.notApplicable;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _KpiChip(label: t.gsprAnalysisSummaryTotal, value: summary.total.toString()),
-        Tooltip(
-          message: '${t.gsprAnalysisSummaryFulfilled}: ${summary.fulfilled}\n'
-              '${t.gsprAnalysisSummaryNotApplicable}: ${summary.notApplicable}',
-          child: _KpiChip(label: t.gsprAnalysisSummaryCompleted, value: completed.toString()),
-        ),
-        _KpiChip(label: t.gsprAnalysisSummaryOpen, value: summary.open.toString()),
-        _KpiChip(
-          label: t.gsprAnalysisSummaryOverdue,
-          value: summary.overdue.toString(),
-          accent: theme.colorScheme.error,
-        ),
-        _KpiChip(
-          label: t.gsprAnalysisSummaryDueSoon,
-          value: summary.dueSoon.toString(),
-          accent: theme.colorScheme.secondary,
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _KpiChip(label: t.gsprAnalysisSummaryTotal, value: summary.total.toString()),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: '${t.gsprAnalysisSummaryFulfilled}: ${summary.fulfilled}\n'
+                '${t.gsprAnalysisSummaryNotApplicable}: ${summary.notApplicable}',
+            child: _KpiChip(label: t.gsprAnalysisSummaryCompleted, value: completed.toString()),
+          ),
+          const SizedBox(width: 8),
+          _KpiChip(label: t.gsprAnalysisSummaryOpen, value: summary.open.toString()),
+          const SizedBox(width: 8),
+          _KpiChip(
+            label: t.gsprAnalysisSummaryOverdue,
+            value: summary.overdue.toString(),
+            accent: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 8),
+          _KpiChip(
+            label: t.gsprAnalysisSummaryDueSoon,
+            value: summary.dueSoon.toString(),
+            accent: theme.colorScheme.secondary,
+          ),
+        ],
+      ),
     );
   }
 
@@ -726,6 +757,48 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+
+  Widget _buildQuickFilterChips(AppLocalizations t) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterOpenOnly),
+            selected: onlyOpen,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleOpenOnly,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterOverdueOnly),
+            selected: onlyOverdue,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleOverdueOnly,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterDueSoonOnly),
+            selected: onlyDueSoon,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleDueSoonOnly,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterMissingEvidence),
+            selected: onlyMissingEvidence,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleMissingEvidence,
+          ),
+        ],
       ),
     );
   }
@@ -807,7 +880,6 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 1200;
-        final isMedium = constraints.maxWidth >= 900 && constraints.maxWidth < 1200;
         final isNarrow = constraints.maxWidth < 900;
 
         final advancedContent = _buildAdvancedFilters(context, t);
@@ -816,14 +888,14 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildKpiStrip(context, t),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 SizedBox(
-                  width: isWide ? 320 : 260,
+                  width: isNarrow ? 250 : (isWide ? 320 : 280),
                   child: TextField(
                     controller: searchController,
                     decoration: _inputDecoration(
@@ -842,7 +914,7 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  width: 200,
+                  width: 210,
                   child: DropdownButtonFormField<String?>(
                     value: chapter,
                     decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
@@ -855,38 +927,6 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                     onChanged: onChapterChanged,
                   ),
                 ),
-                SizedBox(
-                  width: isWide ? 420 : 320,
-                  child: _buildStatusChips(context, t),
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterOpenOnly),
-                  selected: onlyOpen,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleOpenOnly,
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterOverdueOnly),
-                  selected: onlyOverdue,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleOverdueOnly,
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterDueSoonOnly),
-                  selected: onlyDueSoon,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleDueSoonOnly,
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterMissingEvidence),
-                  selected: onlyMissingEvidence,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleMissingEvidence,
-                ),
                 OutlinedButton.icon(
                   onPressed: isNarrow
                       ? () {
@@ -895,13 +935,23 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                             showDragHandle: true,
                             builder: (context) => Padding(
                               padding: const EdgeInsets.all(16),
-                              child: advancedContent,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildStatusChips(context, t),
+                                  const SizedBox(height: 10),
+                                  _buildQuickFilterChips(t),
+                                  const SizedBox(height: 12),
+                                  advancedContent,
+                                ],
+                              ),
                             ),
                           );
                         }
                       : onToggleAdvanced,
-                  icon: Icon(isNarrow || !showAdvanced ? Icons.tune : Icons.expand_less),
-                  label: const Text('Weitere Filter'),
+                  icon: Icon((isNarrow || !showAdvanced) ? Icons.tune : Icons.expand_less),
+                  label: const Text('Filter'),
                 ),
                 IconButton(
                   tooltip: t.gsprReload,
@@ -916,12 +966,27 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                 firstChild: const SizedBox.shrink(),
                 secondChild: Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: advancedContent,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            SizedBox(width: isWide ? 460 : 360, child: _buildStatusChips(context, t)),
+                            const SizedBox(width: 10),
+                            _buildQuickFilterChips(t),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      advancedContent,
+                    ],
+                  ),
                 ),
                 crossFadeState: showAdvanced ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                 duration: const Duration(milliseconds: 200),
               ),
-            if (isMedium && showAdvanced) const SizedBox(height: 4),
           ],
         );
       },
@@ -968,21 +1033,27 @@ class _TableCell extends StatelessWidget {
   final String? text;
   final Widget? child;
   final VoidCallback onTap;
+  final int maxLines;
 
   const _TableCell({
     this.text,
     this.child,
+    this.maxLines = 1,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final content = child ?? Text(text ?? '');
+    final displayText = text ?? '';
+    final content = child ?? Text(displayText, maxLines: maxLines, overflow: TextOverflow.ellipsis);
+    final wrappedContent = child == null && displayText.isNotEmpty
+        ? Tooltip(message: displayText, child: content)
+        : content;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: content,
+        child: wrappedContent,
       ),
     );
   }
