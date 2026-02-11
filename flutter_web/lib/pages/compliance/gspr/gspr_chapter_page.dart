@@ -725,14 +725,10 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
                   Text('${t.gsprColumnNumber} ${entry.requirement.ref}', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   if (!entry.requirement.isAssessable)
@@ -917,20 +913,18 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
                   ],
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (canAssess)
-                FilledButton(
+            if (canAssess) ...[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
                   onPressed: _submitting ? null : _saveAssessment,
                   child: Text(t.gsprSave),
                 ),
+              ),
             ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
