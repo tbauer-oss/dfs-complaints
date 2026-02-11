@@ -575,6 +575,30 @@ class GsprSummaryChapter {
   }
 }
 
+
+@immutable
+class GsprSourceChangeDetail {
+  final String location;
+  final String before;
+  final String after;
+
+  const GsprSourceChangeDetail({
+    required this.location,
+    required this.before,
+    required this.after,
+  });
+
+  bool get hasContent => location.isNotEmpty || before.isNotEmpty || after.isNotEmpty;
+
+  factory GsprSourceChangeDetail.fromJson(Map<String, dynamic> json) {
+    return GsprSourceChangeDetail(
+      location: (json['location'] ?? '').toString(),
+      before: (json['before'] ?? '').toString(),
+      after: (json['after'] ?? '').toString(),
+    );
+  }
+}
+
 @immutable
 class GsprSummary {
   final String tdId;
@@ -591,6 +615,9 @@ class GsprSummary {
   final DateTime? sourceLastAttemptAt;
   final String sourceLastError;
   final String sourceUpdatedBy;
+  final DateTime? sourceLastChangeAt;
+  final String sourceLastChangeSummary;
+  final List<GsprSourceChangeDetail> sourceLastChangeDetails;
 
   const GsprSummary({
     required this.tdId,
@@ -607,12 +634,20 @@ class GsprSummary {
     required this.sourceLastAttemptAt,
     required this.sourceLastError,
     required this.sourceUpdatedBy,
+    required this.sourceLastChangeAt,
+    required this.sourceLastChangeSummary,
+    required this.sourceLastChangeDetails,
   });
 
   factory GsprSummary.fromJson(Map<String, dynamic> json) {
     final chapters = (json['chapters'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((e) => GsprSummaryChapter.fromJson(e.cast<String, dynamic>()))
+        .toList(growable: false);
+    final source = json['source'] is Map ? (json['source'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
+    final changeDetails = (source['lastChangeDetails'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((entry) => GsprSourceChangeDetail.fromJson(entry.cast<String, dynamic>()))
         .toList(growable: false);
     return GsprSummary(
       tdId: (json['tdId'] ?? '').toString(),
@@ -623,16 +658,15 @@ class GsprSummary {
       approvedAt: DateTime.tryParse(json['approvedAt']?.toString() ?? ''),
       approvedBy: (json['approvedBy'] ?? '').toString(),
       readOnly: json['readOnly'] == true,
-      sourceName: (json['source'] is Map ? (json['source']['name'] ?? '') : '').toString(),
-      sourcePermalink: (json['source'] is Map ? (json['source']['permalink'] ?? '') : '').toString(),
-      sourceLastSyncAt: DateTime.tryParse(
-        (json['source'] is Map ? json['source']['lastSyncAt'] : null)?.toString() ?? '',
-      ),
-      sourceLastAttemptAt: DateTime.tryParse(
-        (json['source'] is Map ? json['source']['lastAttemptAt'] : null)?.toString() ?? '',
-      ),
-      sourceLastError: (json['source'] is Map ? (json['source']['lastError'] ?? '') : '').toString(),
-      sourceUpdatedBy: (json['source'] is Map ? (json['source']['updatedBy'] ?? '') : '').toString(),
+      sourceName: (source['name'] ?? '').toString(),
+      sourcePermalink: (source['permalink'] ?? '').toString(),
+      sourceLastSyncAt: DateTime.tryParse(source['lastSyncAt']?.toString() ?? ''),
+      sourceLastAttemptAt: DateTime.tryParse(source['lastAttemptAt']?.toString() ?? ''),
+      sourceLastError: (source['lastError'] ?? '').toString(),
+      sourceUpdatedBy: (source['updatedBy'] ?? '').toString(),
+      sourceLastChangeAt: DateTime.tryParse(source['lastChangeAt']?.toString() ?? ''),
+      sourceLastChangeSummary: (source['lastChangeSummary'] ?? '').toString(),
+      sourceLastChangeDetails: changeDetails,
     );
   }
 }
@@ -646,6 +680,8 @@ class GsprSourceSyncResult {
   final DateTime? lastAttemptAt;
   final String lastError;
   final String updatedBy;
+  final bool changesDetected;
+  final List<GsprSourceChangeDetail> changeDetails;
 
   const GsprSourceSyncResult({
     required this.sourceName,
@@ -654,10 +690,16 @@ class GsprSourceSyncResult {
     required this.lastAttemptAt,
     required this.lastError,
     required this.updatedBy,
+    required this.changesDetected,
+    required this.changeDetails,
   });
 
   factory GsprSourceSyncResult.fromJson(Map<String, dynamic> json) {
     final source = json['source'] is Map ? (json['source'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
+    final details = (json['changeDetails'] as List<dynamic>? ?? source['lastChangeDetails'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((entry) => GsprSourceChangeDetail.fromJson(entry.cast<String, dynamic>()))
+        .toList(growable: false);
     return GsprSourceSyncResult(
       sourceName: (source['name'] ?? '').toString(),
       sourcePermalink: (source['permalink'] ?? '').toString(),
@@ -665,6 +707,8 @@ class GsprSourceSyncResult {
       lastAttemptAt: DateTime.tryParse(source['lastAttemptAt']?.toString() ?? ''),
       lastError: (source['lastError'] ?? '').toString(),
       updatedBy: (source['updatedBy'] ?? '').toString(),
+      changesDetected: json['changesDetected'] == true,
+      changeDetails: details,
     );
   }
 }

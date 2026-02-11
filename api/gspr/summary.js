@@ -76,6 +76,9 @@ export default async function handler(req, res) {
         lastAttemptAt: sourceMeta.lastAttemptAt || null,
         lastError: sourceMeta.lastError || '',
         updatedBy: sourceMeta.updatedBy || '',
+        lastChangeAt: sourceMeta.lastChangeAt || null,
+        lastChangeSummary: sourceMeta.lastChangeSummary || '',
+        lastChangeDetails: sourceMeta.lastChangeDetails || [],
       },
     });
   } catch (err) {

@@ -4362,6 +4362,22 @@ function normalizeGsprTdSignoff(input = {}) {
 }
 
 function normalizeGsprSourceMeta(input = {}) {
+  const rawDetails = Array.isArray(input.lastChangeDetails) ? input.lastChangeDetails : [];
+  const lastChangeDetails = rawDetails
+    .filter((entry) => entry && typeof entry === 'object')
+    .slice(0, 8)
+    .map((entry) => ({
+      location: _text(entry.location, 240),
+      before: _text(entry.before, 1200),
+      after: _text(entry.after, 1200),
+    }))
+    .filter((entry) => entry.location || entry.before || entry.after);
+  const rawSeenLines = Array.isArray(input.lastSeenLines) ? input.lastSeenLines : [];
+  const lastSeenLines = rawSeenLines
+    .map((entry) => _text(entry, 1200))
+    .filter(Boolean)
+    .slice(0, 180);
+
   return {
     name: _text(input.name, 200),
     permalink: _text(input.permalink, 500),
@@ -4369,6 +4385,12 @@ function normalizeGsprSourceMeta(input = {}) {
     lastAttemptAt: parseDate(input.lastAttemptAt),
     lastError: _text(input.lastError, 1000),
     updatedBy: _text(input.updatedBy, 120),
+    contentHash: _text(input.contentHash, 128),
+    previousContentHash: _text(input.previousContentHash, 128),
+    lastChangeAt: parseDate(input.lastChangeAt),
+    lastChangeSummary: _text(input.lastChangeSummary, 500),
+    lastChangeDetails,
+    lastSeenLines,
   };
 }
 
