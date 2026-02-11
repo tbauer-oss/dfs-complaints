@@ -182,6 +182,32 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
     }
   }
 
+  int _compareNatural(String left, String right) {
+    final leftParts = RegExp(r'\d+|\D+').allMatches(left).map((m) => m.group(0)!).toList();
+    final rightParts = RegExp(r'\d+|\D+').allMatches(right).map((m) => m.group(0)!).toList();
+    final max = leftParts.length < rightParts.length ? leftParts.length : rightParts.length;
+    for (var i = 0; i < max; i++) {
+      final a = leftParts[i];
+      final b = rightParts[i];
+      final aNum = int.tryParse(a);
+      final bNum = int.tryParse(b);
+      if (aNum != null && bNum != null) {
+        final diff = aNum.compareTo(bNum);
+        if (diff != 0) return diff;
+        continue;
+      }
+      final diff = a.toLowerCase().compareTo(b.toLowerCase());
+      if (diff != 0) return diff;
+    }
+    return leftParts.length.compareTo(rightParts.length);
+  }
+
+  int _compareRowsByNaturalRef(GsprAnalysisRow a, GsprAnalysisRow b) {
+    final refCompare = _compareNatural(a.ref, b.ref);
+    if (refCompare != 0) return refCompare;
+    return a.requirementId.compareTo(b.requirementId);
+  }
+
   void _openRequirement(GsprAnalysisRow row) {
     final td = widget.td;
     if (td == null) return;
@@ -203,7 +229,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
   }
 
   Map<String, List<GsprAnalysisRow>> _groupRows(List<GsprAnalysisRow> rows, AppLocalizations t) {
-    final sortedRows = [...rows]..sort((a, b) => a.ref.compareTo(b.ref));
+    final sortedRows = [...rows]..sort(_compareRowsByNaturalRef);
     if (_groupBy == _GsprGroupBy.none) {
       return {'': sortedRows};
     }
@@ -404,7 +430,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
           elevation: 1,
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: GsprAnalysisHeaderBar(
               response: response,
               statusFilters: _statusFilters,
@@ -854,7 +880,6 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 1200;
-        final isMedium = constraints.maxWidth >= 900 && constraints.maxWidth < 1200;
         final isNarrow = constraints.maxWidth < 900;
 
         final advancedContent = _buildAdvancedFilters(context, t);
@@ -863,45 +888,42 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildKpiStrip(context, t),
-            const SizedBox(height: 8),
-            if (isNarrow)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 260,
-                    child: TextField(
-                      controller: searchController,
-                      decoration: _inputDecoration(
-                        context,
-                        t.gsprAnalysisSearchLabel,
-                        prefixIcon: const Icon(Icons.search, size: 18),
-                        suffixIcon: searchController.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: onClearSearch,
-                              ),
-                      ),
-                      onChanged: onSearchChanged,
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: isNarrow ? 250 : (isWide ? 320 : 280),
+                  child: TextField(
+                    controller: searchController,
+                    decoration: _inputDecoration(
+                      context,
+                      t.gsprAnalysisSearchLabel,
+                      prefixIcon: const Icon(Icons.search, size: 18),
+                      suffixIcon: searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: onClearSearch,
+                            ),
                     ),
                   ),
-                  SizedBox(
-                    width: 200,
-                    child: DropdownButtonFormField<String?>(
-                      value: chapter,
-                      decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
-                      items: [
-                        DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
-                        DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
-                        DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
-                        DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
-                      ],
-                      onChanged: onChapterChanged,
-                    ),
+                ),
+                SizedBox(
+                  width: 210,
+                  child: DropdownButtonFormField<String?>(
+                    value: chapter,
+                    decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
+                    items: [
+                      DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
+                      DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
+                      DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
+                      DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
+                    ],
+                    onChanged: onChapterChanged,
                   ),
                   SizedBox(width: 320, child: _buildStatusChips(context, t)),
                   _buildQuickFilterChips(t),
@@ -989,19 +1011,66 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                     _buildQuickFilterChips(t),
                   ],
                 ),
-              ),
-            ],
+                OutlinedButton.icon(
+                  onPressed: isNarrow
+                      ? () {
+                          showModalBottomSheet<void>(
+                            context: context,
+                            showDragHandle: true,
+                            builder: (context) => Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildStatusChips(context, t),
+                                  const SizedBox(height: 10),
+                                  _buildQuickFilterChips(t),
+                                  const SizedBox(height: 12),
+                                  advancedContent,
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                      : onToggleAdvanced,
+                  icon: Icon((isNarrow || !showAdvanced) ? Icons.tune : Icons.expand_less),
+                  label: const Text('Filter'),
+                ),
+                IconButton(
+                  tooltip: t.gsprReload,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onReload,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
             if (!isNarrow)
               AnimatedCrossFade(
                 firstChild: const SizedBox.shrink(),
                 secondChild: Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: advancedContent,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            SizedBox(width: isWide ? 460 : 360, child: _buildStatusChips(context, t)),
+                            const SizedBox(width: 10),
+                            _buildQuickFilterChips(t),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      advancedContent,
+                    ],
+                  ),
                 ),
                 crossFadeState: showAdvanced ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                 duration: const Duration(milliseconds: 200),
               ),
-            if (isMedium && showAdvanced) const SizedBox(height: 4),
           ],
         );
       },
