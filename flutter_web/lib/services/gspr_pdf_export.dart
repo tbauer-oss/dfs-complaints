@@ -17,6 +17,7 @@ const _maxTotalRows = 5000;
 const _webMaxRowsPerChapter = 1200;
 const _webMaxChunksPerRequirement = 4;
 const _webMaxTotalRows = 3000;
+const _tableChunkSize = 40;
 
 class DfsCiTheme {
   final PdfColor primaryColor;
@@ -368,7 +369,7 @@ List<pw.Widget> _buildSectionTables({
       );
     } else {
       for (var offset = 0; offset < section.rows.length; offset += _tableChunkSize) {
-        final end = math.min(offset + _tableChunkSize, section.rows.length);
+        final end = math.min<int>(offset + _tableChunkSize, section.rows.length);
         final chunk = section.rows.sublist(offset, end);
         widgets.add(
           pw.Table(
