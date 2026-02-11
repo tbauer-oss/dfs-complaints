@@ -249,9 +249,9 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
 
   Map<int, TableColumnWidth> _columnWidths(double tableWidth) {
     const widths = <int, double>{
-      0: 120,
+      0: 180,
       1: 120,
-      2: 320,
+      2: 360,
       3: 160,
       4: 160,
       5: 120,
@@ -340,7 +340,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
             children: [
               _TableCell(text: row.mdrTd.isNotEmpty ? row.mdrTd : row.tdId, onTap: tapHandler),
               _TableCell(text: row.ref, onTap: tapHandler),
-              _TableCell(text: row.title, onTap: tapHandler),
+              _TableCell(text: row.title, onTap: tapHandler, maxLines: 2),
               _TableCell(
                 onTap: tapHandler,
                 child: Row(
@@ -509,7 +509,7 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
                                     : minTableWidth;
                                 final tableHeight = constraints.maxHeight;
                                 final rowsViewportHeight =
-                                    (tableHeight - headerHeight).clamp(120.0, double.infinity);
+                                    (tableHeight - headerHeight).clamp(260.0, double.infinity);
 
                                 return Scrollbar(
                                   controller: _tableHorizontalController,
@@ -730,6 +730,44 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
     );
   }
 
+
+  Widget _buildQuickFilterChips(AppLocalizations t) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilterChip(
+          label: Text(t.gsprAnalysisFilterOpenOnly),
+          selected: onlyOpen,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onSelected: onToggleOpenOnly,
+        ),
+        FilterChip(
+          label: Text(t.gsprAnalysisFilterOverdueOnly),
+          selected: onlyOverdue,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onSelected: onToggleOverdueOnly,
+        ),
+        FilterChip(
+          label: Text(t.gsprAnalysisFilterDueSoonOnly),
+          selected: onlyDueSoon,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onSelected: onToggleDueSoonOnly,
+        ),
+        FilterChip(
+          label: Text(t.gsprAnalysisFilterMissingEvidence),
+          selected: onlyMissingEvidence,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onSelected: onToggleMissingEvidence,
+        ),
+      ],
+    );
+  }
+
   String _statusLabelForChip(AppLocalizations t, GsprAssessmentStatus status) {
     switch (status) {
       case GsprAssessmentStatus.fulfilled:
@@ -817,100 +855,133 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
           children: [
             _buildKpiStrip(context, t),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: isWide ? 320 : 260,
-                  child: TextField(
-                    controller: searchController,
-                    decoration: _inputDecoration(
-                      context,
-                      t.gsprAnalysisSearchLabel,
-                      prefixIcon: const Icon(Icons.search, size: 18),
-                      suffixIcon: searchController.text.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: onClearSearch,
-                            ),
+            if (isNarrow)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 260,
+                    child: TextField(
+                      controller: searchController,
+                      decoration: _inputDecoration(
+                        context,
+                        t.gsprAnalysisSearchLabel,
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        suffixIcon: searchController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: onClearSearch,
+                              ),
+                      ),
+                      onChanged: onSearchChanged,
                     ),
-                    onChanged: onSearchChanged,
                   ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: DropdownButtonFormField<String?>(
-                    value: chapter,
-                    decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
-                    items: [
-                      DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
-                      DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
-                      DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
-                      DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
-                    ],
-                    onChanged: onChapterChanged,
+                  SizedBox(
+                    width: 200,
+                    child: DropdownButtonFormField<String?>(
+                      value: chapter,
+                      decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
+                      items: [
+                        DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
+                        DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
+                        DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
+                        DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
+                      ],
+                      onChanged: onChapterChanged,
+                    ),
                   ),
+                  SizedBox(width: 320, child: _buildStatusChips(context, t)),
+                  _buildQuickFilterChips(t),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (context) => Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: advancedContent,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Weitere Filter'),
+                  ),
+                  IconButton(
+                    tooltip: t.gsprReload,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onReload,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              )
+            else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: isWide ? 340 : 280,
+                    child: TextField(
+                      controller: searchController,
+                      decoration: _inputDecoration(
+                        context,
+                        t.gsprAnalysisSearchLabel,
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        suffixIcon: searchController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: onClearSearch,
+                              ),
+                      ),
+                      onChanged: onSearchChanged,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 220,
+                    child: DropdownButtonFormField<String?>(
+                      value: chapter,
+                      decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
+                      items: [
+                        DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
+                        DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
+                        DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
+                        DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
+                      ],
+                      onChanged: onChapterChanged,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: onToggleAdvanced,
+                    icon: Icon(!showAdvanced ? Icons.tune : Icons.expand_less),
+                    label: const Text('Weitere Filter'),
+                  ),
+                  IconButton(
+                    tooltip: t.gsprReload,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onReload,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    SizedBox(width: isWide ? 460 : 360, child: _buildStatusChips(context, t)),
+                    const SizedBox(width: 10),
+                    _buildQuickFilterChips(t),
+                  ],
                 ),
-                SizedBox(
-                  width: isWide ? 420 : 320,
-                  child: _buildStatusChips(context, t),
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterOpenOnly),
-                  selected: onlyOpen,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleOpenOnly,
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterOverdueOnly),
-                  selected: onlyOverdue,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleOverdueOnly,
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterDueSoonOnly),
-                  selected: onlyDueSoon,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleDueSoonOnly,
-                ),
-                FilterChip(
-                  label: Text(t.gsprAnalysisFilterMissingEvidence),
-                  selected: onlyMissingEvidence,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onSelected: onToggleMissingEvidence,
-                ),
-                OutlinedButton.icon(
-                  onPressed: isNarrow
-                      ? () {
-                          showModalBottomSheet<void>(
-                            context: context,
-                            showDragHandle: true,
-                            builder: (context) => Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: advancedContent,
-                            ),
-                          );
-                        }
-                      : onToggleAdvanced,
-                  icon: Icon(isNarrow || !showAdvanced ? Icons.tune : Icons.expand_less),
-                  label: const Text('Weitere Filter'),
-                ),
-                IconButton(
-                  tooltip: t.gsprReload,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onReload,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
+              ),
+            ],
             if (!isNarrow)
               AnimatedCrossFade(
                 firstChild: const SizedBox.shrink(),
@@ -968,21 +1039,27 @@ class _TableCell extends StatelessWidget {
   final String? text;
   final Widget? child;
   final VoidCallback onTap;
+  final int maxLines;
 
   const _TableCell({
     this.text,
     this.child,
+    this.maxLines = 1,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final content = child ?? Text(text ?? '');
+    final displayText = text ?? '';
+    final content = child ?? Text(displayText, maxLines: maxLines, overflow: TextOverflow.ellipsis);
+    final wrappedContent = child == null && displayText.isNotEmpty
+        ? Tooltip(message: displayText, child: content)
+        : content;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: content,
+        child: wrappedContent,
       ),
     );
   }
