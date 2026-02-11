@@ -8,6 +8,7 @@ import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/gspr.dart';
 import '../../../services/gspr_pdf_export.dart';
+import '../../../utils/pdf_download.dart';
 import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
@@ -123,9 +124,9 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
       final filename = 'gspr_${selected.displayCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
       if (kIsWeb) {
-        debugPrint('[GSPR][Export] Web detected: using Printing.sharePdf to avoid layout preview OOM.');
-        await Printing.sharePdf(bytes: bytes, filename: filename);
-        debugPrint('[GSPR][Export] Printing.sharePdf started successfully.');
+        debugPrint('[GSPR][Export] Web detected: triggering direct download.');
+        await downloadPdf(bytes, filename);
+        debugPrint('[GSPR][Export] Browser download triggered successfully.');
       } else {
         try {
           await Printing.layoutPdf(onLayout: (_) async => bytes);
