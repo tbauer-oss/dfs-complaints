@@ -6,6 +6,7 @@ import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/gspr.dart';
 import '../../../services/gspr_pdf_export.dart';
+import '../../../utils/pdf_download.dart';
 import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
@@ -54,7 +55,9 @@ class _GsprHomePageState extends State<GsprHomePage> {
       _exportingPdf = true;
       _error = null;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 32));
+    // Ensure the export overlay is painted before PDF generation starts.
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+    await Future<void>.delayed(const Duration(milliseconds: 16));
     try {
       debugPrint('[GSPR][Export] Start export for TD ${selected.id} (${selected.displayCode}).');
       final chapters = <GsprExportChapter>[];
@@ -80,9 +83,9 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
       final filename = 'gspr_${selected.displayCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
       if (kIsWeb) {
-        debugPrint('[GSPR][Export] Web detected: using Printing.sharePdf to avoid layout preview OOM.');
-        await Printing.sharePdf(bytes: bytes, filename: filename);
-        debugPrint('[GSPR][Export] Printing.sharePdf started successfully.');
+        debugPrint('[GSPR][Export] Web detected: triggering direct download.');
+        await downloadPdf(bytes, filename);
+        debugPrint('[GSPR][Export] Browser download triggered successfully.');
       } else {
         try {
           await Printing.layoutPdf(onLayout: (_) async => bytes);
@@ -93,10 +96,13 @@ class _GsprHomePageState extends State<GsprHomePage> {
           debugPrint('[GSPR][Export] Fallback Printing.sharePdf started successfully.');
         }
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[GSPR][Export] Export failed: $e');
+      debugPrint('$st');
       if (!mounted) return;
-      setState(() => _error = e.toString());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final message = e.toString();
+      setState(() => _error = message);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() => _exportingPdf = false);
