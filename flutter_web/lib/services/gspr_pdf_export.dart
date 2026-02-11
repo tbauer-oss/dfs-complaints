@@ -610,7 +610,10 @@ class _PdfFonts {
 
 Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
   if (ci.baseFont != null && ci.boldFont != null) {
-    final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+    final fallbackData = await _loadFirstAvailableAsset(const [
+      'web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf',
+      'pdfjs/web/standard_fonts/LiberationSans-Italic.ttf',
+    ]);
     final baseFont = ci.baseFont;
     final boldFont = ci.boldFont;
     if (baseFont == null || boldFont == null) {
@@ -623,9 +626,27 @@ Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
     );
   }
 
-  final baseData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Regular.ttf');
-  final boldData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Bold.ttf');
-  final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+  final baseData = await _loadFirstAvailableAssetOrNull(const [
+    'web/pdfjs/web/standard_fonts/LiberationSans-Regular.ttf',
+    'pdfjs/web/standard_fonts/LiberationSans-Regular.ttf',
+  ]);
+  final boldData = await _loadFirstAvailableAssetOrNull(const [
+    'web/pdfjs/web/standard_fonts/LiberationSans-Bold.ttf',
+    'pdfjs/web/standard_fonts/LiberationSans-Bold.ttf',
+  ]);
+  final fallbackData = await _loadFirstAvailableAssetOrNull(const [
+    'web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf',
+    'pdfjs/web/standard_fonts/LiberationSans-Italic.ttf',
+  ]);
+
+  if (baseData == null || boldData == null || fallbackData == null) {
+    debugPrint('[GSPR][PDF] Falling back to built-in Helvetica fonts.');
+    return _PdfFonts(
+      base: pw.Font.helvetica(),
+      bold: pw.Font.helveticaBold(),
+      fallback: pw.Font.helveticaOblique(),
+    );
+  }
   return _PdfFonts(
     base: pw.Font.ttf(baseData),
     bold: pw.Font.ttf(boldData),
@@ -633,9 +654,32 @@ Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
   );
 }
 
+Future<ByteData> _loadFirstAvailableAsset(List<String> candidates) async {
+  Object? lastError;
+  for (final path in candidates) {
+    try {
+      final data = await rootBundle.load(path);
+      debugPrint('[GSPR][PDF] Loaded asset: $path');
+      return data;
+    } catch (e) {
+      lastError = e;
+      debugPrint('[GSPR][PDF] Failed to load asset $path: $e');
+    }
+  }
+  throw StateError('Unable to load asset from candidates: $candidates. Last error: $lastError');
+}
+
+Future<ByteData?> _loadFirstAvailableAssetOrNull(List<String> candidates) async {
+  try {
+    return await _loadFirstAvailableAsset(candidates);
+  } catch (e) {
+    debugPrint('[GSPR][PDF] Optional asset load failed ($candidates): $e');
+    return null;
+  }
+}
+
 Future<Uint8List?> _loadLogoBytes() async {
   const logoCandidates = [
-    'flutter_web/assets/dfs_logo.png',
     'assets/dfs_logo.png',
   ];
 
