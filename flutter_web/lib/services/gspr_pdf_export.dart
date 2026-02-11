@@ -376,7 +376,7 @@ pw.Widget _buildChapterBand(String chapterTitle, DfsCiTheme ci, _PdfTextTheme te
     ),
     child: pw.Text(
       sanitizeText(chapterTitle),
-      style: _style(textTheme, bold: true, size: 8.5, color: ci.primaryColor),
+      style: _style(textTheme, bold: true, size: 8.5, color: PdfColors.white),
     ),
   );
 }

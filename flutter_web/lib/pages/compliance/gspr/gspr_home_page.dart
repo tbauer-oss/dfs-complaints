@@ -613,17 +613,12 @@ class _GsprHomePageState extends State<GsprHomePage> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Bitte einen Moment warten. Der Export läuft im Hintergrund und wird anschließend automatisch geöffnet.',
+                      'Die PDF-Erstellung läuft im Hintergrund. Bei großen Dateien kann dies 3–5 Minuten dauern.',
                       style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: const LinearProgressIndicator(minHeight: 10),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Große Datensätze können etwas länger dauern.',
+                      'Bitte die Seite in dieser Zeit nicht schließen und den Vorgang nicht stoppen – auch dann nicht, wenn der Browser danach fragt.',
                       style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
                     ),
                   ],
