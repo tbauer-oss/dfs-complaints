@@ -1,7 +1,6 @@
 // /api/gspr/sync.js – manual source sync trigger for GSPR metadata
 export const config = { runtime: 'nodejs' };
 
-import { load as loadHtml } from 'cheerio';
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 import {
@@ -22,7 +21,7 @@ const END_MARKERS = [
   '## ANHANG II: TECHNISCHE DOKUMENTATION',
 ];
 
-const START_REGEX = /ANHANG\s*I\s*[:\n]?\s*GRUNDLEGENDE\s+SICHERHEITS-\s+UND\s+LEISTUNGSANFORDERUNGEN/i;
+const START_REGEX = /ANHANG\s*I\s*[:\n]?\s*GRUNDLEGENDE\s+SICHERHEITS-\s*UND\s+LEISTUNGSANFORDERUNGEN/i;
 const END_REGEX = /ANHANG\s*II\s*[:\n]?\s*TECHNISCHE\s+DOKUMENTATION/i;
 
 function normalizeWhitespace(input) {
@@ -42,15 +41,34 @@ function containsAny(text, markers) {
   return markers.some((marker) => text.includes(marker));
 }
 
+function decodeHtmlEntities(input) {
+  return String(input || '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
 function extractPlainText(html) {
-  const $ = loadHtml(String(html || ''));
-  return normalizeWhitespace(cleanMarkers($('body').text()));
+  const withoutScripts = String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ');
+  const textLike = withoutScripts
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ');
+  return normalizeWhitespace(cleanMarkers(decodeHtmlEntities(textLike)));
 }
 
 function hasAnnexBounds(text) {
-  return containsAny(text, START_MARKERS) || START_REGEX.test(text)
-    ? containsAny(text, END_MARKERS) || END_REGEX.test(text)
-    : false;
+  const hasStart = containsAny(text, START_MARKERS) || START_REGEX.test(text);
+  if (!hasStart) return false;
+  return containsAny(text, END_MARKERS) || END_REGEX.test(text);
 }
 
 export default async function handler(req, res) {
