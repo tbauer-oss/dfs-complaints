@@ -314,6 +314,13 @@ class _GsprHomePageState extends State<GsprHomePage> {
     });
   }
 
+  void _closeChapterInternal() {
+    setState(() {
+      _activeChapter = null;
+      _initialRequirementId = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
