@@ -34,9 +34,17 @@ type Summary = {
   byLevel: Record<number, number>;
 };
 
-const SOURCE_URL = 'https://mdr-selector.johner-institut.de/mdr_de.html';
-const START_MARKER = '## ANHANG I: GRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN';
-const END_MARKER = '## ANHANG II: TECHNISCHE DOKUMENTATION';
+const SOURCE_URL = 'https://eur-lex.europa.eu/legal-content/de/ALL/?uri=CELEX:32017R0745';
+const START_MARKERS = [
+  'ANHANG I\nGRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN',
+  'ANHANG I: GRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN',
+  '## ANHANG I: GRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN',
+] as const;
+const END_MARKERS = [
+  'ANHANG II\nTECHNISCHE DOKUMENTATION',
+  'ANHANG II: TECHNISCHE DOKUMENTATION',
+  '## ANHANG II: TECHNISCHE DOKUMENTATION',
+] as const;
 
 const TOP_LEVEL_TITLES: Record<string, string> = {
   '1': 'Allgemeine Anforderungen',
@@ -81,13 +89,30 @@ function cleanMarkers(input: string): string {
   return input.replace(/【\d+†/g, '').replace(/】/g, '');
 }
 
-function sliceBetween(text: string, startMarker: string, endMarker: string): string {
-  const startIdx = text.indexOf(startMarker);
-  const endIdx = text.indexOf(endMarker);
-  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-    throw new Error('Annex markers not found or invalid order.');
+function findFirstMarker(text: string, markers: readonly string[]): { marker: string; index: number } | null {
+  for (const marker of markers) {
+    const index = text.indexOf(marker);
+    if (index !== -1) {
+      return { marker, index };
+    }
   }
-  return text.slice(startIdx, endIdx);
+  return null;
+}
+
+function sliceBetween(text: string, startMarkers: readonly string[], endMarkers: readonly string[]): string {
+  const start = findFirstMarker(text, startMarkers);
+  if (!start) {
+    throw new Error(`Annex start marker not found. Tried: ${startMarkers.join(' | ')}`);
+  }
+
+  const afterStart = start.index + start.marker.length;
+  const tail = text.slice(afterStart);
+  const end = findFirstMarker(tail, endMarkers);
+  if (!end) {
+    throw new Error(`Annex end marker not found. Tried: ${endMarkers.join(' | ')}`);
+  }
+
+  return text.slice(start.index, afterStart + end.index);
 }
 
 function letterOrder(letter: string): number {
@@ -175,7 +200,7 @@ async function fetchSourceText(): Promise<string> {
 
 async function generate() {
   const rawText = await fetchSourceText();
-  const slice = sliceBetween(rawText, START_MARKER, END_MARKER);
+  const slice = sliceBetween(rawText, START_MARKERS, END_MARKERS);
   const lines = slice.split('\n');
 
   const items: GsprItemRaw[] = [];
