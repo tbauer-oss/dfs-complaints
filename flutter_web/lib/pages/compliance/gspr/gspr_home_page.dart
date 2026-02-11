@@ -330,6 +330,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
           access: widget.access,
           tdOverride: selected,
           initialRequirementId: _initialRequirementId,
+          onBackToOverview: _closeChapterInternal,
           key: ValueKey('${_activeChapter!}:${selected?.id ?? ''}:${_initialRequirementId ?? ''}'),
         ),
       );

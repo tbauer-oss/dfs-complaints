@@ -24,6 +24,7 @@ class GsprChapterPage extends StatefulWidget {
   final GsprAccess access;
   final GsprTdOption? tdOverride;
   final String? initialRequirementId;
+  final VoidCallback? onBackToOverview;
 
   const GsprChapterPage({
     super.key,
@@ -32,6 +33,7 @@ class GsprChapterPage extends StatefulWidget {
     required this.access,
     this.tdOverride,
     this.initialRequirementId,
+    this.onBackToOverview,
   });
 
   @override
@@ -452,6 +454,14 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.onBackToOverview == null,
+        leading: widget.onBackToOverview == null
+            ? null
+            : IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onBackToOverview,
+              ),
         titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
