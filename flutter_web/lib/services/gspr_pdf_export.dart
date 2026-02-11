@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,13 @@ import '../models/gspr.dart';
 
 const _yieldEveryRows = 120;
 const _webYieldEveryRows = 20;
+const _maxRowsPerChapter = 2200;
+const _maxChunksPerRequirement = 6;
+const _maxTotalRows = 5000;
+const _webMaxRowsPerChapter = 1200;
+const _webMaxChunksPerRequirement = 4;
+const _webMaxTotalRows = 3000;
+const _tableChunkSize = 40;
 
 class DfsCiTheme {
   final PdfColor primaryColor;
@@ -98,33 +106,6 @@ class _ExportRow {
   });
 }
 
-class _ExportLimits {
-  final int maxRowsPerChapter;
-  final int maxChunksPerRequirement;
-  final int maxTotalRows;
-
-  const _ExportLimits({
-    required this.maxRowsPerChapter,
-    required this.maxChunksPerRequirement,
-    required this.maxTotalRows,
-  });
-}
-
-_ExportLimits _currentLimits() {
-  if (kIsWeb) {
-    return const _ExportLimits(
-      maxRowsPerChapter: _webMaxRowsPerChapter,
-      maxChunksPerRequirement: _webMaxChunksPerRequirement,
-      maxTotalRows: _webMaxTotalRows,
-    );
-  }
-  return const _ExportLimits(
-    maxRowsPerChapter: _maxRowsPerChapter,
-    maxChunksPerRequirement: _maxChunksPerRequirement,
-    maxTotalRows: _maxTotalRows,
-  );
-}
-
 Future<Uint8List> buildGsprPdf({
   required String mdrTd,
   required GsprExportModel model,
@@ -135,7 +116,7 @@ Future<Uint8List> buildGsprPdf({
   debugPrint('[GSPR][PDF] Fonts loaded.');
   final logoBytes = await _loadLogoBytes();
   debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
-  final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
+  final doc = pw.Document(title: 'DFS Connect+ - GSPR Report', compress: true);
   final sections = await _buildSections(model);
   final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
   debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
@@ -348,9 +329,10 @@ List<pw.Widget> _buildSectionTables({
   final widgets = <pw.Widget>[];
   for (var i = 0; i < sections.length; i++) {
     final section = sections[i];
-    widgets
-      ..add(_buildChapterBand(section.chapterTitle, ci, textTheme))
-      ..add(
+    widgets.add(_buildChapterBand(section.chapterTitle, ci, textTheme));
+
+    if (section.rows.length <= _tableChunkSize) {
+      widgets.add(
         pw.Table(
           border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
           columnWidths: columnWidths,
@@ -358,6 +340,24 @@ List<pw.Widget> _buildSectionTables({
           children: _buildTableRows(section.rows, ci, textTheme),
         ),
       );
+    } else {
+      for (var offset = 0; offset < section.rows.length; offset += _tableChunkSize) {
+        final end = math.min<int>(offset + _tableChunkSize, section.rows.length);
+        final chunk = section.rows.sublist(offset, end);
+        widgets.add(
+          pw.Table(
+            border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
+            columnWidths: columnWidths,
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+            children: _buildTableRows(chunk, ci, textTheme, rowOffset: offset),
+          ),
+        );
+        if (end < section.rows.length) {
+          widgets.add(pw.SizedBox(height: 2));
+        }
+      }
+    }
+
     if (i != sections.length - 1) {
       widgets.add(pw.SizedBox(height: 4));
     }
@@ -381,14 +381,20 @@ pw.Widget _buildChapterBand(String chapterTitle, DfsCiTheme ci, _PdfTextTheme te
   );
 }
 
-List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfTextTheme textTheme) {
+List<pw.TableRow> _buildTableRows(
+  List<_ExportRow> rows,
+  DfsCiTheme ci,
+  _PdfTextTheme textTheme, {
+  int rowOffset = 0,
+}) {
   final result = <pw.TableRow>[];
 
   for (var i = 0; i < rows.length; i++) {
     final row = rows[i];
+    final rowIndex = rowOffset + i;
     final bg = row.isSectionRow
         ? ci.neutralLight
-        : (i.isEven ? PdfColors.white : PdfColor.fromInt(0xFFFAFBFD));
+        : (rowIndex.isEven ? PdfColors.white : PdfColor.fromInt(0xFFFAFBFD));
 
     pw.Widget txt(String value, {bool bold = false}) => pw.Padding(
           padding: const pw.EdgeInsets.all(3.5),
@@ -440,6 +446,7 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
 
 Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
   final sections = <_ExportSection>[];
+  var totalRows = 0;
   var rowsSinceLastYield = 0;
   final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
 
@@ -465,10 +472,6 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
     Future<void> walk(String? parentId, Set<String> ancestry) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
-        if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
-          return;
-        }
-
         final req = entry.requirement;
         final reqId = req.id.trim();
         final reqKey = reqId.isNotEmpty
@@ -502,6 +505,7 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
             comments: _commentsText(assessment),
           ),
         );
+        totalRows++;
         rowsSinceLastYield++;
         await yieldToUiIfNeeded();
 
