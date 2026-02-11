@@ -10,6 +10,52 @@ import {
 import { gsprSourceMetaGet, gsprSourceMetaSave } from '../_lib/store.js';
 
 const GSPR_TILE = 'gspr';
+const EUR_LEX_FALLBACK_URL = 'https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32017R0745';
+const EUR_LEX_FETCH_TIMEOUT_MS = 12_000;
+const EUR_LEX_FETCH_ATTEMPTS = 2;
+
+async function fetchEurLexPage(url) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= EUR_LEX_FETCH_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort('timeout'), EUR_LEX_FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: {
+          'user-agent': 'DFS-Complaints GSPR sync/1.0 (+https://dfs-complaints-backend.vercel.app)',
+          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'accept-language': 'de,en;q=0.8',
+          'cache-control': 'no-cache',
+        },
+      });
+
+      if (!response.ok) {
+        lastError = new Error(`HTTP ${response.status} ${response.statusText}`);
+        continue;
+      }
+
+      const html = await response.text();
+      if (!html || html.trim().length === 0) {
+        lastError = new Error('empty response body');
+        continue;
+      }
+
+      return { htmlLength: html.length };
+    } catch (err) {
+      lastError = err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  const reason = lastError?.message || 'unknown fetch failure';
+  throw new Error(`EUR-Lex request failed (${url}): ${reason}`);
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
@@ -44,20 +90,25 @@ export default async function handler(req, res) {
       updatedBy: actor?.email || '',
     });
 
-    const response = await fetch(GSPR_SOURCE_PERMALINK);
-    if (!response.ok) {
-      throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
+    const candidates = [GSPR_SOURCE_PERMALINK, EUR_LEX_FALLBACK_URL];
+    let validatedFrom = null;
+    let lastSyncError = null;
+    for (const candidate of candidates) {
+      try {
+        await fetchEurLexPage(candidate);
+        validatedFrom = candidate;
+        break;
+      } catch (err) {
+        lastSyncError = err;
+      }
     }
 
-    const html = await response.text();
-    if (!html || html.trim().length === 0) {
-      throw new Error('empty response body from EUR-Lex');
-    }
+    if (!validatedFrom) throw lastSyncError || new Error('EUR-Lex source validation failed');
 
     const finishedAt = new Date().toISOString();
     const source = await gsprSourceMetaSave({
       name: GSPR_SOURCE_NAME,
-      permalink: GSPR_SOURCE_PERMALINK,
+      permalink: validatedFrom,
       lastSyncAt: finishedAt,
       lastAttemptAt: finishedAt,
       lastError: '',
