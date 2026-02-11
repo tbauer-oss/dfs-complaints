@@ -9,7 +9,12 @@ import {
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
 } from '../_lib/store.js';
-import { gsprAssessableItemsByChapter } from '../_lib/gsprRequirements.js';
+import {
+  GSPR_LAST_SYNC_AT,
+  GSPR_SOURCE_NAME,
+  GSPR_SOURCE_PERMALINK,
+  gsprAssessableItemsByChapter,
+} from '../_lib/gsprRequirements.js';
 import { resolveGsprTdInfo } from '../_lib/gsprTdOptions.js';
 
 const GSPR_TILE = 'gspr';
@@ -62,6 +67,11 @@ export default async function handler(req, res) {
       approvedBy: signoff.approvedBy,
       chapters,
       readOnly,
+      source: {
+        name: GSPR_SOURCE_NAME,
+        permalink: GSPR_SOURCE_PERMALINK,
+        lastSyncAt: GSPR_LAST_SYNC_AT,
+      },
     });
   } catch (err) {
     console.error('[gspr/summary] error', err);
