@@ -1,6 +1,7 @@
 // /api/gspr/sync.js – manual source sync trigger for GSPR metadata
 export const config = { runtime: 'nodejs' };
 
+import { load as loadHtml } from 'cheerio';
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 import {
@@ -21,20 +22,35 @@ const END_MARKERS = [
   '## ANHANG II: TECHNISCHE DOKUMENTATION',
 ];
 
+const START_REGEX = /ANHANG\s*I\s*[:\n]?\s*GRUNDLEGENDE\s+SICHERHEITS-\s+UND\s+LEISTUNGSANFORDERUNGEN/i;
+const END_REGEX = /ANHANG\s*II\s*[:\n]?\s*TECHNISCHE\s+DOKUMENTATION/i;
+
 function normalizeWhitespace(input) {
   return String(input || '')
     .replace(/\r\n?/g, '\n')
     .replace(/[ \t]+$/gm, '')
+    .replace(/\u00a0/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
 function cleanMarkers(input) {
-  return input.replace(/【\d+†/g, '').replace(/】/g, '');
+  return String(input || '').replace(/【\d+†/g, '').replace(/】/g, '');
 }
 
 function containsAny(text, markers) {
   return markers.some((marker) => text.includes(marker));
+}
+
+function extractPlainText(html) {
+  const $ = loadHtml(String(html || ''));
+  return normalizeWhitespace(cleanMarkers($('body').text()));
+}
+
+function hasAnnexBounds(text) {
+  return containsAny(text, START_MARKERS) || START_REGEX.test(text)
+    ? containsAny(text, END_MARKERS) || END_REGEX.test(text)
+    : false;
 }
 
 export default async function handler(req, res) {
@@ -77,12 +93,9 @@ export default async function handler(req, res) {
     }
 
     const html = await response.text();
-    const text = normalizeWhitespace(cleanMarkers(html));
-    if (!containsAny(text, START_MARKERS)) {
-      throw new Error('annex start marker not found');
-    }
-    if (!containsAny(text, END_MARKERS)) {
-      throw new Error('annex end marker not found');
+    const text = extractPlainText(html);
+    if (!hasAnnexBounds(text)) {
+      throw new Error('annex markers not found in EUR-Lex content');
     }
 
     const finishedAt = new Date().toISOString();
