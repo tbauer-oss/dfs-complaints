@@ -718,194 +718,197 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${t.gsprColumnNumber} ${entry.requirement.ref}', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 4),
-          if (!entry.requirement.isAssessable)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      t.gsprIntroNotAssessableBanner,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (entry.requirement.isAssessable && (entry.requirement.contextText ?? '').trim().isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: ExpansionTile(
-                title: Text(t.gsprContextLabel),
-                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                initiallyExpanded: true,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(entry.requirement.contextText ?? ''),
-                  ),
-                ],
-              ),
-            ),
-          Text(entry.requirement.text),
-          const SizedBox(height: 16),
-          if (entry.requirement.isAssessable && assessment != null)
-            DropdownButtonFormField<GsprAssessmentStatus>(
-              value: assessment.status,
-              decoration: InputDecoration(labelText: t.gsprAssessmentStatusLabel),
-              items: GsprAssessmentStatus.values
-                  .map(
-                    (status) => DropdownMenuItem(
-                      value: status,
-                      child: Text(_assessmentStatusLabel(t, status)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: !canAssess
-                  ? null
-                  : (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _draftAssessment = assessment.copyWith(status: value);
-                      });
-                    },
-            ),
-          const SizedBox(height: 8),
-          if (entry.requirement.isAssessable && assessment != null)
-            TextField(
-              enabled: canAssess,
-              maxLines: 3,
-              controller: TextEditingController(text: assessment.rationale)
-                ..selection = TextSelection.collapsed(offset: assessment.rationale.length),
-              decoration: InputDecoration(
-                labelText: t.gsprAssessmentRationaleLabel,
-                helperText: needsRationale ? t.gsprAssessmentRationaleRequiredHint : null,
-              ),
-              onChanged: (value) => setState(() {
-                _draftAssessment = assessment.copyWith(rationale: value);
-              }),
-            ),
-          const SizedBox(height: 12),
-          if (entry.requirement.isAssessable && assessment != null) ...[
-            Text(t.gsprEvidenceTitle, style: theme.textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Expanded(
-              child: ListView(
-                children: [
-                  ...assessment.evidence.asMap().entries.map((entryIndex) {
-                    final index = entryIndex.key;
-                    final evidence = entryIndex.value;
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    enabled: canAssess,
-                                    decoration: InputDecoration(labelText: t.gsprEvidenceDocId),
-                                    controller: TextEditingController(text: evidence.docId)
-                                      ..selection = TextSelection.collapsed(offset: evidence.docId.length),
-                                    onChanged: (value) => _updateEvidence(index, evidence.copyWith(docId: value)),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextField(
-                                    enabled: canAssess,
-                                    decoration: InputDecoration(labelText: t.gsprEvidenceRevision),
-                                    controller: TextEditingController(text: evidence.revision)
-                                      ..selection = TextSelection.collapsed(offset: evidence.revision.length),
-                                    onChanged: (value) => _updateEvidence(index, evidence.copyWith(revision: value)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              enabled: canAssess,
-                              decoration: InputDecoration(labelText: t.gsprEvidenceLink),
-                              controller: TextEditingController(text: evidence.link)
-                                ..selection = TextSelection.collapsed(offset: evidence.link.length),
-                              onChanged: (value) => _updateEvidence(index, evidence.copyWith(link: value)),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              enabled: canAssess,
-                              decoration: InputDecoration(labelText: t.gsprEvidenceLabel),
-                              controller: TextEditingController(text: evidence.label)
-                                ..selection = TextSelection.collapsed(offset: evidence.label.length),
-                              onChanged: (value) => _updateEvidence(index, evidence.copyWith(label: value)),
-                            ),
-                            if (canAssess)
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: () => _removeEvidence(index),
-                                  icon: const Icon(Icons.delete_outline),
-                                  label: Text(t.gsprEvidenceRemove),
-                                ),
-                              ),
-                          ],
-                        ),
+                  Text('${t.gsprColumnNumber} ${entry.requirement.ref}', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  if (!entry.requirement.isAssessable)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  }),
-                  if (canAssess)
-                    TextButton.icon(
-                      onPressed: _addEvidence,
-                      icon: const Icon(Icons.add),
-                      label: Text(t.gsprEvidenceAdd),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline, color: theme.colorScheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              t.gsprIntroNotAssessableBanner,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (entry.requirement.isAssessable && (entry.requirement.contextText ?? '').trim().isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: theme.colorScheme.outlineVariant),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ExpansionTile(
+                        title: Text(t.gsprContextLabel),
+                        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        initiallyExpanded: true,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(entry.requirement.contextText ?? ''),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Text(entry.requirement.text),
+                  const SizedBox(height: 16),
+                  if (entry.requirement.isAssessable && assessment != null)
+                    DropdownButtonFormField<GsprAssessmentStatus>(
+                      value: assessment.status,
+                      decoration: InputDecoration(labelText: t.gsprAssessmentStatusLabel),
+                      items: GsprAssessmentStatus.values
+                          .map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(_assessmentStatusLabel(t, status)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: !canAssess
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setState(() {
+                                _draftAssessment = assessment.copyWith(status: value);
+                              });
+                            },
+                    ),
+                  const SizedBox(height: 8),
+                  if (entry.requirement.isAssessable && assessment != null)
+                    TextField(
+                      enabled: canAssess,
+                      maxLines: 3,
+                      controller: TextEditingController(text: assessment.rationale)
+                        ..selection = TextSelection.collapsed(offset: assessment.rationale.length),
+                      decoration: InputDecoration(
+                        labelText: t.gsprAssessmentRationaleLabel,
+                        helperText: needsRationale ? t.gsprAssessmentRationaleRequiredHint : null,
+                      ),
+                      onChanged: (value) => setState(() {
+                        _draftAssessment = assessment.copyWith(rationale: value);
+                      }),
                     ),
                   const SizedBox(height: 12),
-                  TextField(
-                    enabled: canAssess,
-                    decoration: InputDecoration(labelText: t.gsprAssessmentOwnerLabel),
-                    controller: TextEditingController(text: assessment.owner)
-                      ..selection = TextSelection.collapsed(offset: assessment.owner.length),
-                    onChanged: (value) => setState(() {
-                      _draftAssessment = assessment.copyWith(owner: value);
+                  if (entry.requirement.isAssessable && assessment != null) ...[
+                    Text(t.gsprEvidenceTitle, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    ...assessment.evidence.asMap().entries.map((entryIndex) {
+                      final index = entryIndex.key;
+                      final evidence = entryIndex.value;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      enabled: canAssess,
+                                      decoration: InputDecoration(labelText: t.gsprEvidenceDocId),
+                                      controller: TextEditingController(text: evidence.docId)
+                                        ..selection = TextSelection.collapsed(offset: evidence.docId.length),
+                                      onChanged: (value) => _updateEvidence(index, evidence.copyWith(docId: value)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextField(
+                                      enabled: canAssess,
+                                      decoration: InputDecoration(labelText: t.gsprEvidenceRevision),
+                                      controller: TextEditingController(text: evidence.revision)
+                                        ..selection = TextSelection.collapsed(offset: evidence.revision.length),
+                                      onChanged: (value) => _updateEvidence(index, evidence.copyWith(revision: value)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                enabled: canAssess,
+                                decoration: InputDecoration(labelText: t.gsprEvidenceLink),
+                                controller: TextEditingController(text: evidence.link)
+                                  ..selection = TextSelection.collapsed(offset: evidence.link.length),
+                                onChanged: (value) => _updateEvidence(index, evidence.copyWith(link: value)),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                enabled: canAssess,
+                                decoration: InputDecoration(labelText: t.gsprEvidenceLabel),
+                                controller: TextEditingController(text: evidence.label)
+                                  ..selection = TextSelection.collapsed(offset: evidence.label.length),
+                                onChanged: (value) => _updateEvidence(index, evidence.copyWith(label: value)),
+                              ),
+                              if (canAssess)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: () => _removeEvidence(index),
+                                    icon: const Icon(Icons.delete_outline),
+                                    label: Text(t.gsprEvidenceRemove),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
                     }),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: canAssess ? () => _pickDueDate(assessment) : null,
-                    child: AbsorbPointer(
-                      child: TextField(
-                        decoration: InputDecoration(labelText: t.gsprAssessmentDueDateLabel),
-                        controller: TextEditingController(
-                          text: assessment.dueDate == null
-                              ? ''
-                              : DateFormat('yyyy-MM-dd').format(assessment.dueDate!),
+                    if (canAssess)
+                      TextButton.icon(
+                        onPressed: _addEvidence,
+                        icon: const Icon(Icons.add),
+                        label: Text(t.gsprEvidenceAdd),
+                      ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      enabled: canAssess,
+                      decoration: InputDecoration(labelText: t.gsprAssessmentOwnerLabel),
+                      controller: TextEditingController(text: assessment.owner)
+                        ..selection = TextSelection.collapsed(offset: assessment.owner.length),
+                      onChanged: (value) => setState(() {
+                        _draftAssessment = assessment.copyWith(owner: value);
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: canAssess ? () => _pickDueDate(assessment) : null,
+                      child: AbsorbPointer(
+                        child: TextField(
+                          decoration: InputDecoration(labelText: t.gsprAssessmentDueDateLabel),
+                          controller: TextEditingController(
+                            text: assessment.dueDate == null
+                                ? ''
+                                : DateFormat('yyyy-MM-dd').format(assessment.dueDate!),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('${t.gsprColumnUpdated}: $updatedAt'),
-                  Text('${t.gsprFieldUpdatedBy}: ${assessment.updatedBy.isEmpty ? '—' : assessment.updatedBy}'),
+                    const SizedBox(height: 16),
+                    Text('${t.gsprColumnUpdated}: $updatedAt'),
+                    Text('${t.gsprFieldUpdatedBy}: ${assessment.updatedBy.isEmpty ? '—' : assessment.updatedBy}'),
+                  ],
                 ],
               ),
             ),
-          ],
+          ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
