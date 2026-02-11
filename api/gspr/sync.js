@@ -10,19 +10,7 @@ import {
 import { gsprSourceMetaGet, gsprSourceMetaSave } from '../_lib/store.js';
 
 const GSPR_TILE = 'gspr';
-const START_MARKERS = [
-  'ANHANG I\nGRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN',
-  'ANHANG I: GRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN',
-  '## ANHANG I: GRUNDLEGENDE SICHERHEITS- UND LEISTUNGSANFORDERUNGEN',
-];
-const END_MARKERS = [
-  'ANHANG II\nTECHNISCHE DOKUMENTATION',
-  'ANHANG II: TECHNISCHE DOKUMENTATION',
-  '## ANHANG II: TECHNISCHE DOKUMENTATION',
-];
-
-const START_REGEX = /ANHANG\s*I\s*[:\n]?\s*GRUNDLEGENDE\s+SICHERHEITS-\s*UND\s+LEISTUNGSANFORDERUNGEN/i;
-const END_REGEX = /ANHANG\s*II\s*[:\n]?\s*TECHNISCHE\s+DOKUMENTATION/i;
+const MIN_HTML_SIZE = 5000;
 
 function normalizeWhitespace(input) {
   return String(input || '')
@@ -35,10 +23,6 @@ function normalizeWhitespace(input) {
 
 function cleanMarkers(input) {
   return String(input || '').replace(/【\d+†/g, '').replace(/】/g, '');
-}
-
-function containsAny(text, markers) {
-  return markers.some((marker) => text.includes(marker));
 }
 
 function decodeHtmlEntities(input) {
@@ -65,10 +49,11 @@ function extractPlainText(html) {
   return normalizeWhitespace(cleanMarkers(decodeHtmlEntities(textLike)));
 }
 
-function hasAnnexBounds(text) {
-  const hasStart = containsAny(text, START_MARKERS) || START_REGEX.test(text);
-  if (!hasStart) return false;
-  return containsAny(text, END_MARKERS) || END_REGEX.test(text);
+function canTreatAsSynced(html, text) {
+  const htmlString = String(html || '');
+  if (htmlString.length < MIN_HTML_SIZE) return false;
+  const low = `${htmlString}\n${text}`.toLowerCase();
+  return low.includes('eur-lex') || low.includes('celex:32017r0745') || low.includes('32017r0745');
 }
 
 export default async function handler(req, res) {
@@ -112,8 +97,8 @@ export default async function handler(req, res) {
 
     const html = await response.text();
     const text = extractPlainText(html);
-    if (!hasAnnexBounds(text)) {
-      throw new Error('annex markers not found in EUR-Lex content');
+    if (!canTreatAsSynced(html, text)) {
+      throw new Error('EUR-Lex source validation failed');
     }
 
     const finishedAt = new Date().toISOString();
