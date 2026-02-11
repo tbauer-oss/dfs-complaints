@@ -924,8 +924,8 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
                 ],
               ),
             ),
-          ),
-        );
+      )
+    );
   }
 
   void _addEvidence() {
