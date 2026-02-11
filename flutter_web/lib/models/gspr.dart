@@ -585,6 +585,9 @@ class GsprSummary {
   final DateTime? approvedAt;
   final String approvedBy;
   final bool readOnly;
+  final String sourceName;
+  final String sourcePermalink;
+  final DateTime? sourceLastSyncAt;
 
   const GsprSummary({
     required this.tdId,
@@ -595,6 +598,9 @@ class GsprSummary {
     required this.approvedAt,
     required this.approvedBy,
     required this.readOnly,
+    required this.sourceName,
+    required this.sourcePermalink,
+    required this.sourceLastSyncAt,
   });
 
   factory GsprSummary.fromJson(Map<String, dynamic> json) {
@@ -611,6 +617,11 @@ class GsprSummary {
       approvedAt: DateTime.tryParse(json['approvedAt']?.toString() ?? ''),
       approvedBy: (json['approvedBy'] ?? '').toString(),
       readOnly: json['readOnly'] == true,
+      sourceName: (json['source'] is Map ? (json['source']['name'] ?? '') : '').toString(),
+      sourcePermalink: (json['source'] is Map ? (json['source']['permalink'] ?? '') : '').toString(),
+      sourceLastSyncAt: DateTime.tryParse(
+        (json['source'] is Map ? json['source']['lastSyncAt'] : null)?.toString() ?? '',
+      ),
     );
   }
 }

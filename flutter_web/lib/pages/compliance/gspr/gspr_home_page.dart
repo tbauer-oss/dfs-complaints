@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../api/client.dart';
 import '../../../l10n/app_localizations.dart';
@@ -25,6 +27,9 @@ class GsprHomePage extends StatefulWidget {
 }
 
 class _GsprHomePageState extends State<GsprHomePage> {
+  static const String _fallbackSourceName = 'EUR-Lex / Access to European Union law';
+  static const String _fallbackSourcePermalink = 'https://eur-lex.europa.eu/legal-content/de/ALL/?uri=CELEX:32017R0745';
+
   bool _loading = false;
   String? _error;
   List<GsprTdOption> _tds = const [];
@@ -37,6 +42,17 @@ class _GsprHomePageState extends State<GsprHomePage> {
   void initState() {
     super.initState();
     _loadTds();
+  }
+
+  Future<void> _openSourcePermalink(String permalink) async {
+    final uri = Uri.tryParse(permalink);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _formatSyncDate(DateTime? value) {
+    if (value == null) return '—';
+    return DateFormat('dd.MM.yyyy HH:mm').format(value.toLocal());
   }
 
   Future<void> _exportPdf() async {
@@ -245,6 +261,8 @@ class _GsprHomePageState extends State<GsprHomePage> {
               children: [
                 Text(t.gsprPageTitle, style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 12),
+                _buildSourceInfo(theme),
+                const SizedBox(height: 12),
                 if (_loading) const LinearProgressIndicator(),
                 if (_error != null)
                   Padding(
@@ -356,6 +374,51 @@ class _GsprHomePageState extends State<GsprHomePage> {
         ),
         if (_exportingPdf) _buildExportOverlay(theme),
       ],
+    );
+  }
+
+  Widget _buildSourceInfo(ThemeData theme) {
+    final sourceName = _summary?.sourceName.trim().isNotEmpty == true
+        ? _summary!.sourceName.trim()
+        : _fallbackSourceName;
+    final permalink = _summary?.sourcePermalink.trim().isNotEmpty == true
+        ? _summary!.sourcePermalink.trim()
+        : _fallbackSourcePermalink;
+    final syncDate = _formatSyncDate(_summary?.sourceLastSyncAt);
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quelle der GSPR-Texte: $sourceName',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Der EUR-Lex-Permalink verweist immer auf die aktuelle konsolidierte Fassung.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Letzte Synchronisierung: $syncDate',
+              style: theme.textTheme.bodySmall,
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _openSourcePermalink(permalink),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Permalink öffnen'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
