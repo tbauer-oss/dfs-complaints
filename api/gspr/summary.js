@@ -8,8 +8,14 @@ import {
   gsprAssessmentHasContent,
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
+  gsprSourceMetaGet,
 } from '../_lib/store.js';
-import { gsprAssessableItemsByChapter } from '../_lib/gsprRequirements.js';
+import {
+  GSPR_LAST_SYNC_AT,
+  GSPR_SOURCE_NAME,
+  GSPR_SOURCE_PERMALINK,
+  gsprAssessableItemsByChapter,
+} from '../_lib/gsprRequirements.js';
 import { resolveGsprTdInfo } from '../_lib/gsprTdOptions.js';
 
 const GSPR_TILE = 'gspr';
@@ -51,6 +57,7 @@ export default async function handler(req, res) {
     });
 
     const readOnly = td.active === false || Boolean(td.archivedAt);
+    const sourceMeta = await gsprSourceMetaGet();
 
     return ok(res, {
       ok: true,
@@ -62,6 +69,14 @@ export default async function handler(req, res) {
       approvedBy: signoff.approvedBy,
       chapters,
       readOnly,
+      source: {
+        name: sourceMeta.name || GSPR_SOURCE_NAME,
+        permalink: sourceMeta.permalink || GSPR_SOURCE_PERMALINK,
+        lastSyncAt: sourceMeta.lastSyncAt || GSPR_LAST_SYNC_AT,
+        lastAttemptAt: sourceMeta.lastAttemptAt || null,
+        lastError: sourceMeta.lastError || '',
+        updatedBy: sourceMeta.updatedBy || '',
+      },
     });
   } catch (err) {
     console.error('[gspr/summary] error', err);
