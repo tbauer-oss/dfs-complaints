@@ -10,6 +10,12 @@ import '../models/gspr.dart';
 
 const _yieldEveryRows = 120;
 const _webYieldEveryRows = 20;
+const _maxRowsPerChapter = 2200;
+const _maxChunksPerRequirement = 6;
+const _maxTotalRows = 5000;
+const _webMaxRowsPerChapter = 1200;
+const _webMaxChunksPerRequirement = 4;
+const _webMaxTotalRows = 3000;
 
 class DfsCiTheme {
   final PdfColor primaryColor;
@@ -440,6 +446,8 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
 
 Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
   final sections = <_ExportSection>[];
+  final limits = _currentLimits();
+  var totalRows = 0;
   var rowsSinceLastYield = 0;
   final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
 
@@ -502,6 +510,7 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
             comments: _commentsText(assessment),
           ),
         );
+        totalRows++;
         rowsSinceLastYield++;
         await yieldToUiIfNeeded();
 
