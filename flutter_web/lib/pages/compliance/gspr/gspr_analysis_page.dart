@@ -677,28 +677,33 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
     }
 
     final completed = summary.fulfilled + summary.notApplicable;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _KpiChip(label: t.gsprAnalysisSummaryTotal, value: summary.total.toString()),
-        Tooltip(
-          message: '${t.gsprAnalysisSummaryFulfilled}: ${summary.fulfilled}\n'
-              '${t.gsprAnalysisSummaryNotApplicable}: ${summary.notApplicable}',
-          child: _KpiChip(label: t.gsprAnalysisSummaryCompleted, value: completed.toString()),
-        ),
-        _KpiChip(label: t.gsprAnalysisSummaryOpen, value: summary.open.toString()),
-        _KpiChip(
-          label: t.gsprAnalysisSummaryOverdue,
-          value: summary.overdue.toString(),
-          accent: theme.colorScheme.error,
-        ),
-        _KpiChip(
-          label: t.gsprAnalysisSummaryDueSoon,
-          value: summary.dueSoon.toString(),
-          accent: theme.colorScheme.secondary,
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _KpiChip(label: t.gsprAnalysisSummaryTotal, value: summary.total.toString()),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: '${t.gsprAnalysisSummaryFulfilled}: ${summary.fulfilled}\n'
+                '${t.gsprAnalysisSummaryNotApplicable}: ${summary.notApplicable}',
+            child: _KpiChip(label: t.gsprAnalysisSummaryCompleted, value: completed.toString()),
+          ),
+          const SizedBox(width: 8),
+          _KpiChip(label: t.gsprAnalysisSummaryOpen, value: summary.open.toString()),
+          const SizedBox(width: 8),
+          _KpiChip(
+            label: t.gsprAnalysisSummaryOverdue,
+            value: summary.overdue.toString(),
+            accent: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 8),
+          _KpiChip(
+            label: t.gsprAnalysisSummaryDueSoon,
+            value: summary.dueSoon.toString(),
+            accent: theme.colorScheme.secondary,
+          ),
+        ],
+      ),
     );
   }
 
@@ -732,39 +737,43 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
 
 
   Widget _buildQuickFilterChips(AppLocalizations t) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        FilterChip(
-          label: Text(t.gsprAnalysisFilterOpenOnly),
-          selected: onlyOpen,
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onSelected: onToggleOpenOnly,
-        ),
-        FilterChip(
-          label: Text(t.gsprAnalysisFilterOverdueOnly),
-          selected: onlyOverdue,
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onSelected: onToggleOverdueOnly,
-        ),
-        FilterChip(
-          label: Text(t.gsprAnalysisFilterDueSoonOnly),
-          selected: onlyDueSoon,
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onSelected: onToggleDueSoonOnly,
-        ),
-        FilterChip(
-          label: Text(t.gsprAnalysisFilterMissingEvidence),
-          selected: onlyMissingEvidence,
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onSelected: onToggleMissingEvidence,
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterOpenOnly),
+            selected: onlyOpen,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleOpenOnly,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterOverdueOnly),
+            selected: onlyOverdue,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleOverdueOnly,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterDueSoonOnly),
+            selected: onlyDueSoon,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleDueSoonOnly,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: Text(t.gsprAnalysisFilterMissingEvidence),
+            selected: onlyMissingEvidence,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onSelected: onToggleMissingEvidence,
+          ),
+        ],
+      ),
     );
   }
 

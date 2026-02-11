@@ -348,14 +348,12 @@ class _GsprHomePageState extends State<GsprHomePage> {
         DefaultTabController(
           length: 2,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(t.gsprPageTitle, style: theme.textTheme.headlineSmall),
-                const SizedBox(height: 12),
-                _buildSourceInfo(theme),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 if (_loading) const LinearProgressIndicator(),
                 if (_error != null)
                   Padding(
@@ -381,73 +379,89 @@ class _GsprHomePageState extends State<GsprHomePage> {
                       ),
                     ),
                   ),
-                DropdownButtonFormField<GsprTdOption>(
-                  value: selected,
-                  decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
-                  items: _tds
-                      .map(
-                        (td) => DropdownMenuItem(
-                          value: td,
-                          child: Text(td.displayLabel),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (td) {
-                    setState(() {
-                      GsprTdState.selectedTd.value = td;
-                      _summary = null;
-                    });
-                    if (td != null) {
-                      _handleTdSelection(td);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                if (selected != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
+                Material(
+                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.32),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Text(
-                            '${t.gsprSelectTdLabel}: ${selected.displayLabel}',
-                            style: theme.textTheme.bodySmall,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<GsprTdOption>(
+                                value: selected,
+                                decoration: InputDecoration(labelText: t.gsprSelectTdLabel),
+                                items: _tds
+                                    .map(
+                                      (td) => DropdownMenuItem(
+                                        value: td,
+                                        child: Text(td.displayLabel, overflow: TextOverflow.ellipsis),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (td) {
+                                  setState(() {
+                                    GsprTdState.selectedTd.value = td;
+                                    _summary = null;
+                                  });
+                                  if (td != null) {
+                                    _handleTdSelection(td);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            FilledButton.icon(
+                              onPressed: _exportingPdf || !canExport ? null : _exportPdf,
+                              icon: _exportingPdf
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.picture_as_pdf_outlined),
+                              label: const Text('Export PDF'),
+                            ),
+                          ],
+                        ),
+                        if (selected == null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                t.gsprSelectTdHint,
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                              ),
+                            ),
                           ),
-                        ),
-                        FilledButton.icon(
-                          onPressed: _exportingPdf || !canExport ? null : _exportPdf,
-                          icon: _exportingPdf
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.picture_as_pdf_outlined),
-                          label: const Text('Export PDF'),
-                        ),
+                        if (selected != null && _summary != null && _summary!.readOnly)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                t.gsprTdReadOnlyHint,
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                if (selected == null)
-                  Text(
-                    t.gsprSelectTdHint,
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                  ),
-                if (selected != null && _summary != null && _summary!.readOnly)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      t.gsprTdReadOnlyHint,
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
-                    ),
-                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildSourceInfo(theme),
+                const SizedBox(height: 8),
                 TabBar(
                   tabs: [
                     Tab(text: t.gsprTabAssessments),
                     Tab(text: t.gsprTabAnalysis),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Expanded(
                   child: TabBarView(
                     children: [
@@ -477,96 +491,77 @@ class _GsprHomePageState extends State<GsprHomePage> {
     final permalink = _summary?.sourcePermalink.trim().isNotEmpty == true
         ? _summary!.sourcePermalink.trim()
         : _fallbackSourcePermalink;
-    final syncDate = _formatSyncDate(_summary?.sourceLastSyncAt);
 
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
+      color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.22),
       borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.verified_user_outlined, color: theme.colorScheme.primary, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Offizielle EU-Rechtsquelle: $sourceName',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Die Daten stammen aus EUR-Lex (offizielle Homepage der EU-Kommission) und werden aus der konsolidierten Fassung geprüft.',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Letzte erfolgreiche Synchronisierung: $syncDate',
-              style: theme.textTheme.bodySmall,
-            ),
-            Text(
-              'Letzter Synchronisierungsversuch: ${_formatSyncDate(_summary?.sourceLastAttemptAt)}',
-              style: theme.textTheme.bodySmall,
-            ),
-            if ((_summary?.sourceLastChangeSummary ?? '').trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Material(
-                  color: theme.colorScheme.tertiaryContainer.withOpacity(0.55),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    child: Text(
-                      'Änderungsprotokoll: ${_summary!.sourceLastChangeSummary}',
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onTertiaryContainer),
-                    ),
-                  ),
-                ),
-              ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _openSourcePermalink(permalink),
-                  icon: const Icon(Icons.open_in_new, size: 16),
-                  label: const Text('Permalink öffnen'),
-                ),
-                if (widget.access.canEdit)
-                  FilledButton.icon(
-                    onPressed: _syncingSource ? null : () => _syncSourceNow(userInitiated: true),
-                    icon: _syncingSource
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.sync),
-                    label: const Text('Jetzt synchronisieren'),
-                  ),
-              ],
-            ),
-            if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Letzter Sync-Fehler: ${_summary!.sourceLastError}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
-                ),
-              ),
-          ],
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        leading: Icon(Icons.verified_user_outlined, color: theme.colorScheme.primary, size: 18),
+        title: Text(
+          'EU-Rechtsquelle: $sourceName',
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        subtitle: Text(
+          'Sync: ${_formatSyncDate(_summary?.sourceLastSyncAt)} · Versuch: ${_formatSyncDate(_summary?.sourceLastAttemptAt)}',
+          style: theme.textTheme.bodySmall,
+        ),
+        children: [
+          Text(
+            'Die Daten stammen aus EUR-Lex (offizielle Homepage der EU-Kommission) und werden aus der konsolidierten Fassung geprüft.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: () => _openSourcePermalink(permalink),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Permalink öffnen'),
+              ),
+              if (widget.access.canEdit)
+                FilledButton.icon(
+                  onPressed: _syncingSource ? null : () => _syncSourceNow(userInitiated: true),
+                  icon: _syncingSource
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync),
+                  label: const Text('Jetzt synchronisieren'),
+                ),
+            ],
+          ),
+          if ((_summary?.sourceLastChangeSummary ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Material(
+                color: theme.colorScheme.tertiaryContainer.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Text(
+                    'Änderungsprotokoll: ${_summary!.sourceLastChangeSummary}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onTertiaryContainer),
+                  ),
+                ),
+              ),
+            ),
+          if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Letzter Sync-Fehler: ${_summary!.sourceLastError}',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+              ),
+            ),
+        ],
       ),
     );
   }
