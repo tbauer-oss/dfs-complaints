@@ -110,6 +110,7 @@ const mem = {
   gsprTdSignoff: new Map(),
   gsprItems: new Map(),
   gsprAudit: new Map(),
+  gsprSourceMeta: null,
   auditors: new Map(),
   auditorIndex: new Set(),
   auditPrograms: new Map(),
@@ -4276,6 +4277,7 @@ const KEY_GSPR_ASSESSMENT = (id) => `${P}gspr:assessment:${id}`;
 const KEY_GSPR_ASSESSMENT_INDEX = (tdId) => `${P}gspr:td:${tdId}:assessments`;
 const KEY_GSPR_ASSESSMENT_HISTORY = (id) => `${P}gspr:assessment:${id}:history`;
 const KEY_GSPR_TD_SIGNOFF = (tdId) => `${P}gspr:td:${tdId}:signoff`;
+const KEY_GSPR_SOURCE_META = `${P}gspr:source:meta`;
 
 const GSPR_TD_STATUSES = new Set(['draft', 'in_review', 'approved']);
 const GSPR_ASSESSMENT_STATUSES = new Set([
@@ -4359,6 +4361,17 @@ function normalizeGsprTdSignoff(input = {}) {
   };
 }
 
+function normalizeGsprSourceMeta(input = {}) {
+  return {
+    name: _text(input.name, 200),
+    permalink: _text(input.permalink, 500),
+    lastSyncAt: parseDate(input.lastSyncAt),
+    lastAttemptAt: parseDate(input.lastAttemptAt),
+    lastError: _text(input.lastError, 1000),
+    updatedBy: _text(input.updatedBy, 120),
+  };
+}
+
 async function gsprAssessmentIndexGet(tdId) {
   if (!tdId) return [];
   const key = KEY_GSPR_ASSESSMENT_INDEX(tdId);
@@ -4425,6 +4438,22 @@ export async function gsprTdSignoffSave(tdId, patch = {}) {
   if (r) await rset(key, next); else {
     if (!mem.gsprTdSignoff) mem.gsprTdSignoff = new Map();
     mem.gsprTdSignoff.set(tdId, next);
+  }
+  return next;
+}
+
+export async function gsprSourceMetaGet() {
+  const r = getRedis();
+  const direct = r ? await rget(KEY_GSPR_SOURCE_META) : mem.gsprSourceMeta || null;
+  return normalizeGsprSourceMeta(direct || {});
+}
+
+export async function gsprSourceMetaSave(patch = {}) {
+  const current = await gsprSourceMetaGet();
+  const next = normalizeGsprSourceMeta({ ...current, ...patch });
+  const r = getRedis();
+  if (r) await rset(KEY_GSPR_SOURCE_META, next); else {
+    mem.gsprSourceMeta = next;
   }
   return next;
 }
