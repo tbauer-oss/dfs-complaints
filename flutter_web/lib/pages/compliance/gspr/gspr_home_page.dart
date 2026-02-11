@@ -314,13 +314,6 @@ class _GsprHomePageState extends State<GsprHomePage> {
     });
   }
 
-  void _closeChapterInternal() {
-    setState(() {
-      _activeChapter = null;
-      _initialRequirementId = null;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -331,26 +324,13 @@ class _GsprHomePageState extends State<GsprHomePage> {
     if (_activeChapter != null) {
       return Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextButton.icon(
-              onPressed: _closeChapterInternal,
-              icon: const Icon(Icons.arrow_back),
-              label: Text(MaterialLocalizations.of(context).backButtonTooltip),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: GsprChapterPage(
-                chapter: _activeChapter!,
-                api: widget.api,
-                access: widget.access,
-                tdOverride: selected,
-                initialRequirementId: _initialRequirementId,
-                key: ValueKey('${_activeChapter!}:${selected?.id ?? ''}:${_initialRequirementId ?? ''}'),
-              ),
-            ),
-          ],
+        child: GsprChapterPage(
+          chapter: _activeChapter!,
+          api: widget.api,
+          access: widget.access,
+          tdOverride: selected,
+          initialRequirementId: _initialRequirementId,
+          key: ValueKey('${_activeChapter!}:${selected?.id ?? ''}:${_initialRequirementId ?? ''}'),
         ),
       );
     }
