@@ -17,7 +17,6 @@ const _maxTotalRows = 5000;
 const _webMaxRowsPerChapter = 1200;
 const _webMaxChunksPerRequirement = 4;
 const _webMaxTotalRows = 3000;
-const _tableChunkSize = 250;
 
 class DfsCiTheme {
   final PdfColor primaryColor;

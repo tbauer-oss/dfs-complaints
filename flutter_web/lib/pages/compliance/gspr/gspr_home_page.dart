@@ -95,10 +95,13 @@ class _GsprHomePageState extends State<GsprHomePage> {
           debugPrint('[GSPR][Export] Fallback Printing.sharePdf started successfully.');
         }
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[GSPR][Export] Export failed: $e');
+      debugPrint('$st');
       if (!mounted) return;
-      setState(() => _error = e.toString());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final message = e.toString();
+      setState(() => _error = message);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() => _exportingPdf = false);
