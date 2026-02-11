@@ -98,6 +98,33 @@ class _ExportRow {
   });
 }
 
+class _ExportLimits {
+  final int maxRowsPerChapter;
+  final int maxChunksPerRequirement;
+  final int maxTotalRows;
+
+  const _ExportLimits({
+    required this.maxRowsPerChapter,
+    required this.maxChunksPerRequirement,
+    required this.maxTotalRows,
+  });
+}
+
+_ExportLimits _currentLimits() {
+  if (kIsWeb) {
+    return const _ExportLimits(
+      maxRowsPerChapter: _webMaxRowsPerChapter,
+      maxChunksPerRequirement: _webMaxChunksPerRequirement,
+      maxTotalRows: _webMaxTotalRows,
+    );
+  }
+  return const _ExportLimits(
+    maxRowsPerChapter: _maxRowsPerChapter,
+    maxChunksPerRequirement: _maxChunksPerRequirement,
+    maxTotalRows: _maxTotalRows,
+  );
+}
+
 Future<Uint8List> buildGsprPdf({
   required String mdrTd,
   required GsprExportModel model,
@@ -438,6 +465,10 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
     Future<void> walk(String? parentId, Set<String> ancestry) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
+        if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
+          return;
+        }
+
         final req = entry.requirement;
         final reqId = req.id.trim();
         final reqKey = reqId.isNotEmpty
