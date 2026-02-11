@@ -503,9 +503,13 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
                           : LayoutBuilder(
                               builder: (context, constraints) {
                                 const minTableWidth = 1240.0;
+                                const headerHeight = 45.0;
                                 final tableWidth = constraints.maxWidth > minTableWidth
                                     ? constraints.maxWidth
                                     : minTableWidth;
+                                final tableHeight = constraints.maxHeight;
+                                final rowsViewportHeight =
+                                    (tableHeight - headerHeight).clamp(120.0, double.infinity);
 
                                 return Scrollbar(
                                   controller: _tableHorizontalController,
@@ -515,13 +519,15 @@ class _GsprAnalysisTabState extends State<GsprAnalysisTab> {
                                   child: SingleChildScrollView(
                                     controller: _tableHorizontalController,
                                     scrollDirection: Axis.horizontal,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(minWidth: tableWidth),
+                                    child: SizedBox(
+                                      width: tableWidth,
+                                      height: tableHeight,
                                       child: Column(
                                         children: [
                                           _buildStickyHeader(t, tableWidth),
                                           const Divider(height: 1),
-                                          Expanded(
+                                          SizedBox(
+                                            height: rowsViewportHeight,
                                             child: Scrollbar(
                                               controller: _tableVerticalController,
                                               thumbVisibility: true,
