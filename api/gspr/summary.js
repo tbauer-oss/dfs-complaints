@@ -8,6 +8,7 @@ import {
   gsprAssessmentHasContent,
   gsprEnsureAssessmentsForTd,
   gsprTdSignoffGet,
+  gsprSourceMetaGet,
 } from '../_lib/store.js';
 import {
   GSPR_LAST_SYNC_AT,
@@ -56,6 +57,7 @@ export default async function handler(req, res) {
     });
 
     const readOnly = td.active === false || Boolean(td.archivedAt);
+    const sourceMeta = await gsprSourceMetaGet();
 
     return ok(res, {
       ok: true,
@@ -68,9 +70,12 @@ export default async function handler(req, res) {
       chapters,
       readOnly,
       source: {
-        name: GSPR_SOURCE_NAME,
-        permalink: GSPR_SOURCE_PERMALINK,
-        lastSyncAt: GSPR_LAST_SYNC_AT,
+        name: sourceMeta.name || GSPR_SOURCE_NAME,
+        permalink: sourceMeta.permalink || GSPR_SOURCE_PERMALINK,
+        lastSyncAt: sourceMeta.lastSyncAt || GSPR_LAST_SYNC_AT,
+        lastAttemptAt: sourceMeta.lastAttemptAt || null,
+        lastError: sourceMeta.lastError || '',
+        updatedBy: sourceMeta.updatedBy || '',
       },
     });
   } catch (err) {

@@ -588,6 +588,9 @@ class GsprSummary {
   final String sourceName;
   final String sourcePermalink;
   final DateTime? sourceLastSyncAt;
+  final DateTime? sourceLastAttemptAt;
+  final String sourceLastError;
+  final String sourceUpdatedBy;
 
   const GsprSummary({
     required this.tdId,
@@ -601,6 +604,9 @@ class GsprSummary {
     required this.sourceName,
     required this.sourcePermalink,
     required this.sourceLastSyncAt,
+    required this.sourceLastAttemptAt,
+    required this.sourceLastError,
+    required this.sourceUpdatedBy,
   });
 
   factory GsprSummary.fromJson(Map<String, dynamic> json) {
@@ -622,6 +628,43 @@ class GsprSummary {
       sourceLastSyncAt: DateTime.tryParse(
         (json['source'] is Map ? json['source']['lastSyncAt'] : null)?.toString() ?? '',
       ),
+      sourceLastAttemptAt: DateTime.tryParse(
+        (json['source'] is Map ? json['source']['lastAttemptAt'] : null)?.toString() ?? '',
+      ),
+      sourceLastError: (json['source'] is Map ? (json['source']['lastError'] ?? '') : '').toString(),
+      sourceUpdatedBy: (json['source'] is Map ? (json['source']['updatedBy'] ?? '') : '').toString(),
+    );
+  }
+}
+
+
+@immutable
+class GsprSourceSyncResult {
+  final String sourceName;
+  final String sourcePermalink;
+  final DateTime? lastSyncAt;
+  final DateTime? lastAttemptAt;
+  final String lastError;
+  final String updatedBy;
+
+  const GsprSourceSyncResult({
+    required this.sourceName,
+    required this.sourcePermalink,
+    required this.lastSyncAt,
+    required this.lastAttemptAt,
+    required this.lastError,
+    required this.updatedBy,
+  });
+
+  factory GsprSourceSyncResult.fromJson(Map<String, dynamic> json) {
+    final source = json['source'] is Map ? (json['source'] as Map).cast<String, dynamic>() : const <String, dynamic>{};
+    return GsprSourceSyncResult(
+      sourceName: (source['name'] ?? '').toString(),
+      sourcePermalink: (source['permalink'] ?? '').toString(),
+      lastSyncAt: DateTime.tryParse(source['lastSyncAt']?.toString() ?? ''),
+      lastAttemptAt: DateTime.tryParse(source['lastAttemptAt']?.toString() ?? ''),
+      lastError: (source['lastError'] ?? '').toString(),
+      updatedBy: (source['updatedBy'] ?? '').toString(),
     );
   }
 }

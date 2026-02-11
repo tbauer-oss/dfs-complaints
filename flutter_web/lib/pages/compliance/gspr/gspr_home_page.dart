@@ -37,6 +37,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
   String? _activeChapter;
   String? _initialRequirementId;
   bool _exportingPdf = false;
+  bool _syncingSource = false;
 
   @override
   void initState() {
@@ -53,6 +54,30 @@ class _GsprHomePageState extends State<GsprHomePage> {
   String _formatSyncDate(DateTime? value) {
     if (value == null) return '—';
     return DateFormat('dd.MM.yyyy HH:mm').format(value.toLocal());
+  }
+
+  Future<void> _syncSourceNow() async {
+    if (_syncingSource) return;
+    setState(() {
+      _syncingSource = true;
+      _error = null;
+    });
+    try {
+      await widget.api.gsprSyncSource();
+      final selected = GsprTdState.selectedTd.value;
+      if (selected != null) {
+        await _loadSummary(selected.id);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GSPR-Synchronisierung erfolgreich gestartet/aktualisiert.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Synchronisierung fehlgeschlagen: $e')));
+    } finally {
+      if (mounted) setState(() => _syncingSource = false);
+    }
   }
 
   Future<void> _exportPdf() async {
@@ -413,14 +438,41 @@ class _GsprHomePageState extends State<GsprHomePage> {
               'Letzte Synchronisierung: $syncDate',
               style: theme.textTheme.bodySmall,
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => _openSourcePermalink(permalink),
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('Permalink öffnen'),
-              ),
+            Text(
+              'Letzter Synchronisierungsversuch: ${_formatSyncDate(_summary?.sourceLastAttemptAt)}',
+              style: theme.textTheme.bodySmall,
             ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _openSourcePermalink(permalink),
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('Permalink öffnen'),
+                ),
+                if (widget.access.canEdit)
+                  FilledButton.icon(
+                    onPressed: _syncingSource ? null : _syncSourceNow,
+                    icon: _syncingSource
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sync),
+                    label: const Text('Jetzt synchronisieren'),
+                  ),
+              ],
+            ),
+            if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Letzter Sync-Fehler: ${_summary!.sourceLastError}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                ),
+              ),
           ],
         ),
       ),
