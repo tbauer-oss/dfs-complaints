@@ -54,7 +54,9 @@ class _GsprHomePageState extends State<GsprHomePage> {
       _exportingPdf = true;
       _error = null;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 32));
+    // Ensure the export overlay is painted before PDF generation starts.
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+    await Future<void>.delayed(const Duration(milliseconds: 16));
     try {
       debugPrint('[GSPR][Export] Start export for TD ${selected.id} (${selected.displayCode}).');
       final chapters = <GsprExportChapter>[];

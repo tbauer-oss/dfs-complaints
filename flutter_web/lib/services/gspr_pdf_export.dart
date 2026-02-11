@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -141,7 +142,7 @@ Future<Uint8List> buildGsprPdf({
   debugPrint('[GSPR][PDF] Fonts loaded.');
   final logoBytes = await _loadLogoBytes();
   debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
-  final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
+  final doc = pw.Document(title: 'DFS Connect+ - GSPR Report', compress: true);
   final sections = await _buildSections(model);
   final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
   debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
@@ -354,9 +355,10 @@ List<pw.Widget> _buildSectionTables({
   final widgets = <pw.Widget>[];
   for (var i = 0; i < sections.length; i++) {
     final section = sections[i];
-    widgets
-      ..add(_buildChapterBand(section.chapterTitle, ci, textTheme))
-      ..add(
+    widgets.add(_buildChapterBand(section.chapterTitle, ci, textTheme));
+
+    if (section.rows.length <= _tableChunkSize) {
+      widgets.add(
         pw.Table(
           border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
           columnWidths: columnWidths,
@@ -364,6 +366,24 @@ List<pw.Widget> _buildSectionTables({
           children: _buildTableRows(section.rows, ci, textTheme),
         ),
       );
+    } else {
+      for (var offset = 0; offset < section.rows.length; offset += _tableChunkSize) {
+        final end = math.min(offset + _tableChunkSize, section.rows.length);
+        final chunk = section.rows.sublist(offset, end);
+        widgets.add(
+          pw.Table(
+            border: pw.TableBorder.all(color: ci.neutralMid, width: 0.4),
+            columnWidths: columnWidths,
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.top,
+            children: _buildTableRows(chunk, ci, textTheme, rowOffset: offset),
+          ),
+        );
+        if (end < section.rows.length) {
+          widgets.add(pw.SizedBox(height: 2));
+        }
+      }
+    }
+
     if (i != sections.length - 1) {
       widgets.add(pw.SizedBox(height: 4));
     }
@@ -387,14 +407,20 @@ pw.Widget _buildChapterBand(String chapterTitle, DfsCiTheme ci, _PdfTextTheme te
   );
 }
 
-List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfTextTheme textTheme) {
+List<pw.TableRow> _buildTableRows(
+  List<_ExportRow> rows,
+  DfsCiTheme ci,
+  _PdfTextTheme textTheme, {
+  int rowOffset = 0,
+}) {
   final result = <pw.TableRow>[];
 
   for (var i = 0; i < rows.length; i++) {
     final row = rows[i];
+    final rowIndex = rowOffset + i;
     final bg = row.isSectionRow
         ? ci.neutralLight
-        : (i.isEven ? PdfColors.white : PdfColor.fromInt(0xFFFAFBFD));
+        : (rowIndex.isEven ? PdfColors.white : PdfColor.fromInt(0xFFFAFBFD));
 
     pw.Widget txt(String value, {bool bold = false}) => pw.Padding(
           padding: const pw.EdgeInsets.all(3.5),
