@@ -8,17 +8,8 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/gspr.dart';
 
-const _maxRowsPerChapter = 1800;
-const _maxChunksPerRequirement = 40;
-const _maxTotalRows = 3200;
-const _webMaxRowsPerChapter = 120;
-const _webMaxChunksPerRequirement = 3;
-const _webMaxTotalRows = 240;
 const _yieldEveryRows = 120;
 const _webYieldEveryRows = 20;
-const _webLightMaxRowsTotal = 120;
-const _webLightMaxRowsPerChapter = 45;
-
 
 class DfsCiTheme {
   final PdfColor primaryColor;
@@ -145,7 +136,7 @@ Future<Uint8List> buildGsprPdf({
   final logoBytes = await _loadLogoBytes();
   debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
-  final sections = kIsWeb ? _buildSectionsLightweightWeb(model) : await _buildSections(model);
+  final sections = await _buildSections(model);
   final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
   debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
   final textTheme = _buildTextTheme(ci);
@@ -447,81 +438,9 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
   return result;
 }
 
-List<_ExportSection> _buildSectionsLightweightWeb(GsprExportModel model) {
-  final sections = <_ExportSection>[];
-  var totalRows = 0;
-
-  for (final chapter in model.chapters) {
-    if (totalRows >= _webLightMaxRowsTotal) break;
-
-    final safeChapterTitle = sanitizeText(chapter.chapterTitle);
-    final rows = <_ExportRow>[];
-
-    final sorted = [...chapter.entries]
-      ..sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
-
-    for (final entry in sorted) {
-      if (rows.length >= _webLightMaxRowsPerChapter || totalRows >= _webLightMaxRowsTotal) {
-        break;
-      }
-
-      final req = entry.requirement;
-      final assessment = entry.assessment;
-      final requirement = _truncate('${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}', 220);
-      final evidence = _evidenceLines(assessment);
-
-      rows.add(
-        _ExportRow(
-          chapterTitle: safeChapterTitle,
-          isChapterBand: false,
-          isSectionRow: !req.isAssessable,
-          mdrRef: _truncate(_safe(req.ref), 70),
-          requirement: requirement,
-          status: _statusText(assessment, req.isAssessable),
-          evaluation: _truncate(_evaluationText(assessment), 140),
-          rationale: _truncate(_rationaleText(assessment), 120),
-          evidence: evidence.isEmpty ? const [] : [_truncate(evidence.first, 120)],
-          owner: _truncate(_safe(assessment?.owner), 32),
-          dueDate: _formatDate(assessment?.dueDate),
-          lastUpdate: _formatDate(assessment?.updatedAt),
-          comments: _truncate(_commentsText(assessment), 120),
-        ),
-      );
-      totalRows++;
-    }
-
-    if (rows.isNotEmpty) {
-      if (rows.length >= _webLightMaxRowsPerChapter || totalRows >= _webLightMaxRowsTotal) {
-        rows.add(
-          const _ExportRow(
-            chapterTitle: '',
-            isChapterBand: false,
-            isSectionRow: false,
-            mdrRef: '',
-            requirement: '',
-            status: '',
-            evaluation: '',
-            rationale: '',
-            evidence: const [],
-            owner: '',
-            dueDate: '',
-            lastUpdate: '',
-            comments: 'Web export shortened for browser performance.',
-          ),
-        );
-      }
-      sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
-    }
-  }
-
-  return sections;
-}
-
 Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
-  final limits = _currentLimits();
   final sections = <_ExportSection>[];
   var rowsSinceLastYield = 0;
-  var totalRows = 0;
   final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
 
   Future<void> yieldToUiIfNeeded() async {
@@ -543,9 +462,7 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
       list.sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
     }
 
-    final visited = <String>{};
-
-    Future<void> walk(String? parentId) async {
+    Future<void> walk(String? parentId, Set<String> ancestry) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
         if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
@@ -556,119 +473,52 @@ Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
         final reqId = req.id.trim();
         final reqKey = reqId.isNotEmpty
             ? reqId
-            : '${req.sortKey}|${req.parentId ?? ''}|${req.ref}|${req.title}|${req.level}';
-        if (!visited.add(reqKey)) {
-          debugPrint('[GSPR][PDF] Skipping recursive requirement reference: $reqKey');
+            : '${req.parentId ?? ''}|${req.sortKey}|${req.ref}|${req.title}|${req.level}';
+        if (ancestry.contains(reqKey)) {
+          debugPrint('[GSPR][PDF] Skipping recursive requirement cycle: $reqKey');
           continue;
         }
 
+        final nextAncestry = <String>{...ancestry, reqKey};
         final assessment = entry.assessment;
         final hasChildren = reqId.isNotEmpty && (byParent[reqId] ?? const []).isNotEmpty;
         final isSection = !req.isAssessable && hasChildren;
-        final status = isSection ? '' : _statusText(assessment, req.isAssessable);
         final requirementText = '${'  ' * req.level}${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}'.trim();
-        final chunks = _splitForPage(
-          requirement: requirementText,
-          evaluation: _evaluationText(assessment),
-          rationale: _rationaleText(assessment),
-          comments: _commentsText(assessment),
-          evidence: _evidenceLines(assessment),
+
+        rows.add(
+          _ExportRow(
+            chapterTitle: safeChapterTitle,
+            isChapterBand: false,
+            isSectionRow: isSection,
+            mdrRef: _safe(req.ref),
+            requirement: requirementText,
+            status: _statusText(assessment, req.isAssessable),
+            evaluation: _evaluationText(assessment),
+            rationale: _rationaleText(assessment),
+            evidence: _evidenceLines(assessment),
+            owner: _safe(assessment?.owner),
+            dueDate: _formatDate(assessment?.dueDate),
+            lastUpdate: _formatDate(assessment?.updatedAt),
+            comments: _commentsText(assessment),
+          ),
         );
-        final limitedChunks = chunks.length > limits.maxChunksPerRequirement
-            ? chunks.take(limits.maxChunksPerRequirement).toList(growable: false)
-            : chunks;
-
-        for (var i = 0; i < limitedChunks.length; i++) {
-          if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
-            break;
-          }
-          final chunk = limitedChunks[i];
-          rows.add(
-            _ExportRow(
-              chapterTitle: safeChapterTitle,
-              isChapterBand: false,
-              isSectionRow: isSection,
-              mdrRef: i == 0 ? _safe(req.ref) : '',
-              requirement: i == 0 ? chunk.requirement : '${chunk.requirement} (cont.)',
-              status: i == 0 ? status : '',
-              evaluation: chunk.evaluation,
-              rationale: chunk.rationale,
-              evidence: chunk.evidence,
-              owner: i == 0 ? _safe(assessment?.owner) : '',
-              dueDate: i == 0 ? _formatDate(assessment?.dueDate) : '',
-              lastUpdate: i == 0 ? _formatDate(assessment?.updatedAt) : '',
-              comments: chunk.comments,
-            ),
-          );
-          rowsSinceLastYield++;
-          totalRows++;
-          await yieldToUiIfNeeded();
-        }
-
-        if (chunks.length > limits.maxChunksPerRequirement && rows.length < limits.maxRowsPerChapter) {
-          rows.add(
-            _ExportRow(
-              chapterTitle: safeChapterTitle,
-              isChapterBand: false,
-              isSectionRow: false,
-              mdrRef: '',
-              requirement: '…',
-              status: '',
-              evaluation: '',
-              rationale: '',
-              evidence: const [],
-              owner: '',
-              dueDate: '',
-              lastUpdate: '',
-              comments: 'Content truncated for export performance.',
-            ),
-          );
-          rowsSinceLastYield++;
-          totalRows++;
-          await yieldToUiIfNeeded();
-        }
+        rowsSinceLastYield++;
+        await yieldToUiIfNeeded();
 
         if (reqId.isNotEmpty && reqId != parentId) {
-          await walk(reqId);
+          await walk(reqId, nextAncestry);
         }
       }
     }
 
-    await walk(null);
+    await walk(null, <String>{});
     if (rows.isEmpty) {
-      await walk('');
+      await walk('', <String>{});
     }
-
-    if (rows.length >= limits.maxRowsPerChapter || totalRows >= limits.maxTotalRows) {
-      rows.add(
-        _ExportRow(
-          chapterTitle: '',
-          isChapterBand: false,
-          isSectionRow: false,
-          mdrRef: '',
-          requirement: '',
-          status: '',
-          evaluation: '',
-          rationale: '',
-          evidence: const [],
-          owner: '',
-          dueDate: '',
-          lastUpdate: '',
-          comments: totalRows >= limits.maxTotalRows
-              ? 'Export truncated: dataset too large for browser export.'
-              : 'Export truncated: too many rows in this chapter.',
-        ),
-      );
-      debugPrint('[GSPR][PDF] Row limit reached (chapter=${limits.maxRowsPerChapter}, total=${limits.maxTotalRows}): $safeChapterTitle');
-    }
-
     sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
     await Future<void>.delayed(Duration.zero);
-    if (totalRows >= limits.maxTotalRows) {
-      debugPrint('[GSPR][PDF] Total row limit reached (${limits.maxTotalRows}); stopping at chapter $safeChapterTitle.');
-      break;
-    }
   }
+
   return sections;
 }
 
@@ -677,106 +527,6 @@ class _ExportSection {
   final List<_ExportRow> rows;
 
   const _ExportSection({required this.chapterTitle, required this.rows});
-}
-
-class _RowChunk {
-  final String requirement;
-  final String evaluation;
-  final String rationale;
-  final List<String> evidence;
-  final String comments;
-
-  const _RowChunk({
-    required this.requirement,
-    required this.evaluation,
-    required this.rationale,
-    required this.evidence,
-    required this.comments,
-  });
-}
-
-List<_RowChunk> _splitForPage({
-  required String requirement,
-  required String evaluation,
-  required String rationale,
-  required List<String> evidence,
-  required String comments,
-}) {
-  const reqLimit = 470;
-  const evalLimit = 260;
-  const rationaleLimit = 250;
-  const commentLimit = 250;
-  const evidenceLineLimit = 95;
-
-  final reqParts = _chunkText(requirement, reqLimit);
-  final evalParts = _chunkText(evaluation, evalLimit);
-  final rationaleParts = _chunkText(rationale, rationaleLimit);
-  final commentParts = _chunkText(comments, commentLimit);
-  final evidenceParts = evidence
-      .expand((line) => _chunkText(line, evidenceLineLimit))
-      .toList(growable: false);
-
-  final count = [reqParts.length, evalParts.length, rationaleParts.length, commentParts.length, evidenceParts.length]
-      .fold<int>(1, (max, current) => current > max ? current : max);
-
-  String at(List<String> list, int i) => i < list.length ? list[i] : '';
-
-  return List.generate(
-    count,
-    (i) => _RowChunk(
-      requirement: at(reqParts, i),
-      evaluation: at(evalParts, i),
-      rationale: at(rationaleParts, i),
-      evidence: at(evidenceParts, i).isEmpty ? const [] : [at(evidenceParts, i)],
-      comments: at(commentParts, i),
-    ),
-    growable: false,
-  );
-}
-
-List<String> _chunkText(String text, int limit) {
-  final value = sanitizeText(text);
-  if (value.isEmpty) return const [];
-  final words = value.split(RegExp(r'\s+'));
-  final chunks = <String>[];
-  final buffer = StringBuffer();
-
-  for (final word in words) {
-    final candidate = buffer.isEmpty ? word : '${buffer.toString()} $word';
-    if (candidate.length <= limit) {
-      buffer
-        ..clear()
-        ..write(candidate);
-      continue;
-    }
-    if (buffer.isNotEmpty) {
-      chunks.add(buffer.toString());
-      buffer.clear();
-      if (word.length <= limit) {
-        buffer.write(word);
-      } else {
-        var start = 0;
-        while (start < word.length) {
-          final end = (start + limit).clamp(0, word.length);
-          chunks.add(word.substring(start, end));
-          start = end;
-        }
-      }
-    } else {
-      var start = 0;
-      while (start < word.length) {
-        final end = (start + limit).clamp(0, word.length);
-        chunks.add(word.substring(start, end));
-        start = end;
-      }
-    }
-  }
-
-  if (buffer.isNotEmpty) {
-    chunks.add(buffer.toString());
-  }
-
-  return chunks;
 }
 
 String _statusText(GsprAssessment? assessment, bool isAssessable) {
@@ -838,11 +588,6 @@ List<String> _evidenceLines(GsprAssessment? assessment) {
 
 String _safe(String? value) => sanitizeText(value ?? '');
 
-String _truncate(String value, int maxLength) {
-  final clean = sanitizeText(value);
-  if (clean.length <= maxLength) return clean;
-  return '${clean.substring(0, maxLength - 1)}…';
-}
 
 String _formatDate(DateTime? value) {
   if (value == null) return '';
