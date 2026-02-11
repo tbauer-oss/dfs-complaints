@@ -502,7 +502,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Die Daten stammen aus EUR-Lex (EU-Kommission) und werden aus der konsolidierten Fassung geprüft.',
+                        'Die Daten stammen aus EUR-Lex (offizielle Homepage der EU-Kommission) und werden aus der konsolidierten Fassung geprüft.',
                         style: theme.textTheme.bodySmall,
                       ),
                     ],
@@ -613,7 +613,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Die PDF-Erstellung läuft im Hintergrund. Bei großen Dateien kann dies 3–5 Minuten dauern.',
+                      'Die PDF-Erstellung läuft im Hintergrund. Bei großen Dateien kann dies 5–10 Minuten dauern.',
                       style: theme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 12),
