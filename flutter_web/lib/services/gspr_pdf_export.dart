@@ -11,13 +11,12 @@ import '../models/gspr.dart';
 
 const _yieldEveryRows = 120;
 const _webYieldEveryRows = 20;
-const _maxRowsPerChapter = 2200;
-const _maxChunksPerRequirement = 6;
-const _maxTotalRows = 5000;
-const _webMaxRowsPerChapter = 1200;
-const _webMaxChunksPerRequirement = 4;
-const _webMaxTotalRows = 3000;
-const _tableChunkSize = 250;
+const _maxRowsPerChapter = 2500;
+const _maxChunksPerRequirement = 16;
+const _maxTotalRows = 12000;
+const _webMaxRowsPerChapter = 900;
+const _webMaxChunksPerRequirement = 8;
+const _webMaxTotalRows = 3500;
 
 class DfsCiTheme {
   final PdfColor primaryColor;
