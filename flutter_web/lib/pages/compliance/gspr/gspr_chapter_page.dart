@@ -911,18 +911,18 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
                     Text('${t.gsprColumnUpdated}: $updatedAt'),
                     Text('${t.gsprFieldUpdatedBy}: ${assessment.updatedBy.isEmpty ? '—' : assessment.updatedBy}'),
                   ],
+                  if (canAssess) ...[
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton(
+                        onPressed: _submitting ? null : _saveAssessment,
+                        child: Text(t.gsprSave),
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            if (canAssess) ...[
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton(
-                  onPressed: _submitting ? null : _saveAssessment,
-                  child: Text(t.gsprSave),
-                ),
-              ),
-            ],
           ],
         ),
       ),
