@@ -889,41 +889,44 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
           children: [
             _buildKpiStrip(context, t),
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: isNarrow ? 250 : (isWide ? 320 : 280),
-                  child: TextField(
-                    controller: searchController,
-                    decoration: _inputDecoration(
-                      context,
-                      t.gsprAnalysisSearchLabel,
-                      prefixIcon: const Icon(Icons.search, size: 18),
-                      suffixIcon: searchController.text.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: onClearSearch,
-                            ),
+            if (isNarrow) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 250,
+                    child: TextField(
+                      controller: searchController,
+                      decoration: _inputDecoration(
+                        context,
+                        t.gsprAnalysisSearchLabel,
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        suffixIcon: searchController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: onClearSearch,
+                              ),
+                      ),
+                      onChanged: onSearchChanged,
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 210,
-                  child: DropdownButtonFormField<String?>(
-                    value: chapter,
-                    decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
-                    items: [
-                      DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
-                      DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
-                      DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
-                      DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
-                    ],
-                    onChanged: onChapterChanged,
+                  SizedBox(
+                    width: 210,
+                    child: DropdownButtonFormField<String?>(
+                      value: chapter,
+                      decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
+                      items: [
+                        DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
+                        DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
+                        DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
+                        DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
+                      ],
+                      onChanged: onChapterChanged,
+                    ),
                   ),
                   SizedBox(width: 320, child: _buildStatusChips(context, t)),
                   _buildQuickFilterChips(t),
@@ -948,8 +951,8 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                     icon: const Icon(Icons.refresh),
                   ),
                 ],
-              )
-            else ...[
+              ),
+            ] else ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1001,50 +1004,7 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    SizedBox(width: isWide ? 460 : 360, child: _buildStatusChips(context, t)),
-                    const SizedBox(width: 10),
-                    _buildQuickFilterChips(t),
-                  ],
-                ),
-                OutlinedButton.icon(
-                  onPressed: isNarrow
-                      ? () {
-                          showModalBottomSheet<void>(
-                            context: context,
-                            showDragHandle: true,
-                            builder: (context) => Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildStatusChips(context, t),
-                                  const SizedBox(height: 10),
-                                  _buildQuickFilterChips(t),
-                                  const SizedBox(height: 12),
-                                  advancedContent,
-                                ],
-                              ),
-                            ),
-                          );
-                        }
-                      : onToggleAdvanced,
-                  icon: Icon((isNarrow || !showAdvanced) ? Icons.tune : Icons.expand_less),
-                  label: const Text('Filter'),
-                ),
-                IconButton(
-                  tooltip: t.gsprReload,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onReload,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            ),
+            ],
             if (!isNarrow)
               AnimatedCrossFade(
                 firstChild: const SizedBox.shrink(),
