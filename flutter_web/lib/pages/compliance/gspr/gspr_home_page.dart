@@ -95,7 +95,9 @@ class _GsprHomePageState extends State<GsprHomePage> {
       _exportingPdf = true;
       _error = null;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 32));
+    // Ensure the export overlay is painted before PDF generation starts.
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+    await Future<void>.delayed(const Duration(milliseconds: 16));
     try {
       debugPrint('[GSPR][Export] Start export for TD ${selected.id} (${selected.displayCode}).');
       final chapters = <GsprExportChapter>[];
@@ -134,10 +136,13 @@ class _GsprHomePageState extends State<GsprHomePage> {
           debugPrint('[GSPR][Export] Fallback Printing.sharePdf started successfully.');
         }
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[GSPR][Export] Export failed: $e');
+      debugPrint('$st');
       if (!mounted) return;
-      setState(() => _error = e.toString());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      final message = e.toString();
+      setState(() => _error = message);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() => _exportingPdf = false);
