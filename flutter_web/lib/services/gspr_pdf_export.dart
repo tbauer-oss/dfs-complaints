@@ -16,8 +16,6 @@ const _webMaxChunksPerRequirement = 3;
 const _webMaxTotalRows = 240;
 const _yieldEveryRows = 120;
 const _webYieldEveryRows = 20;
-const _webLightMaxRowsTotal = 120;
-const _webLightMaxRowsPerChapter = 45;
 
 
 class DfsCiTheme {
@@ -145,7 +143,7 @@ Future<Uint8List> buildGsprPdf({
   final logoBytes = await _loadLogoBytes();
   debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
-  final sections = kIsWeb ? _buildSectionsLightweightWeb(model) : await _buildSections(model);
+  final sections = await _buildSections(model);
   final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
   debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
   final textTheme = _buildTextTheme(ci);
@@ -445,76 +443,6 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
   }
 
   return result;
-}
-
-List<_ExportSection> _buildSectionsLightweightWeb(GsprExportModel model) {
-  final sections = <_ExportSection>[];
-  var totalRows = 0;
-
-  for (final chapter in model.chapters) {
-    if (totalRows >= _webLightMaxRowsTotal) break;
-
-    final safeChapterTitle = sanitizeText(chapter.chapterTitle);
-    final rows = <_ExportRow>[];
-
-    final sorted = [...chapter.entries]
-      ..sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
-
-    for (final entry in sorted) {
-      if (rows.length >= _webLightMaxRowsPerChapter || totalRows >= _webLightMaxRowsTotal) {
-        break;
-      }
-
-      final req = entry.requirement;
-      final assessment = entry.assessment;
-      final requirement = _truncate('${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}', 220);
-      final evidence = _evidenceLines(assessment);
-
-      rows.add(
-        _ExportRow(
-          chapterTitle: safeChapterTitle,
-          isChapterBand: false,
-          isSectionRow: !req.isAssessable,
-          mdrRef: _truncate(_safe(req.ref), 70),
-          requirement: requirement,
-          status: _statusText(assessment, req.isAssessable),
-          evaluation: _truncate(_evaluationText(assessment), 140),
-          rationale: _truncate(_rationaleText(assessment), 120),
-          evidence: evidence.isEmpty ? const [] : [_truncate(evidence.first, 120)],
-          owner: _truncate(_safe(assessment?.owner), 32),
-          dueDate: _formatDate(assessment?.dueDate),
-          lastUpdate: _formatDate(assessment?.updatedAt),
-          comments: _truncate(_commentsText(assessment), 120),
-        ),
-      );
-      totalRows++;
-    }
-
-    if (rows.isNotEmpty) {
-      if (rows.length >= _webLightMaxRowsPerChapter || totalRows >= _webLightMaxRowsTotal) {
-        rows.add(
-          const _ExportRow(
-            chapterTitle: '',
-            isChapterBand: false,
-            isSectionRow: false,
-            mdrRef: '',
-            requirement: '',
-            status: '',
-            evaluation: '',
-            rationale: '',
-            evidence: const [],
-            owner: '',
-            dueDate: '',
-            lastUpdate: '',
-            comments: 'Web export shortened for browser performance.',
-          ),
-        );
-      }
-      sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
-    }
-  }
-
-  return sections;
 }
 
 Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
@@ -837,12 +765,6 @@ List<String> _evidenceLines(GsprAssessment? assessment) {
 }
 
 String _safe(String? value) => sanitizeText(value ?? '');
-
-String _truncate(String value, int maxLength) {
-  final clean = sanitizeText(value);
-  if (clean.length <= maxLength) return clean;
-  return '${clean.substring(0, maxLength - 1)}…';
-}
 
 String _formatDate(DateTime? value) {
   if (value == null) return '';
