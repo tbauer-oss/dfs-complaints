@@ -39,6 +39,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
   String? _initialRequirementId;
   bool _exportingPdf = false;
   bool _syncingSource = false;
+  String? _lastAutoSyncedTdId;
 
   @override
   void initState() {
@@ -57,25 +58,89 @@ class _GsprHomePageState extends State<GsprHomePage> {
     return DateFormat('dd.MM.yyyy HH:mm').format(value.toLocal());
   }
 
-  Future<void> _syncSourceNow() async {
+  Future<void> _showChangeDialog(List<GsprSourceChangeDetail> details) async {
+    if (!mounted || details.isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          icon: const Icon(Icons.notifications_active_outlined),
+          title: const Text('Inhaltliche EU-Änderung erkannt'),
+          content: SizedBox(
+            width: 680,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Bei der Synchronisierung wurden Änderungen an der offiziellen EUR-Lex-Fassung erkannt.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  ...details.map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Material(
+                        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.45),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.location.isNotEmpty ? entry.location : 'Änderungsbereich',
+                                style: theme.textTheme.labelLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text('Vorher: ${entry.before.isNotEmpty ? entry.before : '—'}'),
+                              const SizedBox(height: 6),
+                              Text('Neu: ${entry.after.isNotEmpty ? entry.after : '—'}'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Schließen')),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _syncSourceNow({bool userInitiated = false}) async {
     if (_syncingSource) return;
     setState(() {
       _syncingSource = true;
       _error = null;
     });
     try {
-      await widget.api.gsprSyncSource();
+      final syncResult = await widget.api.gsprSyncSource();
       final selected = GsprTdState.selectedTd.value;
       if (selected != null) {
         await _loadSummary(selected.id);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('GSPR-Synchronisierung erfolgreich gestartet/aktualisiert.')),
-      );
+      if (syncResult.changesDetected && syncResult.changeDetails.isNotEmpty) {
+        await _showChangeDialog(syncResult.changeDetails);
+      } else if (userInitiated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GSPR-Synchronisierung erfolgreich aktualisiert. Keine inhaltlichen Änderungen erkannt.')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Synchronisierung fehlgeschlagen: $e')));
+      if (userInitiated) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Synchronisierung fehlgeschlagen: $e')));
+      }
     } finally {
       if (mounted) setState(() => _syncingSource = false);
     }
@@ -193,6 +258,15 @@ class _GsprHomePageState extends State<GsprHomePage> {
     }
   }
 
+
+  Future<void> _handleTdSelection(GsprTdOption td) async {
+    await _loadSummary(td.id);
+    if (widget.access.canEdit && _lastAutoSyncedTdId != td.id) {
+      _lastAutoSyncedTdId = td.id;
+      await _syncSourceNow();
+    }
+  }
+
   Future<void> _loadSummary(String tdId) async {
     try {
       final summary = await widget.api.gsprSummary(tdId: tdId);
@@ -237,13 +311,6 @@ class _GsprHomePageState extends State<GsprHomePage> {
     setState(() {
       _activeChapter = chapter;
       _initialRequirementId = initialRequirementId;
-    });
-  }
-
-  void _closeChapterInternal() {
-    setState(() {
-      _activeChapter = null;
-      _initialRequirementId = null;
     });
   }
 
@@ -324,7 +391,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                       _summary = null;
                     });
                     if (td != null) {
-                      _loadSummary(td.id);
+                      _handleTdSelection(td);
                     }
                   },
                 ),
@@ -413,24 +480,53 @@ class _GsprHomePageState extends State<GsprHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Quelle der GSPR-Texte: $sourceName',
-              style: theme.textTheme.bodySmall,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.verified_user_outlined, color: theme.colorScheme.primary, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Offizielle EU-Rechtsquelle: $sourceName',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Die Daten stammen aus EUR-Lex (EU-Kommission) und werden aus der konsolidierten Fassung geprüft.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text(
-              'Der EUR-Lex-Permalink verweist immer auf die aktuelle konsolidierte Fassung.',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Letzte Synchronisierung: $syncDate',
+              'Letzte erfolgreiche Synchronisierung: $syncDate',
               style: theme.textTheme.bodySmall,
             ),
             Text(
               'Letzter Synchronisierungsversuch: ${_formatSyncDate(_summary?.sourceLastAttemptAt)}',
               style: theme.textTheme.bodySmall,
             ),
+            if ((_summary?.sourceLastChangeSummary ?? '').trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Material(
+                  color: theme.colorScheme.tertiaryContainer.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Text(
+                      'Änderungsprotokoll: ${_summary!.sourceLastChangeSummary}',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onTertiaryContainer),
+                    ),
+                  ),
+                ),
+              ),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -442,7 +538,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 ),
                 if (widget.access.canEdit)
                   FilledButton.icon(
-                    onPressed: _syncingSource ? null : _syncSourceNow,
+                    onPressed: _syncingSource ? null : () => _syncSourceNow(userInitiated: true),
                     icon: _syncingSource
                         ? const SizedBox(
                             width: 14,
