@@ -910,7 +910,6 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                               onPressed: onClearSearch,
                             ),
                     ),
-                    onChanged: onSearchChanged,
                   ),
                 ),
                 SizedBox(
@@ -926,6 +925,91 @@ class GsprAnalysisHeaderBar extends StatelessWidget {
                     ],
                     onChanged: onChapterChanged,
                   ),
+                  SizedBox(width: 320, child: _buildStatusChips(context, t)),
+                  _buildQuickFilterChips(t),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (context) => Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: advancedContent,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Weitere Filter'),
+                  ),
+                  IconButton(
+                    tooltip: t.gsprReload,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onReload,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              )
+            else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: isWide ? 340 : 280,
+                    child: TextField(
+                      controller: searchController,
+                      decoration: _inputDecoration(
+                        context,
+                        t.gsprAnalysisSearchLabel,
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        suffixIcon: searchController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: onClearSearch,
+                              ),
+                      ),
+                      onChanged: onSearchChanged,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 220,
+                    child: DropdownButtonFormField<String?>(
+                      value: chapter,
+                      decoration: _inputDecoration(context, t.gsprAnalysisFilterChapter),
+                      items: [
+                        DropdownMenuItem(value: null, child: Text(t.gsprAnalysisFilterAllChapters)),
+                        DropdownMenuItem(value: 'I', child: Text(t.gsprChapterI)),
+                        DropdownMenuItem(value: 'II', child: Text(t.gsprChapterII)),
+                        DropdownMenuItem(value: 'III', child: Text(t.gsprChapterIII)),
+                      ],
+                      onChanged: onChapterChanged,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: onToggleAdvanced,
+                    icon: Icon(!showAdvanced ? Icons.tune : Icons.expand_less),
+                    label: const Text('Weitere Filter'),
+                  ),
+                  IconButton(
+                    tooltip: t.gsprReload,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onReload,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    SizedBox(width: isWide ? 460 : 360, child: _buildStatusChips(context, t)),
+                    const SizedBox(width: 10),
+                    _buildQuickFilterChips(t),
+                  ],
                 ),
                 OutlinedButton.icon(
                   onPressed: isNarrow
