@@ -1,11 +1,15 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/gspr.dart';
+
+const _yieldEveryRows = 120;
+const _webYieldEveryRows = 20;
 
 class DfsCiTheme {
   final PdfColor primaryColor;
@@ -99,10 +103,15 @@ Future<Uint8List> buildGsprPdf({
   required GsprExportModel model,
   required DfsCiTheme ci,
 }) async {
+  debugPrint('[GSPR][PDF] Build requested for $mdrTd.');
   final fonts = await _loadBundledFonts(ci);
+  debugPrint('[GSPR][PDF] Fonts loaded.');
   final logoBytes = await _loadLogoBytes();
+  debugPrint('[GSPR][PDF] Logo loaded: ${logoBytes != null}.');
   final doc = pw.Document(title: 'DFS Connect+ - GSPR Report');
-  final sections = _buildSections(model);
+  final sections = await _buildSections(model);
+  final totalRows = sections.fold<int>(0, (sum, section) => sum + section.rows.length);
+  debugPrint('[GSPR][PDF] Sections built: ${sections.length}, rows: $totalRows.');
   final textTheme = _buildTextTheme(ci);
   final generatedDate = _formatDate(model.generatedAt);
   final docIdentifier = sanitizeText('GSPR Report - $mdrTd - generated $generatedDate');
@@ -159,7 +168,9 @@ Future<Uint8List> buildGsprPdf({
     ),
   );
 
-  return doc.save();
+  final pdfBytes = await doc.save();
+  debugPrint('[GSPR][PDF] Document saved (${pdfBytes.length} bytes).');
+  return pdfBytes;
 }
 
 pw.TextStyle _style(_PdfTextTheme t, {bool bold = false, PdfColor? color, double? size}) {
@@ -400,8 +411,18 @@ List<pw.TableRow> _buildTableRows(List<_ExportRow> rows, DfsCiTheme ci, _PdfText
   return result;
 }
 
-List<_ExportSection> _buildSections(GsprExportModel model) {
+Future<List<_ExportSection>> _buildSections(GsprExportModel model) async {
   final sections = <_ExportSection>[];
+  var rowsSinceLastYield = 0;
+  final yieldEveryRows = kIsWeb ? _webYieldEveryRows : _yieldEveryRows;
+
+  Future<void> yieldToUiIfNeeded() async {
+    if (rowsSinceLastYield >= yieldEveryRows) {
+      rowsSinceLastYield = 0;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
+
   for (final chapter in model.chapters) {
     final rows = <_ExportRow>[];
     final safeChapterTitle = sanitizeText(chapter.chapterTitle);
@@ -414,51 +435,59 @@ List<_ExportSection> _buildSections(GsprExportModel model) {
       list.sort((a, b) => a.requirement.sortKey.compareTo(b.requirement.sortKey));
     }
 
-    void walk(String? parentId) {
+    Future<void> walk(String? parentId, Set<String> ancestry) async {
       final children = byParent[parentId] ?? const [];
       for (final entry in children) {
         final req = entry.requirement;
-        final assessment = entry.assessment;
-        final hasChildren = (byParent[req.id] ?? const []).isNotEmpty;
-        final isSection = !req.isAssessable && hasChildren;
-        final status = isSection ? '' : _statusText(assessment, req.isAssessable);
-        final requirementText = '${'  ' * req.level}${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}'.trim();
-        final chunks = _splitForPage(
-          requirement: requirementText,
-          evaluation: _evaluationText(assessment),
-          rationale: _rationaleText(assessment),
-          comments: _commentsText(assessment),
-          evidence: _evidenceLines(assessment),
-        );
-
-        for (var i = 0; i < chunks.length; i++) {
-          final chunk = chunks[i];
-          rows.add(
-            _ExportRow(
-              chapterTitle: safeChapterTitle,
-              isChapterBand: false,
-              isSectionRow: isSection,
-              mdrRef: i == 0 ? _safe(req.ref) : '',
-              requirement: i == 0 ? chunk.requirement : '${chunk.requirement} (cont.)',
-              status: i == 0 ? status : '',
-              evaluation: chunk.evaluation,
-              rationale: chunk.rationale,
-              evidence: chunk.evidence,
-              owner: i == 0 ? _safe(assessment?.owner) : '',
-              dueDate: i == 0 ? _formatDate(assessment?.dueDate) : '',
-              lastUpdate: i == 0 ? _formatDate(assessment?.updatedAt) : '',
-              comments: chunk.comments,
-            ),
-          );
+        final reqId = req.id.trim();
+        final reqKey = reqId.isNotEmpty
+            ? reqId
+            : '${req.parentId ?? ''}|${req.sortKey}|${req.ref}|${req.title}|${req.level}';
+        if (ancestry.contains(reqKey)) {
+          debugPrint('[GSPR][PDF] Skipping recursive requirement cycle: $reqKey');
+          continue;
         }
 
-        walk(req.id);
+        final nextAncestry = <String>{...ancestry, reqKey};
+        final assessment = entry.assessment;
+        final hasChildren = reqId.isNotEmpty && (byParent[reqId] ?? const []).isNotEmpty;
+        final isSection = !req.isAssessable && hasChildren;
+        final requirementText = '${'  ' * req.level}${req.title.isNotEmpty ? '${req.title}: ' : ''}${req.text}'.trim();
+
+        rows.add(
+          _ExportRow(
+            chapterTitle: safeChapterTitle,
+            isChapterBand: false,
+            isSectionRow: isSection,
+            mdrRef: _safe(req.ref),
+            requirement: requirementText,
+            status: _statusText(assessment, req.isAssessable),
+            evaluation: _evaluationText(assessment),
+            rationale: _rationaleText(assessment),
+            evidence: _evidenceLines(assessment),
+            owner: _safe(assessment?.owner),
+            dueDate: _formatDate(assessment?.dueDate),
+            lastUpdate: _formatDate(assessment?.updatedAt),
+            comments: _commentsText(assessment),
+          ),
+        );
+        rowsSinceLastYield++;
+        await yieldToUiIfNeeded();
+
+        if (reqId.isNotEmpty && reqId != parentId) {
+          await walk(reqId, nextAncestry);
+        }
       }
     }
 
-    walk(null);
+    await walk(null, <String>{});
+    if (rows.isEmpty) {
+      await walk('', <String>{});
+    }
     sections.add(_ExportSection(chapterTitle: safeChapterTitle, rows: rows));
+    await Future<void>.delayed(Duration.zero);
   }
+
   return sections;
 }
 
@@ -467,106 +496,6 @@ class _ExportSection {
   final List<_ExportRow> rows;
 
   const _ExportSection({required this.chapterTitle, required this.rows});
-}
-
-class _RowChunk {
-  final String requirement;
-  final String evaluation;
-  final String rationale;
-  final List<String> evidence;
-  final String comments;
-
-  const _RowChunk({
-    required this.requirement,
-    required this.evaluation,
-    required this.rationale,
-    required this.evidence,
-    required this.comments,
-  });
-}
-
-List<_RowChunk> _splitForPage({
-  required String requirement,
-  required String evaluation,
-  required String rationale,
-  required List<String> evidence,
-  required String comments,
-}) {
-  const reqLimit = 470;
-  const evalLimit = 260;
-  const rationaleLimit = 250;
-  const commentLimit = 250;
-  const evidenceLineLimit = 95;
-
-  final reqParts = _chunkText(requirement, reqLimit);
-  final evalParts = _chunkText(evaluation, evalLimit);
-  final rationaleParts = _chunkText(rationale, rationaleLimit);
-  final commentParts = _chunkText(comments, commentLimit);
-  final evidenceParts = evidence
-      .expand((line) => _chunkText(line, evidenceLineLimit))
-      .toList(growable: false);
-
-  final count = [reqParts.length, evalParts.length, rationaleParts.length, commentParts.length, evidenceParts.length]
-      .fold<int>(1, (max, current) => current > max ? current : max);
-
-  String at(List<String> list, int i) => i < list.length ? list[i] : '';
-
-  return List.generate(
-    count,
-    (i) => _RowChunk(
-      requirement: at(reqParts, i),
-      evaluation: at(evalParts, i),
-      rationale: at(rationaleParts, i),
-      evidence: at(evidenceParts, i).isEmpty ? const [] : [at(evidenceParts, i)],
-      comments: at(commentParts, i),
-    ),
-    growable: false,
-  );
-}
-
-List<String> _chunkText(String text, int limit) {
-  final value = sanitizeText(text);
-  if (value.isEmpty) return const [];
-  final words = value.split(RegExp(r'\s+'));
-  final chunks = <String>[];
-  final buffer = StringBuffer();
-
-  for (final word in words) {
-    final candidate = buffer.isEmpty ? word : '${buffer.toString()} $word';
-    if (candidate.length <= limit) {
-      buffer
-        ..clear()
-        ..write(candidate);
-      continue;
-    }
-    if (buffer.isNotEmpty) {
-      chunks.add(buffer.toString());
-      buffer.clear();
-      if (word.length <= limit) {
-        buffer.write(word);
-      } else {
-        var start = 0;
-        while (start < word.length) {
-          final end = (start + limit).clamp(0, word.length);
-          chunks.add(word.substring(start, end));
-          start = end;
-        }
-      }
-    } else {
-      var start = 0;
-      while (start < word.length) {
-        final end = (start + limit).clamp(0, word.length);
-        chunks.add(word.substring(start, end));
-        start = end;
-      }
-    }
-  }
-
-  if (buffer.isNotEmpty) {
-    chunks.add(buffer.toString());
-  }
-
-  return chunks;
 }
 
 String _statusText(GsprAssessment? assessment, bool isAssessable) {
@@ -628,6 +557,7 @@ List<String> _evidenceLines(GsprAssessment? assessment) {
 
 String _safe(String? value) => sanitizeText(value ?? '');
 
+
 String _formatDate(DateTime? value) {
   if (value == null) return '';
   return DateFormat('yyyy-MM-dd').format(value);
@@ -646,9 +576,14 @@ class _PdfFonts {
 Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
   if (ci.baseFont != null && ci.boldFont != null) {
     final fallbackData = await rootBundle.load('web/pdfjs/web/standard_fonts/LiberationSans-Italic.ttf');
+    final baseFont = ci.baseFont;
+    final boldFont = ci.boldFont;
+    if (baseFont == null || boldFont == null) {
+      throw StateError('Custom CI fonts were expected but not available.');
+    }
     return _PdfFonts(
-      base: ci.baseFont!,
-      bold: ci.boldFont!,
+      base: baseFont,
+      bold: boldFont,
       fallback: pw.Font.ttf(fallbackData),
     );
   }
@@ -664,12 +599,23 @@ Future<_PdfFonts> _loadBundledFonts(DfsCiTheme ci) async {
 }
 
 Future<Uint8List?> _loadLogoBytes() async {
-  try {
-    final bytes = await rootBundle.load('assets/dfs_logo.png');
-    return bytes.buffer.asUint8List();
-  } catch (_) {
-    return null;
+  const logoCandidates = [
+    'flutter_web/assets/dfs_logo.png',
+    'assets/dfs_logo.png',
+  ];
+
+  for (final path in logoCandidates) {
+    try {
+      final bytes = await rootBundle.load(path);
+      debugPrint('[GSPR][PDF] Loaded logo asset: $path');
+      return bytes.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('[GSPR][PDF] Failed to load logo asset $path: $e');
+    }
   }
+
+  debugPrint('[GSPR][PDF] Proceeding without logo.');
+  return null;
 }
 
 String sanitizeText(String input) {
