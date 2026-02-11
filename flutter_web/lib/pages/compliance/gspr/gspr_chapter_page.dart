@@ -924,7 +924,7 @@ class _GsprChapterPageState extends State<GsprChapterPage> {
                 ],
               ),
             ),
-      )
+      ),
     );
   }
 
