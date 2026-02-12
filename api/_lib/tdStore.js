@@ -557,8 +557,8 @@ function evalConditionMet(profile, conditionKey) {
 }
 
 export async function generateApplicability(tdId) {
-  const td = await tdGet(tdId);
-  if (!td) throw new Error('TD not found');
+  const td = await getEntity(KEY, tdId, mem.files);
+  if (!td || td.deletedAt) throw new Error('TD not found');
   const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
   const sections = await tdSections(tdId);
   await tdBootstrapQueries(tdId);
@@ -620,8 +620,8 @@ export async function generateApplicability(tdId) {
 }
 
 export async function tdApplicabilityGet(tdId) {
-  const td = await tdGet(tdId);
-  if (!td) throw new Error('TD not found');
+  const td = await getEntity(KEY, tdId, mem.files);
+  if (!td || td.deletedAt) throw new Error('TD not found');
   const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
   let results = await tdApplicabilityResults(tdId);
   if (!results.length) {
@@ -1130,8 +1130,8 @@ export async function tdComputedSummary(td) {
 }
 
 export async function tdReadiness(tdId) {
-  const td = await tdGet(tdId);
-  if (!td) throw new Error('TD not found');
+  const td = await getEntity(KEY, tdId, mem.files);
+  if (!td || td.deletedAt) throw new Error('TD not found');
   const sections = await tdSections(tdId);
   const links = await tdLinks(tdId);
   const queries = await tdQueries(tdId);
@@ -1188,8 +1188,8 @@ function pdfBufferFromDoc(doc) {
 }
 
 export async function tdNbExport(tdId) {
-  const td = await tdGet(tdId);
-  if (!td) throw new Error('TD not found');
+  const td = await getEntity(KEY, tdId, mem.files);
+  if (!td || td.deletedAt) throw new Error('TD not found');
   const sections = await tdSections(tdId);
   const links = await tdLinks(tdId);
   const summary = await tdComputedSummary(td);
