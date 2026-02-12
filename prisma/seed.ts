@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+
 const templates = [
   ['ANNEX_II_A', 'A. Device description and specification', 'Including variants and accessories.', 10, 'ANNEX_II'],
   ['ANNEX_II_B', 'B. Information supplied by manufacturer', 'Labeling / IFU and claims.', 20, 'ANNEX_II'],
@@ -14,11 +15,39 @@ const templates = [
 ] as const;
 
 async function main() {
+  const { TD_QUERY_TEMPLATES } = await import('../api/_lib/tdStore.js');
   for (const [key, name, description, order, annex] of templates) {
     await prisma.tdSectionTemplate.upsert({
       where: { key },
       update: { name, description, order, annex },
       create: { key, name, description, order, annex },
+    });
+  }
+
+  for (const tpl of TD_QUERY_TEMPLATES as any[]) {
+    await prisma.tdQueryTemplate.upsert({
+      where: { templateKey: tpl.templateKey },
+      update: {
+        sectionTemplateKey: tpl.sectionTemplateKey,
+        title: tpl.title,
+        description: tpl.description,
+        order: tpl.order,
+        mandatory: tpl.mandatory !== false,
+        suggestedLinkTypes: tpl.suggestedLinkTypes,
+        defaultOwnersRole: tpl.defaultOwnersRole ?? null,
+        tags: tpl.tags,
+      },
+      create: {
+        templateKey: tpl.templateKey,
+        sectionTemplateKey: tpl.sectionTemplateKey,
+        title: tpl.title,
+        description: tpl.description,
+        order: tpl.order,
+        mandatory: tpl.mandatory !== false,
+        suggestedLinkTypes: tpl.suggestedLinkTypes,
+        defaultOwnersRole: tpl.defaultOwnersRole ?? null,
+        tags: tpl.tags,
+      },
     });
   }
 }

@@ -114,6 +114,8 @@ class TdSection {
   final String? nextReviewAt;
   final TdSectionContent? content;
   final int? linkCount;
+  final int? completion;
+  final int? queryTotal;
 
   const TdSection({
     required this.id,
@@ -124,6 +126,8 @@ class TdSection {
     required this.nextReviewAt,
     this.content,
     this.linkCount,
+    this.completion,
+    this.queryTotal,
   });
 
   factory TdSection.fromJson(Map<String, dynamic> json) => TdSection(
@@ -135,9 +139,79 @@ class TdSection {
         nextReviewAt: json['nextReviewAt']?.toString(),
         content: json['content'] is Map ? TdSectionContent.fromJson((json['content'] as Map).cast<String, dynamic>()) : null,
         linkCount: (json['linkCount'] as num?)?.toInt(),
+        completion: ((json['queryStats'] as Map?)?['completion'] as num?)?.toInt(),
+        queryTotal: ((json['queryStats'] as Map?)?['total'] as num?)?.toInt(),
       );
 }
 
+
+
+class TdQueryLink {
+  final String id;
+  final String type;
+  final String label;
+  final String? refId;
+  final String? url;
+
+  const TdQueryLink({required this.id, required this.type, required this.label, this.refId, this.url});
+
+  factory TdQueryLink.fromJson(Map<String, dynamic> json) => TdQueryLink(
+        id: '${json['id'] ?? ''}',
+        type: '${json['type'] ?? 'Document'}',
+        label: '${json['label'] ?? ''}',
+        refId: json['refId']?.toString(),
+        url: json['url']?.toString(),
+      );
+}
+
+class TdQueryTemplate {
+  final String templateKey;
+  final String title;
+  final String description;
+  final bool mandatory;
+  final List<String> suggestedLinkTypes;
+  final List<String> tags;
+
+  const TdQueryTemplate({required this.templateKey, required this.title, required this.description, required this.mandatory, required this.suggestedLinkTypes, required this.tags});
+
+  factory TdQueryTemplate.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdQueryTemplate(
+      templateKey: (map['templateKey'] ?? '').toString(),
+      title: (map['title'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      mandatory: map['mandatory'] != false,
+      suggestedLinkTypes: (map['suggestedLinkTypes'] as List?)?.map((e) => '$e').toList(growable: false) ?? const [],
+      tags: (map['tags'] as List?)?.map((e) => '$e').toList(growable: false) ?? const [],
+    );
+  }
+}
+
+class TdQueryAnswer {
+  final String id;
+  final String sectionId;
+  final String status;
+  final String answerMarkdown;
+  final String rationaleMarkdown;
+  final String? ownerUserId;
+  final String? dueAt;
+  final TdQueryTemplate template;
+  final List<TdQueryLink> links;
+
+  const TdQueryAnswer({required this.id, required this.sectionId, required this.status, required this.answerMarkdown, required this.rationaleMarkdown, required this.ownerUserId, required this.dueAt, required this.template, required this.links});
+
+  factory TdQueryAnswer.fromJson(Map<String, dynamic> json) => TdQueryAnswer(
+        id: (json['id'] ?? '').toString(),
+        sectionId: (json['sectionId'] ?? '').toString(),
+        status: (json['status'] ?? 'NotStarted').toString(),
+        answerMarkdown: (json['answerMarkdown'] ?? '').toString(),
+        rationaleMarkdown: (json['rationaleMarkdown'] ?? '').toString(),
+        ownerUserId: json['ownerUserId']?.toString(),
+        dueAt: json['dueAt']?.toString(),
+        template: TdQueryTemplate.fromJson((json['template'] as Map?)?.cast<String, dynamic>()),
+        links: (json['links'] as List?)?.whereType<Map>().map((e) => TdQueryLink.fromJson(e.cast<String, dynamic>())).toList(growable: false) ?? const [],
+      );
+}
 class TdImpactItem {
   final String id;
   final String impactType;
