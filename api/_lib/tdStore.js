@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import PDFDocument from 'pdfkit';
 import { Redis } from '@upstash/redis';
 import { fmeaAll, capaAll, complaintsAll, supplierAll, trainingRecordsAll, gsprAssessmentsByTd } from './store.js';
 import { getUniqueMdrTdEntries } from './products.js';
@@ -29,6 +30,8 @@ const KEY_LINK = (id) => `${PREFIX}link:${id}`;
 const KEY_CHANGE = (id) => `${PREFIX}change:${id}`;
 const KEY_IMPACT = (id) => `${PREFIX}impact:${id}`;
 const KEY_EXPORT = (id) => `${PREFIX}export:${id}`;
+const KEY_CONTENT = `${PREFIX}section-content`;
+const KEY_SECTION_CONTENT = (id) => `${PREFIX}section-content:${id}`;
 
 const lifecycleStates = new Set(['Development', 'Released', 'PostMarket', 'Update', 'Sunset', 'Obsolete']);
 const tdStatus = new Set(['Green', 'Yellow', 'Red', 'Draft']);
@@ -55,17 +58,78 @@ const mem = {
   changeIds: new Set(),
   impactIds: new Set(),
   exportIds: new Set(),
+  sectionContentIds: new Set(),
   files: new Map(),
   sections: new Map(),
   links: new Map(),
   changes: new Map(),
   impacts: new Map(),
   exports: new Map(),
+  sectionContents: new Map(),
 };
 
 const nowIso = () => new Date().toISOString();
 const cuid = (prefix) => `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 const asArray = (v) => (Array.isArray(v) ? v : []);
+const asStringArray = (v) => asArray(v).map((x) => String(x || '').trim()).filter(Boolean);
+
+const DEFAULT_SECTION_CONTENT = {
+  summaryMarkdown: '',
+  contentJson: null,
+};
+
+const SECTION_CONTENT_VALIDATORS = {
+  ANNEX_II_A: (input) => ({
+    intendedPurpose: String(input?.intendedPurpose || ''),
+    deviceDescription: String(input?.deviceDescription || ''),
+    variantsAccessories: String(input?.variantsAccessories || ''),
+    udiBasic: String(input?.udiBasic || ''),
+    classification: String(input?.classification || ''),
+    rule: String(input?.rule || ''),
+    principlesOfOperation: String(input?.principlesOfOperation || ''),
+    references: asStringArray(input?.references),
+  }),
+  ANNEX_II_B: (input) => ({
+    labelingRefs: asStringArray(input?.labelingRefs),
+    ifuRefs: asStringArray(input?.ifuRefs),
+    symbolsRefs: asStringArray(input?.symbolsRefs),
+    translationsNotes: String(input?.translationsNotes || ''),
+  }),
+  ANNEX_II_C: (input) => ({
+    manufacturingSites: asStringArray(input?.manufacturingSites),
+    keyProcesses: asStringArray(input?.keyProcesses),
+    criticalProcessControls: String(input?.criticalProcessControls || ''),
+    subcontractorsRefs: asStringArray(input?.subcontractorsRefs),
+  }),
+  ANNEX_II_D: (input) => ({ ...input }),
+  ANNEX_II_E: (input) => ({
+    riskManagementSummary: String(input?.riskManagementSummary || ''),
+    fmeaRefs: asStringArray(input?.fmeaRefs),
+    benefitRiskConclusion: String(input?.benefitRiskConclusion || ''),
+  }),
+  ANNEX_II_F: (input) => ({
+    standardsApplied: asStringArray(input?.standardsApplied),
+    biocompatibilityRefs: asStringArray(input?.biocompatibilityRefs),
+    cleaningSterilizationRefs: asStringArray(input?.cleaningSterilizationRefs),
+    performanceTestingRefs: asStringArray(input?.performanceTestingRefs),
+    softwareValidationRefs: asStringArray(input?.softwareValidationRefs),
+  }),
+  ANNEX_III_G: (input) => ({
+    pmsPlanSummary: String(input?.pmsPlanSummary || ''),
+    pmsPlanRefs: asStringArray(input?.pmsPlanRefs),
+    pmsMethods: asStringArray(input?.pmsMethods),
+  }),
+  ANNEX_III_H: (input) => {
+    const reportType = ['PMS_REPORT', 'PSUR', 'PMCF'].includes(String(input?.reportType || '')) ? String(input.reportType) : 'PMS_REPORT';
+    return {
+      reportType,
+      reportingPeriod: String(input?.reportingPeriod || ''),
+      keyFindings: String(input?.keyFindings || ''),
+      actionsConclusions: String(input?.actionsConclusions || ''),
+      reportRefs: asStringArray(input?.reportRefs),
+    };
+  },
+};
 
 export const TD_SECTION_TEMPLATES = [
   { key: 'ANNEX_II_A', name: 'A. Device description and specification', description: 'Including variants and accessories.', order: 10, annex: 'ANNEX_II' },
@@ -181,6 +245,7 @@ async function ensureSeedTdFiles() {
     const sections = defaultSections(seeded.id, null);
     for (const section of sections) {
       await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
+      await tdSectionContentBackfill(section.id);
     }
     byCode.add(code);
     createdAny = true;
@@ -218,6 +283,7 @@ export async function tdCreate(input, actorEmail) {
   const sections = defaultSections(normalized.id, actorEmail);
   for (const section of sections) {
     await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
+    await tdSectionContentBackfill(section.id);
   }
   return normalized;
 }
@@ -247,10 +313,62 @@ export async function tdSections(tdId) {
   }
   if (!sectionList.length) {
     const sections = defaultSections(tdId, null);
-    for (const section of sections) await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
+    for (const section of sections) {
+      await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
+      await tdSectionContentBackfill(section.id);
+    }
     return sections;
   }
+  for (const section of sectionList) await tdSectionContentBackfill(section.id);
   return sectionList.sort((a, b) => a.order - b.order);
+}
+
+export async function tdSectionContentBackfill(sectionId) {
+  const current = await getEntity(KEY_SECTION_CONTENT, sectionId, mem.sectionContents);
+  if (current) return current;
+  const next = {
+    id: cuid('tdsc'),
+    sectionId,
+    summaryMarkdown: '',
+    contentJson: null,
+    updatedByUserId: null,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  await putEntity(KEY_SECTION_CONTENT, sectionId, next, mem.sectionContents, KEY_CONTENT, mem.sectionContentIds);
+  return next;
+}
+
+export async function tdSectionContentGet(sectionId) {
+  return tdSectionContentBackfill(sectionId);
+}
+
+export async function tdSectionContentPut(sectionId, payload, actorId) {
+  const section = await getEntity(KEY_SECTION, sectionId, mem.sections);
+  if (!section) throw new Error('section not found');
+  const current = await tdSectionContentBackfill(sectionId);
+  const validator = SECTION_CONTENT_VALIDATORS[section.templateKey] || ((x) => x || null);
+  const summaryMarkdown = typeof payload?.summaryMarkdown === 'string' ? payload.summaryMarkdown : current.summaryMarkdown;
+  const contentJson = payload?.contentJson === undefined ? current.contentJson : validator(payload.contentJson || {});
+  const next = {
+    ...current,
+    sectionId,
+    summaryMarkdown,
+    contentJson,
+    updatedByUserId: actorId || null,
+    updatedAt: nowIso(),
+  };
+  await putEntity(KEY_SECTION_CONTENT, sectionId, next, mem.sectionContents, KEY_CONTENT, mem.sectionContentIds);
+  await tdSectionUpdate(sectionId, {});
+  return next;
+}
+
+export async function tdSectionGetDetailed(sectionId) {
+  const section = await getEntity(KEY_SECTION, sectionId, mem.sections);
+  if (!section) return null;
+  const content = await tdSectionContentBackfill(sectionId);
+  const links = (await tdLinks(section.tdId)).filter((l) => l.sectionId === sectionId);
+  return { ...section, content, links };
 }
 
 export async function tdSectionUpdate(sectionId, patch) {
@@ -274,6 +392,12 @@ export async function tdLinks(tdId) {
     if (link?.tdId === tdId) links.push(link);
   }
   return links;
+}
+
+export async function tdLinksBySection(tdId, sectionId = null) {
+  const all = await tdLinks(tdId);
+  if (!sectionId) return all;
+  return all.filter((l) => l.sectionId === sectionId);
 }
 
 export async function tdLinkCreate(tdId, payload) {
@@ -373,14 +497,45 @@ export async function tdImpactByChange(changeRequestId) {
   return items;
 }
 
+
+export async function tdImpactPatch(impactId, patch) {
+  const current = await getEntity(KEY_IMPACT, impactId, mem.impacts);
+  if (!current) throw new Error('impact not found');
+  const next = {
+    ...current,
+    ...patch,
+    status: impactStatuses.has(patch?.status) ? patch.status : current.status,
+  };
+  await putEntity(KEY_IMPACT, impactId, next, mem.impacts, KEY_IMPACTS, mem.impactIds);
+  return next;
+}
+
 export async function tdAnalyzeChange(changeId) {
   const change = await getEntity(KEY_CHANGE, changeId, mem.changes);
   if (!change) throw new Error('change not found');
-  const blueprints = [
-    { impactType: 'GSPR', targetRef: 'GSPR:AnnexI', requiredAction: 'Review affected GSPR requirements.' },
-    { impactType: 'FMEA', targetRef: `FMEA:${change.tdId}`, requiredAction: 'Re-score severity/occurrence and mitigation controls.' },
-    { impactType: 'PMS', targetRef: 'ANNEX_III_G', requiredAction: 'Update PMS plan and vigilance triggers.' },
-    { impactType: 'LabelingIFU', targetRef: 'ANNEX_II_B', requiredAction: 'Assess IFU/labeling update requirement.' },
+  const byType = {
+    Material: [
+      { impactType: 'FMEA', targetRef: `FMEA:${change.tdId}`, requiredAction: 'Review FMEA controls and scoring.' },
+      { impactType: 'VerificationValidation', targetRef: 'ANNEX_II_F', requiredAction: 'Review biocompatibility and V&V evidence.' },
+      { impactType: 'LabelingIFU', targetRef: 'ANNEX_II_B', requiredAction: 'Check IFU/labeling material references.' },
+      { impactType: 'PMS', targetRef: 'ANNEX_III_G', requiredAction: 'Update PMS plan watchpoints for material change.' },
+    ],
+    Supplier: [
+      { impactType: 'SupplierAudit', targetRef: 'SUPPLIER:AUDIT', requiredAction: 'Re-evaluate supplier qualification/audit.' },
+      { impactType: 'VerificationValidation', targetRef: 'INCOMING_QC', requiredAction: 'Update incoming QC controls.' },
+      { impactType: 'FMEA', targetRef: `FMEA:${change.tdId}`, requiredAction: 'Update supplier-linked failure modes.' },
+      { impactType: 'PMS', targetRef: 'ANNEX_III_G', requiredAction: 'Add supplier monitoring signal in PMS.' },
+    ],
+    LabelingIFU: [
+      { impactType: 'LabelingIFU', targetRef: 'ANNEX_II_B', requiredAction: 'Update IFU and labeling section B content.' },
+      { impactType: 'Training', targetRef: 'TRAINING:COMMERCIAL', requiredAction: 'Update training and communication materials.' },
+      { impactType: 'GSPR', targetRef: 'GSPR:AnnexI', requiredAction: 'Verify linked GSPR requirements remain compliant.' },
+      { impactType: 'PMS', targetRef: 'ANNEX_III_G', requiredAction: 'Define PMS communication follow-up actions.' },
+    ],
+  };
+  const blueprints = byType[change.changeType] || [
+    { impactType: 'GSPR', targetRef: 'GSPR:AnnexI', requiredAction: 'Review impacted requirements.' },
+    { impactType: 'FMEA', targetRef: `FMEA:${change.tdId}`, requiredAction: 'Review risk controls.' },
   ];
   const generated = [];
   for (const b of blueprints) {
@@ -416,9 +571,9 @@ export async function tdComputedSummary(td) {
   if (overdueSections.length) reasons.push(`Annex sections overdue (${overdueSections.length})`);
   if (td.nextReviewAt && Date.parse(td.nextReviewAt) < today) reasons.push('TD review overdue');
 
-  const hasGspr = links.some((l) => l.type === 'GSPR');
-  const hasFmea = links.some((l) => l.type === 'FMEA');
-  const hasPms = links.some((l) => l.sectionId?.includes('ANNEX_III_G') || l.sectionId?.includes('ANNEX_III_H'));
+  const hasGspr = links.some((l) => l.type === 'GSPR' && l.sectionId?.includes('ANNEX_II_D'));
+  const hasFmea = links.some((l) => l.type === 'FMEA' && l.sectionId?.includes('ANNEX_II_E'));
+  const hasPms = links.some((l) => (l.type === 'Report' || l.type === 'Document') && (l.sectionId?.includes('ANNEX_III_G') || l.sectionId?.includes('ANNEX_III_H')));
   if (!hasGspr) reasons.push('Missing mandatory link: GSPR');
   if (!hasFmea) reasons.push('Missing mandatory link: FMEA');
   if (!hasPms) reasons.push('Missing mandatory link: PMS plan/report');
@@ -472,12 +627,76 @@ export async function tdComputedSummary(td) {
   };
 }
 
+export async function tdReadiness(tdId) {
+  const td = await tdGet(tdId);
+  if (!td) throw new Error('TD not found');
+  const links = await tdLinks(tdId);
+  const gaps = [];
+  if (!links.some((l) => l.type === 'GSPR' && l.sectionId?.includes('ANNEX_II_D'))) gaps.push('Missing mandatory link: one GSPR link in section D');
+  if (!links.some((l) => l.type === 'FMEA' && l.sectionId?.includes('ANNEX_II_E'))) gaps.push('Missing mandatory link: one FMEA link in section E');
+  if (!links.some((l) => (l.type === 'Report' || l.type === 'Document') && (l.sectionId?.includes('ANNEX_III_G') || l.sectionId?.includes('ANNEX_III_H')))) {
+    gaps.push('Missing mandatory link: one PMS plan/report link in section G or H');
+  }
+  const summary = await tdComputedSummary(td);
+  return { readinessStatus: gaps.length ? 'Yellow' : summary.readinessStatus, complianceScore: summary.complianceScore, gaps };
+}
+
+function pdfBufferFromDoc(doc) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.end();
+  });
+}
+
 export async function tdNbExport(tdId) {
   const td = await tdGet(tdId);
   if (!td) throw new Error('TD not found');
   const sections = await tdSections(tdId);
   const links = await tdLinks(tdId);
   const summary = await tdComputedSummary(td);
+  const sectionsDetailed = await Promise.all(sections.map(async (section) => ({
+    section,
+    content: await tdSectionContentBackfill(section.id),
+    links: links.filter((l) => l.sectionId === section.id),
+  })));
+
+  const doc = new PDFDocument({ size: 'A4', margin: 42 });
+  doc.fontSize(20).text('NB Package Summary', { align: 'center' });
+  doc.moveDown();
+  doc.fontSize(12).text(`TD: ${td.code} - ${td.title}`);
+  doc.text(`Generated: ${new Date().toISOString()}`);
+  doc.text(`Readiness: ${summary.readinessStatus}`);
+  doc.text(`Compliance Score: ${summary.complianceScore}`);
+  doc.text(`Manufacturer: DFS`);
+  doc.addPage();
+  doc.fontSize(16).text('Table of Contents');
+  doc.moveDown(0.5);
+  for (const section of sections) doc.fontSize(10).text(`${section.name} | ${section.status} | Updated ${section.lastUpdatedAt || '-'}`);
+  for (const bundle of sectionsDetailed) {
+    doc.addPage();
+    doc.fontSize(14).text(bundle.section.name);
+    doc.fontSize(10).text(`Status: ${bundle.section.status}`);
+    doc.moveDown(0.5);
+    doc.fontSize(11).text('Summary');
+    doc.fontSize(10).text(bundle.content.summaryMarkdown || '-', { width: 500 });
+    doc.moveDown(0.5);
+    doc.fontSize(11).text('Structured Fields');
+    const entries = Object.entries(bundle.content.contentJson || {});
+    if (!entries.length) doc.fontSize(10).text('-');
+    for (const [key, value] of entries) {
+      const printable = Array.isArray(value) ? value.join(', ') : String(value ?? '');
+      doc.fontSize(10).text(`${key}: ${printable}`);
+    }
+    doc.moveDown(0.5);
+    doc.fontSize(11).text('Links');
+    if (!bundle.links.length) doc.fontSize(10).text('-');
+    for (const link of bundle.links) doc.fontSize(10).text(`${link.type} | ${link.label} | ${link.url || link.refId || '-'}`);
+  }
+  const pdfBuffer = await pdfBufferFromDoc(doc);
+
   const payload = {
     generatedAt: nowIso(),
     td,
@@ -490,7 +709,11 @@ export async function tdNbExport(tdId) {
       risk: links.filter((l) => l.type === 'FMEA'),
     },
   };
-  const exp = { id: cuid('tdexp'), tdId, status: 'completed', createdAt: nowIso(), payload };
+  const exp = { id: cuid('tdexp'), tdId, status: 'completed', createdAt: nowIso(), payload, pdfBase64: pdfBuffer.toString('base64') };
   await putEntity(KEY_EXPORT, exp.id, exp, mem.exports, KEY_EXPORTS, mem.exportIds);
   return exp;
+}
+
+export async function tdExportGet(exportId) {
+  return getEntity(KEY_EXPORT, exportId, mem.exports);
 }
