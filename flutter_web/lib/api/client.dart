@@ -3893,15 +3893,25 @@ class ApiClient {
 
 
   Future<List<TdFile>> fetchTdFiles() async {
-    final r = await _request('GET', '/api/td', portalAuth: true);
-    final body = _decodeJsonMap(r.body);
+    const path = '/api/td';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     final items = (body['items'] as List?) ?? const [];
     return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
   }
 
   Future<Map<String, dynamic>> fetchTdDetail(String id) async {
-    final r = await _request('GET', '/api/td/$id', portalAuth: true);
-    return _decodeJsonMap(r.body);
+    final path = '/api/td/$id';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
   }
 
   Future<TdFile> createTdFile({
@@ -3911,36 +3921,54 @@ class ApiClient {
     String? classification,
     String? rule,
   }) async {
-    final r = await _request(
-      'POST',
-      '/api/td',
-      portalAuth: true,
-      body: {
+    const path = '/api/td';
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true, path: path),
+      body: jsonEncode({
         'code': code,
         'title': title,
         'productGroup': productGroup,
         'classification': classification,
         'rule': rule,
-      },
+      }),
     );
-    final body = _decodeJsonMap(r.body);
-    return TdFile.fromJson((body['item'] as Map).cast<String, dynamic>());
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdFile.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
   }
 
   Future<List<TdChangeRequest>> fetchTdChanges(String tdId) async {
-    final r = await _request('GET', '/api/td/$tdId/changes', portalAuth: true);
-    final body = _decodeJsonMap(r.body);
+    final path = '/api/td/$tdId/changes';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     final items = (body['items'] as List?) ?? const [];
     return items.whereType<Map>().map((e) => TdChangeRequest.fromJson(e.cast<String, dynamic>())).toList(growable: false);
   }
 
   Future<void> runTdImpactAnalyzer(String changeId) async {
-    await _request('POST', '/api/td/changes/$changeId/analyze', portalAuth: true, body: const {});
+    final path = '/api/td/changes/$changeId/analyze';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
   }
 
   Future<Map<String, dynamic>> exportTdNbPackage(String tdId) async {
-    final r = await _request('POST', '/api/td/$tdId/export/nb-package', portalAuth: true, body: const {});
-    return _decodeJsonMap(r.body);
+    final path = '/api/td/$tdId/export/nb-package';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
   }
 
   // Ende ApiClient
