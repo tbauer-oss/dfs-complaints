@@ -1505,6 +1505,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         rawData.values.any((value) => value is List && value.whereType<String>().contains('pushDevices'));
     final hasGsprInStored = rawData != null &&
         rawData.values.any((value) => value is List && value.whereType<String>().contains('gspr'));
+    final hasTdInStored = rawData != null &&
+        rawData.values.any((value) => value is List && value.whereType<String>().contains('td'));
     if (rawData != null) {
       rawData.forEach((key, value) {
         if (value is List) {
@@ -1532,7 +1534,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           (!hasChangeManagementInStored && defaults.contains('changeManagement')) ||
           (!hasInternalErrorsInStored && defaults.contains('internalErrors')) ||
           (!hasPushDevicesInStored && defaults.contains('pushDevices')) ||
-          (!hasGsprInStored && defaults.contains('gspr'))) {
+          (!hasGsprInStored && defaults.contains('gspr')) ||
+          (!hasTdInStored && defaults.contains('td'))) {
         var changed = false;
         for (final tile in defaults) {
           if (existingTiles.add(tile)) changed = true;
@@ -8545,6 +8548,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _ensureMenuTilePresent('capaDashboard');
     _ensureMenuTilePresent('fmea');
     _ensureMenuTilePresent('gspr');
+    _ensureMenuTilePresent('td');
     _ensureMenuTilePresent('internalErrors');
     _ensureMenuTilePresent('changeManagement');
     _ensureMenuTilePresent('audits');
@@ -8582,6 +8586,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
         _ensureMenuTilePresent('gspr');
+        _ensureMenuTilePresent('td');
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
@@ -8611,6 +8616,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
         _ensureMenuTilePresent('gspr');
+        _ensureMenuTilePresent('td');
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
@@ -8660,6 +8666,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _ensureMenuTilePresent('capaDashboard');
         _ensureMenuTilePresent('fmea');
         _ensureMenuTilePresent('gspr');
+        _ensureMenuTilePresent('td');
         _ensureMenuTilePresent('internalErrors');
         _ensureMenuTilePresent('changeManagement');
         _ensureMenuTilePresent('audits');
