@@ -10618,7 +10618,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       case 'td':
         return _buildDashboardTile(
           tileId: tileId,
-          label: 'TD',
+          label: 'Technische Dokumentation (MDR)',
           subtitle: 'Reifegrad der technischen Dokumentation',
           icon: Icons.description_outlined,
           colorA: AdminPalette.indigoA,
