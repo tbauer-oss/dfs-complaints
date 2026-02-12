@@ -145,9 +145,24 @@ model TdSection {
   ownerUserId       String?
   notes             String?
 
-  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+  td      TdFile             @relation(fields: [tdId], references: [id], onDelete: Cascade)
+  content TdSectionContent?
 
   @@index([tdId, templateKey])
+}
+
+model TdSectionContent {
+  id              String   @id @default(cuid())
+  sectionId       String   @unique
+  summaryMarkdown String   @default("")
+  contentJson     Json?
+  updatedByUserId String?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  section TdSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
 }
 
 model TdArtifactLink {

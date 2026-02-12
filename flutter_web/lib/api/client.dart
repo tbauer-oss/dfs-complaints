@@ -3941,6 +3941,68 @@ class ApiClient {
     return TdFile.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
   }
 
+  Future<List<TdSection>> fetchTdSections(String tdId) async {
+    final path = '/api/td/$tdId/sections';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdSection.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> fetchTdSectionDetail(String sectionId) async {
+    final path = '/api/td/sections/$sectionId';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return (body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+  }
+
+  Future<void> patchTdSection(String sectionId, Map<String, dynamic> patch) async {
+    final path = '/api/td/sections/$sectionId';
+    final r = await http.patch(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(patch));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<void> putTdSectionContent(String sectionId, {required String summaryMarkdown, required Map<String, dynamic> contentJson}) async {
+    final path = '/api/td/sections/$sectionId/content';
+    final r = await http.put(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode({'summaryMarkdown': summaryMarkdown, 'contentJson': contentJson}));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<List<TdArtifactLink>> fetchTdLinks(String tdId, {String? sectionId}) async {
+    final qp = sectionId == null ? '' : '?sectionId=${Uri.encodeQueryComponent(sectionId)}';
+    final path = '/api/td/$tdId/links$qp';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: '/api/td/$tdId/links'));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdArtifactLink.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<void> createTdLink(String tdId, Map<String, dynamic> payload) async {
+    final path = '/api/td/$tdId/links';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(payload));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<void> deleteTdLink(String linkId) async {
+    final path = '/api/td/links/$linkId';
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<Map<String, dynamic>> fetchTdReadiness(String tdId) async {
+    final path = '/api/td/$tdId/readiness';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
   Future<List<TdChangeRequest>> fetchTdChanges(String tdId) async {
     final path = '/api/td/$tdId/changes';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
@@ -3951,6 +4013,27 @@ class ApiClient {
     final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     final items = (body['items'] as List?) ?? const [];
     return items.whereType<Map>().map((e) => TdChangeRequest.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<void> createTdChange(String tdId, Map<String, dynamic> payload) async {
+    final path = '/api/td/$tdId/changes';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(payload));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<TdChangeRequest> fetchTdChange(String changeId) async {
+    final path = '/api/td/changes/$changeId';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdChangeRequest.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
+  }
+
+  Future<void> patchTdImpact(String impactId, {required String status}) async {
+    final path = '/api/td/impacts/$impactId';
+    final r = await http.patch(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode({'status': status}));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
   }
 
   Future<void> runTdImpactAnalyzer(String changeId) async {
