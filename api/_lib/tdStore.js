@@ -26,6 +26,12 @@ const KEY_IMPACTS = `${PREFIX}impacts`;
 const KEY_EXPORTS = `${PREFIX}exports`;
 const KEY_QUERY_ANSWERS = `${PREFIX}query-answers`;
 const KEY_QUERY_LINKS = `${PREFIX}query-links`;
+const KEY_APPLICABILITY_PROFILE = `${PREFIX}applicability-profile`;
+const KEY_APPLICABILITY_PROFILE_BY_TD = (tdId) => `${PREFIX}applicability-profile:${tdId}`;
+const KEY_APPLICABILITY_OVERRIDE = `${PREFIX}applicability-override`;
+const KEY_APPLICABILITY_OVERRIDE_BY_ID = (id) => `${PREFIX}applicability-override:${id}`;
+const KEY_APPLICABILITY_RESULT = `${PREFIX}applicability-result`;
+const KEY_APPLICABILITY_RESULT_BY_ID = (id) => `${PREFIX}applicability-result:${id}`;
 const KEY = (id) => `${PREFIX}file:${id}`;
 const KEY_SECTION = (id) => `${PREFIX}section:${id}`;
 const KEY_LINK = (id) => `${PREFIX}link:${id}`;
@@ -42,6 +48,9 @@ const tdStatus = new Set(['Green', 'Yellow', 'Red', 'Draft']);
 const sectionStatus = new Set(['NotStarted', 'InProgress', 'Complete', 'Blocked', 'NotApplicable']);
 const linkTypes = new Set(['Document', 'GSPR', 'FMEA', 'CAPA', 'ComplaintMetric', 'Supplier', 'Training', 'ExternalLink', 'Report', 'Change']);
 const queryStatuses = new Set(['NotStarted', 'InProgress', 'Complete', 'Blocked', 'NotApplicable']);
+const tdApplicabilityStates = new Set(['MANDATORY', 'OPTIONAL', 'CONDITIONAL', 'NOT_APPLICABLE']);
+const tdProductProfileTypes = new Set(['ROTARY_REUSABLE_NONSTERILE', 'ROTARY_REUSABLE_SURGICAL', 'DENTAL_ALLOYS', 'SOFTWARE_DEVICE']);
+const tdPackagingTypes = new Set(['BULK_NONSTERILE', 'UNIT_NONSTERILE', 'STERILE_BARRIER_SYSTEM', 'TRANSPORT_VALIDATED']);
 const changeTypes = new Set(['Material', 'Supplier', 'Geometry', 'Coating', 'IntendedPurpose', 'LabelingIFU', 'Classification', 'Process', 'Software', 'Other']);
 const severities = new Set(['Low', 'Medium', 'High', 'Critical']);
 const changeStatuses = new Set(['Draft', 'Submitted', 'UnderReview', 'Approved', 'Rejected', 'Implemented']);
@@ -66,6 +75,11 @@ const mem = {
   queryAnswerIds: new Set(),
   queryLinkIds: new Set(),
   sectionContentIds: new Set(),
+  applicabilityProfiles: new Map(),
+  applicabilityOverrides: new Map(),
+  applicabilityOverrideIds: new Set(),
+  applicabilityResults: new Map(),
+  applicabilityResultIds: new Set(),
   files: new Map(),
   sections: new Map(),
   links: new Map(),
@@ -81,6 +95,29 @@ const nowIso = () => new Date().toISOString();
 const cuid = (prefix) => `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 const asArray = (v) => (Array.isArray(v) ? v : []);
 const asStringArray = (v) => asArray(v).map((x) => String(x || '').trim()).filter(Boolean);
+
+const APPLICABILITY_GENERATOR = 'profile-v1';
+const APPLICABILITY_CONDITION_KEYS = new Set([
+  'SOFTWARE_VV_REQUIRED',
+  'REPROCESSING_REQUIRED',
+  'STERILIZATION_REQUIRED',
+  'PACKAGING_VALIDATION_REQUIRED',
+  'PMCF_REQUIRED_OR_JUSTIFIED',
+  'PACKAGING_IS_STERILE_BARRIER',
+]);
+
+function defaultsByProfile(profileType) {
+  if (profileType === 'ROTARY_REUSABLE_SURGICAL') {
+    return { isReusable: true, isSterile: false, packagingType: 'UNIT_NONSTERILE', hasSoftware: false };
+  }
+  if (profileType === 'DENTAL_ALLOYS') {
+    return { isReusable: false, isSterile: false, packagingType: 'UNIT_NONSTERILE', hasSoftware: false };
+  }
+  if (profileType === 'SOFTWARE_DEVICE') {
+    return { isReusable: false, isSterile: false, packagingType: 'UNIT_NONSTERILE', hasSoftware: true };
+  }
+  return { isReusable: true, isSterile: false, packagingType: 'BULK_NONSTERILE', hasSoftware: false };
+}
 
 const DEFAULT_SECTION_CONTENT = {
   summaryMarkdown: '',
@@ -202,6 +239,100 @@ export const TD_QUERY_TEMPLATES = [
   defaultOwnersRole,
   tags,
 }));
+
+
+function normalizeApplicabilityProfile(tdId, input = {}, fallbackRule = null) {
+  const requestedProfile = String(input?.profileType || '').trim();
+  const profileType = tdProductProfileTypes.has(requestedProfile) ? requestedProfile : 'ROTARY_REUSABLE_NONSTERILE';
+  const defaults = defaultsByProfile(profileType);
+  return {
+    id: String(input?.id || cuid('tdap')),
+    tdId,
+    profileType,
+    isReusable: input?.isReusable === undefined ? defaults.isReusable : Boolean(input.isReusable),
+    isSterile: input?.isSterile === undefined ? defaults.isSterile : Boolean(input.isSterile),
+    packagingType: tdPackagingTypes.has(input?.packagingType) ? input.packagingType : defaults.packagingType,
+    classificationRule: input?.classificationRule === undefined ? (fallbackRule || null) : (input.classificationRule ? String(input.classificationRule) : null),
+    hasSoftware: input?.hasSoftware === undefined ? defaults.hasSoftware : Boolean(input.hasSoftware),
+    notes: input?.notes ? String(input.notes) : null,
+    createdAt: input?.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+}
+
+function queryConditionState(profile, templateKey) {
+  if (templateKey === 'ANNEX_II_F_6') {
+    const met = profile.hasSoftware === true;
+    return {
+      state: met ? 'MANDATORY' : 'NOT_APPLICABLE',
+      conditionKey: 'SOFTWARE_VV_REQUIRED',
+      conditionExpr: "hasSoftware == true",
+      isConditionMet: met,
+      conditionSummary: met ? 'Software validation is required because product has software.' : 'Software validation is not applicable because product has no software.',
+    };
+  }
+  if (templateKey === 'ANNEX_II_F_3') {
+    if (profile.isSterile === true) {
+      return {
+        state: 'MANDATORY',
+        conditionKey: 'STERILIZATION_REQUIRED',
+        conditionExpr: "isSterile == true",
+        isConditionMet: true,
+        conditionSummary: 'Sterilization validation is required for sterile product.',
+      };
+    }
+    const met = profile.isReusable === true;
+    return {
+      state: met ? 'MANDATORY' : 'NOT_APPLICABLE',
+      conditionKey: 'REPROCESSING_REQUIRED',
+      conditionExpr: "isReusable == true",
+      isConditionMet: met,
+      conditionSummary: met ? 'Reprocessing validation is required for reusable device.' : 'Reprocessing validation is not applicable for non-reusable profile.',
+    };
+  }
+  if (templateKey === 'ANNEX_II_F_5') {
+    if (profile.packagingType === 'STERILE_BARRIER_SYSTEM') {
+      return {
+        state: 'MANDATORY',
+        conditionKey: 'PACKAGING_VALIDATION_REQUIRED',
+        conditionExpr: "packagingType == 'STERILE_BARRIER_SYSTEM'",
+        isConditionMet: true,
+        conditionSummary: 'Sterile barrier packaging requires full packaging validation.',
+      };
+    }
+    if (profile.packagingType === 'TRANSPORT_VALIDATED') {
+      return {
+        state: 'CONDITIONAL',
+        conditionKey: 'PACKAGING_VALIDATION_REQUIRED',
+        conditionExpr: "packagingType == 'TRANSPORT_VALIDATED'",
+        isConditionMet: true,
+        conditionSummary: 'Transport-validated packaging needs a mandatory subset of validation evidence.',
+      };
+    }
+    return {
+      state: 'OPTIONAL',
+      conditionKey: 'PACKAGING_VALIDATION_REQUIRED',
+      conditionExpr: "packagingType in ('BULK_NONSTERILE','UNIT_NONSTERILE')",
+      isConditionMet: false,
+      conditionSummary: 'Packaging validation is optional for non-sterile bulk/unit packaging.',
+    };
+  }
+  if (templateKey === 'ANNEX_III_G_4') {
+    const met = profile.profileType === 'ROTARY_REUSABLE_SURGICAL';
+    return {
+      state: 'CONDITIONAL',
+      conditionKey: 'PMCF_REQUIRED_OR_JUSTIFIED',
+      conditionExpr: "profileType == 'ROTARY_REUSABLE_SURGICAL'",
+      isConditionMet: met,
+      conditionSummary: met ? 'PMCF is required for the surgical rotary profile.' : 'PMCF can be omitted with documented justification in PMS/clinical rationale.',
+    };
+  }
+  return { state: 'MANDATORY', isConditionMet: null, conditionKey: null, conditionExpr: null, conditionSummary: null };
+}
+
+function overrideKey(item) {
+  return `${item.tdId}:${item.sectionId || ''}:${item.queryKey || ''}`;
+}
 
 function normalizeFile(input, actorEmail) {
   const code = String(input?.code || '').trim().toUpperCase();
@@ -330,6 +461,8 @@ async function ensureSeedTdFiles() {
       await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
       await tdSectionContentBackfill(section.id);
     }
+    await tdApplicabilityProfileUpsert(seeded.id, { classificationRule: seeded.rule || null }, seeded.rule || null);
+    await generateApplicability(seeded.id);
     byCode.set(code, seeded);
     createdAny = true;
   }
@@ -358,6 +491,147 @@ export async function tdGet(id) {
   return getEntity(KEY, id, mem.files);
 }
 
+
+
+async function tdApplicabilityProfileGet(tdId) {
+  return getEntity(KEY_APPLICABILITY_PROFILE_BY_TD, tdId, mem.applicabilityProfiles);
+}
+
+export async function tdApplicabilityProfileUpsert(tdId, input = {}, fallbackRule = null) {
+  const current = await tdApplicabilityProfileGet(tdId);
+  const normalized = normalizeApplicabilityProfile(tdId, { ...current, ...input, createdAt: current?.createdAt || input?.createdAt }, fallbackRule);
+  await putEntity(KEY_APPLICABILITY_PROFILE_BY_TD, tdId, normalized, mem.applicabilityProfiles);
+  return normalized;
+}
+
+export async function tdApplicabilityOverrides(tdId) {
+  const ids = await withStore((r)=>r.smembers(KEY_APPLICABILITY_OVERRIDE), ()=>Array.from(mem.applicabilityOverrideIds));
+  const items = [];
+  for (const id of ids) {
+    const item = await getEntity(KEY_APPLICABILITY_OVERRIDE_BY_ID, id, mem.applicabilityOverrides);
+    if (item?.tdId === tdId) items.push(item);
+  }
+  return items.sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function tdApplicabilityOverrideUpsert(tdId, payload = {}) {
+  const sectionId = payload?.sectionId ? String(payload.sectionId) : null;
+  const queryKey = payload?.queryKey ? String(payload.queryKey) : null;
+  if (!sectionId && !queryKey) throw new Error('sectionId or queryKey is required');
+  const state = tdApplicabilityStates.has(payload?.state) ? payload.state : 'MANDATORY';
+  const existing = (await tdApplicabilityOverrides(tdId)).find((item) => item.sectionId === sectionId && item.queryKey === queryKey);
+  const next = {
+    id: existing?.id || cuid('tdao'),
+    tdId,
+    sectionId,
+    queryKey,
+    state,
+    conditionKey: payload?.conditionKey && APPLICABILITY_CONDITION_KEYS.has(String(payload.conditionKey)) ? String(payload.conditionKey) : null,
+    conditionExpr: payload?.conditionExpr ? String(payload.conditionExpr) : null,
+    rationale: payload?.rationale ? String(payload.rationale) : null,
+    createdAt: existing?.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+  await putEntity(KEY_APPLICABILITY_OVERRIDE_BY_ID, next.id, next, mem.applicabilityOverrides, KEY_APPLICABILITY_OVERRIDE, mem.applicabilityOverrideIds);
+  return next;
+}
+
+export async function tdApplicabilityResults(tdId) {
+  const ids = await withStore((r)=>r.smembers(KEY_APPLICABILITY_RESULT), ()=>Array.from(mem.applicabilityResultIds));
+  const items = [];
+  for (const id of ids) {
+    const item = await getEntity(KEY_APPLICABILITY_RESULT_BY_ID, id, mem.applicabilityResults);
+    if (item?.tdId === tdId) items.push(item);
+  }
+  return items;
+}
+
+function evalConditionMet(profile, conditionKey) {
+  if (conditionKey === 'SOFTWARE_VV_REQUIRED') return profile.hasSoftware === true;
+  if (conditionKey === 'REPROCESSING_REQUIRED') return profile.isReusable === true;
+  if (conditionKey === 'STERILIZATION_REQUIRED') return profile.isSterile === true;
+  if (conditionKey === 'PACKAGING_VALIDATION_REQUIRED') return ['STERILE_BARRIER_SYSTEM', 'TRANSPORT_VALIDATED'].includes(profile.packagingType);
+  if (conditionKey === 'PACKAGING_IS_STERILE_BARRIER') return profile.packagingType === 'STERILE_BARRIER_SYSTEM';
+  if (conditionKey === 'PMCF_REQUIRED_OR_JUSTIFIED') return profile.profileType === 'ROTARY_REUSABLE_SURGICAL';
+  return false;
+}
+
+export async function generateApplicability(tdId) {
+  const td = await tdGet(tdId);
+  if (!td) throw new Error('TD not found');
+  const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
+  const sections = await tdSections(tdId);
+  await tdBootstrapQueries(tdId);
+  const queries = await tdQueryAnswersRaw(tdId);
+  const overrides = await tdApplicabilityOverrides(tdId);
+  const overrideMap = new Map(overrides.map((item) => [overrideKey(item), item]));
+  const existing = await tdApplicabilityResults(tdId);
+  const existingMap = new Map(existing.map((item) => [overrideKey(item), item]));
+
+  const nextItems = [];
+  for (const section of sections) {
+    const key = `${tdId}:${section.id}:`;
+    const base = { tdId, sectionId: section.id, queryKey: null, state: 'MANDATORY', isConditionMet: null, conditionSummary: null, generatedBy: APPLICABILITY_GENERATOR };
+    const override = overrideMap.get(key);
+    const computed = { ...base };
+    if (override) {
+      computed.state = override.state;
+      if (override.state === 'CONDITIONAL') {
+        computed.isConditionMet = evalConditionMet(profile, override.conditionKey);
+        computed.conditionSummary = override.rationale || override.conditionExpr || 'Conditional override';
+      }
+    }
+    const prev = existingMap.get(key);
+    nextItems.push({ id: prev?.id || cuid('tdar'), ...computed, createdAt: prev?.createdAt || nowIso(), updatedAt: nowIso() });
+  }
+
+  for (const query of queries) {
+    const c = queryConditionState(profile, query.templateKey);
+    const key = `${tdId}:${query.sectionId}:${query.templateKey}`;
+    const base = { tdId, sectionId: query.sectionId, queryKey: query.templateKey, state: c.state, isConditionMet: c.isConditionMet, conditionSummary: c.conditionSummary, generatedBy: APPLICABILITY_GENERATOR };
+    const override = overrideMap.get(key);
+    const computed = { ...base };
+    if (override) {
+      computed.state = override.state;
+      if (override.state === 'CONDITIONAL') {
+        computed.isConditionMet = evalConditionMet(profile, override.conditionKey);
+        computed.conditionSummary = override.rationale || override.conditionExpr || c.conditionSummary;
+      } else {
+        computed.conditionSummary = override.rationale || computed.conditionSummary;
+        computed.isConditionMet = override.state === 'MANDATORY' ? true : (override.state === 'NOT_APPLICABLE' ? false : null);
+      }
+    }
+    const prev = existingMap.get(key);
+    nextItems.push({ id: prev?.id || cuid('tdar'), ...computed, createdAt: prev?.createdAt || nowIso(), updatedAt: nowIso() });
+  }
+
+  const keepIds = new Set(nextItems.map((item) => item.id));
+  for (const prev of existing) {
+    if (keepIds.has(prev.id)) continue;
+    await withStore(
+      async (r) => { await r.del(KEY_APPLICABILITY_RESULT_BY_ID(prev.id)); await r.srem(KEY_APPLICABILITY_RESULT, prev.id); },
+      () => { mem.applicabilityResults.delete(prev.id); mem.applicabilityResultIds.delete(prev.id); },
+    );
+  }
+  for (const item of nextItems) {
+    await putEntity(KEY_APPLICABILITY_RESULT_BY_ID, item.id, item, mem.applicabilityResults, KEY_APPLICABILITY_RESULT, mem.applicabilityResultIds);
+  }
+  return { profile, results: nextItems, overrides };
+}
+
+export async function tdApplicabilityGet(tdId) {
+  const td = await tdGet(tdId);
+  if (!td) throw new Error('TD not found');
+  const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
+  let results = await tdApplicabilityResults(tdId);
+  if (!results.length) {
+    const generated = await generateApplicability(tdId);
+    results = generated.results;
+  }
+  const overrides = await tdApplicabilityOverrides(tdId);
+  return { profile, results, overrides };
+}
+
 export async function tdCreate(input, actorEmail) {
   const normalized = normalizeFile(input, actorEmail);
   const existing = await tdList();
@@ -368,6 +642,8 @@ export async function tdCreate(input, actorEmail) {
     await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
     await tdSectionContentBackfill(section.id);
   }
+  await tdApplicabilityProfileUpsert(normalized.id, { ...input?.applicabilityProfile, classificationRule: input?.applicabilityProfile?.classificationRule || normalized.rule || null }, normalized.rule || null);
+  await generateApplicability(normalized.id);
   return normalized;
 }
 
@@ -526,6 +802,8 @@ export async function tdQueries(tdId, sectionId = null) {
   await tdBootstrapQueries(tdId);
   const answers = await tdQueryAnswersRaw(tdId);
   const queryLinks = await tdQueryLinksByTd(tdId);
+  const applicability = await tdApplicabilityGet(tdId);
+  const resultMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
   return answers
     .filter((item) => (sectionId ? item.sectionId === sectionId : true))
     .map((answer) => {
@@ -534,6 +812,7 @@ export async function tdQueries(tdId, sectionId = null) {
         ...answer,
         template,
         links: queryLinks.filter((link) => link.answerId === answer.id),
+        applicability: resultMap.get(`${tdId}:${answer.sectionId}:${answer.templateKey}`) || null,
       };
     })
     .sort((a, b) => {
@@ -856,6 +1135,9 @@ export async function tdReadiness(tdId) {
   const sections = await tdSections(tdId);
   const links = await tdLinks(tdId);
   const queries = await tdQueries(tdId);
+  const applicability = await tdApplicabilityGet(tdId);
+  const applicabilityMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
+
   const gaps = [];
   const now = Date.now();
 
@@ -871,9 +1153,18 @@ export async function tdReadiness(tdId) {
     const complete = sectionQueries.filter((q) => q.status === 'Complete' || q.status === 'NotApplicable').length;
     const total = sectionQueries.length;
     const completion = total ? Math.round((complete / total) * 100) : 0;
-    const mandatoryOpen = sectionQueries.filter((q) => q.template?.mandatory !== false && !['Complete', 'NotApplicable'].includes(q.status));
-    const overdue = sectionQueries.filter((q) => q.template?.mandatory !== false && q.dueAt && Date.parse(q.dueAt) < now && !['Complete', 'NotApplicable'].includes(q.status));
-    const requiredTypes = mandatoryBySection[section.templateKey] || [];
+    const isApplicableQuery = (q) => {
+      const rule = applicabilityMap.get(`${tdId}:${q.sectionId}:${q.templateKey}`) || q.applicability;
+      if (!rule) return q.template?.mandatory !== false;
+      if (rule.state === 'NOT_APPLICABLE') return false;
+      if (rule.state === 'OPTIONAL') return false;
+      if (rule.state === 'CONDITIONAL') return rule.isConditionMet === true;
+      return true;
+    };
+    const mandatoryOpen = sectionQueries.filter((q) => isApplicableQuery(q) && !['Complete', 'NotApplicable'].includes(q.status));
+    const overdue = sectionQueries.filter((q) => isApplicableQuery(q) && q.dueAt && Date.parse(q.dueAt) < now && !['Complete', 'NotApplicable'].includes(q.status));
+    const sectionApplicability = applicabilityMap.get(`${tdId}:${section.id}:`);
+    const requiredTypes = sectionApplicability?.state === 'NOT_APPLICABLE' ? [] : (mandatoryBySection[section.templateKey] || []);
     const missingLinkTypes = requiredTypes.filter((type) => !links.some((l) => l.sectionId === section.id && (type === 'Document' ? ['Document', 'Report'].includes(l.type) : l.type === type)));
     if (mandatoryOpen.length) gaps.push(`${section.templateKey}: mandatory queries open (${mandatoryOpen.length})`);
     if (overdue.length) gaps.push(`${section.templateKey}: overdue mandatory queries (${overdue.length})`);

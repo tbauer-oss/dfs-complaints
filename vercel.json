@@ -190,6 +190,14 @@
       "dest": "/api/td/queries/[answerId].js?answerId=$1"
     },
     {
+      "src": "/api/td/([^/]+)/applicability/regenerate$",
+      "dest": "/api/td/[id]/applicability/regenerate.js?id=$1"
+    },
+    {
+      "src": "/api/td/([^/]+)/applicability$",
+      "dest": "/api/td/[id]/applicability.js?id=$1"
+    },
+    {
       "src": "/api/td/([^/]+)$",
       "dest": "/api/td/[id].js?id=$1"
     },

@@ -1,3 +1,84 @@
+class TdApplicabilityResult {
+  final String? sectionId;
+  final String? queryKey;
+  final String state;
+  final bool? isConditionMet;
+  final String? conditionSummary;
+
+  const TdApplicabilityResult({required this.sectionId, required this.queryKey, required this.state, required this.isConditionMet, required this.conditionSummary});
+
+  factory TdApplicabilityResult.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdApplicabilityResult(
+      sectionId: map['sectionId']?.toString(),
+      queryKey: map['queryKey']?.toString(),
+      state: (map['state'] ?? 'MANDATORY').toString(),
+      isConditionMet: map['isConditionMet'] is bool ? map['isConditionMet'] as bool : null,
+      conditionSummary: map['conditionSummary']?.toString(),
+    );
+  }
+}
+
+class TdApplicabilityProfile {
+  final String profileType;
+  final bool isReusable;
+  final bool isSterile;
+  final String packagingType;
+  final String? classificationRule;
+  final bool hasSoftware;
+  final String? notes;
+
+  const TdApplicabilityProfile({
+    required this.profileType,
+    required this.isReusable,
+    required this.isSterile,
+    required this.packagingType,
+    required this.classificationRule,
+    required this.hasSoftware,
+    required this.notes,
+  });
+
+  factory TdApplicabilityProfile.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdApplicabilityProfile(
+      profileType: (map['profileType'] ?? 'ROTARY_REUSABLE_NONSTERILE').toString(),
+      isReusable: map['isReusable'] == true,
+      isSterile: map['isSterile'] == true,
+      packagingType: (map['packagingType'] ?? 'BULK_NONSTERILE').toString(),
+      classificationRule: map['classificationRule']?.toString(),
+      hasSoftware: map['hasSoftware'] == true,
+      notes: map['notes']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'profileType': profileType,
+        'isReusable': isReusable,
+        'isSterile': isSterile,
+        'packagingType': packagingType,
+        'classificationRule': classificationRule,
+        'hasSoftware': hasSoftware,
+        'notes': notes,
+      };
+}
+
+class TdApplicabilityBundle {
+  final TdApplicabilityProfile profile;
+  final List<TdApplicabilityResult> results;
+  final List<Map<String, dynamic>> overrides;
+
+  const TdApplicabilityBundle({required this.profile, required this.results, required this.overrides});
+
+  factory TdApplicabilityBundle.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdApplicabilityBundle(
+      profile: TdApplicabilityProfile.fromJson((map['profile'] as Map?)?.cast<String, dynamic>()),
+      results: (map['results'] as List?)?.whereType<Map>().map((e) => TdApplicabilityResult.fromJson(e.cast<String, dynamic>())).toList(growable: false) ?? const [],
+      overrides: (map['overrides'] as List?)?.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(growable: false) ?? const [],
+    );
+  }
+}
+
 class TdSummary {
   final int complianceScore;
   final String readinessStatus;
@@ -116,6 +197,7 @@ class TdSection {
   final int? linkCount;
   final int? completion;
   final int? queryTotal;
+  final TdApplicabilityResult? applicability;
 
   const TdSection({
     required this.id,
@@ -128,6 +210,7 @@ class TdSection {
     this.linkCount,
     this.completion,
     this.queryTotal,
+    this.applicability,
   });
 
   factory TdSection.fromJson(Map<String, dynamic> json) => TdSection(
@@ -141,6 +224,7 @@ class TdSection {
         linkCount: (json['linkCount'] as num?)?.toInt(),
         completion: ((json['queryStats'] as Map?)?['completion'] as num?)?.toInt(),
         queryTotal: ((json['queryStats'] as Map?)?['total'] as num?)?.toInt(),
+        applicability: json['applicability'] is Map ? TdApplicabilityResult.fromJson((json['applicability'] as Map).cast<String, dynamic>()) : null,
       );
 }
 
@@ -197,8 +281,9 @@ class TdQueryAnswer {
   final String? dueAt;
   final TdQueryTemplate template;
   final List<TdQueryLink> links;
+  final TdApplicabilityResult? applicability;
 
-  const TdQueryAnswer({required this.id, required this.sectionId, required this.status, required this.answerMarkdown, required this.rationaleMarkdown, required this.ownerUserId, required this.dueAt, required this.template, required this.links});
+  const TdQueryAnswer({required this.id, required this.sectionId, required this.status, required this.answerMarkdown, required this.rationaleMarkdown, required this.ownerUserId, required this.dueAt, required this.template, required this.links, required this.applicability});
 
   factory TdQueryAnswer.fromJson(Map<String, dynamic> json) => TdQueryAnswer(
         id: (json['id'] ?? '').toString(),
@@ -210,6 +295,7 @@ class TdQueryAnswer {
         dueAt: json['dueAt']?.toString(),
         template: TdQueryTemplate.fromJson((json['template'] as Map?)?.cast<String, dynamic>()),
         links: (json['links'] as List?)?.whereType<Map>().map((e) => TdQueryLink.fromJson(e.cast<String, dynamic>())).toList(growable: false) ?? const [],
+        applicability: json['applicability'] is Map ? TdApplicabilityResult.fromJson((json['applicability'] as Map).cast<String, dynamic>()) : null,
       );
 }
 class TdImpactItem {
