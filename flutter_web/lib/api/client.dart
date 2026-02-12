@@ -4007,7 +4007,7 @@ class ApiClient {
       throw ApiError(primary.statusCode, _extractMessage(primary.body));
     }
 
-    final fallbackPath = '/api/td/readiness?id=${Uri.encodeQueryComponent(tdId)}';
+    final fallbackPath = '/api/td/readiness?tdId=${Uri.encodeQueryComponent(tdId)}';
     final fallback = await http.get(_u(fallbackPath), headers: _adminHeaders(auth: true, path: '/api/td/readiness'));
     if (!_ok2xx(fallback.statusCode)) throw ApiError(fallback.statusCode, _extractMessage(fallback.body));
     final decoded = fallback.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(fallback.body);
