@@ -1,0 +1,2 @@
+-- TD module bootstrap migration; run via prisma migrate deploy in environments with Prisma.
+-- The authoritative schema is prisma/schema.prisma.
