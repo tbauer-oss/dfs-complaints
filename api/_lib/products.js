@@ -5,10 +5,16 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-const CSV_PATH = process.env.DFS_PRODUCTS_CSV || path.join(process.cwd(), 'flutter_web', 'lib', 'data', 'dfs_products.csv');
+const CSV_CANDIDATES = [
+  process.env.DFS_PRODUCTS_CSV,
+  path.join(process.cwd(), 'dfs_mobile', 'assets', 'data', 'dfs_products.csv'),
+  path.join(process.cwd(), 'flutter_web', 'lib', 'data', 'dfs_products.csv'),
+].filter(Boolean);
+
+let _csvPath = null;
 const CACHE_TTL_MS = Math.max(5 * 60 * 1000, Number(process.env.PRODUCT_CACHE_TTL_MS || 0));
 
-let _cache = { loadedAt: 0, products: null, index: null, mtimeMs: 0 };
+let _cache = { loadedAt: 0, products: null, index: null, mtimeMs: 0, csvPath: '' };
 
 function _normalizeArticleNumber(value) {
   return (value ?? '').toString().trim();
@@ -93,12 +99,26 @@ function _parseCsv(content) {
   return products;
 }
 
-async function _loadProductsFromDisk() {
-  const stat = await fs.stat(CSV_PATH);
-  const mtimeMs = stat.mtimeMs;
-  if (_cache.products && _cache.mtimeMs === mtimeMs) return _cache.products;
 
-  const buf = await fs.readFile(CSV_PATH);
+async function _resolveCsvPath() {
+  if (_csvPath) return _csvPath;
+  for (const candidate of CSV_CANDIDATES) {
+    try {
+      await fs.access(candidate);
+      _csvPath = candidate;
+      return _csvPath;
+    } catch {}
+  }
+  throw new Error('dfs_products.csv not found in known locations');
+}
+
+async function _loadProductsFromDisk() {
+  const csvPath = await _resolveCsvPath();
+  const stat = await fs.stat(csvPath);
+  const mtimeMs = stat.mtimeMs;
+  if (_cache.products && _cache.mtimeMs === mtimeMs && _cache.csvPath === csvPath) return _cache.products;
+
+  const buf = await fs.readFile(csvPath);
   let content;
   try {
     content = buf.toString('utf8');
@@ -107,7 +127,7 @@ async function _loadProductsFromDisk() {
   }
 
   const products = _parseCsv(content);
-  _cache = { ..._cache, products, mtimeMs, loadedAt: Date.now(), index: null };
+  _cache = { ..._cache, products, mtimeMs, loadedAt: Date.now(), index: null, csvPath };
   return products;
 }
 
@@ -141,4 +161,32 @@ export async function getProductByArticle(articleNumber) {
 
 export function normalizeArticleNumber(value) {
   return _normalizeArticleNumber(value);
+}
+
+
+export function parseMdrTdCode(value) {
+  const raw = (value ?? '').toString().trim();
+  const match = /^\s*(MDR-TD\d+)/i.exec(raw);
+  return match ? match[1].toUpperCase() : '';
+}
+
+export async function getUniqueMdrTdEntries() {
+  const products = await _getProducts();
+  const byCode = new Map();
+  for (const product of products) {
+    const source = (product?.tdNumberAndName ?? '').toString().trim();
+    const code = parseMdrTdCode(source);
+    if (!code) continue;
+    if (!byCode.has(code)) {
+      byCode.set(code, {
+        code,
+        label: source || code,
+        title: source.replace(/^\s*MDR-TD\d+\s*[-–:]?\s*/i, '').trim() || source || code,
+        classification: (product?.riskClass ?? '').toString().trim() || null,
+        rule: (product?.classificationRule ?? '').toString().trim() || null,
+        productGroup: (product?.productGroup ?? '').toString().trim() || null,
+      });
+    }
+  }
+  return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 }

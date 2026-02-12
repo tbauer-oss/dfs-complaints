@@ -1,35 +1,36 @@
-// /api/td.js – MDR-TD list (reuse FMEA data)
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad } from './_lib/http.js';
+import { handlePreflight, setCors, ok, bad, readJson } from './_lib/http.js';
 import { requirePortalAccess } from './admin/_guard.js';
-import { fmeaAll } from './_lib/store.js';
+import { tdList, tdCreate, tdComputedSummary } from './_lib/tdStore.js';
 
-const GSPR_TILE = 'gspr';
+const TD_TILE = 'td';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { tile: GSPR_TILE, write: false });
+  const wantsWrite = req.method === 'POST';
+  const actor = await requirePortalAccess(req, res, { tile: TD_TILE, write: wantsWrite });
   if (!actor) return;
 
   try {
-    if (req.method !== 'GET') return bad(res, 'method not allowed', 405);
-    const list = await fmeaAll();
-    const mapped = list.map((fmea) => ({
-      id: fmea.id,
-      mdrTd: fmea.mdrTd,
-      title: fmea.title,
-      productGroup: fmea.productGroup,
-      medicalProduct: fmea.medicalProduct,
-      updatedAt: fmea.updatedAt,
-      active: fmea.active !== false,
-      archivedAt: fmea.archivedAt || null,
-    }));
-    return ok(res, { ok: true, list: mapped });
+    if (req.method === 'GET') {
+      const list = await tdList();
+      const withSummary = await Promise.all(
+        list.map(async (td) => ({ ...td, summary: await tdComputedSummary(td) })),
+      );
+      return ok(res, { ok: true, items: withSummary });
+    }
+
+    if (req.method === 'POST') {
+      const body = readJson(req);
+      const created = await tdCreate(body, actor.email || actor.id || null);
+      return ok(res, { ok: true, item: created });
+    }
+
+    return bad(res, 'method not allowed', 405);
   } catch (err) {
-    console.error('[td] error', err);
     return bad(res, err?.message || 'server error', 500);
   }
 }

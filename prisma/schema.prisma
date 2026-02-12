@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TdLifecycleState {
+  Development
+  Released
+  PostMarket
+  Update
+  Sunset
+  Obsolete
+}
+
+enum TdTrafficStatus {
+  Green
+  Yellow
+  Red
+  Draft
+}
+
+enum TdAnnex {
+  ANNEX_II
+  ANNEX_III
+}
+
+enum TdSectionStatus {
+  NotStarted
+  InProgress
+  Complete
+  Blocked
+  NotApplicable
+}
+
+enum TdArtifactType {
+  Document
+  GSPR
+  FMEA
+  CAPA
+  ComplaintMetric
+  Supplier
+  Training
+  ExternalLink
+  Report
+}
+
+enum TdChangeType {
+  Material
+  Supplier
+  Geometry
+  Coating
+  IntendedPurpose
+  LabelingIFU
+  Classification
+  Process
+  Software
+  Other
+}
+
+enum TdSeverity {
+  Low
+  Medium
+  High
+  Critical
+}
+
+enum TdChangeStatus {
+  Draft
+  Submitted
+  UnderReview
+  Approved
+  Rejected
+  Implemented
+}
+
+enum TdImpactType {
+  GSPR
+  FMEA
+  ClinicalEvaluation
+  PMS
+  LabelingIFU
+  VerificationValidation
+  SupplierAudit
+  Training
+  TechnicalSpecs
+  Other
+}
+
+enum TdImpactStatus {
+  Open
+  InProgress
+  Done
+  NotApplicable
+}
+
+model TdFile {
+  id             String           @id @default(cuid())
+  code           String           @unique
+  title          String
+  productGroup   String?
+  classification String?
+  rule           String?
+  lifecycleState TdLifecycleState @default(Development)
+  ownerUserId    String?
+  status         TdTrafficStatus  @default(Draft)
+  lastReviewAt   DateTime?
+  nextReviewAt   DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  sections       TdSection[]
+  links          TdArtifactLink[]
+  changes        TdChangeRequest[]
+  kpis           TdKpiSnapshot[]
+
+  @@index([code])
+  @@index([productGroup])
+  @@index([lifecycleState])
+}
+
+model TdSectionTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String
+  order       Int
+  annex       TdAnnex
+}
+
+model TdSection {
+  id                String          @id @default(cuid())
+  tdId              String
+  templateKey       String
+  name              String
+  order             Int
+  status            TdSectionStatus @default(NotStarted)
+  lastUpdatedAt     DateTime?
+  reviewCycleMonths Int?
+  nextReviewAt      DateTime?
+  ownerUserId       String?
+  notes             String?
+
+  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+
+  @@index([tdId, templateKey])
+}
+
+model TdArtifactLink {
+  id        String         @id @default(cuid())
+  tdId      String
+  sectionId String?
+  type      TdArtifactType
+  refId     String
+  label     String
+  url       String?
+  metaJson  Json?
+  createdAt DateTime       @default(now())
+
+  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+
+  @@index([tdId, sectionId])
+  @@index([type, refId])
+}
+
+model TdChangeRequest {
+  id                     String         @id @default(cuid())
+  tdId                   String
+  title                  String
+  description            String
+  changeType             TdChangeType
+  severity               TdSeverity
+  status                 TdChangeStatus @default(Draft)
+  requestedByUserId      String
+  reviewedByUserId       String?
+  approvedByUserId       String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  implementedAt          DateTime?
+  requiresNbNotification Boolean        @default(false)
+  rationale              String?
+
+  td      TdFile         @relation(fields: [tdId], references: [id], onDelete: Cascade)
+  impacts TdImpactItem[]
+
+  @@index([tdId, status])
+}
+
+model TdImpactItem {
+  id               String         @id @default(cuid())
+  changeRequestId  String
+  impactType       TdImpactType
+  targetRef        String
+  requiredAction   String
+  status           TdImpactStatus @default(Open)
+
+  changeRequest TdChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId, status])
+}
+
+model TdKpiSnapshot {
+  id               String   @id @default(cuid())
+  tdId             String
+  calculatedAt     DateTime @default(now())
+  complianceScore  Int
+  openCriticalGaps Int
+  openCapaCount    Int
+  overdueReviews   Int
+  complaintTrend   Json?
+
+  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+
+  @@index([tdId, calculatedAt])
+}
