@@ -4,6 +4,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import { TextDecoder } from 'util';
 
 const CSV_CANDIDATES = [
   process.env.DFS_PRODUCTS_CSV,
@@ -121,9 +122,9 @@ async function _loadProductsFromDisk() {
   const buf = await fs.readFile(csvPath);
   let content;
   try {
-    content = buf.toString('utf8');
+    content = new TextDecoder('utf-8', { fatal: true }).decode(buf);
   } catch (_) {
-    content = buf.toString('latin1');
+    content = new TextDecoder('windows-1252').decode(buf);
   }
 
   const products = _parseCsv(content);
