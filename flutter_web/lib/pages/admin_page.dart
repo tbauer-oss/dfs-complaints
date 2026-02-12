@@ -6701,7 +6701,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       AdminView.capaDashboard  => 'CAPA-Dashboard',
       AdminView.fmea           => 'FMEA',
       AdminView.gspr           => t.gsprPageTitle,
-      AdminView.td             => 'Technical Documentation (TD)',
+      AdminView.td             => 'Technische Dokumentation (TD)',
       AdminView.internalErrors => 'Interne Fehlererfassung',
       AdminView.changeManagement => 'Change Management',
       AdminView.prrc           => 'PRRC-Einstufungen',
@@ -10618,8 +10618,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
       case 'td':
         return _buildDashboardTile(
           tileId: tileId,
-          label: 'TD',
-          subtitle: 'Technical Documentation readiness',
+          label: 'Technische Dokumentation (MDR)',
+          subtitle: 'Reifegrad der technischen Dokumentation',
           icon: Icons.description_outlined,
           colorA: AdminPalette.indigoA,
           colorB: AdminPalette.indigoB,

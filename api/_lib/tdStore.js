@@ -224,17 +224,39 @@ function deterministicTdId(code) {
 
 async function ensureSeedTdFiles() {
   const existing = await tdListRaw();
-  const byCode = new Set(existing.map((entry) => entry.code));
+  const byCode = new Map(existing.map((entry) => [String(entry?.code || '').toUpperCase(), entry]));
   let createdAny = false;
   const catalog = await getUniqueMdrTdEntries().catch(() => []);
   for (const entry of catalog) {
     const code = String(entry?.code || '').trim().toUpperCase();
     if (!/^MDR-TD\d+$/i.test(code)) continue;
-    if (byCode.has(code)) continue;
+
+    const canonicalTitle = String(entry?.title || entry?.label || code).trim() || code;
+    const existingEntry = byCode.get(code);
+
+    if (existingEntry) {
+      const existingTitle = String(existingEntry?.title || '').trim();
+      const hasBrokenReplacementChar = existingTitle.includes('�');
+      if (hasBrokenReplacementChar && existingTitle !== canonicalTitle) {
+        const next = normalizeFile({
+          ...existingEntry,
+          title: canonicalTitle,
+          productGroup: entry?.productGroup || existingEntry.productGroup || null,
+          classification: entry?.classification || existingEntry.classification || null,
+          rule: entry?.rule || existingEntry.rule || null,
+          id: existingEntry.id,
+          code: existingEntry.code,
+          createdAt: existingEntry.createdAt,
+        }, existingEntry.ownerUserId || null);
+        await putEntity(KEY, next.id, next, mem.files, KEY_ALL, mem.ids);
+      }
+      continue;
+    }
+
     const seeded = normalizeFile({
       id: deterministicTdId(code),
       code,
-      title: entry?.title || entry?.label || code,
+      title: canonicalTitle,
       productGroup: entry?.productGroup || null,
       classification: entry?.classification || null,
       rule: entry?.rule || null,
@@ -247,7 +269,7 @@ async function ensureSeedTdFiles() {
       await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
       await tdSectionContentBackfill(section.id);
     }
-    byCode.add(code);
+    byCode.set(code, seeded);
     createdAny = true;
   }
   return createdAny;
