@@ -3996,10 +3996,21 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> fetchTdReadiness(String tdId) async {
-    final path = '/api/td/$tdId/readiness';
-    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
-    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
-    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final primaryPath = '/api/td/$tdId/readiness';
+    final primary = await http.get(_u(primaryPath), headers: _adminHeaders(auth: true, path: primaryPath));
+    if (_ok2xx(primary.statusCode)) {
+      final decoded = primary.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(primary.body);
+      return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+    }
+
+    if (primary.statusCode != 404) {
+      throw ApiError(primary.statusCode, _extractMessage(primary.body));
+    }
+
+    final fallbackPath = '/api/td/readiness?id=${Uri.encodeQueryComponent(tdId)}';
+    final fallback = await http.get(_u(fallbackPath), headers: _adminHeaders(auth: true, path: '/api/td/readiness'));
+    if (!_ok2xx(fallback.statusCode)) throw ApiError(fallback.statusCode, _extractMessage(fallback.body));
+    final decoded = fallback.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(fallback.body);
     return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
   }
 
