@@ -170,6 +170,26 @@
       "dest": "/api/td/export/[exportId].js?exportId=$1"
     },
     {
+      "src": "/api/td/([^/]+)/queries/bootstrap$",
+      "dest": "/api/td/[id]/queries/bootstrap.js?id=$1"
+    },
+    {
+      "src": "/api/td/([^/]+)/queries$",
+      "dest": "/api/td/[id]/queries.js?id=$1"
+    },
+    {
+      "src": "/api/td/queries/links/([^/]+)$",
+      "dest": "/api/td/queries/links/[linkId].js?linkId=$1"
+    },
+    {
+      "src": "/api/td/queries/([^/]+)/links$",
+      "dest": "/api/td/queries/[answerId]/links.js?answerId=$1"
+    },
+    {
+      "src": "/api/td/queries/([^/]+)$",
+      "dest": "/api/td/queries/[answerId].js?answerId=$1"
+    },
+    {
       "src": "/api/td/([^/]+)$",
       "dest": "/api/td/[id].js?id=$1"
     },

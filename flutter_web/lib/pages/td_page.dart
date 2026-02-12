@@ -352,6 +352,12 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     final section = _section!;
     final complete = _queries.where((q) => q.status == 'Complete' || q.status == 'NotApplicable').length;
     final completion = _queries.isEmpty ? 0 : ((complete / _queries.length) * 100).round();
+    if (_queries.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(section.name)),
+        body: const Center(child: Text('Keine Queries verfügbar. Bitte Bootstrap erneut ausführen.')),
+      );
+    }
     return DefaultTabController(
       length: _queries.length,
       child: Scaffold(
@@ -398,11 +404,14 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
           onChanged: widget.canEdit ? (v) async { await widget.api.updateTdQuery(query.id, {'status': v}); _load(); } : null,
         ),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: TextField(controller: ownerCtl, decoration: const InputDecoration(labelText: 'Owner'))),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: dueCtl, decoration: const InputDecoration(labelText: 'Due date (ISO)'))),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            SizedBox(width: 320, child: TextField(controller: ownerCtl, decoration: const InputDecoration(labelText: 'Owner'))),
+            SizedBox(width: 320, child: TextField(controller: dueCtl, decoration: const InputDecoration(labelText: 'Due date (ISO)'))),
+          ],
+        ),
         const SizedBox(height: 8),
         TextField(controller: answerCtl, minLines: 4, maxLines: 8, decoration: const InputDecoration(labelText: 'Assessment answer (Markdown)')),
         const SizedBox(height: 8),
@@ -427,7 +436,7 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
           OutlinedButton(onPressed: () {}, child: const Text('Open Training')),
         ]),
         const SizedBox(height: 12),
-        Row(children: [
+        Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(
             onPressed: widget.canEdit
                 ? () async {
@@ -447,7 +456,7 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
             onPressed: (widget.canEdit && canMarkComplete) ? () async { await widget.api.updateTdQuery(query.id, {'status': 'Complete'}); _load(); } : null,
             child: const Text('Mark complete'),
           ),
-          if (!canMarkComplete) const Padding(padding: EdgeInsets.only(left: 8), child: Chip(label: Text('Missing evidence/link'))),
+          if (!canMarkComplete) const Chip(label: Text('Missing evidence/link')),
         ]),
       ],
     );
