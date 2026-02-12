@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   try {
     const id = String(req.query?.id || '').trim();
     const exportResult = await tdNbExport(id);
-    return ok(res, { ok: true, export: exportResult, downloadUrl: null, status: exportResult.status });
+    return ok(res, { ok: true, export: exportResult, downloadUrl: `/api/td/export/${exportResult.id}`, status: exportResult.status });
   } catch (err) {
     return bad(res, err?.message || 'server error', 500);
   }
