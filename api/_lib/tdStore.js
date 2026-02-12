@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Redis } from '@upstash/redis';
 import { fmeaAll, capaAll, complaintsAll, supplierAll, trainingRecordsAll, gsprAssessmentsByTd } from './store.js';
+import { getUniqueMdrTdEntries } from './products.js';
 
 const REDIS_URL =
   process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
@@ -151,18 +152,61 @@ async function getEntity(keyBuilder, id, map) {
   return withStore((r) => r.get(keyBuilder(id)), () => map.get(id) || null);
 }
 
-export async function tdList() {
+
+function deterministicTdId(code) {
+  const safe = (code ?? '').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return `td_seed_${safe || 'unknown'}`;
+}
+
+async function ensureSeedTdFiles() {
+  const existing = await tdListRaw();
+  const byCode = new Set(existing.map((entry) => entry.code));
+  let createdAny = false;
+  const catalog = await getUniqueMdrTdEntries().catch(() => []);
+  for (const entry of catalog) {
+    const code = String(entry?.code || '').trim().toUpperCase();
+    if (!/^MDR-TD\d+$/i.test(code)) continue;
+    if (byCode.has(code)) continue;
+    const seeded = normalizeFile({
+      id: deterministicTdId(code),
+      code,
+      title: entry?.title || entry?.label || code,
+      productGroup: entry?.productGroup || null,
+      classification: entry?.classification || null,
+      rule: entry?.rule || null,
+      lifecycleState: 'Development',
+      status: 'Draft',
+    }, null);
+    await putEntity(KEY, seeded.id, seeded, mem.files, KEY_ALL, mem.ids);
+    const sections = defaultSections(seeded.id, null);
+    for (const section of sections) {
+      await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
+    }
+    byCode.add(code);
+    createdAny = true;
+  }
+  return createdAny;
+}
+
+async function tdListRaw() {
   const ids = await getIds();
   const out = [];
   for (const id of ids) {
     const td = await getEntity(KEY, id, mem.files);
     if (td && !td.deletedAt) out.push(td);
   }
-  out.sort((a, b) => a.code.localeCompare(b.code));
+  return out;
+}
+
+export async function tdList() {
+  await ensureSeedTdFiles();
+  const out = await tdListRaw();
+  out.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   return out;
 }
 
 export async function tdGet(id) {
+  await ensureSeedTdFiles();
   return getEntity(KEY, id, mem.files);
 }
 
