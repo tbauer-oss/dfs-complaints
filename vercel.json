@@ -150,6 +150,26 @@
       "dest": "/api/td/sections/[sectionId].js?sectionId=$1"
     },
     {
+      "src": "/api/td/readiness$",
+      "dest": "/api/td/readiness.js"
+    },
+    {
+      "src": "/api/td/([^/]+)/readiness$",
+      "dest": "/api/td/[id]/readiness.js?id=$1"
+    },
+    {
+      "src": "/api/td/sections/([^/]+)/content$",
+      "dest": "/api/td/sections/[sectionId]/content.js?sectionId=$1"
+    },
+    {
+      "src": "/api/td/impacts/([^/]+)$",
+      "dest": "/api/td/impacts/[impactId].js?impactId=$1"
+    },
+    {
+      "src": "/api/td/export/([^/]+)$",
+      "dest": "/api/td/export/[exportId].js?exportId=$1"
+    },
+    {
       "src": "/api/td/([^/]+)$",
       "dest": "/api/td/[id].js?id=$1"
     },
