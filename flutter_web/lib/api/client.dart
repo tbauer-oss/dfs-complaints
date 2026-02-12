@@ -4014,6 +4014,42 @@ class ApiClient {
     return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
   }
 
+
+  Future<List<TdQueryAnswer>> fetchTdQueries(String tdId, {String? sectionId}) async {
+    final qp = sectionId == null ? '' : '?sectionId=${Uri.encodeQueryComponent(sectionId)}';
+    final path = '/api/td/$tdId/queries$qp';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: '/api/td/$tdId/queries'));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdQueryAnswer.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<void> bootstrapTdQueries(String tdId) async {
+    final path = '/api/td/$tdId/queries/bootstrap';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<void> updateTdQuery(String answerId, Map<String, dynamic> payload) async {
+    final path = '/api/td/queries/$answerId';
+    final r = await http.put(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(payload));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<void> createTdQueryLink(String answerId, Map<String, dynamic> payload) async {
+    final path = '/api/td/queries/$answerId/links';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(payload));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<void> deleteTdQueryLink(String linkId) async {
+    final path = '/api/td/queries/links/$linkId';
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
   Future<List<TdChangeRequest>> fetchTdChanges(String tdId) async {
     final path = '/api/td/$tdId/changes';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));

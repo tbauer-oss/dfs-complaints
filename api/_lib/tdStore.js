@@ -24,19 +24,24 @@ const KEY_LINKS = `${PREFIX}links`;
 const KEY_CHANGES = `${PREFIX}changes`;
 const KEY_IMPACTS = `${PREFIX}impacts`;
 const KEY_EXPORTS = `${PREFIX}exports`;
+const KEY_QUERY_ANSWERS = `${PREFIX}query-answers`;
+const KEY_QUERY_LINKS = `${PREFIX}query-links`;
 const KEY = (id) => `${PREFIX}file:${id}`;
 const KEY_SECTION = (id) => `${PREFIX}section:${id}`;
 const KEY_LINK = (id) => `${PREFIX}link:${id}`;
 const KEY_CHANGE = (id) => `${PREFIX}change:${id}`;
 const KEY_IMPACT = (id) => `${PREFIX}impact:${id}`;
 const KEY_EXPORT = (id) => `${PREFIX}export:${id}`;
+const KEY_QUERY_ANSWER = (id) => `${PREFIX}query-answer:${id}`;
+const KEY_QUERY_LINK = (id) => `${PREFIX}query-link:${id}`;
 const KEY_CONTENT = `${PREFIX}section-content`;
 const KEY_SECTION_CONTENT = (id) => `${PREFIX}section-content:${id}`;
 
 const lifecycleStates = new Set(['Development', 'Released', 'PostMarket', 'Update', 'Sunset', 'Obsolete']);
 const tdStatus = new Set(['Green', 'Yellow', 'Red', 'Draft']);
 const sectionStatus = new Set(['NotStarted', 'InProgress', 'Complete', 'Blocked', 'NotApplicable']);
-const linkTypes = new Set(['Document', 'GSPR', 'FMEA', 'CAPA', 'ComplaintMetric', 'Supplier', 'Training', 'ExternalLink', 'Report']);
+const linkTypes = new Set(['Document', 'GSPR', 'FMEA', 'CAPA', 'ComplaintMetric', 'Supplier', 'Training', 'ExternalLink', 'Report', 'Change']);
+const queryStatuses = new Set(['NotStarted', 'InProgress', 'Complete', 'Blocked', 'NotApplicable']);
 const changeTypes = new Set(['Material', 'Supplier', 'Geometry', 'Coating', 'IntendedPurpose', 'LabelingIFU', 'Classification', 'Process', 'Software', 'Other']);
 const severities = new Set(['Low', 'Medium', 'High', 'Critical']);
 const changeStatuses = new Set(['Draft', 'Submitted', 'UnderReview', 'Approved', 'Rejected', 'Implemented']);
@@ -58,6 +63,8 @@ const mem = {
   changeIds: new Set(),
   impactIds: new Set(),
   exportIds: new Set(),
+  queryAnswerIds: new Set(),
+  queryLinkIds: new Set(),
   sectionContentIds: new Set(),
   files: new Map(),
   sections: new Map(),
@@ -65,6 +72,8 @@ const mem = {
   changes: new Map(),
   impacts: new Map(),
   exports: new Map(),
+  queryAnswers: new Map(),
+  queryLinks: new Map(),
   sectionContents: new Map(),
 };
 
@@ -141,6 +150,58 @@ export const TD_SECTION_TEMPLATES = [
   { key: 'ANNEX_III_G', name: 'G. PMS plan', description: 'Post-market surveillance planning.', order: 70, annex: 'ANNEX_III' },
   { key: 'ANNEX_III_H', name: 'H. PMS report / PSUR / PMCF', description: 'PMS outcomes and PMCF evidence as applicable.', order: 80, annex: 'ANNEX_III' },
 ];
+
+export const TD_QUERY_TEMPLATES = [
+  ['ANNEX_II_A_1','ANNEX_II_A','Intended purpose and clinical benefit','Define intended purpose and expected clinical benefit; align claims with clinical evidence and linked GSPR requirements.',10,['GSPR','Report','Document'], 'PRRC',['Annex II','Device description','Clinical']],
+  ['ANNEX_II_A_2','ANNEX_II_A','Device description, materials, variants','Describe materials, geometry, variants and accessories with links to technical drawings/specifications and risk-relevant characteristics.',20,['Document','FMEA','Supplier'],'QMB',['Annex II','Device description','Variants']],
+  ['ANNEX_II_A_3','ANNEX_II_A','UDI-DI and Basic UDI-DI mapping','Document UDI-DI / Basic UDI-DI strategy and traceability to labels/IFU versions.',30,['Document'],'RA',['Annex II','UDI']],
+  ['ANNEX_II_A_4','ANNEX_II_A','Classification and rule justification','Document MDR class and applied classification rule rationale with justification references.',40,['GSPR','Document'],'RA',['Annex II','Classification']],
+  ['ANNEX_II_A_5','ANNEX_II_A','Principle of operation and performance claims','Describe operating principle and key performance claims with validation references.',50,['Report','GSPR','Document'],'R&D',['Annex II','Performance']],
+  ['ANNEX_II_A_6','ANNEX_II_A','Previous generations / similar devices','Reference previous generations or similar devices and summarize relevance to current benefit-risk.',60,['Report','Document'],'Clinical',['Annex II','State of the art']],
+  ['ANNEX_II_B_1','ANNEX_II_B','Label content completeness','Confirm label content covers symbols, warnings, UDI, manufacturer and legal data for intended markets.',10,['Document'],'RA',['Annex II','Labeling']],
+  ['ANNEX_II_B_2','ANNEX_II_B','IFU completeness and reprocessing content','Confirm IFU includes intended use, contraindications, warnings and reprocessing instructions where relevant.',20,['Document','Report'],'RA',['Annex II','IFU']],
+  ['ANNEX_II_B_3','ANNEX_II_B','Language and translation control','Document language variants, translation workflow and approval controls.',30,['Document','Change'],'QMS',['Annex II','Translation']],
+  ['ANNEX_II_B_4','ANNEX_II_B','Traceability of label/IFU revisions','Show synchronization between label/IFU revisions and TD/Change Control updates.',40,['Change','Document'],'QMS',['Annex II','Traceability']],
+  ['ANNEX_II_B_5','ANNEX_II_B','User training and communication','Define user training needs, communication channels and associated records.',50,['Training','Document'],'Training',['Annex II','Training']],
+  ['ANNEX_II_C_1','ANNEX_II_C','Manufacturing process overview','Provide high-level process map and site responsibilities for manufacturing and release.',10,['Supplier','Document'],'Operations',['Annex II','Manufacturing']],
+  ['ANNEX_II_C_2','ANNEX_II_C','Critical process parameters and controls','Define critical process parameters, controls, limits and monitoring approach.',20,['FMEA','CAPA','Document'],'Operations',['Annex II','Process control']],
+  ['ANNEX_II_C_3','ANNEX_II_C','Outsourced processes and controls','Describe outsourced activities and qualification/audit controls for external partners.',30,['Supplier','Document'],'Supplier',['Annex II','Supplier']],
+  ['ANNEX_II_C_4','ANNEX_II_C','Acceptance criteria and inspection plans','Document incoming/in-process/final acceptance criteria and inspection sampling plans.',40,['Document','Report'],'Quality',['Annex II','Inspection']],
+  ['ANNEX_II_C_5','ANNEX_II_C','Change management and design transfer','Explain design transfer controls and linkage to formal change management.',50,['Change','Document'],'QMS',['Annex II','Change control']],
+  ['ANNEX_II_D_1','ANNEX_II_D','GSPR completeness and open gaps','Assess current GSPR completion level and list unresolved requirements/actions.',10,['GSPR','CAPA'],'RA',['Annex II','GSPR']],
+  ['ANNEX_II_D_2','ANNEX_II_D','Claims-to-evidence traceability','Ensure major claims have traceable evidence links (verification, clinical, PMS).',20,['GSPR','Report','Document'],'RA',['Annex II','Traceability']],
+  ['ANNEX_II_D_3','ANNEX_II_D','Partial/non-fulfilled requirements','Document non-fulfilled or partial requirements and linked remediation actions.',30,['CAPA','GSPR','Change'],'QMB',['Annex II','CAPA']],
+  ['ANNEX_II_E_1','ANNEX_II_E','Risk management file completeness','Confirm risk management file is complete and up to date for current design state.',10,['FMEA','Document'],'Risk',['Annex II','Risk']],
+  ['ANNEX_II_E_2','ANNEX_II_E','Benefit-risk conclusion justification','Document rationale for benefit-risk conclusion using clinical and PMS evidence.',20,['Report','Document'],'Clinical',['Annex II','Benefit-risk']],
+  ['ANNEX_II_E_3','ANNEX_II_E','Residual risks and IFU communication','Confirm residual risks are acceptable and communicated through IFU/label where needed.',30,['FMEA','Document','GSPR'],'Risk',['Annex II','Residual risk']],
+  ['ANNEX_II_E_4','ANNEX_II_E','Post-market risk feedback loop','Show how post-market signals feed back into risk management and CAPA.',40,['CAPA','Report','FMEA'],'PMS',['Annex II','PMS']],
+  ['ANNEX_II_F_1','ANNEX_II_F','Applied standards and common specs','List applicable standards/common specifications and current conformity evidence.',10,['Document','Report'],'RA',['Annex II','Standards']],
+  ['ANNEX_II_F_2','ANNEX_II_F','Biocompatibility / chemical characterization','Summarize biocompatibility and chemistry evidence as applicable to patient contact.',20,['Report'],'R&D',['Annex II','Biocompatibility']],
+  ['ANNEX_II_F_3','ANNEX_II_F','Reprocessing validation','Provide cleaning/disinfection/sterilization validation status and key references.',30,['Report','Document'],'Validation',['Annex II','Reprocessing']],
+  ['ANNEX_II_F_4','ANNEX_II_F','Performance testing evidence','Summarize bench/performance tests supporting intended performance.',40,['Report'],'Validation',['Annex II','Performance']],
+  ['ANNEX_II_F_5','ANNEX_II_F','Packaging validation','Summarize packaging integrity/shelf-life/transport validation evidence.',50,['Report','Document'],'Validation',['Annex II','Packaging']],
+  ['ANNEX_II_F_6','ANNEX_II_F','Software validation (if applicable)','Provide software lifecycle and validation evidence, or justify non-applicability.',60,['Report','Document'],'Software',['Annex II','Software']],
+  ['ANNEX_III_G_1','ANNEX_III_G','PMS plan scope and responsibilities','Document PMS plan ownership, scope and responsibilities.',10,['Document'],'PMS',['Annex III','PMS']],
+  ['ANNEX_III_G_2','ANNEX_III_G','PMS data sources','List PMS data sources (complaints, trends, literature, supplier feedback).',20,['Report','Supplier','ComplaintMetric'],'PMS',['Annex III','Data sources']],
+  ['ANNEX_III_G_3','ANNEX_III_G','Signals, thresholds and triggers','Define surveillance thresholds/signals and escalation triggers to CAPA/change/vigilance.',30,['CAPA','Change','Report'],'PMS',['Annex III','Signals']],
+  ['ANNEX_III_G_4','ANNEX_III_G','PMCF plan applicability','Describe PMCF plan and rationale if required; otherwise justify non-applicability.',40,['Report','Document'],'Clinical',['Annex III','PMCF']],
+  ['ANNEX_III_H_1','ANNEX_III_H','Applicable report type and rationale','Define whether PMS report or PSUR applies and provide rationale.',10,['Document'],'RA',['Annex III','PSUR']],
+  ['ANNEX_III_H_2','ANNEX_III_H','Reporting period and key findings','Capture reporting period coverage and key post-market findings.',20,['Report'],'PMS',['Annex III','Findings']],
+  ['ANNEX_III_H_3','ANNEX_III_H','Trend analysis and complaint linkage','Summarize trends and link complaint metrics relevant for risk/performance changes.',30,['ComplaintMetric','Report'],'PMS',['Annex III','Complaints']],
+  ['ANNEX_III_H_4','ANNEX_III_H','Actions taken and linkage','Document resulting actions and linkage to CAPA/change records.',40,['CAPA','Change'],'QMS',['Annex III','Actions']],
+  ['ANNEX_III_H_5','ANNEX_III_H','Conclusions on benefit-risk and GSPR','State impact on benefit-risk profile and GSPR conformity.',50,['GSPR','Report'],'PRRC',['Annex III','Conclusion']],
+].map(([templateKey, sectionTemplateKey, title, description, order, suggestedLinkTypes, defaultOwnersRole, tags]) => ({
+  id: `tpl_${templateKey.toLowerCase()}`,
+  templateKey,
+  sectionTemplateKey,
+  title,
+  description,
+  order,
+  mandatory: true,
+  suggestedLinkTypes,
+  defaultOwnersRole,
+  tags,
+}));
 
 function normalizeFile(input, actorEmail) {
   const code = String(input?.code || '').trim().toUpperCase();
@@ -406,6 +467,146 @@ export async function tdSectionUpdate(sectionId, patch) {
   return next;
 }
 
+
+
+function normalizeQueryStatus(status) {
+  return queryStatuses.has(status) ? status : 'NotStarted';
+}
+
+function queryTemplatesBySection(templateKey) {
+  return TD_QUERY_TEMPLATES.filter((item) => item.sectionTemplateKey === templateKey).sort((a, b) => a.order - b.order);
+}
+
+async function tdQueryAnswersRaw(tdId) {
+  const ids = await withStore((r)=>r.smembers(KEY_QUERY_ANSWERS), ()=>Array.from(mem.queryAnswerIds));
+  const items = [];
+  for (const id of ids) {
+    const answer = await getEntity(KEY_QUERY_ANSWER, id, mem.queryAnswers);
+    if (answer?.tdId === tdId) items.push(answer);
+  }
+  return items;
+}
+
+function buildQueryAnswer(section, template, actorUserId = null) {
+  return {
+    id: cuid('tdqa'),
+    tdId: section.tdId,
+    sectionId: section.id,
+    templateKey: template.templateKey,
+    status: 'NotStarted',
+    answerMarkdown: '',
+    rationaleMarkdown: '',
+    ownerUserId: section.ownerUserId || null,
+    dueAt: null,
+    reviewCadenceDays: 180,
+    evidenceJson: { documentRefs: [], standardRefs: [], reportRefs: [] },
+    updatedAt: nowIso(),
+    updatedByUserId: actorUserId || null,
+  };
+}
+
+export async function tdBootstrapQueries(tdId, actorUserId = null) {
+  const sections = await tdSections(tdId);
+  const existing = await tdQueryAnswersRaw(tdId);
+  const byKey = new Set(existing.map((item) => `${item.sectionId}:${item.templateKey}`));
+  const created = [];
+  for (const section of sections) {
+    for (const template of queryTemplatesBySection(section.templateKey)) {
+      const k = `${section.id}:${template.templateKey}`;
+      if (byKey.has(k)) continue;
+      const answer = buildQueryAnswer(section, template, actorUserId);
+      await putEntity(KEY_QUERY_ANSWER, answer.id, answer, mem.queryAnswers, KEY_QUERY_ANSWERS, mem.queryAnswerIds);
+      created.push(answer);
+    }
+  }
+  return { createdCount: created.length, created };
+}
+
+export async function tdQueries(tdId, sectionId = null) {
+  await tdBootstrapQueries(tdId);
+  const answers = await tdQueryAnswersRaw(tdId);
+  const queryLinks = await tdQueryLinksByTd(tdId);
+  return answers
+    .filter((item) => (sectionId ? item.sectionId === sectionId : true))
+    .map((answer) => {
+      const template = TD_QUERY_TEMPLATES.find((tpl) => tpl.templateKey === answer.templateKey) || null;
+      return {
+        ...answer,
+        template,
+        links: queryLinks.filter((link) => link.answerId === answer.id),
+      };
+    })
+    .sort((a, b) => {
+      if (a.template?.order && b.template?.order) return a.template.order - b.template.order;
+      return a.templateKey.localeCompare(b.templateKey);
+    });
+}
+
+export async function tdQueryUpdate(answerId, payload, actorUserId = null) {
+  const current = await getEntity(KEY_QUERY_ANSWER, answerId, mem.queryAnswers);
+  if (!current) throw new Error('query answer not found');
+  const next = {
+    ...current,
+    status: normalizeQueryStatus(payload?.status ?? current.status),
+    answerMarkdown: payload?.answerMarkdown === undefined ? current.answerMarkdown : String(payload.answerMarkdown || ''),
+    rationaleMarkdown: payload?.rationaleMarkdown === undefined ? current.rationaleMarkdown : String(payload.rationaleMarkdown || ''),
+    ownerUserId: payload?.ownerUserId === undefined ? current.ownerUserId : (payload.ownerUserId ? String(payload.ownerUserId) : null),
+    dueAt: payload?.dueAt === undefined ? current.dueAt : (payload.dueAt ? String(payload.dueAt) : null),
+    reviewCadenceDays: payload?.reviewCadenceDays === undefined ? current.reviewCadenceDays : Number(payload.reviewCadenceDays) || current.reviewCadenceDays,
+    evidenceJson: payload?.evidenceJson === undefined ? current.evidenceJson : payload.evidenceJson,
+    updatedAt: nowIso(),
+    updatedByUserId: actorUserId || current.updatedByUserId || null,
+  };
+  await putEntity(KEY_QUERY_ANSWER, answerId, next, mem.queryAnswers, KEY_QUERY_ANSWERS, mem.queryAnswerIds);
+  return next;
+}
+
+export async function tdQueryLinksByTd(tdId) {
+  const ids = await withStore((r)=>r.smembers(KEY_QUERY_LINKS), ()=>Array.from(mem.queryLinkIds));
+  const items = [];
+  const answers = await tdQueryAnswersRaw(tdId);
+  const answerIds = new Set(answers.map((a) => a.id));
+  for (const id of ids) {
+    const link = await getEntity(KEY_QUERY_LINK, id, mem.queryLinks);
+    if (link && answerIds.has(link.answerId)) items.push(link);
+  }
+  return items;
+}
+
+export async function tdQueryLinkCreate(answerId, payload) {
+  const answer = await getEntity(KEY_QUERY_ANSWER, answerId, mem.queryAnswers);
+  if (!answer) throw new Error('query answer not found');
+  const item = {
+    id: cuid('tdql'),
+    answerId,
+    type: linkTypes.has(payload?.type) ? payload.type : 'Document',
+    refId: String(payload?.refId || '').trim(),
+    label: String(payload?.label || '').trim(),
+    url: payload?.url ? String(payload.url) : null,
+    metaJson: payload?.metaJson || null,
+    createdAt: nowIso(),
+  };
+  if (!item.label) throw new Error('label is required');
+  await putEntity(KEY_QUERY_LINK, item.id, item, mem.queryLinks, KEY_QUERY_LINKS, mem.queryLinkIds);
+  return item;
+}
+
+export async function tdQueryLinkDelete(linkId) {
+  const current = await getEntity(KEY_QUERY_LINK, linkId, mem.queryLinks);
+  if (!current) throw new Error('query link not found');
+  return withStore(
+    async (r) => {
+      await r.del(KEY_QUERY_LINK(linkId));
+      await r.srem(KEY_QUERY_LINKS, linkId);
+      return current;
+    },
+    () => {
+      mem.queryLinks.delete(linkId);
+      mem.queryLinkIds.delete(linkId);
+      return current;
+    },
+  );
+}
 export async function tdLinks(tdId) {
   const ids = await withStore((r)=>r.smembers(KEY_LINKS), ()=>Array.from(mem.linkIds));
   const links = [];
@@ -652,15 +853,37 @@ export async function tdComputedSummary(td) {
 export async function tdReadiness(tdId) {
   const td = await tdGet(tdId);
   if (!td) throw new Error('TD not found');
+  const sections = await tdSections(tdId);
   const links = await tdLinks(tdId);
+  const queries = await tdQueries(tdId);
   const gaps = [];
-  if (!links.some((l) => l.type === 'GSPR' && l.sectionId?.includes('ANNEX_II_D'))) gaps.push('Missing mandatory link: one GSPR link in section D');
-  if (!links.some((l) => l.type === 'FMEA' && l.sectionId?.includes('ANNEX_II_E'))) gaps.push('Missing mandatory link: one FMEA link in section E');
-  if (!links.some((l) => (l.type === 'Report' || l.type === 'Document') && (l.sectionId?.includes('ANNEX_III_G') || l.sectionId?.includes('ANNEX_III_H')))) {
-    gaps.push('Missing mandatory link: one PMS plan/report link in section G or H');
-  }
+  const now = Date.now();
+
+  const mandatoryBySection = {
+    ANNEX_II_D: ['GSPR'],
+    ANNEX_II_E: ['FMEA'],
+    ANNEX_III_G: ['Report', 'Document'],
+    ANNEX_III_H: ['Report', 'Document'],
+  };
+
+  const sectionStats = sections.map((section) => {
+    const sectionQueries = queries.filter((q) => q.sectionId === section.id);
+    const complete = sectionQueries.filter((q) => q.status === 'Complete' || q.status === 'NotApplicable').length;
+    const total = sectionQueries.length;
+    const completion = total ? Math.round((complete / total) * 100) : 0;
+    const mandatoryOpen = sectionQueries.filter((q) => q.template?.mandatory !== false && !['Complete', 'NotApplicable'].includes(q.status));
+    const overdue = sectionQueries.filter((q) => q.template?.mandatory !== false && q.dueAt && Date.parse(q.dueAt) < now && !['Complete', 'NotApplicable'].includes(q.status));
+    const requiredTypes = mandatoryBySection[section.templateKey] || [];
+    const missingLinkTypes = requiredTypes.filter((type) => !links.some((l) => l.sectionId === section.id && (type === 'Document' ? ['Document', 'Report'].includes(l.type) : l.type === type)));
+    if (mandatoryOpen.length) gaps.push(`${section.templateKey}: mandatory queries open (${mandatoryOpen.length})`);
+    if (overdue.length) gaps.push(`${section.templateKey}: overdue mandatory queries (${overdue.length})`);
+    for (const type of missingLinkTypes) gaps.push(`${section.templateKey}: missing mandatory link ${type}`);
+    return { sectionId: section.id, templateKey: section.templateKey, completion, totalQueries: total, completeQueries: complete, mandatoryOpenCount: mandatoryOpen.length, overdueCount: overdue.length, missingLinkTypes };
+  });
+
   const summary = await tdComputedSummary(td);
-  return { readinessStatus: gaps.length ? 'Yellow' : summary.readinessStatus, complianceScore: summary.complianceScore, gaps };
+  const readinessStatus = gaps.length ? (gaps.some((g) => g.includes('overdue')) ? 'Red' : 'Yellow') : summary.readinessStatus;
+  return { readinessStatus, complianceScore: summary.complianceScore, gaps, sections: sectionStats };
 }
 
 function pdfBufferFromDoc(doc) {

@@ -46,6 +46,15 @@ enum TdArtifactType {
   Training
   ExternalLink
   Report
+  Change
+}
+
+enum TdQueryStatus {
+  NotStarted
+  InProgress
+  Complete
+  Blocked
+  NotApplicable
 }
 
 enum TdChangeType {
@@ -231,4 +240,59 @@ model TdKpiSnapshot {
   td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
 
   @@index([tdId, calculatedAt])
+}
+
+
+model TdQueryTemplate {
+  id                 String  @id @default(cuid())
+  templateKey        String  @unique
+  sectionTemplateKey String
+  title              String
+  description        String
+  order              Int
+  mandatory          Boolean @default(true)
+  suggestedLinkTypes Json?
+  defaultOwnersRole  String?
+  tags               Json?
+
+  answers TdQueryAnswer[]
+
+  @@index([sectionTemplateKey, order])
+}
+
+model TdQueryAnswer {
+  id                String        @id @default(cuid())
+  tdId              String
+  sectionId         String
+  templateKey       String
+  status            TdQueryStatus @default(NotStarted)
+  answerMarkdown    String        @default("")
+  rationaleMarkdown String        @default("")
+  ownerUserId       String?
+  dueAt             DateTime?
+  evidenceJson      Json?
+  updatedAt         DateTime      @updatedAt
+  updatedByUserId   String?
+
+  td       TdFile          @relation(fields: [tdId], references: [id], onDelete: Cascade)
+  section  TdSection       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  template TdQueryTemplate @relation(fields: [templateKey], references: [templateKey])
+  links    TdQueryLink[]
+
+  @@unique([tdId, sectionId, templateKey])
+  @@index([sectionId, status])
+}
+
+model TdQueryLink {
+  id       String         @id @default(cuid())
+  answerId String
+  type     TdArtifactType
+  refId    String
+  label    String
+  url      String?
+  metaJson Json?
+
+  answer TdQueryAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@index([answerId, type])
 }
