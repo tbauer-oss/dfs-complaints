@@ -391,6 +391,16 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
   List<TdQueryAnswer> _queries = const [];
   bool _loading = true;
 
+  Chip _applicabilityChip(String state) {
+    final map = {
+      'MANDATORY': 'Mandatory',
+      'OPTIONAL': 'Optional',
+      'CONDITIONAL': 'Conditional',
+      'NOT_APPLICABLE': 'N/A',
+    };
+    return Chip(label: Text(map[state] ?? state));
+  }
+
   String _statusDe(String status) {
     switch (status) {
       case 'NotStarted': return 'Nicht gestartet';
