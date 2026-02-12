@@ -309,6 +309,12 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with SingleTi
   final _summaryCtl = TextEditingController();
   final Map<String, TextEditingController> _fields = {};
 
+  static const Map<String, String> _reportTypeDe = {
+    'PMS_REPORT': 'PMS-Bericht',
+    'PSUR': 'PSUR',
+    'PMCF': 'PMCF',
+  };
+
   String _statusDe(String status) {
     switch (status) {
       case 'NotStarted':
@@ -338,6 +344,12 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with SingleTi
         return 'Schulung';
       case 'Report':
         return 'Bericht';
+      case 'GSPR':
+        return 'GSPR';
+      case 'FMEA':
+        return 'FMEA';
+      case 'CAPA':
+        return 'CAPA';
       default:
         return type;
     }
@@ -394,14 +406,42 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with SingleTi
   }
 
   Widget _contentTab(TdSection s) {
-    final keys = _sectionFieldKeys(s.templateKey);
+    final fields = _sectionFields(s.templateKey);
     return ListView(padding: const EdgeInsets.all(12), children: [
       TextField(controller: _summaryCtl, minLines: 4, maxLines: 8, readOnly: !widget.canEdit, decoration: const InputDecoration(labelText: 'Zusammenfassung (Markdown)')),
       const SizedBox(height: 8),
-      ...keys.map((key) => Padding(padding: const EdgeInsets.only(bottom: 8), child: TextField(controller: _fields.putIfAbsent(key, () => TextEditingController()), minLines: 1, maxLines: 5, readOnly: !widget.canEdit, decoration: InputDecoration(labelText: key)))),
+      ...fields.map((field) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: _buildFieldInput(field),
+      )),
       if (s.templateKey == 'ANNEX_II_D') Wrap(spacing: 8, children: [OutlinedButton(onPressed: () {}, child: const Text('GSPR-Modul für diese TD öffnen')), FilledButton(onPressed: widget.canEdit ? () => _addLinkPreset('GSPR') : null, child: const Text('Vorhandene GSPR-Bewertung verknüpfen'))]),
       if (s.templateKey == 'ANNEX_II_E') Wrap(spacing: 8, children: [OutlinedButton(onPressed: () {}, child: const Text('FMEA-Modul öffnen')), FilledButton(onPressed: widget.canEdit ? () => _addLinkPreset('FMEA') : null, child: const Text('Vorhandene FMEA verknüpfen'))]),
     ]);
+  }
+
+  Widget _buildFieldInput(_TdFieldSpec field) {
+    if (field.key == 'reportType') {
+      final current = (_fields[field.key]?.text ?? '').trim();
+      final value = _reportTypeDe.containsKey(current) ? current : 'PMS_REPORT';
+      return DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(labelText: field.label),
+        items: _reportTypeDe.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
+        onChanged: widget.canEdit
+            ? (v) {
+                if (v == null) return;
+                _fields.putIfAbsent(field.key, () => TextEditingController()).text = v;
+              }
+            : null,
+      );
+    }
+    return TextField(
+      controller: _fields.putIfAbsent(field.key, () => TextEditingController()),
+      minLines: 1,
+      maxLines: 5,
+      readOnly: !widget.canEdit,
+      decoration: InputDecoration(labelText: field.label),
+    );
   }
 
   Widget _linksTab(TdSection s) => Column(children: [
@@ -441,18 +481,70 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with SingleTi
     } finally { if (mounted) setState(() => _saving = false); }
   }
 
-  List<String> _sectionFieldKeys(String templateKey) {
+  List<_TdFieldSpec> _sectionFields(String templateKey) {
     switch (templateKey) {
-      case 'ANNEX_II_A': return ['intendedPurpose','deviceDescription','variantsAccessories','udiBasic','classification','rule','principlesOfOperation','references'];
-      case 'ANNEX_II_B': return ['labelingRefs','ifuRefs','symbolsRefs','translationsNotes'];
-      case 'ANNEX_II_C': return ['manufacturingSites','keyProcesses','criticalProcessControls','subcontractorsRefs'];
-      case 'ANNEX_II_E': return ['riskManagementSummary','fmeaRefs','benefitRiskConclusion'];
-      case 'ANNEX_II_F': return ['standardsApplied','biocompatibilityRefs','cleaningSterilizationRefs','performanceTestingRefs','softwareValidationRefs'];
-      case 'ANNEX_III_G': return ['pmsPlanSummary','pmsPlanRefs','pmsMethods'];
-      case 'ANNEX_III_H': return ['reportType','reportingPeriod','keyFindings','actionsConclusions','reportRefs'];
+      case 'ANNEX_II_A':
+        return const [
+          _TdFieldSpec('intendedPurpose', 'MDR Anhang II 1.1a – Zweckbestimmung'),
+          _TdFieldSpec('deviceDescription', 'MDR Anhang II 1.1b – Produktspezifikation und Beschreibung'),
+          _TdFieldSpec('variantsAccessories', 'MDR Anhang II 1.1c – Varianten und Zubehör'),
+          _TdFieldSpec('udiBasic', 'MDR Anhang II 1.1d – UDI-Basis-DI'),
+          _TdFieldSpec('classification', 'MDR Anhang II 1.1e – Risikoklasse'),
+          _TdFieldSpec('rule', 'MDR Anhang II 1.1e – Klassifizierungsregel (Anhang VIII)'),
+          _TdFieldSpec('principlesOfOperation', 'MDR Anhang II 1.1f – Funktionsprinzipien'),
+          _TdFieldSpec('references', 'MDR Anhang II 1.1g – Referenz auf Vorgänger-/ähnliche Generationen'),
+        ];
+      case 'ANNEX_II_B':
+        return const [
+          _TdFieldSpec('labelingRefs', 'MDR Anhang II 2.1 – Kennzeichnung (Label)'),
+          _TdFieldSpec('ifuRefs', 'MDR Anhang II 2.2 – Gebrauchsanweisung (IFU)'),
+          _TdFieldSpec('symbolsRefs', 'MDR Anhang II 2.3 – Symbole/Erklärungen'),
+          _TdFieldSpec('translationsNotes', 'MDR Anhang II 2.4 – Sprachversionen und Länderbezug'),
+        ];
+      case 'ANNEX_II_C':
+        return const [
+          _TdFieldSpec('manufacturingSites', 'MDR Anhang II 3.1 – Herstellungsstandorte'),
+          _TdFieldSpec('keyProcesses', 'MDR Anhang II 3.2 – Herstellungsverfahren'),
+          _TdFieldSpec('criticalProcessControls', 'MDR Anhang II 3.3 – Kritische Prozesslenkung'),
+          _TdFieldSpec('subcontractorsRefs', 'MDR Anhang II 3.4 – Wichtige Lieferanten/Unterauftragnehmer'),
+        ];
+      case 'ANNEX_II_E':
+        return const [
+          _TdFieldSpec('riskManagementSummary', 'MDR Anhang II 5.1 – Zusammenfassung Risikomanagement'),
+          _TdFieldSpec('fmeaRefs', 'MDR Anhang II 5.2 – Verweise auf Risikoanalysen/FMEA'),
+          _TdFieldSpec('benefitRiskConclusion', 'MDR Anhang II 5.3 – Nutzen-Risiko-Bewertung'),
+        ];
+      case 'ANNEX_II_F':
+        return const [
+          _TdFieldSpec('standardsApplied', 'MDR Anhang II 6.1 – Angewandte Normen und Spezifikationen'),
+          _TdFieldSpec('biocompatibilityRefs', 'MDR Anhang II 6.2 – Biokompatibilität'),
+          _TdFieldSpec('cleaningSterilizationRefs', 'MDR Anhang II 6.3 – Reinigung, Desinfektion, Sterilisation'),
+          _TdFieldSpec('performanceTestingRefs', 'MDR Anhang II 6.4 – Präklinische/klinische Leistungsdaten'),
+          _TdFieldSpec('softwareValidationRefs', 'MDR Anhang II 6.5 – Software-Verifizierung/-Validierung'),
+        ];
+      case 'ANNEX_III_G':
+        return const [
+          _TdFieldSpec('pmsPlanSummary', 'MDR Anhang III 1.1 – PMS-Plan (Zusammenfassung)'),
+          _TdFieldSpec('pmsPlanRefs', 'MDR Anhang III 1.2 – PMS-Plan (Referenzen)'),
+          _TdFieldSpec('pmsMethods', 'MDR Anhang III 1.3 – PMS-Methoden und Datenquellen'),
+        ];
+      case 'ANNEX_III_H':
+        return const [
+          _TdFieldSpec('reportType', 'MDR Anhang III 2.1 – Berichtstyp (PMS-Bericht/PSUR/PMCF)'),
+          _TdFieldSpec('reportingPeriod', 'MDR Anhang III 2.2 – Berichtszeitraum'),
+          _TdFieldSpec('keyFindings', 'MDR Anhang III 2.3 – Zentrale Ergebnisse'),
+          _TdFieldSpec('actionsConclusions', 'MDR Anhang III 2.4 – Maßnahmen und Schlussfolgerungen'),
+          _TdFieldSpec('reportRefs', 'MDR Anhang III 2.5 – Berichtsnachweise/Referenzen'),
+        ];
       default: return const [];
     }
   }
+}
+
+class _TdFieldSpec {
+  final String key;
+  final String label;
+  const _TdFieldSpec(this.key, this.label);
 }
 
 class _ChangeDetailSheet extends StatefulWidget {
