@@ -2,7 +2,7 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad, readJson } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
-import { tdGet, tdUpdate, tdDelete, tdSections, tdLinks, tdComputedSummary } from '../_lib/tdStore.js';
+import { tdGet, tdUpdate, tdDelete, tdSections, tdLinks, tdComputedSummary, tdReadiness } from '../_lib/tdStore.js';
 
 const TD_TILE = 'td';
 
@@ -18,6 +18,12 @@ export default async function handler(req, res) {
   if (!actor) return;
 
   try {
+    if (req.method === 'GET' && id === 'readiness') {
+      const tdId = String(req.query?.tdId || '').trim();
+      if (!tdId) return bad(res, 'tdId is required', 400);
+      return ok(res, { ok: true, ...(await tdReadiness(tdId)) });
+    }
+
     if (req.method === 'GET') {
       const td = await tdGet(id);
       if (!td || td.deletedAt) return bad(res, 'not found', 404);
