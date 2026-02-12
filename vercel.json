@@ -13,12 +13,16 @@
     },
     {
       "src": "/api/(.*)",
-      "methods": ["OPTIONS"],
+      "methods": [
+        "OPTIONS"
+      ],
       "dest": "/api/options"
     },
     {
       "src": "/api/internal-audits/(.*)",
-      "methods": ["OPTIONS"],
+      "methods": [
+        "OPTIONS"
+      ],
       "dest": "/api/internal-audits/options"
     },
     {
@@ -64,14 +68,20 @@
     {
       "src": "/api/training/(.*)",
       "has": [
-        { "type": "header", "key": "Access-Control-Request-Method" }
+        {
+          "type": "header",
+          "key": "Access-Control-Request-Method"
+        }
       ],
       "dest": "/api/training/options"
     },
     {
       "src": "/api/wiki/(.*)",
       "has": [
-        { "type": "header", "key": "Access-Control-Request-Method" }
+        {
+          "type": "header",
+          "key": "Access-Control-Request-Method"
+        }
       ],
       "dest": "/api/_options"
     },
@@ -107,10 +117,54 @@
       "src": "/api/admin/push/devices/([^/]+)$",
       "dest": "/api/admin/push/devices/[deviceId].js?deviceId=$1"
     },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/api/td/([^/]+)/export/nb-package$",
+      "dest": "/api/td/[id]/export/nb-package.js?id=$1"
+    },
+    {
+      "src": "/api/td/([^/]+)/changes$",
+      "dest": "/api/td/[id]/changes.js?id=$1"
+    },
+    {
+      "src": "/api/td/([^/]+)/links$",
+      "dest": "/api/td/[id]/links.js?id=$1"
+    },
+    {
+      "src": "/api/td/([^/]+)/sections$",
+      "dest": "/api/td/[id]/sections.js?id=$1"
+    },
+    {
+      "src": "/api/td/changes/([^/]+)/analyze$",
+      "dest": "/api/td/changes/[changeId]/analyze.js?changeId=$1"
+    },
+    {
+      "src": "/api/td/changes/([^/]+)$",
+      "dest": "/api/td/changes/[changeId].js?changeId=$1"
+    },
+    {
+      "src": "/api/td/links/([^/]+)$",
+      "dest": "/api/td/links/[linkId].js?linkId=$1"
+    },
+    {
+      "src": "/api/td/sections/([^/]+)$",
+      "dest": "/api/td/sections/[sectionId].js?sectionId=$1"
+    },
+    {
+      "src": "/api/td/([^/]+)$",
+      "dest": "/api/td/[id].js?id=$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/cron/training-recurrence", "schedule": "0 * * * *" }
+    {
+      "path": "/api/cron/training-recurrence",
+      "schedule": "0 * * * *"
+    }
   ]
 }

@@ -23,6 +23,7 @@ import '../models/supplier_evaluation.dart';
 import '../models/training.dart';
 import '../models/training_signature.dart';
 import '../models/gspr.dart';
+import '../models/td.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -3888,6 +3889,86 @@ class ApiClient {
     await put('/api/catalogs', body: {
       'items': links.map((e) => e.toJson()).toList(),
     });
+  }
+
+
+  Future<List<TdFile>> fetchTdFiles() async {
+    const path = '/api/td';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> fetchTdDetail(String id) async {
+    final path = '/api/td/$id';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  Future<TdFile> createTdFile({
+    required String code,
+    required String title,
+    String? productGroup,
+    String? classification,
+    String? rule,
+  }) async {
+    const path = '/api/td';
+    final r = await http.post(
+      _u(path),
+      headers: _adminHeaders(auth: true, path: path),
+      body: jsonEncode({
+        'code': code,
+        'title': title,
+        'productGroup': productGroup,
+        'classification': classification,
+        'rule': rule,
+      }),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdFile.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
+  }
+
+  Future<List<TdChangeRequest>> fetchTdChanges(String tdId) async {
+    final path = '/api/td/$tdId/changes';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdChangeRequest.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<void> runTdImpactAnalyzer(String changeId) async {
+    final path = '/api/td/changes/$changeId/analyze';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+  }
+
+  Future<Map<String, dynamic>> exportTdNbPackage(String tdId) async {
+    final path = '/api/td/$tdId/export/nb-package';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
   }
 
   // Ende ApiClient
