@@ -23,6 +23,7 @@ import '../models/supplier_evaluation.dart';
 import '../models/training.dart';
 import '../models/training_signature.dart';
 import '../models/gspr.dart';
+import '../models/td.dart';
 import 'config.dart';
 
 class ApiError implements Exception {
@@ -3888,6 +3889,58 @@ class ApiClient {
     await put('/api/catalogs', body: {
       'items': links.map((e) => e.toJson()).toList(),
     });
+  }
+
+
+  Future<List<TdFile>> fetchTdFiles() async {
+    final r = await _request('GET', '/api/td', portalAuth: true);
+    final body = _decodeJsonMap(r.body);
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> fetchTdDetail(String id) async {
+    final r = await _request('GET', '/api/td/$id', portalAuth: true);
+    return _decodeJsonMap(r.body);
+  }
+
+  Future<TdFile> createTdFile({
+    required String code,
+    required String title,
+    String? productGroup,
+    String? classification,
+    String? rule,
+  }) async {
+    final r = await _request(
+      'POST',
+      '/api/td',
+      portalAuth: true,
+      body: {
+        'code': code,
+        'title': title,
+        'productGroup': productGroup,
+        'classification': classification,
+        'rule': rule,
+      },
+    );
+    final body = _decodeJsonMap(r.body);
+    return TdFile.fromJson((body['item'] as Map).cast<String, dynamic>());
+  }
+
+  Future<List<TdChangeRequest>> fetchTdChanges(String tdId) async {
+    final r = await _request('GET', '/api/td/$tdId/changes', portalAuth: true);
+    final body = _decodeJsonMap(r.body);
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdChangeRequest.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+  Future<void> runTdImpactAnalyzer(String changeId) async {
+    await _request('POST', '/api/td/changes/$changeId/analyze', portalAuth: true, body: const {});
+  }
+
+  Future<Map<String, dynamic>> exportTdNbPackage(String tdId) async {
+    final r = await _request('POST', '/api/td/$tdId/export/nb-package', portalAuth: true, body: const {});
+    return _decodeJsonMap(r.body);
   }
 
   // Ende ApiClient

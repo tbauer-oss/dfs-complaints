@@ -20,6 +20,7 @@ const KNOWN_TILES = [
   'capaDashboard',
   'fmea',
   'gspr',
+  'td',
   'internalErrors',
   'changeManagement',
   'audits',
@@ -87,6 +88,10 @@ export default async function handler(req, res) {
   permissions.training_questionnaires_read = canReadTrainingScope(actor, 'trainingEffectiveness');
   permissions.training_questionnaires_write = canWriteTrainingScope(actor, 'trainingEffectiveness');
   permissions.training_delete = actor.role === 'superuser';
+  permissions.td_view = canReadTile(actor, 'td');
+  permissions.td_edit = canWriteTile(actor, 'td');
+  permissions.td_approve_change = canWriteTile(actor, 'td') && (actor.role === 'superuser' || actor.role === 'admin' || actor.isPRRC === true);
+  permissions.td_export = canReadTile(actor, 'td');
 
   const profile = {
     email: actor.email,
