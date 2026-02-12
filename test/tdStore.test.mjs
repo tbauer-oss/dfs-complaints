@@ -20,3 +20,30 @@ test('TD readiness score improves with key links', async () => {
   const summary = await tdComputedSummary(td);
   assert.ok(summary.complianceScore >= 30);
 });
+import { tdApplicabilityGet, tdApplicabilityProfileUpsert, generateApplicability, tdBootstrapQueries, tdQueries } from '../api/_lib/tdStore.js';
+
+test('TD applicability defaults: software V&V is N/A when hasSoftware=false', async () => {
+  const td = await tdCreate({ code: 'MDR-TD-UT-3', title: 'Unit TD 3' }, 'tester');
+  await tdBootstrapQueries(td.id);
+  const app = await tdApplicabilityGet(td.id);
+  const sw = app.results.find((r) => r.queryKey === 'ANNEX_II_F_6');
+  assert.equal(sw?.state, 'NOT_APPLICABLE');
+});
+
+test('TD applicability: reprocessing mandatory only when reusable=true', async () => {
+  const td = await tdCreate({ code: 'MDR-TD-UT-4', title: 'Unit TD 4' }, 'tester');
+  await tdApplicabilityProfileUpsert(td.id, { profileType: 'DENTAL_ALLOYS', isReusable: false, isSterile: false, packagingType: 'UNIT_NONSTERILE', hasSoftware: false }, null);
+  await generateApplicability(td.id);
+  const app = await tdApplicabilityGet(td.id);
+  const repro = app.results.find((r) => r.queryKey === 'ANNEX_II_F_3');
+  assert.equal(repro?.state, 'NOT_APPLICABLE');
+});
+
+test('TD query payload includes applicability flags', async () => {
+  const td = await tdCreate({ code: 'MDR-TD-UT-5', title: 'Unit TD 5' }, 'tester');
+  await tdApplicabilityProfileUpsert(td.id, { profileType: 'DENTAL_ALLOYS', isReusable: false, isSterile: false, packagingType: 'UNIT_NONSTERILE', hasSoftware: false }, null);
+  await generateApplicability(td.id);
+  const queries = await tdQueries(td.id);
+  const software = queries.find((q) => q.templateKey === 'ANNEX_II_F_6');
+  assert.equal(software?.applicability?.state, 'NOT_APPLICABLE');
+});

@@ -23,6 +23,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   bool _loading = true;
   String? _error;
   Map<String, dynamic>? _readiness;
+  TdApplicabilityBundle? _applicability;
 
   static const List<String> _linkTypes = ['Document', 'ExternalLink', 'GSPR', 'FMEA', 'CAPA', 'Supplier', 'Training', 'Report', 'Change'];
 
@@ -146,7 +147,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 7, vsync: this);
+    _tabs = TabController(length: 8, vsync: this);
     _load();
   }
 
@@ -159,11 +160,13 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       List<TdChangeRequest> changes = const [];
       List<TdArtifactLink> links = const [];
       Map<String, dynamic>? readiness;
+      TdApplicabilityBundle? applicability;
       if (selected != null) {
         sections = await widget.api.fetchTdSections(selected.id);
         changes = await widget.api.fetchTdChanges(selected.id);
         links = await widget.api.fetchTdLinks(selected.id);
         readiness = await widget.api.fetchTdReadiness(selected.id);
+        applicability = await widget.api.fetchTdApplicability(selected.id);
       }
       setState(() {
         _items = list;
@@ -172,6 +175,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _changes = changes;
         _links = links;
         _readiness = readiness;
+        _applicability = applicability;
         _error = null;
       });
     } catch (e) {
@@ -186,11 +190,11 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     return Row(children: [
-      SizedBox(width: 340, child: Card(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Punkte ${td.summary.complianceScore}'), selected: _selected?.id == td.id, onTap: () { setState(() => _selected = td); _load(); },)).toList()))),
+      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('Create TD'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Punkte ${td.summary.complianceScore}'), selected: _selected?.id == td.id, onTap: () { setState(() => _selected = td); _load(); },)).toList()))]))),
       const SizedBox(width: 12),
       Expanded(child: Card(child: Column(children: [
-        TabBar(controller: _tabs, isScrollable: true, tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),
-        Expanded(child: TabBarView(controller: _tabs, children: [_dashboardTab(), _structureTab(), _linksTab(), _changesTab(), _heatmapTab(), _exportTab(), _calendarTab()])),
+        TabBar(controller: _tabs, isScrollable: true, tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Applicability'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),
+        Expanded(child: TabBarView(controller: _tabs, children: [_dashboardTab(), _structureTab(), _applicabilityTab(), _linksTab(), _changesTab(), _heatmapTab(), _exportTab(), _calendarTab()])),
       ]))),
     ]);
   }
@@ -222,7 +226,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                         if (s.queryTotal != null) Chip(label: Text('Queries ${s.queryTotal}')),
                       ],
                     ),
-                    trailing: Chip(label: Text(_statusDe(s.status))),
+                    trailing: Wrap(spacing: 8, children: [if (s.applicability != null) _applicabilityChip(s.applicability!.state), Chip(label: Text(_statusDe(s.status)))]),
                     onTap: () async {
                       if (_selected == null) return;
                       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TdSectionDetailPage(api: widget.api, td: _selected!, sectionId: s.id, canEdit: widget.canEdit)));
@@ -232,6 +236,70 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                 ))
             .toList(),
       );
+
+
+  Chip _applicabilityChip(String state) {
+    final map = {
+      'MANDATORY': 'Mandatory',
+      'OPTIONAL': 'Optional',
+      'CONDITIONAL': 'Conditional',
+      'NOT_APPLICABLE': 'N/A',
+    };
+    return Chip(label: Text(map[state] ?? state));
+  }
+
+  Future<void> _openCreateTdWizard() async {
+    final codeCtl = TextEditingController();
+    final titleCtl = TextEditingController();
+    final groupCtl = TextEditingController();
+    final classCtl = TextEditingController(text: 'IIa');
+    final ruleCtl = TextEditingController(text: 'Rule 5.4');
+    TdApplicabilityProfile profile = const TdApplicabilityProfile(profileType: 'ROTARY_REUSABLE_NONSTERILE', isReusable: true, isSterile: false, packagingType: 'BULK_NONSTERILE', classificationRule: 'Rule 5.4', hasSoftware: false, notes: null);
+    final ok = await showDialog<bool>(context: context, builder: (_) => StatefulBuilder(builder: (_, setS) => AlertDialog(
+      title: const Text('Create TD Wizard'),
+      content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: codeCtl, decoration: const InputDecoration(labelText: 'TD code')),
+        TextField(controller: titleCtl, decoration: const InputDecoration(labelText: 'Title')),
+        TextField(controller: groupCtl, decoration: const InputDecoration(labelText: 'Product group')),
+        TextField(controller: classCtl, decoration: const InputDecoration(labelText: 'Classification')),
+        TextField(controller: ruleCtl, decoration: const InputDecoration(labelText: 'Rule')),
+        DropdownButtonFormField<String>(value: profile.profileType, items: const ['ROTARY_REUSABLE_NONSTERILE','ROTARY_REUSABLE_SURGICAL','DENTAL_ALLOYS','SOFTWARE_DEVICE'].map((e)=>DropdownMenuItem(value:e, child: Text(e))).toList(), onChanged: (v){ if(v==null) return; setS((){ profile = TdApplicabilityProfile(profileType: v, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes);});}),
+        SwitchListTile(value: profile.isReusable, onChanged: (v)=>setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: v, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes)), title: const Text('Reusable')),
+        SwitchListTile(value: profile.isSterile, onChanged: (v)=>setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: v, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes)), title: const Text('Sterile')),
+        SwitchListTile(value: profile.hasSoftware, onChanged: (v)=>setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: v, notes: profile.notes)), title: const Text('Has software')),
+        DropdownButtonFormField<String>(value: profile.packagingType, items: const ['BULK_NONSTERILE','UNIT_NONSTERILE','STERILE_BARRIER_SYSTEM','TRANSPORT_VALIDATED'].map((e)=>DropdownMenuItem(value:e, child: Text(e))).toList(), onChanged: (v){ if(v==null) return; setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: v, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes));}),
+      ]))),
+      actions: [TextButton(onPressed: ()=>Navigator.pop(context,false), child: const Text('Cancel')), FilledButton(onPressed: ()=>Navigator.pop(context,true), child: const Text('Create'))],
+    )));
+    if (ok == true) {
+      await widget.api.createTdFile(code: codeCtl.text.trim(), title: titleCtl.text.trim(), productGroup: groupCtl.text.trim(), classification: classCtl.text.trim(), rule: ruleCtl.text.trim(), applicabilityProfile: profile);
+      _load();
+    }
+  }
+
+  Widget _applicabilityTab() {
+    final selected = _selected;
+    final bundle = _applicability;
+    if (selected == null || bundle == null) return const Center(child: Text('No applicability data'));
+    final profile = bundle.profile;
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      Card(child: Padding(padding: const EdgeInsets.all(12), child: Wrap(spacing: 12, runSpacing: 12, children: [
+        Chip(label: Text('Profile: ${profile.profileType}')),
+        Chip(label: Text('Reusable: ${profile.isReusable}')),
+        Chip(label: Text('Sterile: ${profile.isSterile}')),
+        Chip(label: Text('Packaging: ${profile.packagingType}')),
+        Chip(label: Text('Software: ${profile.hasSoftware}')),
+      ]))),
+      Wrap(spacing: 8, children: [
+        FilledButton(onPressed: widget.canEdit ? () async { await widget.api.regenerateTdApplicability(selected.id); await _load(); } : null, child: const Text('Regenerate applicability')),
+      ]),
+      const SizedBox(height: 12),
+      ...bundle.results.where((r) => r.queryKey == null).map((r) {
+        final sectionName = _sections.where((s) => s.id == r.sectionId).map((s) => s.name).cast<String?>().firstWhere((e) => e != null, orElse: () => 'Section') ?? 'Section';
+        return ListTile(title: Text(sectionName), trailing: _applicabilityChip(r.state), subtitle: Text(r.conditionSummary ?? ''));
+      }),
+    ]);
+  }
 
   Widget _linksTab() {
     return Column(children: [
@@ -389,13 +457,14 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     final rationaleCtl = TextEditingController(text: query.rationaleMarkdown);
     final ownerCtl = TextEditingController(text: query.ownerUserId ?? '');
     final dueCtl = TextEditingController(text: query.dueAt ?? '');
-    final canMarkComplete = query.links.isNotEmpty || !query.template.mandatory;
+    final isMandatoryByApplicability = query.applicability == null ? query.template.mandatory : (query.applicability!.state == 'MANDATORY' || (query.applicability!.state == 'CONDITIONAL' && query.applicability!.isConditionMet == true));
+    final canMarkComplete = query.links.isNotEmpty || !isMandatoryByApplicability;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(query.template.description))),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: query.template.tags.map((e) => Chip(label: Text(e))).toList()),
+        Wrap(spacing: 8, runSpacing: 8, children: [if (query.applicability != null) _applicabilityChip(query.applicability!.state), ...query.template.tags.map((e) => Chip(label: Text(e)))]),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           value: query.status,

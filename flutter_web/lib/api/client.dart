@@ -3920,6 +3920,7 @@ class ApiClient {
     String? productGroup,
     String? classification,
     String? rule,
+    TdApplicabilityProfile? applicabilityProfile,
   }) async {
     const path = '/api/td';
     final r = await http.post(
@@ -3931,6 +3932,7 @@ class ApiClient {
         'productGroup': productGroup,
         'classification': classification,
         'rule': rule,
+        if (applicabilityProfile != null) 'applicabilityProfile': applicabilityProfile.toJson(),
       }),
     );
     if (!_ok2xx(r.statusCode)) {
@@ -3939,6 +3941,44 @@ class ApiClient {
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
     final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     return TdFile.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
+  }
+
+
+
+  Future<TdApplicabilityBundle> fetchTdApplicability(String tdId) async {
+    final path = '/api/td/$tdId/applicability';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdApplicabilityBundle.fromJson(body);
+  }
+
+  Future<TdApplicabilityBundle> saveTdApplicabilityProfile(String tdId, TdApplicabilityProfile profile) async {
+    final path = '/api/td/$tdId/applicability';
+    final r = await http.put(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode({'profile': profile.toJson()}));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdApplicabilityBundle.fromJson(body);
+  }
+
+  Future<TdApplicabilityBundle> regenerateTdApplicability(String tdId) async {
+    final path = '/api/td/$tdId/applicability/regenerate';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdApplicabilityBundle.fromJson(body);
+  }
+
+  Future<TdApplicabilityBundle> upsertTdApplicabilityOverride(String tdId, Map<String, dynamic> payload) async {
+    final path = '/api/td/$tdId/applicability';
+    final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(payload));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdApplicabilityBundle.fromJson(body);
   }
 
   Future<List<TdSection>> fetchTdSections(String tdId) async {
