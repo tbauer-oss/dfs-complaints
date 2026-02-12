@@ -24,7 +24,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   String? _error;
   Map<String, dynamic>? _readiness;
 
-  static const List<String> _linkTypes = ['Document', 'ExternalLink', 'GSPR', 'FMEA', 'CAPA', 'Supplier', 'Training', 'Report'];
+  static const List<String> _linkTypes = ['Document', 'ExternalLink', 'GSPR', 'FMEA', 'CAPA', 'Supplier', 'Training', 'Report', 'Change'];
 
   String _statusDe(String status) {
     switch (status) {
@@ -113,6 +113,8 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         return 'Schulung';
       case 'Report':
         return 'Bericht';
+      case 'Change':
+        return 'Änderung';
       default:
         return type;
     }
@@ -205,16 +207,31 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     ]);
   }
 
-  Widget _structureTab() => ListView(children: _sections.map((s) => ListTile(
-    title: Text(_sectionNameDe(s)),
-    subtitle: Text('${s.templateKey} · Links ${s.linkCount ?? 0}'),
-    trailing: Chip(label: Text(_statusDe(s.status))),
-    onTap: () async {
-      if (_selected == null) return;
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TdSectionDetailPage(api: widget.api, td: _selected!, sectionId: s.id, canEdit: widget.canEdit)));
-      _load();
-    },
-  )).toList());
+  Widget _structureTab() => ListView(
+        padding: const EdgeInsets.all(12),
+        children: _sections
+            .map((s) => Card(
+                  child: ListTile(
+                    title: Text(_sectionNameDe(s)),
+                    subtitle: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Text('${s.templateKey} · Links ${s.linkCount ?? 0}'),
+                        if (s.completion != null) Chip(label: Text('Completion ${s.completion}%')),
+                        if (s.queryTotal != null) Chip(label: Text('Queries ${s.queryTotal}')),
+                      ],
+                    ),
+                    trailing: Chip(label: Text(_statusDe(s.status))),
+                    onTap: () async {
+                      if (_selected == null) return;
+                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TdSectionDetailPage(api: widget.api, td: _selected!, sectionId: s.id, canEdit: widget.canEdit)));
+                      _load();
+                    },
+                  ),
+                ))
+            .toList(),
+      );
 
   Widget _linksTab() {
     return Column(children: [
@@ -301,243 +318,139 @@ class TdSectionDetailPage extends StatefulWidget {
   State<TdSectionDetailPage> createState() => _TdSectionDetailPageState();
 }
 
-class _TdSectionDetailPageState extends State<TdSectionDetailPage> with SingleTickerProviderStateMixin {
-  late final TabController _tabs;
+class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerProviderStateMixin {
   TdSection? _section;
-  List<TdArtifactLink> _links = const [];
-  bool _saving = false;
-  final _summaryCtl = TextEditingController();
-  final Map<String, TextEditingController> _fields = {};
-
-  static const Map<String, String> _reportTypeDe = {
-    'PMS_REPORT': 'PMS-Bericht',
-    'PSUR': 'PSUR',
-    'PMCF': 'PMCF',
-  };
+  List<TdQueryAnswer> _queries = const [];
+  bool _loading = true;
 
   String _statusDe(String status) {
     switch (status) {
-      case 'NotStarted':
-        return 'Nicht gestartet';
-      case 'InProgress':
-        return 'In Bearbeitung';
-      case 'Complete':
-        return 'Abgeschlossen';
-      case 'Blocked':
-        return 'Blockiert';
-      case 'NotApplicable':
-        return 'Nicht zutreffend';
-      default:
-        return status;
-    }
-  }
-
-  String _linkTypeDe(String type) {
-    switch (type) {
-      case 'Document':
-        return 'Dokument';
-      case 'ExternalLink':
-        return 'Externer Link';
-      case 'Supplier':
-        return 'Lieferant';
-      case 'Training':
-        return 'Schulung';
-      case 'Report':
-        return 'Bericht';
-      case 'GSPR':
-        return 'GSPR';
-      case 'FMEA':
-        return 'FMEA';
-      case 'CAPA':
-        return 'CAPA';
-      default:
-        return type;
-    }
-  }
-
-  String _sectionNameDe(TdSection section) {
-    switch (section.templateKey) {
-      case 'ANNEX_II_A':
-        return 'A. Produktbeschreibung und Spezifikation';
-      case 'ANNEX_II_B':
-        return 'B. Vom Hersteller bereitgestellte Informationen';
-      case 'ANNEX_II_C':
-        return 'C. Informationen zu Design und Herstellung';
-      case 'ANNEX_II_D':
-        return 'D. Allgemeine Sicherheits- und Leistungsanforderungen (GSPR)';
-      case 'ANNEX_II_E':
-        return 'E. Nutzen-Risiko und Risikomanagement';
-      case 'ANNEX_II_F':
-        return 'F. Produktverifizierung und -validierung';
-      case 'ANNEX_III_G':
-        return 'G. PMS-Plan';
-      case 'ANNEX_III_H':
-        return 'H. PMS-Bericht / PSUR / PMCF';
-      default:
-        return section.name;
+      case 'NotStarted': return 'Nicht gestartet';
+      case 'InProgress': return 'In Bearbeitung';
+      case 'Complete': return 'Abgeschlossen';
+      case 'Blocked': return 'Blockiert';
+      case 'NotApplicable': return 'Nicht zutreffend';
+      default: return status;
     }
   }
 
   @override
-  void initState() { super.initState(); _tabs = TabController(length: 3, vsync: this); _load(); }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    setState(() => _loading = true);
     final map = await widget.api.fetchTdSectionDetail(widget.sectionId);
-    final s = TdSection.fromJson(map);
-    final links = await widget.api.fetchTdLinks(widget.td.id, sectionId: widget.sectionId);
-    _summaryCtl.text = s.content?.summaryMarkdown ?? '';
-    _fields.clear();
-    (s.content?.contentJson ?? const <String,dynamic>{}).forEach((k,v){ _fields[k] = TextEditingController(text: v is List ? v.join('\n') : '$v'); });
-    setState(() { _section = s; _links = links; });
+    final section = TdSection.fromJson(map);
+    await widget.api.bootstrapTdQueries(widget.td.id);
+    final queries = await widget.api.fetchTdQueries(widget.td.id, sectionId: widget.sectionId);
+    setState(() { _section = section; _queries = queries; _loading = false; });
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = _section;
-    if (s == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    return Scaffold(appBar: AppBar(title: Text(_sectionNameDe(s)), actions: [if (widget.canEdit) FilledButton(onPressed: _saving ? null : _save, child: _saving ? const SizedBox(width: 16,height: 16,child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Speichern'))]), body: Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Wrap(spacing: 12, runSpacing: 12, children: [
-        SizedBox(width: 220, child: DropdownButtonFormField<String>(value: s.status, items: const ['NotStarted','InProgress','Complete','Blocked','NotApplicable'].map((e)=>DropdownMenuItem(value: e, child: Text(_statusDe(e)))).toList(), onChanged: widget.canEdit ? (v) async { await widget.api.patchTdSection(s.id, {'status': v}); _load(); } : null)),
-        SizedBox(width: 260, child: TextFormField(initialValue: s.ownerUserId, decoration: const InputDecoration(labelText: 'Verantwortliche Person'), onFieldSubmitted: widget.canEdit ? (v) async { await widget.api.patchTdSection(s.id, {'ownerUserId': v}); } : null)),
-      ])),
-      TabBar(controller: _tabs, tabs: const [Tab(text: 'Inhalt'), Tab(text: 'Links'), Tab(text: 'Historie')]),
-      Expanded(child: TabBarView(controller: _tabs, children: [_contentTab(s), _linksTab(s), ListView(children: [ListTile(title: const Text('Aktualisiert von'), subtitle: Text(s.content?.updatedByUserId ?? '-')), ListTile(title: const Text('Aktualisiert am'), subtitle: Text(s.content?.updatedAt ?? '-'))])])),
-    ]));
-  }
-
-  Widget _contentTab(TdSection s) {
-    final fields = _sectionFields(s.templateKey);
-    return ListView(padding: const EdgeInsets.all(12), children: [
-      TextField(controller: _summaryCtl, minLines: 4, maxLines: 8, readOnly: !widget.canEdit, decoration: const InputDecoration(labelText: 'Zusammenfassung (Markdown)')),
-      const SizedBox(height: 8),
-      ...fields.map((field) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: _buildFieldInput(field),
-      )),
-      if (s.templateKey == 'ANNEX_II_D') Wrap(spacing: 8, children: [OutlinedButton(onPressed: () {}, child: const Text('GSPR-Modul für diese TD öffnen')), FilledButton(onPressed: widget.canEdit ? () => _addLinkPreset('GSPR') : null, child: const Text('Vorhandene GSPR-Bewertung verknüpfen'))]),
-      if (s.templateKey == 'ANNEX_II_E') Wrap(spacing: 8, children: [OutlinedButton(onPressed: () {}, child: const Text('FMEA-Modul öffnen')), FilledButton(onPressed: widget.canEdit ? () => _addLinkPreset('FMEA') : null, child: const Text('Vorhandene FMEA verknüpfen'))]),
-    ]);
-  }
-
-  Widget _buildFieldInput(_TdFieldSpec field) {
-    if (field.key == 'reportType') {
-      final current = (_fields[field.key]?.text ?? '').trim();
-      final value = _reportTypeDe.containsKey(current) ? current : 'PMS_REPORT';
-      return DropdownButtonFormField<String>(
-        value: value,
-        decoration: InputDecoration(labelText: field.label),
-        items: _reportTypeDe.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
-        onChanged: widget.canEdit
-            ? (v) {
-                if (v == null) return;
-                _fields.putIfAbsent(field.key, () => TextEditingController()).text = v;
-              }
-            : null,
-      );
-    }
-    return TextField(
-      controller: _fields.putIfAbsent(field.key, () => TextEditingController()),
-      minLines: 1,
-      maxLines: 5,
-      readOnly: !widget.canEdit,
-      decoration: InputDecoration(labelText: field.label),
+    if (_loading || _section == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final section = _section!;
+    final complete = _queries.where((q) => q.status == 'Complete' || q.status == 'NotApplicable').length;
+    final completion = _queries.isEmpty ? 0 : ((complete / _queries.length) * 100).round();
+    return DefaultTabController(
+      length: _queries.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(section.name),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(84),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  Chip(label: Text('Status: ${_statusDe(section.status)}')),
+                  Chip(label: Text('Vollständigkeit: $completion%')),
+                  ..._queries.expand((q) => q.template.suggestedLinkTypes).toSet().take(5).map((type) => ActionChip(label: Text(type), onPressed: () {})),
+                ]),
+                const SizedBox(height: 8),
+                TabBar(isScrollable: true, tabs: _queries.map((q) => Tab(text: q.template.title)).toList()),
+              ]),
+            ),
+          ),
+        ),
+        body: TabBarView(children: _queries.map(_queryTab).toList()),
+      ),
     );
   }
 
-  Widget _linksTab(TdSection s) => Column(children: [
-    Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.all(12), child: FilledButton.icon(onPressed: widget.canEdit ? ()=>_addLinkPreset(null) : null, icon: const Icon(Icons.add), label: const Text('Link hinzufügen')))),
-    Expanded(child: ListView(children: _links.map((l) => ListTile(title: Text(l.label), subtitle: Text('${_linkTypeDe(l.type)} · ${l.url ?? l.refId ?? '-'}'), trailing: widget.canEdit ? IconButton(icon: const Icon(Icons.delete), onPressed: () async { await widget.api.deleteTdLink(l.id); _load(); }) : null)).toList())),
-  ]);
-
-  Future<void> _addLinkPreset(String? type) async {
-    final labelCtl = TextEditingController();
-    final refCtl = TextEditingController();
-    final urlCtl = TextEditingController();
-    String localType = type ?? 'Document';
-    final ok = await showDialog<bool>(context: context, builder: (_) => StatefulBuilder(builder: (_, setS) => AlertDialog(
-      title: const Text('Link hinzufügen'),
-      content: SizedBox(width: 500, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(value: localType, items: const ['Document','ExternalLink','GSPR','FMEA','CAPA','Supplier','Training','Report'].map((e)=>DropdownMenuItem(value:e, child: Text(_linkTypeDe(e)))).toList(), onChanged: (v)=>setS(()=>localType=v??'Document')),
-        TextField(controller: labelCtl, decoration: const InputDecoration(labelText: 'Bezeichnung')),
-        TextField(controller: refCtl, decoration: const InputDecoration(labelText: 'Referenz-ID')),
-        TextField(controller: urlCtl, decoration: const InputDecoration(labelText: 'URL')),
-      ])),
-      actions: [TextButton(onPressed: ()=>Navigator.pop(context,false), child: const Text('Abbrechen')), FilledButton(onPressed: ()=>Navigator.pop(context,true), child: const Text('Speichern'))],
-    )));
-    if (ok == true) {
-      await widget.api.createTdLink(widget.td.id, {'sectionId': widget.sectionId, 'type': localType, 'label': labelCtl.text.trim(), 'refId': refCtl.text.trim(), 'url': urlCtl.text.trim().isEmpty ? null : urlCtl.text.trim()});
-      _load();
-    }
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final content = <String, dynamic>{};
-      _fields.forEach((k,v){ final txt=v.text.trim(); content[k]= txt.contains('\n') ? txt.split('\n').where((e)=>e.trim().isNotEmpty).toList() : txt; });
-      await widget.api.putTdSectionContent(widget.sectionId, summaryMarkdown: _summaryCtl.text, contentJson: content);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert')));
-      _load();
-    } finally { if (mounted) setState(() => _saving = false); }
-  }
-
-  List<_TdFieldSpec> _sectionFields(String templateKey) {
-    switch (templateKey) {
-      case 'ANNEX_II_A':
-        return const [
-          _TdFieldSpec('intendedPurpose', 'MDR Anhang II 1.1a – Zweckbestimmung'),
-          _TdFieldSpec('deviceDescription', 'MDR Anhang II 1.1b – Produktspezifikation und Beschreibung'),
-          _TdFieldSpec('variantsAccessories', 'MDR Anhang II 1.1c – Varianten und Zubehör'),
-          _TdFieldSpec('udiBasic', 'MDR Anhang II 1.1d – UDI-Basis-DI'),
-          _TdFieldSpec('classification', 'MDR Anhang II 1.1e – Risikoklasse'),
-          _TdFieldSpec('rule', 'MDR Anhang II 1.1e – Klassifizierungsregel (Anhang VIII)'),
-          _TdFieldSpec('principlesOfOperation', 'MDR Anhang II 1.1f – Funktionsprinzipien'),
-          _TdFieldSpec('references', 'MDR Anhang II 1.1g – Referenz auf Vorgänger-/ähnliche Generationen'),
-        ];
-      case 'ANNEX_II_B':
-        return const [
-          _TdFieldSpec('labelingRefs', 'MDR Anhang II 2.1 – Kennzeichnung (Label)'),
-          _TdFieldSpec('ifuRefs', 'MDR Anhang II 2.2 – Gebrauchsanweisung (IFU)'),
-          _TdFieldSpec('symbolsRefs', 'MDR Anhang II 2.3 – Symbole/Erklärungen'),
-          _TdFieldSpec('translationsNotes', 'MDR Anhang II 2.4 – Sprachversionen und Länderbezug'),
-        ];
-      case 'ANNEX_II_C':
-        return const [
-          _TdFieldSpec('manufacturingSites', 'MDR Anhang II 3.1 – Herstellungsstandorte'),
-          _TdFieldSpec('keyProcesses', 'MDR Anhang II 3.2 – Herstellungsverfahren'),
-          _TdFieldSpec('criticalProcessControls', 'MDR Anhang II 3.3 – Kritische Prozesslenkung'),
-          _TdFieldSpec('subcontractorsRefs', 'MDR Anhang II 3.4 – Wichtige Lieferanten/Unterauftragnehmer'),
-        ];
-      case 'ANNEX_II_E':
-        return const [
-          _TdFieldSpec('riskManagementSummary', 'MDR Anhang II 5.1 – Zusammenfassung Risikomanagement'),
-          _TdFieldSpec('fmeaRefs', 'MDR Anhang II 5.2 – Verweise auf Risikoanalysen/FMEA'),
-          _TdFieldSpec('benefitRiskConclusion', 'MDR Anhang II 5.3 – Nutzen-Risiko-Bewertung'),
-        ];
-      case 'ANNEX_II_F':
-        return const [
-          _TdFieldSpec('standardsApplied', 'MDR Anhang II 6.1 – Angewandte Normen und Spezifikationen'),
-          _TdFieldSpec('biocompatibilityRefs', 'MDR Anhang II 6.2 – Biokompatibilität'),
-          _TdFieldSpec('cleaningSterilizationRefs', 'MDR Anhang II 6.3 – Reinigung, Desinfektion, Sterilisation'),
-          _TdFieldSpec('performanceTestingRefs', 'MDR Anhang II 6.4 – Präklinische/klinische Leistungsdaten'),
-          _TdFieldSpec('softwareValidationRefs', 'MDR Anhang II 6.5 – Software-Verifizierung/-Validierung'),
-        ];
-      case 'ANNEX_III_G':
-        return const [
-          _TdFieldSpec('pmsPlanSummary', 'MDR Anhang III 1.1 – PMS-Plan (Zusammenfassung)'),
-          _TdFieldSpec('pmsPlanRefs', 'MDR Anhang III 1.2 – PMS-Plan (Referenzen)'),
-          _TdFieldSpec('pmsMethods', 'MDR Anhang III 1.3 – PMS-Methoden und Datenquellen'),
-        ];
-      case 'ANNEX_III_H':
-        return const [
-          _TdFieldSpec('reportType', 'MDR Anhang III 2.1 – Berichtstyp (PMS-Bericht/PSUR/PMCF)'),
-          _TdFieldSpec('reportingPeriod', 'MDR Anhang III 2.2 – Berichtszeitraum'),
-          _TdFieldSpec('keyFindings', 'MDR Anhang III 2.3 – Zentrale Ergebnisse'),
-          _TdFieldSpec('actionsConclusions', 'MDR Anhang III 2.4 – Maßnahmen und Schlussfolgerungen'),
-          _TdFieldSpec('reportRefs', 'MDR Anhang III 2.5 – Berichtsnachweise/Referenzen'),
-        ];
-      default: return const [];
-    }
+  Widget _queryTab(TdQueryAnswer query) {
+    final answerCtl = TextEditingController(text: query.answerMarkdown);
+    final rationaleCtl = TextEditingController(text: query.rationaleMarkdown);
+    final ownerCtl = TextEditingController(text: query.ownerUserId ?? '');
+    final dueCtl = TextEditingController(text: query.dueAt ?? '');
+    final canMarkComplete = query.links.isNotEmpty || !query.template.mandatory;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(query.template.description))),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: query.template.tags.map((e) => Chip(label: Text(e))).toList()),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          value: query.status,
+          decoration: const InputDecoration(labelText: 'Status'),
+          items: const ['NotStarted','InProgress','Complete','Blocked','NotApplicable'].map((e)=>DropdownMenuItem(value:e, child: Text(_statusDe(e)))).toList(),
+          onChanged: widget.canEdit ? (v) async { await widget.api.updateTdQuery(query.id, {'status': v}); _load(); } : null,
+        ),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: TextField(controller: ownerCtl, decoration: const InputDecoration(labelText: 'Owner'))),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: dueCtl, decoration: const InputDecoration(labelText: 'Due date (ISO)'))),
+        ]),
+        const SizedBox(height: 8),
+        TextField(controller: answerCtl, minLines: 4, maxLines: 8, decoration: const InputDecoration(labelText: 'Assessment answer (Markdown)')),
+        const SizedBox(height: 8),
+        TextField(controller: rationaleCtl, minLines: 2, maxLines: 6, decoration: const InputDecoration(labelText: 'Rationale')),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          ...query.links.map((l) => InputChip(label: Text('${l.type}: ${l.label}'), onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null)),
+          if (widget.canEdit)
+            FilledButton.icon(onPressed: () async {
+              await widget.api.createTdQueryLink(query.id, {'type': 'Document', 'label': query.template.title, 'refId': query.template.templateKey});
+              _load();
+            }, icon: const Icon(Icons.add_link), label: const Text('Add link')),
+        ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(onPressed: () {}, child: const Text('Open GSPR')),
+          OutlinedButton(onPressed: () {}, child: const Text('Open FMEA')),
+          OutlinedButton(onPressed: () {}, child: const Text('Open CAPA')),
+          OutlinedButton(onPressed: () {}, child: const Text('Open Change Control')),
+          OutlinedButton(onPressed: () {}, child: const Text('Open Complaints')),
+          OutlinedButton(onPressed: () {}, child: const Text('Open Supplier')),
+          OutlinedButton(onPressed: () {}, child: const Text('Open Training')),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          FilledButton(
+            onPressed: widget.canEdit
+                ? () async {
+                    await widget.api.updateTdQuery(query.id, {
+                      'answerMarkdown': answerCtl.text,
+                      'rationaleMarkdown': rationaleCtl.text,
+                      'ownerUserId': ownerCtl.text.trim().isEmpty ? null : ownerCtl.text.trim(),
+                      'dueAt': dueCtl.text.trim().isEmpty ? null : dueCtl.text.trim(),
+                    });
+                    _load();
+                  }
+                : null,
+            child: const Text('Save query'),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.tonal(
+            onPressed: (widget.canEdit && canMarkComplete) ? () async { await widget.api.updateTdQuery(query.id, {'status': 'Complete'}); _load(); } : null,
+            child: const Text('Mark complete'),
+          ),
+          if (!canMarkComplete) const Padding(padding: EdgeInsets.only(left: 8), child: Chip(label: Text('Missing evidence/link'))),
+        ]),
+      ],
+    );
   }
 }
 
