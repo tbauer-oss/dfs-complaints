@@ -461,6 +461,8 @@ async function ensureSeedTdFiles() {
       await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
       await tdSectionContentBackfill(section.id);
     }
+    await tdApplicabilityProfileUpsert(seeded.id, { classificationRule: seeded.rule || null }, seeded.rule || null);
+    await generateApplicability(seeded.id);
     byCode.set(code, seeded);
     createdAny = true;
   }
