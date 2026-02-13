@@ -59,6 +59,23 @@ function makeRes() {
   };
 }
 
+
+
+test('portal login supports legacy passHash field for bcrypt hashes', async () => {
+  const email = 'legacy.camel@dfs-diamon.de';
+  const password = 'LegacyCamel#123';
+  const passHash = await bcrypt.hash(password, 8);
+  await portalUserSave({ email, passHash, role: 'superuser', portalStatus: 'active' });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const stored = await portalUserByEmail(email);
+  assert.ok(stored?.passhash);
+  assert.equal(await bcrypt.compare(password, stored.passhash), true);
+});
 test('portal login supports legacy plaintext password field and upgrades hash', async () => {
   const email = 'legacy.plaintext@dfs-diamon.de';
   const password = 'Plaintext#123';
