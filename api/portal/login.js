@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { portalUserByEmail, portalUserSave, sanitizeTilePermissions } from '../_lib/store.js';
+import { portalUserByEmail, portalUserSave, sanitizeTilePermissions, userByEmail } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
   ensureInitialAdmins,
@@ -88,6 +88,11 @@ export default async function handler(req, res) {
     }
 
     let u = await portalUserByEmail(email);
+    let legacyAdminUser = null;
+    if (ADMIN_EMAILS.has(email)) {
+      legacyAdminUser = await userByEmail(email).catch(() => null);
+    }
+
     if (!u && ADMIN_EMAILS.has(email)) {
       const passhash = adminSecret ? await bcrypt.hash(adminSecret, 10) : '';
       u = {
@@ -96,8 +101,8 @@ export default async function handler(req, res) {
         passwordHash: passhash || undefined,
         role: PORTAL_ROLES.superuser,
         portalStatus: 'active',
-        displayName: email.split('@')[0],
-        createdAt: Date.now(),
+        displayName: legacyAdminUser?.displayName || email.split('@')[0],
+        createdAt: legacyAdminUser?.createdAt || Date.now(),
       };
       await portalUserSave(u);
     }
