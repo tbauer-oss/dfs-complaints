@@ -3,6 +3,7 @@ import 'dart:html' as html;
 
 import '../api/client.dart';
 import '../models/td.dart';
+import 'admin_page.dart';
 
 class TdPage extends StatefulWidget {
   final ApiClient api;
@@ -906,6 +907,18 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     setState(() { _section = section; _queries = queries; _loading = false; });
   }
 
+  void _openAdminView(AdminView view) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminPage(
+          api: widget.api,
+          portalProfile: widget.api.portalProfile,
+          initialView: view,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading || _section == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -988,13 +1001,13 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: () {}, child: const Text('GSPR öffnen')),
-          OutlinedButton(onPressed: () {}, child: const Text('FMEA öffnen')),
-          OutlinedButton(onPressed: () {}, child: const Text('CAPA öffnen')),
-          OutlinedButton(onPressed: () {}, child: const Text('Änderungskontrolle öffnen')),
-          OutlinedButton(onPressed: () {}, child: const Text('Reklamationen öffnen')),
-          OutlinedButton(onPressed: () {}, child: const Text('Lieferanten öffnen')),
-          OutlinedButton(onPressed: () {}, child: const Text('Schulungen öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.gspr), child: const Text('GSPR öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.fmea), child: const Text('FMEA öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.capaDashboard), child: const Text('CAPA öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.changeManagement), child: const Text('Änderungskontrolle öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.all), child: const Text('Reklamationen öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.approvedSuppliers), child: const Text('Lieferanten öffnen')),
+          OutlinedButton(onPressed: () => _openAdminView(AdminView.trainings), child: const Text('Schulungen öffnen')),
         ]),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
