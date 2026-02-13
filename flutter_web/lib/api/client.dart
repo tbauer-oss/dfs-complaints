@@ -4117,6 +4117,18 @@ class ApiClient {
     return TdChangeRequest.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
   }
 
+  Future<void> patchTdChange(String changeId, Map<String, dynamic> payload) async {
+    final path = '/api/td/changes/$changeId';
+    final r = await http.patch(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(payload));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<void> deleteTdChange(String changeId) async {
+    final path = '/api/td/changes/$changeId';
+    final r = await http.delete(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
   Future<void> patchTdImpact(String impactId, {required String status}) async {
     final path = '/api/td/impacts/$impactId';
     final r = await http.patch(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode({'status': status}));
