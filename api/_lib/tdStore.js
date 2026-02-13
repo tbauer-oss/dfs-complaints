@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 import { Redis } from '@upstash/redis';
 import { fmeaAll, capaAll, complaintsAll, supplierAll, trainingRecordsAll, gsprAssessmentsByTd } from './store.js';
 import { getUniqueMdrTdEntries } from './products.js';
+import { MDR_CLASSIFICATION_RULES, buildMdrRuleReference, resolveMdrClassificationRule } from './legalRefService.js';
 
 const REDIS_URL =
   process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
@@ -46,7 +47,7 @@ const KEY_SECTION_CONTENT = (id) => `${PREFIX}section-content:${id}`;
 const lifecycleStates = new Set(['Development', 'Released', 'PostMarket', 'Update', 'Sunset', 'Obsolete']);
 const tdStatus = new Set(['Green', 'Yellow', 'Red', 'Draft']);
 const sectionStatus = new Set(['NotStarted', 'InProgress', 'Complete', 'Blocked', 'NotApplicable']);
-const linkTypes = new Set(['Document', 'GSPR', 'FMEA', 'CAPA', 'ComplaintMetric', 'Supplier', 'Training', 'ExternalLink', 'Report', 'Change']);
+const linkTypes = new Set(['Document', 'GSPR', 'FMEA', 'CAPA', 'ComplaintMetric', 'Supplier', 'Training', 'ExternalLink', 'Report', 'Change', 'Clinical', 'PMS', 'PMCF']);
 const queryStatuses = new Set(['NotStarted', 'InProgress', 'Complete', 'Blocked', 'NotApplicable']);
 const tdApplicabilityStates = new Set(['MANDATORY', 'OPTIONAL', 'CONDITIONAL', 'NOT_APPLICABLE']);
 const tdProductProfileTypes = new Set(['ROTARY_REUSABLE_NONSTERILE', 'ROTARY_REUSABLE_SURGICAL', 'DENTAL_ALLOYS', 'SOFTWARE_DEVICE']);
@@ -239,6 +240,127 @@ export const TD_QUERY_TEMPLATES = [
   defaultOwnersRole,
   tags,
 }));
+
+const TD_NODE_TEMPLATES = {
+  ANNEX_II_A_1: {
+    templateType: 'INTENDED_PURPOSE',
+    templateVersion: 1,
+    fields: [
+      { key: 'indications', type: 'select_multi', required: true, label: 'Indikation(en)', options: ['Diagnostik', 'Therapie', 'Chirurgische Unterstützung', 'Monitoring'] },
+      { key: 'userGroup', type: 'text_short', required: true, label: 'Anwendergruppe' },
+      { key: 'patientGroup', type: 'text_short', required: true, label: 'Patientengruppe' },
+      { key: 'useEnvironment', type: 'select_single', required: true, label: 'Anwendungsumgebung', options: ['Klinik', 'Praxis', 'Labor', 'Heimanwendung'] },
+      { key: 'clinicalBenefit', type: 'md_text', required: true, label: 'Klinischer Nutzen' },
+      { key: 'contraindications', type: 'md_text', required: false, label: 'Kontraindikationen' },
+      { key: 'claims', type: 'select_multi', required: false, label: 'Relevante Claims', options: ['Sicherheit', 'Leistung', 'Benutzerfreundlichkeit', 'Reproduzierbarkeit'] },
+      { key: 'clinicalEvaluationRef', type: 'link_ref', required: true, label: 'Verweis klinische Bewertung' },
+    ],
+  },
+  ANNEX_II_A_2: {
+    templateType: 'PRODUCT_DESCRIPTION',
+    templateVersion: 1,
+    fields: [
+      { key: 'productFamily', type: 'text_short', required: true, label: 'Produktfamilie' },
+      { key: 'variantLogic', type: 'md_text', required: true, label: 'Variantenlogik' },
+      { key: 'materials', type: 'select_multi', required: true, label: 'Materialliste', options: ['Edelstahl', 'Titan', 'CoCr', 'Polymer', 'Keramik'] },
+      { key: 'criticalMaterials', type: 'select_multi', required: false, label: 'Kritische Materialien', options: ['Latex', 'Nickel', 'Kobalt', 'Acrylate'] },
+      { key: 'contactType', type: 'select_single', required: true, label: 'Kontaktart', options: ['Intakt', 'Geschädigte Haut', 'Invasiv', 'Implantierbar'] },
+      { key: 'biocompatibilityRef', type: 'link_ref', required: true, label: 'Verweis auf Biokompatibilitätsnachweis' },
+    ],
+  },
+  ANNEX_II_A_3: {
+    templateType: 'UDI_MAPPING',
+    templateVersion: 1,
+    fields: [
+      { key: 'basicUdiDi', type: 'text_short', required: true, label: 'Basic-UDI-DI' },
+      { key: 'udiDiList', type: 'select_multi', required: false, label: 'UDI-DI(s)' },
+      { key: 'issuingEntity', type: 'select_single', required: true, label: 'Vergabestelle', options: ['GS1', 'HIBCC', 'ICCBBA', 'IFA'] },
+      { key: 'variantMapping', type: 'md_text', required: true, label: 'Zuordnung zu Varianten' },
+      { key: 'formatValidated', type: 'select_single', required: true, label: 'Formatvalidierung', options: ['Ja', 'Nein', 'Ausstehend'] },
+    ],
+  },
+  ANNEX_II_A_4: {
+    templateType: 'CLASSIFICATION_RULE',
+    templateVersion: 2,
+    requiredReferenceTypes: ['ExternalLink'],
+    fields: [
+      { key: 'mdrClass', type: 'select_single', required: true, label: 'MDR-Klasse', options: ['I', 'IIa', 'IIb', 'III'] },
+      { key: 'classificationRule', type: 'select_single', required: true, label: 'Klassifizierungsregel (MDR Anhang VIII)', options: MDR_CLASSIFICATION_RULES.map((rule) => ({ value: String(rule.rule_no), label: `Regel ${rule.rule_no} – ${rule.title_short}`, meta: rule })) },
+      { key: 'justificationMd', type: 'generated_md', required: true, label: 'Begründung der Regelanwendung' },
+      { key: 'referenceLinks', type: 'link_ref', required: true, label: 'Referenzen / Nachweise' },
+    ],
+  },
+  ANNEX_II_A_5: {
+    templateType: 'OPERATING_PRINCIPLE',
+    templateVersion: 1,
+    fields: [
+      { key: 'operatingPrinciple', type: 'md_text', required: true, label: 'Funktionsprinzip' },
+      { key: 'performanceParameters', type: 'md_text', required: true, label: 'Leistungsparameter (Name/Wert/Einheit/Bezug)' },
+      { key: 'acceptanceCriteria', type: 'md_text', required: true, label: 'Akzeptanzkriterien' },
+      { key: 'verificationValidationRef', type: 'link_ref', required: true, label: 'Verweis Verifizierung/Validierung' },
+    ],
+  },
+  ANNEX_II_A_6: {
+    templateType: 'PREVIOUS_GENERATIONS',
+    templateVersion: 1,
+    fields: [
+      { key: 'comparisonTable', type: 'md_text', required: true, label: 'Vergleichstabelle' },
+      { key: 'differences', type: 'md_text', required: true, label: 'Unterschiede' },
+      { key: 'equivalenceRationale', type: 'md_text', required: true, label: 'Begründung Äquivalenz/Abgrenzung' },
+      { key: 'pmsPmcfClinicLinks', type: 'link_ref', required: true, label: 'Links zu PMS/PMCF/Klinik' },
+    ],
+  },
+};
+
+function queryNodeTemplate(templateKey) {
+  return TD_NODE_TEMPLATES[templateKey] || {
+    templateType: 'GENERIC_MD',
+    templateVersion: 1,
+    fields: [
+      { key: 'md_text_main', type: 'md_text', required: true, label: 'Bewertungsantwort (Markdown)' },
+      { key: 'md_text_rationale', type: 'md_text', required: false, label: 'Begründung' },
+      { key: 'referenceLinks', type: 'link_ref', required: false, label: 'Referenzen / Nachweise' },
+    ],
+  };
+}
+
+function normalizeFieldResponses(existing, answerMarkdown, rationaleMarkdown) {
+  const map = existing && typeof existing === 'object' ? { ...existing } : {};
+  if (!map.md_text_main && answerMarkdown) map.md_text_main = String(answerMarkdown);
+  if (!map.md_text_rationale && rationaleMarkdown) map.md_text_rationale = String(rationaleMarkdown);
+  return map;
+}
+
+function buildClassificationSuggestion({ mdrClass, ruleNo, intendedPurpose }) {
+  const rule = resolveMdrClassificationRule(ruleNo);
+  if (!mdrClass || !rule) return '';
+  const intended = intendedPurpose ? ` Das Produkt ist für ${intendedPurpose} vorgesehen.` : '';
+  return `Das Produkt wird als Klasse ${mdrClass} eingestuft. Die Anwendung von Regel ${rule.rule_no} (${rule.title_short}) ist angemessen, da die Zweckbestimmung und das Risikoprofil diese Einordnung stützen.${intended} Grundlage: ${rule.mdr_ref}.`;
+}
+
+function queryValidation(answer, template, links) {
+  const fieldResponses = normalizeFieldResponses(answer.fieldResponses, answer.answerMarkdown, answer.rationaleMarkdown);
+  const missingRequiredFields = [];
+  const hasLink = Array.isArray(links) && links.length > 0;
+  for (const field of template.fields || []) {
+    if (!field.required) continue;
+    if (field.type === 'link_ref') {
+      if (!hasLink) missingRequiredFields.push(field.key);
+      continue;
+    }
+    const v = fieldResponses[field.key];
+    if (Array.isArray(v) ? v.length === 0 : String(v || '').trim() === '') missingRequiredFields.push(field.key);
+  }
+  const autoMdr = (links || []).some((link) => (link?.metaJson && link.metaJson.auto === true) || String(link?.refId || '').startsWith('MDR_RULE_'));
+  const missingReferences = [];
+  if (!hasLink) missingReferences.push('references');
+  if (answer.templateKey === 'ANNEX_II_A_4' && !autoMdr) missingReferences.push('mdr_rule_reference');
+  return {
+    canComplete: missingRequiredFields.length === 0 && missingReferences.length === 0,
+    missingRequiredFields,
+    missingReferences,
+  };
+}
 
 
 function normalizeApplicabilityProfile(tdId, input = {}, fallbackRule = null) {
@@ -764,14 +886,18 @@ async function tdQueryAnswersRaw(tdId) {
 }
 
 function buildQueryAnswer(section, template, actorUserId = null) {
+  const nodeTemplate = queryNodeTemplate(template.templateKey);
   return {
     id: cuid('tdqa'),
     tdId: section.tdId,
     sectionId: section.id,
     templateKey: template.templateKey,
+    templateVersion: nodeTemplate.templateVersion,
     status: 'NotStarted',
     answerMarkdown: '',
     rationaleMarkdown: '',
+    generatedMarkdown: '',
+    fieldResponses: {},
     ownerUserId: section.ownerUserId || null,
     dueAt: null,
     reviewCadenceDays: 180,
@@ -798,6 +924,19 @@ export async function tdBootstrapQueries(tdId, actorUserId = null) {
   return { createdCount: created.length, created };
 }
 
+
+export function tdNodeTemplates(sectionTemplateKey = null) {
+  const templates = TD_QUERY_TEMPLATES
+    .filter((item) => (sectionTemplateKey ? item.sectionTemplateKey === sectionTemplateKey : true))
+    .map((item) => ({
+      templateKey: item.templateKey,
+      sectionTemplateKey: item.sectionTemplateKey,
+      title: item.title,
+      nodeTemplate: queryNodeTemplate(item.templateKey),
+    }));
+  return templates;
+}
+
 export async function tdQueries(tdId, sectionId = null) {
   await tdBootstrapQueries(tdId);
   const answers = await tdQueryAnswersRaw(tdId);
@@ -808,10 +947,14 @@ export async function tdQueries(tdId, sectionId = null) {
     .filter((item) => (sectionId ? item.sectionId === sectionId : true))
     .map((answer) => {
       const template = TD_QUERY_TEMPLATES.find((tpl) => tpl.templateKey === answer.templateKey) || null;
+      const nodeTemplate = queryNodeTemplate(answer.templateKey);
+      const links = queryLinks.filter((link) => link.answerId === answer.id);
       return {
         ...answer,
-        template,
-        links: queryLinks.filter((link) => link.answerId === answer.id),
+        fieldResponses: normalizeFieldResponses(answer.fieldResponses, answer.answerMarkdown, answer.rationaleMarkdown),
+        template: template ? { ...template, nodeTemplate } : null,
+        links,
+        validation: queryValidation(answer, nodeTemplate, links),
         applicability: resultMap.get(`${tdId}:${answer.sectionId}:${answer.templateKey}`) || null,
       };
     })
@@ -824,11 +967,17 @@ export async function tdQueries(tdId, sectionId = null) {
 export async function tdQueryUpdate(answerId, payload, actorUserId = null) {
   const current = await getEntity(KEY_QUERY_ANSWER, answerId, mem.queryAnswers);
   if (!current) throw new Error('query answer not found');
+  const nodeTemplate = queryNodeTemplate(current.templateKey);
+  const mergedFields = payload?.fieldResponses && typeof payload.fieldResponses === 'object'
+    ? { ...normalizeFieldResponses(current.fieldResponses, current.answerMarkdown, current.rationaleMarkdown), ...payload.fieldResponses }
+    : normalizeFieldResponses(current.fieldResponses, current.answerMarkdown, current.rationaleMarkdown);
   const next = {
     ...current,
     status: normalizeQueryStatus(payload?.status ?? current.status),
     answerMarkdown: payload?.answerMarkdown === undefined ? current.answerMarkdown : String(payload.answerMarkdown || ''),
     rationaleMarkdown: payload?.rationaleMarkdown === undefined ? current.rationaleMarkdown : String(payload.rationaleMarkdown || ''),
+    generatedMarkdown: payload?.generatedMarkdown === undefined ? (current.generatedMarkdown || '') : String(payload.generatedMarkdown || ''),
+    fieldResponses: mergedFields,
     ownerUserId: payload?.ownerUserId === undefined ? current.ownerUserId : (payload.ownerUserId ? String(payload.ownerUserId) : null),
     dueAt: payload?.dueAt === undefined ? current.dueAt : (payload.dueAt ? String(payload.dueAt) : null),
     reviewCadenceDays: payload?.reviewCadenceDays === undefined ? current.reviewCadenceDays : Number(payload.reviewCadenceDays) || current.reviewCadenceDays,
@@ -836,6 +985,35 @@ export async function tdQueryUpdate(answerId, payload, actorUserId = null) {
     updatedAt: nowIso(),
     updatedByUserId: actorUserId || current.updatedByUserId || null,
   };
+
+  if (current.templateKey === 'ANNEX_II_A_4') {
+    const mdrClass = String(next.fieldResponses?.mdrClass || '').trim();
+    const ruleNo = String(next.fieldResponses?.classificationRule || '').trim();
+    const suggested = buildClassificationSuggestion({ mdrClass, ruleNo, intendedPurpose: next.fieldResponses?.intendedPurpose });
+    if (suggested) {
+      next.generatedMarkdown = suggested;
+      if (!String(next.fieldResponses?.justificationMd || '').trim()) next.fieldResponses.justificationMd = suggested;
+    }
+    next.answerMarkdown = String(next.fieldResponses?.justificationMd || next.answerMarkdown || '');
+    next.rationaleMarkdown = `MDR-Klasse ${mdrClass || '-'} mit Regel ${ruleNo || '-'} dokumentiert.`;
+
+    if (ruleNo) {
+      const autoRef = buildMdrRuleReference(ruleNo);
+      if (autoRef) {
+        const allLinks = await tdQueryLinksByTd(current.tdId);
+        const existingAuto = allLinks.find((link) => link.answerId === current.id && String(link.refId || '') === autoRef.refId);
+        if (!existingAuto) {
+          await tdQueryLinkCreate(current.id, autoRef);
+        }
+      }
+    }
+  }
+
+  const validation = queryValidation(next, nodeTemplate, (await tdQueryLinksByTd(current.tdId)).filter((link) => link.answerId === current.id));
+  if (payload?.status === 'Complete' && !validation.canComplete) {
+    throw new Error(`mandatory fields missing: ${validation.missingRequiredFields.join(', ') || 'references'}`);
+  }
+
   await putEntity(KEY_QUERY_ANSWER, answerId, next, mem.queryAnswers, KEY_QUERY_ANSWERS, mem.queryAnswerIds);
   return next;
 }
