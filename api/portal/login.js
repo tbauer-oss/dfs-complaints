@@ -109,23 +109,25 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
+    const hash = u.passhash || u.passwordHash || '';
     let okPw = false;
-    let usedPlaintextFallback = false;
-    for (const candidate of passwordCandidates(u)) {
-      if (candidate.startsWith('$2a$') || candidate.startsWith('$2b$') || candidate.startsWith('$2y$')) {
-        try {
-          if (await bcrypt.compare(pw, candidate)) {
-            okPw = true;
-            break;
-          }
-        } catch {
-          // malformed hash => keep trying next candidate
-        }
-      } else if (pw === candidate) {
-        okPw = true;
-        usedPlaintextFallback = true;
-        break;
+    if (hash) {
+      try {
+        okPw = await bcrypt.compare(pw, hash);
+      } catch (err) {
+        console.warn('[portal/login] password hash invalid for', email, err?.message || err);
       }
+    }
+
+    const legacyPassword = String(u.password || '');
+    const legacyPasswordMatch = !okPw && legacyPassword && legacyPassword === pw;
+    if (legacyPasswordMatch) {
+      const migratedHash = await bcrypt.hash(pw, 10);
+      const migratedUser = { ...u, passhash: migratedHash, passwordHash: migratedHash };
+      delete migratedUser.password;
+      await portalUserSave(migratedUser);
+      u = migratedUser;
+      okPw = true;
     }
 
     if (!okPw) return bad(res, 'invalid credentials', 401);
