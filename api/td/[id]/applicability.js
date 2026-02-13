@@ -1,8 +1,8 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, readJson } from '../../../_lib/http.js';
-import { requirePortalAccess } from '../../../admin/_guard.js';
-import { tdApplicabilityGet, tdApplicabilityOverrideUpsert, tdApplicabilityProfileUpsert, generateApplicability, tdGet } from '../../../_lib/tdStore.js';
+import { handlePreflight, setCors, ok, bad, readJson } from '../../_lib/http.js';
+import { requirePortalAccess } from '../../admin/_guard.js';
+import { tdApplicabilityGet, tdApplicabilityOverrideUpsert, tdApplicabilityProfileUpsert, generateApplicability, tdGet } from '../../_lib/tdStore.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
