@@ -57,7 +57,47 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  Color _readinessColor(String status) {
+    switch (status) {
+      case 'Green':
+        return const Color(0xFF22C55E);
+      case 'Yellow':
+        return const Color(0xFFF59E0B);
+      case 'Red':
+        return const Color(0xFFEF4444);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  int _completionPercent(TdFile td) {
+    final raw = (_readiness?['complianceScore'] as num?)?.toInt() ?? td.summary.complianceScore;
+    return raw.clamp(0, 100);
+  }
+
+  String _annexLabelDe(String key) {
+    if (key.startsWith('ANNEX_II_')) {
+      return 'Anhang II ${key.split('_').last}';
+    }
+    if (key.startsWith('ANNEX_III_')) {
+      return 'Anhang III ${key.split('_').last}';
+    }
+    return key;
+  }
+
   String _gapDe(String gap) {
+    final mandatoryOpen = RegExp(r'^([A-Z_0-9]+): mandatory queries open \((\d+)\)$').firstMatch(gap);
+    if (mandatoryOpen != null) {
+      final annex = _annexLabelDe(mandatoryOpen.group(1)!);
+      final count = mandatoryOpen.group(2)!;
+      return '$annex: $count verpflichtende Abfragen offen.';
+    }
+    final missingLink = RegExp(r'^([A-Z_0-9]+): missing mandatory link (.+)$').firstMatch(gap);
+    if (missingLink != null) {
+      final annex = _annexLabelDe(missingLink.group(1)!);
+      final linkType = missingLink.group(2)!;
+      return '$annex: Pflichtverlinkung fehlt ($linkType).';
+    }
     switch (gap) {
       case 'Missing mandatory link: one GSPR link in section D':
         return 'Pflichtverlinkung fehlt: mindestens ein GSPR-Link in Abschnitt D.';
@@ -198,7 +238,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     return Row(children: [
-      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Punkte ${td.summary.complianceScore}'), selected: _selected?.id == td.id, onTap: () { setState(() => _selected = td); _load(); },)).toList()))]))),
+      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () { setState(() => _selected = td); _load(); },)).toList()))]))),
       const SizedBox(width: 12),
       Expanded(child: Card(child: Column(children: [
         TabBar(controller: _tabs, isScrollable: true, tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Anwendbarkeit'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),
@@ -210,13 +250,87 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Widget _dashboardTab() {
     final td = _selected;
     if (td == null) return const Center(child: Text('Keine TD ausgewählt'));
+    final readinessStatus = (_readiness?['readinessStatus'] ?? td.summary.readinessStatus).toString();
+    final progressPercent = _completionPercent(td);
     final gaps = (_readiness?['gaps'] as List?)?.map((e) => '$e').toList() ?? const [];
     return ListView(padding: const EdgeInsets.all(16), children: [
-      Text(td.title, style: Theme.of(context).textTheme.titleLarge),
-      Text('Reifegrad: ${_readinessDe((_readiness?['readinessStatus'] ?? td.summary.readinessStatus).toString())}'),
-      Text('Compliance-Score: ${_readiness?['complianceScore'] ?? td.summary.complianceScore}'),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(colors: [Color(0xFFF8FAFF), Color(0xFFEEF4FF)]),
+          border: Border.all(color: const Color(0xFFDCE6FF)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(td.title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 16),
+          Wrap(spacing: 16, runSpacing: 12, children: [
+            _trafficLightCard(readinessStatus),
+            _progressCard(progressPercent),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 12),
       ...gaps.map((g) => ListTile(leading: const Icon(Icons.error_outline), title: Text(_gapDe(g)))),
     ]);
+  }
+
+  Widget _trafficLightCard(String readinessStatus) {
+    final activeColor = _readinessColor(readinessStatus);
+    Widget light(Color color, bool active) => Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: active ? color : color.withOpacity(0.2),
+            shape: BoxShape.circle,
+            boxShadow: active ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 10, spreadRadius: 1)] : null,
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5EAF7)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Reifegrad'),
+        const SizedBox(height: 6),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          light(const Color(0xFFEF4444), readinessStatus == 'Red'),
+          const SizedBox(width: 8),
+          light(const Color(0xFFF59E0B), readinessStatus == 'Yellow'),
+          const SizedBox(width: 8),
+          light(const Color(0xFF22C55E), readinessStatus == 'Green'),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _progressCard(int progressPercent) {
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5EAF7)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('TD-Fortschritt: $progressPercent %', style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 10,
+            value: progressPercent / 100,
+            backgroundColor: const Color(0xFFE7EDFF),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1D4ED8)),
+          ),
+        ),
+      ]),
+    );
   }
 
   Widget _structureTab() => ListView(
