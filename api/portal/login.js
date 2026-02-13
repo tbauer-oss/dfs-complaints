@@ -16,6 +16,20 @@ import {
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
+const BCRYPT_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+function normalizeBcryptHash(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (BCRYPT_PATTERN.test(raw)) return raw;
+  if (/^\$2y\$\d{2}\$[./A-Za-z0-9]{53}$/.test(raw)) return `$2b$${raw.slice(4)}`;
+  return '';
+}
+
+function toPlain(value) {
+  return String(value || '');
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
@@ -47,15 +61,34 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
-    const hash = u.passhash || u.passwordHash || '';
-    if (!hash) return bad(res, 'invalid credentials', 401);
+    const storedPasshash = toPlain(u.passhash);
+    const storedPasswordHash = toPlain(u.passwordHash);
+    const comparableHash = normalizeBcryptHash(storedPasshash) || normalizeBcryptHash(storedPasswordHash);
+
     let okPw = false;
-    try {
-      okPw = await bcrypt.compare(pw, hash);
-    } catch (err) {
-      console.warn('[portal/login] password hash invalid for', email, err?.message || err);
-      return bad(res, 'invalid credentials', 401);
+    if (comparableHash) {
+      try {
+        okPw = await bcrypt.compare(pw, comparableHash);
+      } catch (err) {
+        console.warn('[portal/login] password hash invalid for', email, err?.message || err);
+      }
     }
+
+    const legacyCandidates = [
+      toPlain(u.password),
+      storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
+      storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
+    ];
+    const legacyPasswordMatch = !okPw && legacyCandidates.some((candidate) => candidate && candidate === pw);
+    if (legacyPasswordMatch) {
+      const migratedHash = await bcrypt.hash(pw, 10);
+      const migratedUser = { ...u, passhash: migratedHash, passwordHash: migratedHash };
+      delete migratedUser.password;
+      await portalUserSave(migratedUser);
+      u = migratedUser;
+      okPw = true;
+    }
+
     if (!okPw) return bad(res, 'invalid credentials', 401);
 
     const role = normalizeRole(u.role);
