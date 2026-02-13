@@ -51,3 +51,31 @@ test('portal login accepts legacy plaintext password and migrates it', async () 
   assert.equal(Boolean(decoded?.token), true);
   assert.equal(decoded?.profile?.email, email);
 });
+
+
+test('portal login accepts legacy plaintext passhash and migrates it', async () => {
+  const email = `legacy.portal.passhash.${Date.now()}@example.com`;
+  const password = 'LegacyPasshash123!';
+
+  await portalUserSave({
+    email,
+    passhash: password,
+    role: 'admin',
+    portalStatus: 'active',
+    displayName: 'Legacy Passhash User',
+  });
+
+  const req = {
+    method: 'POST',
+    headers: {},
+    body: { email, password },
+  };
+  const res = createMockRes();
+
+  await portalLoginHandler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  const decoded = JSON.parse(res.body);
+  assert.equal(Boolean(decoded?.token), true);
+  assert.equal(decoded?.profile?.email, email);
+});

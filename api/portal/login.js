@@ -49,6 +49,20 @@ function buildTokenAndProfile(u) {
   };
 }
 
+const BCRYPT_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+function normalizeBcryptHash(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (BCRYPT_PATTERN.test(raw)) return raw;
+  if (/^\$2y\$\d{2}\$[./A-Za-z0-9]{53}$/.test(raw)) return `$2b$${raw.slice(4)}`;
+  return '';
+}
+
+function toPlain(value) {
+  return String(value || '');
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
@@ -109,18 +123,25 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
-    const hash = u.passhash || u.passwordHash || '';
+    const storedPasshash = toPlain(u.passhash);
+    const storedPasswordHash = toPlain(u.passwordHash);
+    const comparableHash = normalizeBcryptHash(storedPasshash) || normalizeBcryptHash(storedPasswordHash);
+
     let okPw = false;
-    if (hash) {
+    if (comparableHash) {
       try {
-        okPw = await bcrypt.compare(pw, hash);
+        okPw = await bcrypt.compare(pw, comparableHash);
       } catch (err) {
         console.warn('[portal/login] password hash invalid for', email, err?.message || err);
       }
     }
 
-    const legacyPassword = String(u.password || '');
-    const legacyPasswordMatch = !okPw && legacyPassword && legacyPassword === pw;
+    const legacyCandidates = [
+      toPlain(u.password),
+      storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
+      storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
+    ];
+    const legacyPasswordMatch = !okPw && legacyCandidates.some((candidate) => candidate && candidate === pw);
     if (legacyPasswordMatch) {
       const migratedHash = await bcrypt.hash(pw, 10);
       const migratedUser = { ...u, passhash: migratedHash, passwordHash: migratedHash };
