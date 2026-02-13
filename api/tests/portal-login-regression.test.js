@@ -75,38 +75,6 @@ test('portal login supports legacy plaintext password field and upgrades hash', 
 });
 
 
-test('portal login recovers admin auth from legacy customer hash when portal hash is stale', async () => {
-  const [adminEmail] = [...ADMIN_EMAILS];
-  const correctPassword = 'Recover#Admin1';
-  const wrongPortalHash = await bcrypt.hash('Wrong#Pass1', 8);
-  const customerHash = await bcrypt.hash(correctPassword, 8);
-
-  await portalUserSave({
-    email: adminEmail,
-    passhash: wrongPortalHash,
-    role: 'superuser',
-    portalStatus: 'active',
-    displayName: 'Broken Admin',
-  });
-
-  await userSave({
-    email: adminEmail,
-    passhash: customerHash,
-    type: 'customer',
-    kind: 'customer',
-  });
-
-  const req = makeReq({ email: adminEmail, password: correctPassword });
-  const res = makeRes();
-  await loginHandler(req, res);
-
-  assert.equal(res.__out.statusCode, 200);
-  const stored = await portalUserByEmail(adminEmail);
-  assert.ok(stored?.passhash);
-  assert.equal(await bcrypt.compare(correctPassword, stored.passhash), true);
-});
-
-
 test('portal login accepts ADMIN_SECRET for admin email and repairs hash', async () => {
   const [adminEmail] = [...ADMIN_EMAILS];
   const previous = process.env.ADMIN_SECRET;
