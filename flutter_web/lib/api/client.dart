@@ -3943,6 +3943,21 @@ class ApiClient {
     return TdFile.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
   }
 
+  Future<TdFile> patchTdFile(String id, Map<String, dynamic> patch) async {
+    final path = '/api/td/$id';
+    final r = await http.patch(
+      _u(path),
+      headers: _adminHeaders(auth: true, path: path),
+      body: jsonEncode(patch),
+    );
+    if (!_ok2xx(r.statusCode)) {
+      throw ApiError(r.statusCode, _extractMessage(r.body));
+    }
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return TdFile.fromJson((body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
+  }
+
 
 
   Future<TdApplicabilityBundle> fetchTdApplicability(String tdId) async {

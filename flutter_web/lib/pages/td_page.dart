@@ -26,6 +26,8 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   TdApplicabilityBundle? _applicability;
 
   static const List<String> _linkTypes = ['Document', 'ExternalLink', 'GSPR', 'FMEA', 'CAPA', 'Supplier', 'Training', 'Report', 'Change'];
+  static const List<String> _profileTypes = ['ROTARY_REUSABLE_NONSTERILE', 'ROTARY_REUSABLE_SURGICAL', 'DENTAL_ALLOYS', 'SOFTWARE_DEVICE'];
+  static const List<String> _packagingTypes = ['BULK_NONSTERILE', 'UNIT_NONSTERILE', 'STERILE_BARRIER_SYSTEM', 'TRANSPORT_VALIDATED'];
 
   String _statusDe(String status) {
     switch (status) {
@@ -109,6 +111,38 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         return gap;
     }
   }
+
+  String _profileTypeDe(String value) {
+    switch (value) {
+      case 'ROTARY_REUSABLE_NONSTERILE':
+        return 'Rotierend, wiederverwendbar, unsteril';
+      case 'ROTARY_REUSABLE_SURGICAL':
+        return 'Rotierend, wiederverwendbar, chirurgisch';
+      case 'DENTAL_ALLOYS':
+        return 'Dentallegierungen';
+      case 'SOFTWARE_DEVICE':
+        return 'Softwareprodukt';
+      default:
+        return value;
+    }
+  }
+
+  String _packagingTypeDe(String value) {
+    switch (value) {
+      case 'BULK_NONSTERILE':
+        return 'Bulk, unsteril';
+      case 'UNIT_NONSTERILE':
+        return 'Einzelverpackt, unsteril';
+      case 'STERILE_BARRIER_SYSTEM':
+        return 'Sterilbarrieresystem';
+      case 'TRANSPORT_VALIDATED':
+        return 'Transportvalidiert';
+      default:
+        return value;
+    }
+  }
+
+  String _boolDe(bool value) => value ? 'Ja' : 'Nein';
 
 
 
@@ -385,16 +419,114 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         TextField(controller: groupCtl, decoration: const InputDecoration(labelText: 'Produktgruppe')),
         TextField(controller: classCtl, decoration: const InputDecoration(labelText: 'Klassifizierung')),
         TextField(controller: ruleCtl, decoration: const InputDecoration(labelText: 'Regel')),
-        DropdownButtonFormField<String>(value: profile.profileType, items: const ['ROTARY_REUSABLE_NONSTERILE','ROTARY_REUSABLE_SURGICAL','DENTAL_ALLOYS','SOFTWARE_DEVICE'].map((e)=>DropdownMenuItem(value:e, child: Text(e))).toList(), onChanged: (v){ if(v==null) return; setS((){ profile = TdApplicabilityProfile(profileType: v, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes);});}),
+        DropdownButtonFormField<String>(
+          value: profile.profileType,
+          decoration: const InputDecoration(labelText: 'Profiltyp'),
+          items: _profileTypes.map((e) => DropdownMenuItem(value: e, child: Text(_profileTypeDe(e)))).toList(),
+          onChanged: (v) {
+            if (v == null) return;
+            setS(() {
+              profile = TdApplicabilityProfile(profileType: v, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes);
+            });
+          },
+        ),
         SwitchListTile(value: profile.isReusable, onChanged: (v)=>setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: v, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes)), title: const Text('Wiederverwendbar')),
         SwitchListTile(value: profile.isSterile, onChanged: (v)=>setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: v, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes)), title: const Text('Steril')),
         SwitchListTile(value: profile.hasSoftware, onChanged: (v)=>setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: v, notes: profile.notes)), title: const Text('Enthält Software')),
-        DropdownButtonFormField<String>(value: profile.packagingType, items: const ['BULK_NONSTERILE','UNIT_NONSTERILE','STERILE_BARRIER_SYSTEM','TRANSPORT_VALIDATED'].map((e)=>DropdownMenuItem(value:e, child: Text(e))).toList(), onChanged: (v){ if(v==null) return; setS(()=>profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: v, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes));}),
+        DropdownButtonFormField<String>(
+          value: profile.packagingType,
+          decoration: const InputDecoration(labelText: 'Verpackungsart'),
+          items: _packagingTypes.map((e) => DropdownMenuItem(value: e, child: Text(_packagingTypeDe(e)))).toList(),
+          onChanged: (v) {
+            if (v == null) return;
+            setS(() => profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: v, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes));
+          },
+        ),
       ]))),
       actions: [TextButton(onPressed: ()=>Navigator.pop(context,false), child: const Text('Abbrechen')), FilledButton(onPressed: ()=>Navigator.pop(context,true), child: const Text('Erstellen'))],
     )));
     if (ok == true) {
       await widget.api.createTdFile(code: codeCtl.text.trim(), title: titleCtl.text.trim(), productGroup: groupCtl.text.trim(), classification: classCtl.text.trim(), rule: ruleCtl.text.trim(), applicabilityProfile: profile);
+      _load();
+    }
+  }
+
+  Future<void> _openEditTdMetadataDialog() async {
+    final selected = _selected;
+    final bundle = _applicability;
+    if (selected == null || bundle == null) return;
+
+    final codeCtl = TextEditingController(text: selected.code);
+    final titleCtl = TextEditingController(text: selected.title);
+    final groupCtl = TextEditingController(text: selected.productGroup ?? '');
+    final classCtl = TextEditingController(text: selected.classification ?? '');
+    final ruleCtl = TextEditingController(text: selected.rule ?? bundle.profile.classificationRule ?? '');
+    TdApplicabilityProfile profile = bundle.profile;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (_, setS) => AlertDialog(
+          title: const Text('Metadaten bearbeiten'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: codeCtl, enabled: false, decoration: const InputDecoration(labelText: 'TD-Code')),
+                TextField(controller: titleCtl, decoration: const InputDecoration(labelText: 'Titel')),
+                TextField(controller: groupCtl, decoration: const InputDecoration(labelText: 'Produktgruppe')),
+                TextField(controller: classCtl, decoration: const InputDecoration(labelText: 'Klassifizierung')),
+                TextField(controller: ruleCtl, decoration: const InputDecoration(labelText: 'Regel')),
+                DropdownButtonFormField<String>(
+                  value: profile.profileType,
+                  decoration: const InputDecoration(labelText: 'Profiltyp'),
+                  items: _profileTypes.map((e) => DropdownMenuItem(value: e, child: Text(_profileTypeDe(e)))).toList(),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setS(() {
+                      profile = TdApplicabilityProfile(profileType: v, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes);
+                    });
+                  },
+                ),
+                SwitchListTile(value: profile.isReusable, onChanged: (v) => setS(() => profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: v, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes)), title: const Text('Wiederverwendbar')),
+                SwitchListTile(value: profile.isSterile, onChanged: (v) => setS(() => profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: v, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes)), title: const Text('Steril')),
+                SwitchListTile(value: profile.hasSoftware, onChanged: (v) => setS(() => profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: profile.packagingType, classificationRule: profile.classificationRule, hasSoftware: v, notes: profile.notes)), title: const Text('Enthält Software')),
+                DropdownButtonFormField<String>(
+                  value: profile.packagingType,
+                  decoration: const InputDecoration(labelText: 'Verpackungsart'),
+                  items: _packagingTypes.map((e) => DropdownMenuItem(value: e, child: Text(_packagingTypeDe(e)))).toList(),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setS(() => profile = TdApplicabilityProfile(profileType: profile.profileType, isReusable: profile.isReusable, isSterile: profile.isSterile, packagingType: v, classificationRule: profile.classificationRule, hasSoftware: profile.hasSoftware, notes: profile.notes));
+                  },
+                ),
+              ]),
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Speichern'))],
+        ),
+      ),
+    );
+
+    if (ok == true) {
+      await widget.api.patchTdFile(selected.id, {
+        'title': titleCtl.text.trim(),
+        'productGroup': groupCtl.text.trim(),
+        'classification': classCtl.text.trim(),
+        'rule': ruleCtl.text.trim(),
+      });
+      await widget.api.saveTdApplicabilityProfile(
+        selected.id,
+        TdApplicabilityProfile(
+          profileType: profile.profileType,
+          isReusable: profile.isReusable,
+          isSterile: profile.isSterile,
+          packagingType: profile.packagingType,
+          classificationRule: ruleCtl.text.trim(),
+          hasSoftware: profile.hasSoftware,
+          notes: profile.notes,
+        ),
+      );
       _load();
     }
   }
@@ -406,13 +538,14 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     final profile = bundle.profile;
     return ListView(padding: const EdgeInsets.all(12), children: [
       Card(child: Padding(padding: const EdgeInsets.all(12), child: Wrap(spacing: 12, runSpacing: 12, children: [
-        Chip(label: Text('Profil: ${profile.profileType}')),
-        Chip(label: Text('Wiederverwendbar: ${profile.isReusable}')),
-        Chip(label: Text('Steril: ${profile.isSterile}')),
-        Chip(label: Text('Verpackung: ${profile.packagingType}')),
-        Chip(label: Text('Software: ${profile.hasSoftware}')),
+        Chip(label: Text('Profil: ${_profileTypeDe(profile.profileType)}')),
+        Chip(label: Text('Wiederverwendbar: ${_boolDe(profile.isReusable)}')),
+        Chip(label: Text('Steril: ${_boolDe(profile.isSterile)}')),
+        Chip(label: Text('Verpackung: ${_packagingTypeDe(profile.packagingType)}')),
+        Chip(label: Text('Software: ${_boolDe(profile.hasSoftware)}')),
       ]))),
       Wrap(spacing: 8, children: [
+        FilledButton.icon(onPressed: widget.canEdit ? _openEditTdMetadataDialog : null, icon: const Icon(Icons.edit_outlined), label: const Text('Metadaten bearbeiten')),
         FilledButton(onPressed: widget.canEdit ? () async { await widget.api.regenerateTdApplicability(selected.id); await _load(); } : null, child: const Text('Anwendbarkeit neu berechnen')),
       ]),
       const SizedBox(height: 12),
