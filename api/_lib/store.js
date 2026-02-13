@@ -1878,11 +1878,33 @@ function normalizePortalUser(u) {
 
 export async function portalUserByEmail(email) {
   if (!email) return null;
-  const normalizedEmail = String(email).toLowerCase();
+  const originalEmail = String(email).trim();
+  const normalizedEmail = originalEmail.toLowerCase();
   const key = KEY_PORTAL_USER(normalizedEmail);
   const r = getRedis();
   const raw = r ? await rget(key) : mem.portalUsers.get(normalizedEmail) ?? null;
   if (raw && typeof raw === 'object') return normalizePortalUser(raw);
+
+  // Legacy fallback: before email normalization, keys may have been stored with mixed casing.
+  try {
+    const legacyCaseKey = r
+      ? await findPortalUserKeyCaseInsensitive(normalizedEmail, r)
+      : findPortalUserKeyCaseInsensitiveInMemory(normalizedEmail);
+    if (legacyCaseKey) {
+      const legacyRaw = r ? await rget(legacyCaseKey, r) : mem.portalUsers.get(legacyCaseKey) ?? null;
+      if (legacyRaw && typeof legacyRaw === 'object') {
+        const migrated = normalizePortalUser({ ...legacyRaw, email: normalizedEmail });
+        if (migrated) {
+          await portalUserSave(migrated);
+          if (r && legacyCaseKey !== key) await rdel(legacyCaseKey, r);
+          if (!r && legacyCaseKey !== normalizedEmail) mem.portalUsers.delete(legacyCaseKey);
+          return migrated;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[store] portal legacy key lookup skipped:', err?.message || err);
+  }
 
   // Legacy-Migration: Portal-User aus der Kundendatenbank holen und verschieben
   const legacy = await _loadUserRecord(normalizedEmail);
@@ -1891,6 +1913,27 @@ export async function portalUserByEmail(email) {
     if (migrated) return migrated;
   }
 
+  return null;
+}
+
+async function findPortalUserKeyCaseInsensitive(normalizedEmail, redisClient) {
+  if (!normalizedEmail || !redisClient) return null;
+  const keys = await rkeys(`${P}portal:user:*`, redisClient);
+  const match = keys.find((entry) => {
+    const candidate = String(entry || '');
+    const prefix = `${P}portal:user:`;
+    if (!candidate.startsWith(prefix)) return false;
+    return candidate.slice(prefix.length).toLowerCase() === normalizedEmail;
+  });
+  return match || null;
+}
+
+function findPortalUserKeyCaseInsensitiveInMemory(normalizedEmail) {
+  if (!normalizedEmail) return null;
+  for (const entry of mem.portalUsers.keys()) {
+    const candidate = String(entry || '');
+    if (candidate.toLowerCase() === normalizedEmail) return candidate;
+  }
   return null;
 }
 

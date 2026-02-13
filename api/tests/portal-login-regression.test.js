@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import bcrypt from 'bcryptjs';
-import { portalUserSave, portalUserByEmail, userSave } from '../_lib/store.js';
+import { __setRedisClientForTests, portalUserSave, portalUserByEmail, userSave } from '../_lib/store.js';
 import { ensureInitialAdmins, resolvePortalPasshash, ADMIN_EMAILS } from '../_lib/portalAuth.js';
 import loginHandler from '../portal/login.js';
 
@@ -98,5 +98,60 @@ test('portal login accepts ADMIN_SECRET for admin email and repairs hash', async
   } finally {
     if (previous === undefined) delete process.env.ADMIN_SECRET;
     else process.env.ADMIN_SECRET = previous;
+  }
+});
+
+test('portal login finds legacy mixed-case redis keys and migrates them', async () => {
+  const password = 'LegacyCase#123';
+  const hash = await bcrypt.hash(password, 8);
+  const legacyKey = 'dfs:portal:user:Case.User@dfs-diamon.de';
+  const store = new Map([
+    [legacyKey, { email: 'Case.User@dfs-diamon.de', passhash: hash, role: 'user', portalStatus: 'active' }],
+  ]);
+
+  __setRedisClientForTests({
+    async get(key) { return store.get(key) ?? null; },
+    async set(key, value) { store.set(key, value); return 'ok'; },
+    async del(key) { store.delete(key); return 1; },
+    async keys(pattern) {
+      if (pattern === 'dfs:portal:user:*') return [...store.keys()];
+      return [];
+    },
+  });
+
+  try {
+    const req = makeReq({ email: 'case.user@dfs-diamon.de', password });
+    const res = makeRes();
+    await loginHandler(req, res);
+
+    assert.equal(res.__out.statusCode, 200);
+    assert.equal(store.has('dfs:portal:user:case.user@dfs-diamon.de'), true);
+    assert.equal(store.has(legacyKey), false);
+
+    const migrated = await portalUserByEmail('case.user@dfs-diamon.de');
+    assert.ok(migrated);
+    assert.equal(String(migrated?.email || ''), 'case.user@dfs-diamon.de');
+  } finally {
+    __setRedisClientForTests(null);
+  }
+});
+
+test('portal login does not return 500 when legacy key scan fails', async () => {
+  __setRedisClientForTests({
+    async get() { return null; },
+    async set() { return 'ok'; },
+    async del() { return 1; },
+    async keys() { throw new Error('ERR unknown command KEYS'); },
+    async scan() { throw new Error('scan disabled'); },
+  });
+
+  try {
+    const req = makeReq({ email: 'notfound@dfs-diamon.de', password: 'Nope#123' });
+    const res = makeRes();
+    await loginHandler(req, res);
+
+    assert.notEqual(res.__out.statusCode, 500);
+  } finally {
+    __setRedisClientForTests(null);
   }
 });
