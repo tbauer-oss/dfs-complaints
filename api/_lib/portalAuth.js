@@ -29,6 +29,18 @@ export const ADMIN_EMAILS = new Set([
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
+export function resolvePortalPasshash(existingUser, seededPasshash) {
+  const existing = existingUser && typeof existingUser === 'object' ? existingUser : {};
+  const direct = String(existing.passhash || '').trim();
+  if (direct) return direct;
+  const legacy = String(existing.passwordHash || '').trim();
+  if (legacy) return legacy;
+  const legacyCamel = String(existing.passHash || '').trim();
+  if (legacyCamel) return legacyCamel;
+  return String(seededPasshash || '').trim();
+}
+
+
 export function normalizeRole(role) {
   const lc = String(role || '').trim().toLowerCase();
   if (lc === PORTAL_ROLES.superuser) return PORTAL_ROLES.superuser;
@@ -133,7 +145,7 @@ async function ensureInitialAdmin(email) {
   }
 
   const toSave = { ...existing };
-  if (!toSave.passhash && passhash) toSave.passhash = passhash;
+  toSave.passhash = resolvePortalPasshash(existing, passhash);
   if (!toSave.role) toSave.role = PORTAL_ROLES.superuser;
   if (!toSave.portalStatus) toSave.portalStatus = 'active';
   await portalUserSave(toSave);
