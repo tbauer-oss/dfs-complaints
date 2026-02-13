@@ -198,6 +198,7 @@ class TdSection {
   final int? completion;
   final int? queryTotal;
   final TdApplicabilityResult? applicability;
+  final TdQueryValidation validation;
 
   const TdSection({
     required this.id,
@@ -211,6 +212,7 @@ class TdSection {
     this.completion,
     this.queryTotal,
     this.applicability,
+    required this.validation,
   });
 
   factory TdSection.fromJson(Map<String, dynamic> json) => TdSection(

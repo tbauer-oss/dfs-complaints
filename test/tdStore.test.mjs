@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tdCreate, tdComputedSummary, tdLinkCreate, tdSections } from '../api/_lib/tdStore.js';
+import { tdCreate, tdComputedSummary, tdLinkCreate, tdSections, tdList } from '../api/_lib/tdStore.js';
 
 test('TD readiness detects missing mandatory links', async () => {
   const td = await tdCreate({ code: 'MDR-TD-UT-1', title: 'Unit TD' }, 'tester');
@@ -46,4 +46,10 @@ test('TD query payload includes applicability flags', async () => {
   const queries = await tdQueries(td.id);
   const software = queries.find((q) => q.templateKey === 'ANNEX_II_F_6');
   assert.equal(software?.applicability?.state, 'NOT_APPLICABLE');
+});
+
+test('TD list hides auto-generated template test entries', async () => {
+  await tdCreate({ code: `MDR-TD-AUTO-${Date.now()}`, title: 'Template Test' }, 'tester');
+  const list = await tdList();
+  assert.equal(list.some((entry) => String(entry.code).startsWith('MDR-TD-AUTO-')), false);
 });
