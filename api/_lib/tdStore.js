@@ -989,6 +989,32 @@ export async function tdChangePatch(changeId, patch, actor) {
   return next;
 }
 
+export async function tdChangeDelete(changeId) {
+  const current = await getEntity(KEY_CHANGE, changeId, mem.changes);
+  if (!current) throw new Error('change not found');
+  const impacts = await tdImpactByChange(changeId);
+  return withStore(
+    async (r) => {
+      await r.del(KEY_CHANGE(changeId));
+      await r.srem(KEY_CHANGES, changeId);
+      for (const impact of impacts) {
+        await r.del(KEY_IMPACT(impact.id));
+        await r.srem(KEY_IMPACTS, impact.id);
+      }
+      return current;
+    },
+    () => {
+      mem.changes.delete(changeId);
+      mem.changeIds.delete(changeId);
+      for (const impact of impacts) {
+        mem.impacts.delete(impact.id);
+        mem.impactIds.delete(impact.id);
+      }
+      return current;
+    },
+  );
+}
+
 export async function tdImpactByChange(changeRequestId) {
   const ids = await withStore((r)=>r.smembers(KEY_IMPACTS), ()=>Array.from(mem.impactIds));
   const items = [];

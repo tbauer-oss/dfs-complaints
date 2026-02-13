@@ -108,6 +108,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         return 'Dokument';
       case 'ExternalLink':
         return 'Externer Link';
+      case 'GSPR':
+        return 'GSPR';
+      case 'FMEA':
+        return 'FMEA';
+      case 'CAPA':
+        return 'CAPA';
       case 'Supplier':
         return 'Lieferant';
       case 'Training':
@@ -116,6 +122,8 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         return 'Bericht';
       case 'Change':
         return 'Änderung';
+      case 'ComplaintMetric':
+        return 'Reklamationskennzahl';
       default:
         return type;
     }
@@ -307,18 +315,27 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         padding: const EdgeInsets.all(12),
         child: FilledButton.icon(onPressed: widget.canEdit ? () => _openAddLinkDialog() : null, icon: const Icon(Icons.add_link), label: const Text('TD-Link hinzufügen')),
       )),
-      Expanded(child: ListView(children: _links.map((l) => ListTile(title: Text(l.label), subtitle: Text('${_linkTypeDe(l.type)} · ${l.sectionId ?? 'TD'}'), trailing: widget.canEdit ? IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { await widget.api.deleteTdLink(l.id); _load(); }) : null)).toList())),
+      Expanded(child: ListView(children: _links.map((l) => ListTile(
+        title: Text(l.label),
+        subtitle: Text('${_linkTypeDe(l.type)} · ${l.sectionId ?? 'TD'}'),
+        trailing: widget.canEdit
+            ? Wrap(spacing: 4, children: [
+                IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Bearbeiten', onPressed: () => _openAddLinkDialog(existing: l)),
+                IconButton(icon: const Icon(Icons.delete_outline), tooltip: 'Löschen', onPressed: () async { await widget.api.deleteTdLink(l.id); _load(); }),
+              ])
+            : null,
+      )).toList())),
     ]);
   }
 
-  Future<void> _openAddLinkDialog({String? sectionId, String? presetType}) async {
+  Future<void> _openAddLinkDialog({String? sectionId, String? presetType, TdArtifactLink? existing}) async {
     if (_selected == null) return;
-    final type = ValueNotifier<String>(presetType ?? 'Document');
-    final labelCtl = TextEditingController();
-    final refCtl = TextEditingController();
-    final urlCtl = TextEditingController();
+    final type = ValueNotifier<String>(existing?.type ?? presetType ?? 'Document');
+    final labelCtl = TextEditingController(text: existing?.label ?? '');
+    final refCtl = TextEditingController(text: existing?.refId ?? '');
+    final urlCtl = TextEditingController(text: existing?.url ?? '');
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Link hinzufügen'),
+      title: Text(existing == null ? 'Link hinzufügen' : 'Link bearbeiten'),
       content: SizedBox(width: 520, child: Column(mainAxisSize: MainAxisSize.min, children: [
         ValueListenableBuilder<String>(valueListenable: type, builder: (_, v, __) => DropdownButtonFormField<String>(value: v, items: _linkTypes.map((e)=>DropdownMenuItem(value: e, child: Text(_linkTypeDe(e)))).toList(), onChanged: widget.canEdit ? (x){ if (x != null) type.value = x; } : null)),
         TextField(controller: labelCtl, decoration: const InputDecoration(labelText: 'Bezeichnung')),
@@ -328,19 +345,53 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       actions: [TextButton(onPressed: ()=>Navigator.pop(context,false), child: const Text('Abbrechen')), FilledButton(onPressed: ()=>Navigator.pop(context,true), child: const Text('Speichern'))],
     ));
     if (ok == true) {
-      await widget.api.createTdLink(_selected!.id, {'sectionId': sectionId, 'type': type.value, 'label': labelCtl.text.trim(), 'refId': refCtl.text.trim(), 'url': urlCtl.text.trim().isEmpty ? null : urlCtl.text.trim()});
+      if (existing != null) {
+        await widget.api.deleteTdLink(existing.id);
+      }
+      await widget.api.createTdLink(_selected!.id, {'sectionId': existing?.sectionId ?? sectionId, 'type': type.value, 'label': labelCtl.text.trim(), 'refId': refCtl.text.trim(), 'url': urlCtl.text.trim().isEmpty ? null : urlCtl.text.trim()});
       _load();
     }
   }
 
   Widget _changesTab() => Column(children: [
     Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.all(12), child: FilledButton.icon(onPressed: widget.canEdit ? _createChange : null, icon: const Icon(Icons.add), label: const Text('Änderungsantrag erstellen')))),
-    Expanded(child: ListView(children: _changes.map((c) => ListTile(title: Text(c.title), subtitle: Text('${_changeTypeDe(c.changeType)} · ${_severityDe(c.severity)}'), trailing: Chip(label: Text(c.status)), onTap: () async {
-      final detail = await widget.api.fetchTdChange(c.id);
-      if (!mounted) return;
-      showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => _ChangeDetailSheet(change: detail, canEdit: widget.canEdit, api: widget.api));
-    })).toList())),
+    Expanded(child: ListView(children: _changes.map((c) => ListTile(
+      title: Text(c.title),
+      subtitle: Text('${_changeTypeDe(c.changeType)} · ${_severityDe(c.severity)}'),
+      trailing: Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        Chip(label: Text(c.status)),
+        if (widget.canEdit) IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Bearbeiten', onPressed: () => _editChange(c)),
+        if (widget.canEdit) IconButton(icon: const Icon(Icons.delete_outline), tooltip: 'Löschen', onPressed: () async { await widget.api.deleteTdChange(c.id); _load(); }),
+      ]),
+      onTap: () async {
+        final detail = await widget.api.fetchTdChange(c.id);
+        if (!mounted) return;
+        showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) => _ChangeDetailSheet(change: detail, canEdit: widget.canEdit, api: widget.api));
+      },
+    )).toList())),
   ]);
+
+
+  Future<void> _editChange(TdChangeRequest change) async {
+    final title = TextEditingController(text: change.title);
+    final desc = TextEditingController(text: change.description);
+    String type = change.changeType;
+    String severity = change.severity;
+    final ok = await showDialog<bool>(context: context, builder: (_) => StatefulBuilder(builder: (_, setS) => AlertDialog(
+      title: const Text('Änderungsantrag bearbeiten'),
+      content: SizedBox(width: 520, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: title, decoration: const InputDecoration(labelText: 'Titel')),
+        DropdownButtonFormField<String>(value: type, items: const ['Material','Supplier','LabelingIFU','Other'].map((e)=>DropdownMenuItem(value:e, child: Text(_changeTypeDe(e)))).toList(), onChanged: (v)=>setS(()=>type=v??'Other')),
+        DropdownButtonFormField<String>(value: severity, items: const ['Low','Medium','High','Critical'].map((e)=>DropdownMenuItem(value:e, child: Text(_severityDe(e)))).toList(), onChanged: (v)=>setS(()=>severity=v??'Medium')),
+        TextField(controller: desc, decoration: const InputDecoration(labelText: 'Beschreibung'), minLines: 2, maxLines: 5),
+      ])),
+      actions: [TextButton(onPressed: ()=>Navigator.pop(context,false), child: const Text('Abbrechen')), FilledButton(onPressed: ()=>Navigator.pop(context,true), child: const Text('Speichern'))],
+    )));
+    if (ok == true) {
+      await widget.api.patchTdChange(change.id, {'title': title.text.trim(), 'description': desc.text.trim(), 'changeType': type, 'severity': severity});
+      _load();
+    }
+  }
 
   Future<void> _createChange() async {
     if (_selected == null) return;
@@ -412,6 +463,190 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     }
   }
 
+
+  String _sectionNameDe(TdSection section) {
+    switch (section.templateKey) {
+      case 'ANNEX_II_A':
+        return 'A. Produktbeschreibung und Spezifikation';
+      case 'ANNEX_II_B':
+        return 'B. Vom Hersteller bereitgestellte Informationen';
+      case 'ANNEX_II_C':
+        return 'C. Informationen zu Design und Herstellung';
+      case 'ANNEX_II_D':
+        return 'D. Allgemeine Sicherheits- und Leistungsanforderungen (GSPR)';
+      case 'ANNEX_II_E':
+        return 'E. Nutzen-Risiko und Risikomanagement';
+      case 'ANNEX_II_F':
+        return 'F. Produktverifizierung und -validierung';
+      case 'ANNEX_III_G':
+        return 'G. PMS-Plan';
+      case 'ANNEX_III_H':
+        return 'H. PMS-Bericht / PSUR / PMCF';
+      default:
+        return section.name;
+    }
+  }
+
+  static const Map<String, String> _queryTitleDeMap = {
+    'ANNEX_II_A_1': 'Zweckbestimmung und klinischer Nutzen',
+    'ANNEX_II_A_2': 'Produktbeschreibung, Materialien und Varianten',
+    'ANNEX_II_A_3': 'UDI-DI- und Basic-UDI-DI-Zuordnung',
+    'ANNEX_II_A_4': 'Klassifizierung und Begründung der Regelanwendung',
+    'ANNEX_II_A_5': 'Funktionsprinzip und Leistungsansprüche',
+    'ANNEX_II_A_6': 'Vorgängergenerationen / ähnliche Produkte',
+    'ANNEX_II_B_1': 'Vollständigkeit der Kennzeichnung',
+    'ANNEX_II_B_2': 'Vollständigkeit der IFU inkl. Aufbereitung',
+    'ANNEX_II_B_3': 'Sprach- und Übersetzungskontrolle',
+    'ANNEX_II_B_4': 'Rückverfolgbarkeit von Kennzeichnungs-/IFU-Revisionen',
+    'ANNEX_II_B_5': 'Anwenderschulung und Kommunikation',
+    'ANNEX_II_C_1': 'Überblick Herstellprozess',
+    'ANNEX_II_C_2': 'Kritische Prozessparameter und Kontrollen',
+    'ANNEX_II_C_3': 'Ausgelagerte Prozesse und Kontrollen',
+    'ANNEX_II_C_4': 'Akzeptanzkriterien und Prüfpläne',
+    'ANNEX_II_C_5': 'Änderungsmanagement und Designtransfer',
+    'ANNEX_II_D_1': 'GSPR-Vollständigkeit und offene Lücken',
+    'ANNEX_II_D_2': 'Nachweis-Mapping pro Anforderung',
+    'ANNEX_II_D_3': 'Rationale für nicht zutreffende Anforderungen',
+    'ANNEX_II_D_4': 'Normen-/CS-Mapping und Stand',
+    'ANNEX_II_D_5': 'CAPA-/Abweichungsrückkopplung in GSPR',
+    'ANNEX_II_E_1': 'Vollständigkeit der Risikomanagementakte',
+    'ANNEX_II_E_2': 'Begründung der Nutzen-Risiko-Schlussfolgerung',
+    'ANNEX_II_E_3': 'Restrisiken und IFU-Kommunikation',
+    'ANNEX_II_E_4': 'Rückkopplung von Post-Market-Risiken',
+    'ANNEX_II_F_1': 'Angewandte Normen und Common Specs',
+    'ANNEX_II_F_2': 'Biokompatibilität / chemische Charakterisierung',
+    'ANNEX_II_F_3': 'Validierung der Aufbereitung',
+    'ANNEX_II_F_4': 'Nachweise zur Leistungsprüfung',
+    'ANNEX_II_F_5': 'Validierung der Verpackung',
+    'ANNEX_II_F_6': 'Softwarevalidierung (falls zutreffend)',
+    'ANNEX_III_G_1': 'PMS-Plan: Umfang und Verantwortlichkeiten',
+    'ANNEX_III_G_2': 'PMS-Datenquellen',
+    'ANNEX_III_G_3': 'Signale, Schwellenwerte und Trigger',
+    'ANNEX_III_G_4': 'Anwendbarkeit des PMCF-Plans',
+    'ANNEX_III_H_1': 'Anwendbarer Berichtstyp und Begründung',
+    'ANNEX_III_H_2': 'Berichtszeitraum und Kernergebnisse',
+    'ANNEX_III_H_3': 'Trendanalyse und Reklamationsbezug',
+    'ANNEX_III_H_4': 'Umgesetzte Maßnahmen und Verknüpfungen',
+    'ANNEX_III_H_5': 'Schlussfolgerungen zu Nutzen-Risiko und GSPR',
+  };
+
+  static const Map<String, String> _queryDescriptionDeMap = {
+    'ANNEX_II_A_1': 'Definieren Sie Zweckbestimmung und erwarteten klinischen Nutzen; stimmen Sie Aussagen mit klinischer Evidenz und verknüpften GSPR-Anforderungen ab.',
+    'ANNEX_II_A_2': 'Beschreiben Sie Materialien, Geometrie, Varianten und Zubehör mit Verweisen auf Zeichnungen/Spezifikationen und risikorelevante Eigenschaften.',
+    'ANNEX_II_A_3': 'Dokumentieren Sie die UDI-DI-/Basic-UDI-DI-Strategie und die Rückverfolgbarkeit zu Etiketten- und IFU-Versionen.',
+    'ANNEX_II_A_4': 'Dokumentieren Sie die MDR-Klasse und die angewandte Klassifizierungsregel mit Begründung und Referenzen.',
+    'ANNEX_II_A_5': 'Beschreiben Sie das Funktionsprinzip und zentrale Leistungsansprüche mit Verweisen auf Validierungsnachweise.',
+    'ANNEX_II_A_6': 'Verweisen Sie auf Vorgängergenerationen oder ähnliche Produkte und fassen Sie die Relevanz für das aktuelle Nutzen-Risiko-Profil zusammen.',
+    'ANNEX_II_B_1': 'Bestätigen Sie, dass die Kennzeichnung Symbole, Warnhinweise, UDI, Hersteller- und Rechtsangaben für Zielmärkte vollständig abdeckt.',
+    'ANNEX_II_B_2': 'Bestätigen Sie, dass die IFU Zweckbestimmung, Kontraindikationen, Warnhinweise und ggf. Aufbereitungsanweisungen enthält.',
+    'ANNEX_II_B_3': 'Dokumentieren Sie Sprachvarianten, Übersetzungsworkflow und Freigabekontrollen.',
+    'ANNEX_II_B_4': 'Zeigen Sie die Synchronisierung zwischen Kennzeichnungs-/IFU-Revisionen und TD-/Änderungskontroll-Updates.',
+    'ANNEX_II_B_5': 'Definieren Sie Schulungsbedarfe, Kommunikationskanäle und zugehörige Nachweise.',
+    'ANNEX_II_C_1': 'Stellen Sie eine Prozessübersicht und Standortverantwortlichkeiten für Herstellung und Freigabe bereit.',
+    'ANNEX_II_C_2': 'Definieren Sie kritische Prozessparameter, Kontrollen, Grenzen und Überwachungsansätze.',
+    'ANNEX_II_C_3': 'Beschreiben Sie ausgelagerte Tätigkeiten sowie Qualifizierungs-/Auditkontrollen für externe Partner.',
+    'ANNEX_II_C_4': 'Dokumentieren Sie Wareneingangs-, Inprozess- und Endprüfkriterien inklusive Stichprobenplänen.',
+    'ANNEX_II_C_5': 'Erläutern Sie Designtransfer-Kontrollen und die Verknüpfung zum formalen Änderungsmanagement.',
+    'ANNEX_II_D_1': 'Bewerten Sie den aktuellen GSPR-Erfüllungsgrad und listen Sie offene Anforderungen auf.',
+    'ANNEX_II_D_2': 'Ordnen Sie jeder GSPR-Anforderung einen belastbaren Nachweis (Dokument/Bericht) zu.',
+    'ANNEX_II_D_3': 'Begründen Sie nachvollziehbar, warum einzelne GSPR-Anforderungen nicht anwendbar sind.',
+    'ANNEX_II_D_4': 'Dokumentieren Sie die Zuordnung zu harmonisierten Normen/Common Specifications und deren Umsetzungsstand.',
+    'ANNEX_II_D_5': 'Beschreiben Sie, wie CAPA/Abweichungen in die GSPR-Bewertung zurückgespiegelt werden.',
+    'ANNEX_II_E_1': 'Bestätigen Sie, dass die Risikomanagementakte vollständig und für den aktuellen Designstand aktuell ist.',
+    'ANNEX_II_E_2': 'Dokumentieren Sie die Begründung der Nutzen-Risiko-Bewertung mit klinischer und PMS-Evidenz.',
+    'ANNEX_II_E_3': 'Bestätigen Sie, dass Restrisiken akzeptabel sind und bei Bedarf in IFU/Kennzeichnung kommuniziert werden.',
+    'ANNEX_II_E_4': 'Zeigen Sie, wie Post-Market-Signale in Risikomanagement und CAPA zurückgeführt werden.',
+    'ANNEX_II_F_1': 'Listen Sie anwendbare Normen/Common Specifications und den aktuellen Konformitätsnachweis auf.',
+    'ANNEX_II_F_2': 'Fassen Sie Biokompatibilitäts- und Chemie-Nachweise entsprechend dem Patientenkontakt zusammen.',
+    'ANNEX_II_F_3': 'Geben Sie den Validierungsstand für Reinigung/Desinfektion/Sterilisation inkl. Referenzen an.',
+    'ANNEX_II_F_4': 'Fassen Sie Bench-/Leistungsprüfungen zur Stützung der Zweckbestimmung zusammen.',
+    'ANNEX_II_F_5': 'Fassen Sie Nachweise zur Verpackungsintegrität, Haltbarkeit und Transportvalidierung zusammen.',
+    'ANNEX_II_F_6': 'Stellen Sie Software-Lifecycle- und Validierungsnachweise bereit oder begründen Sie die Nichtanwendbarkeit.',
+    'ANNEX_III_G_1': 'Dokumentieren Sie Eigentümerschaft, Umfang und Verantwortlichkeiten des PMS-Plans.',
+    'ANNEX_III_G_2': 'Listen Sie PMS-Datenquellen auf (Reklamationen, Trends, Literatur, Lieferantenfeedback).',
+    'ANNEX_III_G_3': 'Definieren Sie Überwachungssignale, Schwellenwerte und Eskalationstrigger zu CAPA/Änderung/Vigilanz.',
+    'ANNEX_III_G_4': 'Beschreiben Sie PMCF-Plan und Begründung, falls erforderlich; sonst die Nichtanwendbarkeit.',
+    'ANNEX_III_H_1': 'Definieren Sie, ob PMS-Bericht oder PSUR gilt, inklusive Begründung.',
+    'ANNEX_III_H_2': 'Erfassen Sie den Berichtszeitraum und die wichtigsten Post-Market-Erkenntnisse.',
+    'ANNEX_III_H_3': 'Fassen Sie Trends zusammen und verknüpfen Sie relevante Reklamationskennzahlen für Risiko/Leistungsänderungen.',
+    'ANNEX_III_H_4': 'Dokumentieren Sie resultierende Maßnahmen und deren Verknüpfung zu CAPA-/Änderungsdatensätzen.',
+    'ANNEX_III_H_5': 'Bewerten Sie die Auswirkungen auf das Nutzen-Risiko-Profil und die GSPR-Konformität.',
+  };
+
+  String _queryTitleDe(TdQueryTemplate template) => _queryTitleDeMap[template.templateKey] ?? template.title;
+
+  String _queryDescriptionDe(TdQueryTemplate template) => _queryDescriptionDeMap[template.templateKey] ?? template.description;
+
+
+  String _linkTypeDe(String type) {
+    switch (type) {
+      case 'Document':
+        return 'Dokument';
+      case 'ExternalLink':
+        return 'Externer Link';
+      case 'GSPR':
+        return 'GSPR';
+      case 'FMEA':
+        return 'FMEA';
+      case 'CAPA':
+        return 'CAPA';
+      case 'Supplier':
+        return 'Lieferant';
+      case 'Training':
+        return 'Schulung';
+      case 'Report':
+        return 'Bericht';
+      case 'Change':
+        return 'Änderung';
+      case 'ComplaintMetric':
+        return 'Reklamationskennzahl';
+      default:
+        return type;
+    }
+  }
+
+  String _tagDe(String tag) {
+    const map = {
+      'Annex II': 'Anhang II',
+      'Device description': 'Produktbeschreibung',
+      'Clinical': 'Klinisch',
+      'Variants': 'Varianten',
+      'UDI': 'UDI',
+      'Classification': 'Klassifizierung',
+      'Performance': 'Leistung',
+      'State of the art': 'Stand der Technik',
+      'Labeling': 'Kennzeichnung',
+      'IFU': 'Gebrauchsanweisung',
+      'Translation': 'Übersetzung',
+      'Traceability': 'Rückverfolgbarkeit',
+      'Training': 'Schulung',
+      'Manufacturing': 'Herstellung',
+      'Process control': 'Prozesskontrolle',
+      'Supplier': 'Lieferant',
+      'Inspection': 'Prüfung',
+      'Change control': 'Änderungskontrolle',
+      'Risk': 'Risiko',
+      'Benefit-risk': 'Nutzen-Risiko',
+      'Residual risk': 'Restrisiko',
+      'PMS': 'PMS',
+      'Standards': 'Normen',
+      'Biocompatibility': 'Biokompatibilität',
+      'Reprocessing': 'Aufbereitung',
+      'Packaging': 'Verpackung',
+      'Software': 'Software',
+      'Annex III': 'Anhang III',
+      'Data sources': 'Datenquellen',
+      'Signals': 'Signale',
+      'PMCF': 'PMCF',
+      'PSUR': 'PSUR',
+      'Findings': 'Erkenntnisse',
+      'Complaints': 'Reklamationen',
+      'Actions': 'Maßnahmen',
+      'Conclusion': 'Schlussfolgerung',
+    };
+    return map[tag] ?? tag;
+  }
+
   @override
   void initState() { super.initState(); _load(); }
 
@@ -432,7 +667,7 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     final completion = _queries.isEmpty ? 0 : ((complete / _queries.length) * 100).round();
     if (_queries.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: Text(section.name)),
+        appBar: AppBar(title: Text(_sectionNameDe(section))),
         body: const Center(child: Text('Keine Abfragen verfügbar. Bitte Bootstrap erneut ausführen.')),
       );
     }
@@ -440,7 +675,7 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
       length: _queries.length,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(section.name),
+          title: Text(_sectionNameDe(section)),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(84),
             child: Padding(
@@ -449,10 +684,10 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   Chip(label: Text('Status: ${_statusDe(section.status)}')),
                   Chip(label: Text('Vollständigkeit: $completion%')),
-                  ..._queries.expand((q) => q.template.suggestedLinkTypes).toSet().take(5).map((type) => ActionChip(label: Text(type), onPressed: () {})),
+                  ..._queries.expand((q) => q.template.suggestedLinkTypes).toSet().take(5).map((type) => ActionChip(label: Text(_linkTypeDe(type)), onPressed: () {})),
                 ]),
                 const SizedBox(height: 8),
-                TabBar(isScrollable: true, tabs: _queries.map((q) => Tab(text: q.template.title)).toList()),
+                TabBar(isScrollable: true, tabs: _queries.map((q) => Tab(text: _queryTitleDe(q.template))).toList()),
               ]),
             ),
           ),
@@ -472,9 +707,9 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(query.template.description))),
+        Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_queryDescriptionDe(query.template)))),
         const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [if (query.applicability != null) _applicabilityChip(query.applicability!.state), ...query.template.tags.map((e) => Chip(label: Text(e)))]),
+        Wrap(spacing: 8, runSpacing: 8, children: [if (query.applicability != null) _applicabilityChip(query.applicability!.state), ...query.template.tags.map((e) => Chip(label: Text(_tagDe(e))))]),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           value: query.status,
@@ -497,10 +732,10 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
         TextField(controller: rationaleCtl, minLines: 2, maxLines: 6, decoration: const InputDecoration(labelText: 'Begründung')),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          ...query.links.map((l) => InputChip(label: Text('${l.type}: ${l.label}'), onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null)),
+          ...query.links.map((l) => InputChip(label: Text('${_linkTypeDe(l.type)}: ${l.label}'), onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null)),
           if (widget.canEdit)
             FilledButton.icon(onPressed: () async {
-              await widget.api.createTdQueryLink(query.id, {'type': 'Document', 'label': query.template.title, 'refId': query.template.templateKey});
+              await widget.api.createTdQueryLink(query.id, {'type': 'Document', 'label': _queryTitleDe(query.template), 'refId': query.template.templateKey});
               _load();
             }, icon: const Icon(Icons.add_link), label: const Text('Link hinzufügen')),
         ]),
