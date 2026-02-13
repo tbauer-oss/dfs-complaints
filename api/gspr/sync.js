@@ -36,6 +36,33 @@ function extractTextLines(normalizedText = '') {
     .slice(0, 140);
 }
 
+const BOILERPLATE_LINE_PATTERNS = [
+  /javascript is disabled/i,
+  /verify that you're not a robot/i,
+  /enable javascript and then reload the page/i,
+  /sign in register my recent searches/i,
+  /official eu languages/i,
+  /experimental features/i,
+  /eur-lex access to european union law/i,
+];
+
+function sanitizeExtractedLines(lines = []) {
+  return lines.filter((line) => !BOILERPLATE_LINE_PATTERNS.some((pattern) => pattern.test(line)));
+}
+
+function ensureContentLooksLikeEurLexDocument(lines = []) {
+  if (!lines.length) return false;
+
+  const combined = lines.join(' ').toLowerCase();
+  const legalAnchors = [
+    /verordnung \(eu\) 2017\/745/i,
+    /grundlegende sicherheits- und leistungsanforderungen/i,
+    /medizinprodukte/i,
+  ];
+
+  return legalAnchors.some((pattern) => pattern.test(combined));
+}
+
 function detectChangedLines(previous = [], current = []) {
   if (!previous.length || !current.length) return [];
   const previousSet = new Set(previous);
@@ -155,14 +182,19 @@ export default async function handler(req, res) {
     if (!validatedFrom) throw lastSyncError || new Error('EUR-Lex source validation failed');
 
     const normalizedText = normalizeTextForHash(fetchedHtml);
-    const contentHash = createHash('sha256').update(normalizedText).digest('hex');
+    const currentLines = sanitizeExtractedLines(extractTextLines(normalizedText));
+    if (!ensureContentLooksLikeEurLexDocument(currentLines)) {
+      throw new Error('EUR-Lex response did not contain stable regulation text (likely anti-bot or navigation markup)');
+    }
+
+    const contentFingerprint = currentLines.join('\n');
+    const contentHash = createHash('sha256').update(contentFingerprint).digest('hex');
     const previousHash = (before?.contentHash || '').toString();
     const changed = previousHash.length > 0 && previousHash !== contentHash;
 
     const previousLines = Array.isArray(before?.lastSeenLines)
       ? before.lastSeenLines.map((entry) => (entry ?? '').toString())
       : [];
-    const currentLines = extractTextLines(normalizedText);
     const changeDetails = changed ? detectChangedLines(previousLines, currentLines) : [];
 
     const finishedAt = new Date().toISOString();
