@@ -105,3 +105,30 @@ test('portal login recovers admin auth from legacy customer hash when portal has
   assert.ok(stored?.passhash);
   assert.equal(await bcrypt.compare(correctPassword, stored.passhash), true);
 });
+
+
+test('portal login accepts ADMIN_SECRET for admin email and repairs hash', async () => {
+  const [adminEmail] = [...ADMIN_EMAILS];
+  const previous = process.env.ADMIN_SECRET;
+  process.env.ADMIN_SECRET = 'Emergency#AdminSecret1';
+  try {
+    await portalUserSave({
+      email: adminEmail,
+      passhash: await bcrypt.hash('Different#Password1', 8),
+      role: 'superuser',
+      portalStatus: 'active',
+    });
+
+    const req = makeReq({ email: adminEmail, password: 'Emergency#AdminSecret1' });
+    const res = makeRes();
+    await loginHandler(req, res);
+
+    assert.equal(res.__out.statusCode, 200);
+    const stored = await portalUserByEmail(adminEmail);
+    assert.ok(stored?.passhash);
+    assert.equal(await bcrypt.compare('Emergency#AdminSecret1', stored.passhash), true);
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_SECRET;
+    else process.env.ADMIN_SECRET = previous;
+  }
+});

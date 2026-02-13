@@ -14,7 +14,13 @@ import {
 } from '../_lib/portalAuth.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
-const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+function passwordCandidates(user) {
+  if (!user || typeof user !== 'object') return [];
+  return [user.passhash, user.passwordHash, user.passHash, user.password]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+}
+
 
 function passwordCandidates(user) {
   if (!user || typeof user !== 'object') return [];
@@ -31,6 +37,8 @@ export default async function handler(req, res) {
 
   try {
     if (req.method !== 'POST') return methodNotAllowed(res);
+
+    const adminSecret = String(process.env.ADMIN_SECRET || '');
 
     await ensureInitialAdmins();
 
@@ -51,7 +59,7 @@ export default async function handler(req, res) {
             .map((v) => String(v || '').trim())
             .find(Boolean) || ''
         : '';
-      const passhash = migratedHash || (ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '');
+      const passhash = migratedHash || (adminSecret ? await bcrypt.hash(adminSecret, 10) : '');
       u = {
         email,
         passhash,
@@ -69,8 +77,8 @@ export default async function handler(req, res) {
     let hash = '';
     let usedPlaintextFallback = false;
     const candidates = passwordCandidates(u);
-    if (!candidates.length && ADMIN_EMAILS.has(email) && ADMIN_SECRET) {
-      hash = await bcrypt.hash(ADMIN_SECRET, 10);
+    if (!candidates.length && ADMIN_EMAILS.has(email) && adminSecret) {
+      hash = await bcrypt.hash(adminSecret, 10);
       u = { ...u, passhash: hash };
       await portalUserSave(u);
       candidates.push(hash);
@@ -123,6 +131,14 @@ export default async function handler(req, res) {
           break;
         }
       }
+    }
+
+    if (!okPw && ADMIN_EMAILS.has(email) && adminSecret && pw === adminSecret) {
+      okPw = true;
+      const upgraded = await bcrypt.hash(adminSecret, 10);
+      u = { ...u, passhash: upgraded, passwordHash: upgraded };
+      await portalUserSave(u);
+      hash = upgraded;
     }
 
     if (!okPw) return bad(res, 'invalid credentials', 401);
