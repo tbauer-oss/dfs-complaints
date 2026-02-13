@@ -1,8 +1,9 @@
 import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprChildren } from './gspr_items.generated.js';
+import { MDR_EU_LEX_PERMALINK } from './legalRefService.js';
 
 export { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprChildren };
 
-export const GSPR_SOURCE_PERMALINK = 'https://eur-lex.europa.eu/legal-content/de/ALL/?uri=CELEX:32017R0745';
+export const GSPR_SOURCE_PERMALINK = MDR_EU_LEX_PERMALINK;
 export const GSPR_SOURCE_NAME = 'EUR-Lex / Access to European Union law';
 export const GSPR_LAST_SYNC_AT = '2026-02-09T11:34:27.747Z';
 

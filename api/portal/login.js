@@ -47,7 +47,12 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
-    const hash = u.passhash || u.passwordHash || '';
+    let hash = u.passhash || u.passwordHash || '';
+    if (!hash && ADMIN_EMAILS.has(email) && ADMIN_SECRET) {
+      hash = await bcrypt.hash(ADMIN_SECRET, 10);
+      u = { ...u, passhash: hash };
+      await portalUserSave(u);
+    }
     if (!hash) return bad(res, 'invalid credentials', 401);
     let okPw = false;
     try {
