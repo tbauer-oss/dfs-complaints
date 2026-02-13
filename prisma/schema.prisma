@@ -106,6 +106,27 @@ enum TdImpactStatus {
   NotApplicable
 }
 
+enum TdApplicabilityState {
+  MANDATORY
+  OPTIONAL
+  CONDITIONAL
+  NOT_APPLICABLE
+}
+
+enum TdProductProfileType {
+  ROTARY_REUSABLE_NONSTERILE
+  ROTARY_REUSABLE_SURGICAL
+  DENTAL_ALLOYS
+  SOFTWARE_DEVICE
+}
+
+enum TdPackagingType {
+  BULK_NONSTERILE
+  UNIT_NONSTERILE
+  STERILE_BARRIER_SYSTEM
+  TRANSPORT_VALIDATED
+}
+
 model TdFile {
   id             String           @id @default(cuid())
   code           String           @unique
@@ -126,6 +147,9 @@ model TdFile {
   links          TdArtifactLink[]
   changes        TdChangeRequest[]
   kpis           TdKpiSnapshot[]
+  applicabilityProfile TdApplicabilityProfile?
+  applicabilityOverrides TdApplicabilityOverride[]
+  applicabilityResults TdApplicabilityResult[]
 
   @@index([code])
   @@index([productGroup])
@@ -295,4 +319,56 @@ model TdQueryLink {
   answer TdQueryAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
 
   @@index([answerId, type])
+}
+
+
+model TdApplicabilityProfile {
+  id                 String               @id @default(cuid())
+  tdId               String               @unique
+  profileType        TdProductProfileType
+  isReusable         Boolean
+  isSterile          Boolean
+  packagingType      TdPackagingType
+  classificationRule String?
+  hasSoftware        Boolean
+  notes              String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+}
+
+model TdApplicabilityOverride {
+  id            String               @id @default(cuid())
+  tdId          String
+  sectionId     String?
+  queryKey      String?
+  state         TdApplicabilityState
+  conditionKey  String?
+  conditionExpr String?
+  rationale     String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+
+  @@index([tdId])
+}
+
+model TdApplicabilityResult {
+  id               String               @id @default(cuid())
+  tdId             String
+  sectionId        String?
+  queryKey         String?
+  state            TdApplicabilityState
+  isConditionMet   Boolean?
+  conditionSummary String?
+  generatedBy      String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  td TdFile @relation(fields: [tdId], references: [id], onDelete: Cascade)
+
+  @@unique([tdId, sectionId, queryKey])
+  @@index([tdId])
 }

@@ -1,7 +1,7 @@
 export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
-import { tdSections, tdSectionContentGet, tdLinksBySection, tdQueries } from '../../_lib/tdStore.js';
+import { tdSections, tdSectionContentGet, tdLinksBySection, tdQueries, tdApplicabilityGet } from '../../_lib/tdStore.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -14,12 +14,14 @@ export default async function handler(req, res) {
   try {
     const sections = await tdSections(id);
     const queries = await tdQueries(id);
+    const applicability = await tdApplicabilityGet(id);
+    const applicabilityMap = new Map(applicability.results.map((item) => [`${id}:${item.sectionId || ''}:${item.queryKey || ''}`, item]));
     const items = await Promise.all(sections.map(async (section) => {
       const [content, links] = await Promise.all([tdSectionContentGet(section.id), tdLinksBySection(id, section.id)]);
       const sectionQueries = queries.filter((q) => q.sectionId === section.id);
       const complete = sectionQueries.filter((q) => q.status === 'Complete' || q.status === 'NotApplicable').length;
       const completion = sectionQueries.length ? Math.round((complete / sectionQueries.length) * 100) : 0;
-      return { ...section, content, linkCount: links.length, queryStats: { total: sectionQueries.length, complete, completion } };
+      return { ...section, content, linkCount: links.length, queryStats: { total: sectionQueries.length, complete, completion }, applicability: applicabilityMap.get(`${id}:${section.id}:`) || null };
     }));
     return ok(res, { ok: true, items });
   } catch (err) {
