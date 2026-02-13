@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import portalLoginHandler from '../api/portal/login.js';
+import { portalUserSave } from '../api/_lib/store.js';
+
+function createMockRes() {
+  return {
+    statusCode: 200,
+    headers: {},
+    body: '',
+    setHeader(name, value) {
+      this.headers[name.toLowerCase()] = value;
+    },
+    getHeader(name) {
+      return this.headers[name.toLowerCase()];
+    },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    end(chunk = '') {
+      this.body = String(chunk || '');
+      return this;
+    },
+  };
+}
+
+test('portal login accepts legacy plaintext password and migrates it', async () => {
+  const email = `legacy.portal.${Date.now()}@example.com`;
+  const password = 'LegacySecret123!';
+
+  await portalUserSave({
+    email,
+    password,
+    role: 'admin',
+    portalStatus: 'active',
+    displayName: 'Legacy User',
+  });
+
+  const req = {
+    method: 'POST',
+    headers: {},
+    body: { email, password },
+  };
+  const res = createMockRes();
+
+  await portalLoginHandler(req, res);
+
+  assert.equal(res.statusCode, 200);
+  const decoded = JSON.parse(res.body);
+  assert.equal(Boolean(decoded?.token), true);
+  assert.equal(decoded?.profile?.email, email);
+});
