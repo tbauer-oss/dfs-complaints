@@ -1886,20 +1886,24 @@ export async function portalUserByEmail(email) {
   if (raw && typeof raw === 'object') return normalizePortalUser(raw);
 
   // Legacy fallback: before email normalization, keys may have been stored with mixed casing.
-  const legacyCaseKey = r
-    ? await findPortalUserKeyCaseInsensitive(normalizedEmail, r)
-    : findPortalUserKeyCaseInsensitiveInMemory(normalizedEmail);
-  if (legacyCaseKey) {
-    const legacyRaw = r ? await rget(legacyCaseKey, r) : mem.portalUsers.get(legacyCaseKey) ?? null;
-    if (legacyRaw && typeof legacyRaw === 'object') {
-      const migrated = normalizePortalUser({ ...legacyRaw, email: normalizedEmail });
-      if (migrated) {
-        await portalUserSave(migrated);
-        if (r && legacyCaseKey !== key) await rdel(legacyCaseKey, r);
-        if (!r && legacyCaseKey !== normalizedEmail) mem.portalUsers.delete(legacyCaseKey);
-        return migrated;
+  try {
+    const legacyCaseKey = r
+      ? await findPortalUserKeyCaseInsensitive(normalizedEmail, r)
+      : findPortalUserKeyCaseInsensitiveInMemory(normalizedEmail);
+    if (legacyCaseKey) {
+      const legacyRaw = r ? await rget(legacyCaseKey, r) : mem.portalUsers.get(legacyCaseKey) ?? null;
+      if (legacyRaw && typeof legacyRaw === 'object') {
+        const migrated = normalizePortalUser({ ...legacyRaw, email: normalizedEmail });
+        if (migrated) {
+          await portalUserSave(migrated);
+          if (r && legacyCaseKey !== key) await rdel(legacyCaseKey, r);
+          if (!r && legacyCaseKey !== normalizedEmail) mem.portalUsers.delete(legacyCaseKey);
+          return migrated;
+        }
       }
     }
+  } catch (err) {
+    console.warn('[store] portal legacy key lookup skipped:', err?.message || err);
   }
 
   // Legacy-Migration: Portal-User aus der Kundendatenbank holen und verschieben

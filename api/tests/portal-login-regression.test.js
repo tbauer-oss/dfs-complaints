@@ -135,3 +135,23 @@ test('portal login finds legacy mixed-case redis keys and migrates them', async 
     __setRedisClientForTests(null);
   }
 });
+
+test('portal login does not return 500 when legacy key scan fails', async () => {
+  __setRedisClientForTests({
+    async get() { return null; },
+    async set() { return 'ok'; },
+    async del() { return 1; },
+    async keys() { throw new Error('ERR unknown command KEYS'); },
+    async scan() { throw new Error('scan disabled'); },
+  });
+
+  try {
+    const req = makeReq({ email: 'notfound@dfs-diamon.de', password: 'Nope#123' });
+    const res = makeRes();
+    await loginHandler(req, res);
+
+    assert.notEqual(res.__out.statusCode, 500);
+  } finally {
+    __setRedisClientForTests(null);
+  }
+});
