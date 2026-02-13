@@ -142,6 +142,7 @@ export default async function handler(req, res) {
       storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
     ];
     const legacyPasswordMatch = !okPw && legacyCandidates.some((candidate) => candidate && candidate === pw);
+    const usedPlaintextFallback = legacyPasswordMatch;
     if (legacyPasswordMatch) {
       const migratedHash = await bcrypt.hash(pw, 10);
       const migratedUser = { ...u, passhash: migratedHash, passwordHash: migratedHash };
