@@ -123,9 +123,18 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
+    const hashCandidates = passwordCandidates(u).map(normalizeBcryptHash).filter(Boolean);
+    const comparableHash = hashCandidates[0] || '';
+
     const storedPasshash = toPlain(u.passhash);
     const storedPasswordHash = toPlain(u.passwordHash);
-    const comparableHash = normalizeBcryptHash(storedPasshash) || normalizeBcryptHash(storedPasswordHash);
+    const storedPassHash = toPlain(u.passHash);
+    const comparableFromPassHashOnly = Boolean(
+      comparableHash
+      && !normalizeBcryptHash(storedPasshash)
+      && !normalizeBcryptHash(storedPasswordHash)
+      && normalizeBcryptHash(storedPassHash),
+    );
 
     let okPw = false;
     if (comparableHash) {
@@ -140,6 +149,7 @@ export default async function handler(req, res) {
       toPlain(u.password),
       storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
       storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
+      storedPassHash && !normalizeBcryptHash(storedPassHash) ? storedPassHash : '',
     ];
     const legacyPasswordMatch = !okPw && legacyCandidates.some((candidate) => candidate && candidate === pw);
     const usedPlaintextFallback = legacyPasswordMatch;
@@ -157,6 +167,10 @@ export default async function handler(req, res) {
     if (usedPlaintextFallback) {
       const upgraded = await bcrypt.hash(pw, 10);
       u = { ...u, passhash: upgraded, passwordHash: upgraded };
+      await portalUserSave(u);
+    } else if (comparableFromPassHashOnly) {
+      u = { ...u, passhash: comparableHash, passwordHash: comparableHash };
+      delete u.passHash;
       await portalUserSave(u);
     }
 
