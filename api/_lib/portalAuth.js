@@ -35,6 +35,8 @@ export function resolvePortalPasshash(existingUser, seededPasshash) {
   if (direct) return direct;
   const legacy = String(existing.passwordHash || '').trim();
   if (legacy) return legacy;
+  const legacyCamel = String(existing.passHash || '').trim();
+  if (legacyCamel) return legacyCamel;
   return String(seededPasshash || '').trim();
 }
 

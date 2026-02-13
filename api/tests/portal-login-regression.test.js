@@ -3,11 +3,17 @@ import assert from 'node:assert/strict';
 import bcrypt from 'bcryptjs';
 import { portalUserSave, portalUserByEmail } from '../_lib/store.js';
 import { ensureInitialAdmins, resolvePortalPasshash, ADMIN_EMAILS } from '../_lib/portalAuth.js';
+import loginHandler from '../portal/login.js';
 
 test('resolvePortalPasshash prefers existing passhash, then legacy passwordHash, then seeded hash', () => {
   assert.equal(resolvePortalPasshash({ passhash: 'a', passwordHash: 'b' }, 'c'), 'a');
   assert.equal(resolvePortalPasshash({ passwordHash: 'b' }, 'c'), 'b');
   assert.equal(resolvePortalPasshash({}, 'c'), 'c');
+});
+
+
+test('resolvePortalPasshash supports legacy passHash field', () => {
+  assert.equal(resolvePortalPasshash({ passHash: 'legacy-camel' }, ''), 'legacy-camel');
 });
 
 test('ensureInitialAdmins preserves legacy passwordHash for admin accounts', async () => {
@@ -29,4 +35,41 @@ test('ensureInitialAdmins preserves legacy passwordHash for admin accounts', asy
   assert.ok(stored);
   assert.ok(stored.passhash, 'passhash should be present after migration');
   assert.equal(await bcrypt.compare(legacyPassword, stored.passhash), true);
+});
+
+
+function makeReq(body) {
+  return {
+    method: 'POST',
+    headers: { origin: 'https://dfs-complaints-web.vercel.app', 'content-type': 'application/json' },
+    body,
+    query: {},
+  };
+}
+
+function makeRes() {
+  const out = { statusCode: 200, headers: {}, body: '' };
+  return {
+    status(code) { out.statusCode = code; return this; },
+    setHeader(k, v) { out.headers[String(k).toLowerCase()] = v; },
+    getHeader(k) { return out.headers[String(k).toLowerCase()]; },
+    end(payload = '') { out.body = payload; return this; },
+    json(payload) { out.body = JSON.stringify(payload); return this; },
+    __out: out,
+  };
+}
+
+test('portal login supports legacy plaintext password field and upgrades hash', async () => {
+  const email = 'legacy.plaintext@dfs-diamon.de';
+  const password = 'Plaintext#123';
+  await portalUserSave({ email, password, role: 'superuser', portalStatus: 'active' });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const stored = await portalUserByEmail(email);
+  assert.ok(stored?.passhash);
+  assert.equal(await bcrypt.compare(password, stored.passhash), true);
 });
