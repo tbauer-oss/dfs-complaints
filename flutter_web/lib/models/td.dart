@@ -225,6 +225,7 @@ class TdSection {
         completion: ((json['queryStats'] as Map?)?['completion'] as num?)?.toInt(),
         queryTotal: ((json['queryStats'] as Map?)?['total'] as num?)?.toInt(),
         applicability: json['applicability'] is Map ? TdApplicabilityResult.fromJson((json['applicability'] as Map).cast<String, dynamic>()) : null,
+        validation: TdQueryValidation.fromJson((json['validation'] as Map?)?.cast<String, dynamic>()),
       );
 }
 
@@ -236,8 +237,9 @@ class TdQueryLink {
   final String label;
   final String? refId;
   final String? url;
+  final Map<String, dynamic> metaJson;
 
-  const TdQueryLink({required this.id, required this.type, required this.label, this.refId, this.url});
+  const TdQueryLink({required this.id, required this.type, required this.label, this.refId, this.url, this.metaJson = const {}});
 
   factory TdQueryLink.fromJson(Map<String, dynamic> json) => TdQueryLink(
         id: '${json['id'] ?? ''}',
@@ -245,7 +247,64 @@ class TdQueryLink {
         label: '${json['label'] ?? ''}',
         refId: json['refId']?.toString(),
         url: json['url']?.toString(),
+        metaJson: (json['metaJson'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
       );
+}
+
+
+class TdNodeFieldTemplate {
+  final String key;
+  final String type;
+  final bool required;
+  final String label;
+  final List<dynamic> options;
+
+  const TdNodeFieldTemplate({required this.key, required this.type, required this.required, required this.label, this.options = const []});
+
+  factory TdNodeFieldTemplate.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdNodeFieldTemplate(
+      key: (map['key'] ?? '').toString(),
+      type: (map['type'] ?? 'text_short').toString(),
+      required: map['required'] == true,
+      label: (map['label'] ?? '').toString(),
+      options: (map['options'] as List?)?.toList(growable: false) ?? const [],
+    );
+  }
+}
+
+class TdNodeTemplate {
+  final String templateType;
+  final int templateVersion;
+  final List<TdNodeFieldTemplate> fields;
+
+  const TdNodeTemplate({required this.templateType, required this.templateVersion, required this.fields});
+
+  factory TdNodeTemplate.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdNodeTemplate(
+      templateType: (map['templateType'] ?? 'GENERIC_MD').toString(),
+      templateVersion: (map['templateVersion'] as num?)?.toInt() ?? 1,
+      fields: (map['fields'] as List?)?.whereType<Map>().map((e) => TdNodeFieldTemplate.fromJson(e.cast<String, dynamic>())).toList(growable: false) ?? const [],
+    );
+  }
+}
+
+class TdQueryValidation {
+  final bool canComplete;
+  final List<String> missingRequiredFields;
+  final List<String> missingReferences;
+
+  const TdQueryValidation({required this.canComplete, required this.missingRequiredFields, required this.missingReferences});
+
+  factory TdQueryValidation.fromJson(Map<String, dynamic>? json) {
+    final map = json ?? const <String, dynamic>{};
+    return TdQueryValidation(
+      canComplete: map['canComplete'] == true,
+      missingRequiredFields: (map['missingRequiredFields'] as List?)?.map((e) => '$e').toList(growable: false) ?? const [],
+      missingReferences: (map['missingReferences'] as List?)?.map((e) => '$e').toList(growable: false) ?? const [],
+    );
+  }
 }
 
 class TdQueryTemplate {
@@ -255,8 +314,9 @@ class TdQueryTemplate {
   final bool mandatory;
   final List<String> suggestedLinkTypes;
   final List<String> tags;
+  final TdNodeTemplate nodeTemplate;
 
-  const TdQueryTemplate({required this.templateKey, required this.title, required this.description, required this.mandatory, required this.suggestedLinkTypes, required this.tags});
+  const TdQueryTemplate({required this.templateKey, required this.title, required this.description, required this.mandatory, required this.suggestedLinkTypes, required this.tags, required this.nodeTemplate});
 
   factory TdQueryTemplate.fromJson(Map<String, dynamic>? json) {
     final map = json ?? const <String, dynamic>{};
@@ -267,6 +327,7 @@ class TdQueryTemplate {
       mandatory: map['mandatory'] != false,
       suggestedLinkTypes: (map['suggestedLinkTypes'] as List?)?.map((e) => '$e').toList(growable: false) ?? const [],
       tags: (map['tags'] as List?)?.map((e) => '$e').toList(growable: false) ?? const [],
+      nodeTemplate: TdNodeTemplate.fromJson((map['nodeTemplate'] as Map?)?.cast<String, dynamic>()),
     );
   }
 }
@@ -279,11 +340,14 @@ class TdQueryAnswer {
   final String rationaleMarkdown;
   final String? ownerUserId;
   final String? dueAt;
+  final String generatedMarkdown;
+  final Map<String, dynamic> fieldResponses;
   final TdQueryTemplate template;
   final List<TdQueryLink> links;
   final TdApplicabilityResult? applicability;
+  final TdQueryValidation validation;
 
-  const TdQueryAnswer({required this.id, required this.sectionId, required this.status, required this.answerMarkdown, required this.rationaleMarkdown, required this.ownerUserId, required this.dueAt, required this.template, required this.links, required this.applicability});
+  const TdQueryAnswer({required this.id, required this.sectionId, required this.status, required this.answerMarkdown, required this.rationaleMarkdown, required this.ownerUserId, required this.dueAt, required this.generatedMarkdown, required this.fieldResponses, required this.template, required this.links, required this.applicability, required this.validation});
 
   factory TdQueryAnswer.fromJson(Map<String, dynamic> json) => TdQueryAnswer(
         id: (json['id'] ?? '').toString(),
@@ -293,9 +357,12 @@ class TdQueryAnswer {
         rationaleMarkdown: (json['rationaleMarkdown'] ?? '').toString(),
         ownerUserId: json['ownerUserId']?.toString(),
         dueAt: json['dueAt']?.toString(),
+        generatedMarkdown: (json['generatedMarkdown'] ?? '').toString(),
+        fieldResponses: (json['fieldResponses'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{},
         template: TdQueryTemplate.fromJson((json['template'] as Map?)?.cast<String, dynamic>()),
         links: (json['links'] as List?)?.whereType<Map>().map((e) => TdQueryLink.fromJson(e.cast<String, dynamic>())).toList(growable: false) ?? const [],
         applicability: json['applicability'] is Map ? TdApplicabilityResult.fromJson((json['applicability'] as Map).cast<String, dynamic>()) : null,
+        validation: TdQueryValidation.fromJson((json['validation'] as Map?)?.cast<String, dynamic>()),
       );
 }
 class TdImpactItem {
