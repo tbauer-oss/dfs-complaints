@@ -22,6 +22,14 @@ function passwordCandidates(user) {
 }
 
 
+function passwordCandidates(user) {
+  if (!user || typeof user !== 'object') return [];
+  return [user.passhash, user.passwordHash, user.passHash, user.password]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+}
+
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
