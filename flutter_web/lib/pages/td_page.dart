@@ -958,83 +958,145 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
   }
 
   Widget _queryTab(TdQueryAnswer query) {
-    final answerCtl = TextEditingController(text: query.answerMarkdown);
-    final rationaleCtl = TextEditingController(text: query.rationaleMarkdown);
     final ownerCtl = TextEditingController(text: query.ownerUserId ?? '');
     final dueCtl = TextEditingController(text: query.dueAt ?? '');
-    final isMandatoryByApplicability = query.applicability == null ? query.template.mandatory : (query.applicability!.state == 'MANDATORY' || (query.applicability!.state == 'CONDITIONAL' && query.applicability!.isConditionMet == true));
-    final canMarkComplete = query.links.isNotEmpty || !isMandatoryByApplicability;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_queryDescriptionDe(query.template)))),
-        const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [if (query.applicability != null) _applicabilityChip(query.applicability!.state), ...query.template.tags.map((e) => Chip(label: Text(_tagDe(e))))]),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          value: query.status,
-          decoration: const InputDecoration(labelText: 'Status'),
-          items: const ['NotStarted','InProgress','Complete','Blocked','NotApplicable'].map((e)=>DropdownMenuItem(value:e, child: Text(_statusDe(e)))).toList(),
-          onChanged: widget.canEdit ? (v) async { await widget.api.updateTdQuery(query.id, {'status': v}); _load(); } : null,
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            SizedBox(width: 320, child: TextField(controller: ownerCtl, decoration: const InputDecoration(labelText: 'Verantwortlich'))),
-            SizedBox(width: 320, child: TextField(controller: dueCtl, decoration: const InputDecoration(labelText: 'Fälligkeitsdatum (ISO)'))),
+    final fieldControllers = <String, TextEditingController>{};
+    final selectedSingles = <String, String?>{};
+    for (final field in query.template.nodeTemplate.fields) {
+      final value = query.fieldResponses[field.key];
+      if (field.type == 'select_single') {
+        selectedSingles[field.key] = value?.toString();
+      } else {
+        final text = value is List ? value.join(', ') : (value ?? '').toString();
+        fieldControllers[field.key] = TextEditingController(text: text);
+      }
+    }
+
+    final isMandatoryByApplicability = query.applicability == null
+        ? query.template.mandatory
+        : (query.applicability!.state == 'MANDATORY' || (query.applicability!.state == 'CONDITIONAL' && query.applicability!.isConditionMet == true));
+    final canMarkComplete = !isMandatoryByApplicability || query.validation.canComplete;
+
+    Future<void> saveQuery() async {
+      final fieldResponses = <String, dynamic>{};
+      for (final field in query.template.nodeTemplate.fields) {
+        if (field.type == 'select_single') {
+          fieldResponses[field.key] = selectedSingles[field.key] ?? '';
+        } else {
+          final raw = fieldControllers[field.key]?.text.trim() ?? '';
+          if (field.type == 'select_multi') {
+            fieldResponses[field.key] = raw.isEmpty ? <String>[] : raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+          } else {
+            fieldResponses[field.key] = raw;
+          }
+        }
+      }
+      await widget.api.updateTdQuery(query.id, {
+        'fieldResponses': fieldResponses,
+        'answerMarkdown': (fieldResponses['justificationMd'] ?? fieldResponses['md_text_main'] ?? query.answerMarkdown).toString(),
+        'rationaleMarkdown': (fieldResponses['md_text_rationale'] ?? query.rationaleMarkdown).toString(),
+        'ownerUserId': ownerCtl.text.trim().isEmpty ? null : ownerCtl.text.trim(),
+        'dueAt': dueCtl.text.trim().isEmpty ? null : dueCtl.text.trim(),
+      });
+      _load();
+    }
+
+    return StatefulBuilder(builder: (context, setLocal) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_queryDescriptionDe(query.template)))),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: [if (query.applicability != null) _applicabilityChip(query.applicability!.state), ...query.template.tags.map((e) => Chip(label: Text(_tagDe(e))))]),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: query.status,
+            decoration: const InputDecoration(labelText: 'Status'),
+            items: const ['NotStarted','InProgress','Complete','Blocked','NotApplicable'].map((e)=>DropdownMenuItem(value:e, child: Text(_statusDe(e)))).toList(),
+            onChanged: widget.canEdit ? (v) async { await widget.api.updateTdQuery(query.id, {'status': v}); _load(); } : null,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              SizedBox(width: 320, child: TextField(controller: ownerCtl, decoration: const InputDecoration(labelText: 'Verantwortlich'))),
+              SizedBox(width: 320, child: TextField(controller: dueCtl, decoration: const InputDecoration(labelText: 'Fälligkeitsdatum (ISO)'))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...query.template.nodeTemplate.fields.map((field) {
+            if (field.type == 'select_single') {
+              final options = field.options.map((opt) {
+                if (opt is Map) {
+                  final m = opt.cast<String, dynamic>();
+                  return DropdownMenuItem<String>(value: (m['value'] ?? '').toString(), child: Text((m['label'] ?? '').toString()));
+                }
+                return DropdownMenuItem<String>(value: opt.toString(), child: Text(opt.toString()));
+              }).toList(growable: false);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: DropdownButtonFormField<String>(
+                  value: selectedSingles[field.key],
+                  decoration: InputDecoration(labelText: field.label),
+                  items: options,
+                  onChanged: widget.canEdit ? (v) => setLocal(() => selectedSingles[field.key] = v) : null,
+                ),
+              );
+            }
+            final ctl = fieldControllers[field.key]!;
+            final isLong = field.type == 'md_text' || field.type == 'generated_md';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextField(
+                controller: ctl,
+                minLines: isLong ? 3 : 1,
+                maxLines: isLong ? 8 : 1,
+                decoration: InputDecoration(
+                  labelText: field.label,
+                  hintText: field.type == 'select_multi' ? 'Mehrere Werte kommasepariert eingeben' : null,
+                ),
+              ),
+            );
+          }),
+          if (query.generatedMarkdown.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Card(child: Padding(padding: const EdgeInsets.all(12), child: Text('Auto-Vorschlag\n${query.generatedMarkdown}'))),
           ],
-        ),
-        const SizedBox(height: 8),
-        TextField(controller: answerCtl, minLines: 4, maxLines: 8, decoration: const InputDecoration(labelText: 'Bewertungsantwort (Markdown)')),
-        const SizedBox(height: 8),
-        TextField(controller: rationaleCtl, minLines: 2, maxLines: 6, decoration: const InputDecoration(labelText: 'Begründung')),
-        const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          ...query.links.map((l) => InputChip(label: Text('${_linkTypeDe(l.type)}: ${l.label}'), onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null)),
-          if (widget.canEdit)
-            FilledButton.icon(onPressed: () async {
-              await widget.api.createTdQueryLink(query.id, {'type': 'Document', 'label': _queryTitleDe(query.template), 'refId': query.template.templateKey});
-              _load();
-            }, icon: const Icon(Icons.add_link), label: const Text('Link hinzufügen')),
-        ]),
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.gspr), child: const Text('GSPR öffnen')),
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.fmea), child: const Text('FMEA öffnen')),
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.capaDashboard), child: const Text('CAPA öffnen')),
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.changeManagement), child: const Text('Änderungskontrolle öffnen')),
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.all), child: const Text('Reklamationen öffnen')),
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.approvedSuppliers), child: const Text('Lieferanten öffnen')),
-          OutlinedButton(onPressed: () => _openAdminView(AdminView.trainings), child: const Text('Schulungen öffnen')),
-        ]),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          FilledButton(
-            onPressed: widget.canEdit
-                ? () async {
-                    await widget.api.updateTdQuery(query.id, {
-                      'answerMarkdown': answerCtl.text,
-                      'rationaleMarkdown': rationaleCtl.text,
-                      'ownerUserId': ownerCtl.text.trim().isEmpty ? null : ownerCtl.text.trim(),
-                      'dueAt': dueCtl.text.trim().isEmpty ? null : dueCtl.text.trim(),
-                    });
-                    _load();
-                  }
-                : null,
-            child: const Text('Abfrage speichern'),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.tonal(
-            onPressed: (widget.canEdit && canMarkComplete) ? () async { await widget.api.updateTdQuery(query.id, {'status': 'Complete'}); _load(); } : null,
-            child: const Text('Als abgeschlossen markieren'),
-          ),
-          if (!canMarkComplete) const Chip(label: Text('Nachweis/Link fehlt')),
-        ]),
-      ],
-    );
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            ...query.links.map((l) => InputChip(label: Text('${_linkTypeDe(l.type)}: ${l.label}${l.metaJson['auto'] == true ? ' (auto)' : ''}'), onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null)),
+            if (widget.canEdit)
+              FilledButton.icon(onPressed: () async {
+                await widget.api.createTdQueryLink(query.id, {'type': 'Document', 'label': _queryTitleDe(query.template), 'refId': query.template.templateKey});
+                _load();
+              }, icon: const Icon(Icons.add_link), label: const Text('Link hinzufügen')),
+          ]),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.gspr), child: const Text('GSPR öffnen')),
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.fmea), child: const Text('FMEA öffnen')),
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.capaDashboard), child: const Text('CAPA öffnen')),
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.changeManagement), child: const Text('Änderungskontrolle öffnen')),
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.all), child: const Text('Reklamationen öffnen')),
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.approvedSuppliers), child: const Text('Lieferanten öffnen')),
+            OutlinedButton(onPressed: () => _openAdminView(AdminView.trainings), child: const Text('Schulungen öffnen')),
+          ]),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FilledButton(onPressed: widget.canEdit ? saveQuery : null, child: const Text('Abfrage speichern')),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: (widget.canEdit && canMarkComplete) ? () async { await widget.api.updateTdQuery(query.id, {'status': 'Complete'}); _load(); } : null,
+              child: const Text('Als abgeschlossen markieren'),
+            ),
+            if (!canMarkComplete) const Chip(label: Text('Nachweis/Link fehlt')),
+          ]),
+        ],
+      );
+    });
   }
+
 }
 
 class _TdFieldSpec {
