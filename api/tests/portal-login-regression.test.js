@@ -38,10 +38,14 @@ test('ensureInitialAdmins preserves legacy passwordHash for admin accounts', asy
 });
 
 
-function makeReq(body) {
+function makeReq(body, headers = {}) {
   return {
     method: 'POST',
-    headers: { origin: 'https://dfs-complaints-web.vercel.app', 'content-type': 'application/json' },
+    headers: {
+      origin: 'https://dfs-complaints-web.vercel.app',
+      'content-type': 'application/json',
+      ...headers,
+    },
     body,
     query: {},
   };
@@ -308,6 +312,44 @@ test('portal login does not return 500 when legacy key scan fails', async () => 
 });
 
 
+
+test('portal login 401 response omits debug reason by default', async () => {
+  const req = makeReq({ email: 'unknown.portal@dfs-diamon.de', password: 'Wrong#123' });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 401);
+  const payload = JSON.parse(res.__out.body || '{}');
+  assert.deepEqual(Object.keys(payload).sort(), ['code', 'message']);
+});
+
+test('portal login can include debug reason when auth debug key header matches', async () => {
+  const prevDebug = process.env.AUTH_DEBUG;
+  const prevKey = process.env.AUTH_DEBUG_KEY;
+  process.env.AUTH_DEBUG = 'true';
+  process.env.AUTH_DEBUG_KEY = 'debug-secret-key';
+
+  try {
+    const { default: loginHandlerWithDebug } = await import(`../portal/login.js?auth-debug=${Date.now()}`);
+    const req = makeReq(
+      { email: 'unknown.portal@dfs-diamon.de', password: 'Wrong#123' },
+      { 'x-auth-debug': 'debug-secret-key' },
+    );
+    const res = makeRes();
+
+    await loginHandlerWithDebug(req, res);
+
+    assert.equal(res.__out.statusCode, 401);
+    const payload = JSON.parse(res.__out.body || '{}');
+    assert.equal(payload.code, 'INVALID_CREDENTIALS');
+    assert.equal(payload.reason, 'USER_NOT_FOUND');
+  } finally {
+    if (prevDebug === undefined) delete process.env.AUTH_DEBUG;
+    else process.env.AUTH_DEBUG = prevDebug;
+    if (prevKey === undefined) delete process.env.AUTH_DEBUG_KEY;
+    else process.env.AUTH_DEBUG_KEY = prevKey;
+  }
+});
 test('portal login returns structured 401 for invalid credentials', async () => {
   const email = 'invalid.creds@dfs-diamon.de';
   const password = 'Correct#123';

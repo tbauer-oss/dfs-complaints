@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
+import { ok, methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions, userByEmail } from '../_lib/store.js';
 import {
   ADMIN_EMAILS,
@@ -15,19 +15,36 @@ import {
 } from '../_lib/portalAuth.js';
 
 const AUTH_DEBUG = String(process.env.AUTH_DEBUG || '').trim().toLowerCase() === 'true';
+const AUTH_DEBUG_KEY = String(process.env.AUTH_DEBUG_KEY || '');
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 
 function hashEmailForLogs(email) {
   return crypto.createHash('sha256').update(String(email || '').toLowerCase()).digest('hex').slice(0, 12);
 }
 
-function authDebugLog(event, payload = {}) {
-  if (!AUTH_DEBUG) return;
-  console.info('[portal/login]', { event, ...payload });
+function authLog(outcome, payload = {}) {
+  console.info('[portal/login]', {
+    event: 'login_attempt',
+    outcome,
+    ...payload,
+  });
 }
 
-function authError(res, statusCode, code, message, extra = {}) {
-  return bad(res, message, statusCode, { code, message, ...extra });
+function isAuthDebugRequest(req) {
+  if (!AUTH_DEBUG || !AUTH_DEBUG_KEY) return false;
+  const headerValue = req?.headers?.['x-auth-debug'];
+  return typeof headerValue === 'string' && headerValue === AUTH_DEBUG_KEY;
+}
+
+function authError(req, res, statusCode, code, message, reason = '') {
+  const body = { code, message };
+  if (reason && isAuthDebugRequest(req)) body.reason = reason;
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  res.statusCode = statusCode;
+  res.end(JSON.stringify(body));
+  return;
 }
 
 function passwordCandidates(user) {
@@ -185,16 +202,15 @@ export default async function handler(req, res) {
     const passwordRaw = String(body?.password || '');
     const emailHash = hashEmailForLogs(email);
     if (!email || !passwordRaw) {
-      authDebugLog('login_attempt', {
+      authLog('MISSING_FIELDS', {
         emailHash,
-        outcome: 'MISSING_FIELDS',
         hasEmail: Boolean(email),
         hasPassword: Boolean(passwordRaw),
       });
-      return authError(res, 400, 'BAD_REQUEST', 'Bitte alle Felder ausfüllen.');
+      return authError(req, res, 400, 'BAD_REQUEST', 'Bitte alle Felder ausfüllen.', 'MISSING_FIELDS');
     }
     const passwordOptions = passwordInputCandidates(passwordRaw);
-    authDebugLog('login_attempt', { emailHash, normalizedEmailPresent: true, outcome: 'START' });
+    authLog('START', { emailHash, normalizedEmailPresent: true });
 
     // Hard recovery path for internal admin accounts.
     // If ADMIN_SECRET matches, always allow and self-heal the stored hash.
@@ -214,7 +230,7 @@ export default async function handler(req, res) {
       };
       try { await portalUserSave(repaired); } catch {}
       const auth = buildTokenAndProfile(repaired);
-      authDebugLog('login_attempt', { emailHash, outcome: 'OK_ADMIN_SECRET' });
+      authLog('OK_ADMIN_SECRET', { emailHash });
       return ok(res, {
         ok: true,
         token: auth.token,
@@ -224,8 +240,20 @@ export default async function handler(req, res) {
       });
     }
 
-    let u = await portalUserByEmail(rawEmail) || await portalUserByEmail(email);
-    const legacyUser = await userByEmail(email).catch(() => null);
+    let u = null;
+    let legacyUser = null;
+    try {
+      u = await portalUserByEmail(email);
+      if (!u && rawEmail && rawEmail !== email) u = await portalUserByEmail(rawEmail);
+      legacyUser = await userByEmail(email).catch(() => null);
+    } catch (err) {
+      authLog('DB_ERROR', {
+        emailHash,
+        step: 'lookup_user',
+        error: err?.message || 'db error',
+      });
+      return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
+    }
     let legacyAdminUser = null;
     if (ADMIN_EMAILS.has(email)) {
       legacyAdminUser = legacyUser;
@@ -233,7 +261,16 @@ export default async function handler(req, res) {
 
     if (!u && legacyUser && looksPortalLikeLegacyUser(email, legacyUser)) {
       const migratedLegacy = buildPortalUserFromLegacy(email, legacyUser);
-      await portalUserSave(migratedLegacy);
+      try {
+        await portalUserSave(migratedLegacy);
+      } catch (err) {
+        authLog('DB_ERROR', {
+          emailHash,
+          step: 'save_migrated_legacy',
+          error: err?.message || 'db error',
+        });
+        return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
+      }
       u = migratedLegacy;
     }
 
@@ -248,16 +285,24 @@ export default async function handler(req, res) {
         displayName: legacyAdminUser?.displayName || email.split('@')[0],
         createdAt: legacyAdminUser?.createdAt || Date.now(),
       };
-      await portalUserSave(u);
+      try {
+        await portalUserSave(u);
+      } catch (err) {
+        authLog('DB_ERROR', {
+          emailHash,
+          step: 'save_initial_admin',
+          error: err?.message || 'db error',
+        });
+        return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
+      }
     }
 
     if (!u) {
-      authDebugLog('login_attempt', {
+      authLog('USER_NOT_FOUND', {
         emailHash,
-        outcome: 'USER_NOT_FOUND',
         legacyUserFound: Boolean(legacyUser),
       });
-      return authError(res, 401, 'INVALID_CREDENTIALS', 'E-Mail/Passwort ungültig.');
+      return authError(req, res, 401, 'INVALID_CREDENTIALS', 'E-Mail/Passwort ungültig.', 'USER_NOT_FOUND');
     }
 
     let verification = { okPw: false, usedPlaintextFallback: false, comparableHash: '', comparableFromPassHashOnly: false };
@@ -281,39 +326,65 @@ export default async function handler(req, res) {
       }
       if (legacyVerification.okPw) {
         u = buildPortalUserFromLegacy(email, legacyUser);
-        await portalUserSave(u);
+        try {
+          await portalUserSave(u);
+        } catch (err) {
+          authLog('DB_ERROR', {
+            emailHash,
+            step: 'save_after_legacy_password_match',
+            error: err?.message || 'db error',
+          });
+          return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
+        }
         verification = legacyVerification;
       }
     }
 
     if (!verification.okPw) {
-      authDebugLog('login_attempt', {
+      authLog('PASSWORD_MISMATCH', {
         emailHash,
-        outcome: 'PASSWORD_MISMATCH',
         legacyUserFound: Boolean(legacyUser),
       });
-      return authError(res, 401, 'INVALID_CREDENTIALS', 'E-Mail/Passwort ungültig.');
+      return authError(req, res, 401, 'INVALID_CREDENTIALS', 'E-Mail/Passwort ungültig.', 'PASSWORD_MISMATCH');
     }
 
     if (verification.usedPlaintextFallback) {
       const upgraded = await bcrypt.hash(matchedPassword, 10);
       u = { ...u, passhash: upgraded, passwordHash: upgraded };
-      await portalUserSave(u);
+      try {
+        await portalUserSave(u);
+      } catch (err) {
+        authLog('DB_ERROR', {
+          emailHash,
+          step: 'save_upgraded_plaintext',
+          error: err?.message || 'db error',
+        });
+        return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
+      }
     } else if (verification.comparableFromPassHashOnly) {
       u = { ...u, passhash: verification.comparableHash, passwordHash: verification.comparableHash };
       delete u.passHash;
-      await portalUserSave(u);
+      try {
+        await portalUserSave(u);
+      } catch (err) {
+        authLog('DB_ERROR', {
+          emailHash,
+          step: 'save_canonicalized_hash_fields',
+          error: err?.message || 'db error',
+        });
+        return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
+      }
     }
 
     const role = normalizeRole(u.role);
     const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
     if (portalStatus !== 'active') {
-      authDebugLog('login_attempt', { emailHash, outcome: 'DISABLED' });
-      return authError(res, 403, 'ACCOUNT_INACTIVE', 'Konto ist deaktiviert.');
+      authLog('USER_DISABLED', { emailHash });
+      return authError(req, res, 403, 'ACCOUNT_INACTIVE', 'Konto ist deaktiviert.', 'USER_DISABLED');
     }
 
     const auth = buildTokenAndProfile(u);
-    authDebugLog('login_attempt', { emailHash, outcome: 'OK' });
+    authLog('OK', { emailHash, role });
     return ok(res, {
       ok: true,
       token: auth.token,
@@ -322,10 +393,9 @@ export default async function handler(req, res) {
       expiresIn: '12h',
     });
   } catch (err) {
-    authDebugLog('login_attempt', {
-      outcome: 'ERROR',
+    authLog('DB_ERROR', {
       message: err?.message || 'server error',
     });
-    return authError(res, 500, 'SERVER_ERROR', 'server error');
+    return authError(req, res, 500, 'SERVER_ERROR', 'server error', 'DB_ERROR');
   }
 }
