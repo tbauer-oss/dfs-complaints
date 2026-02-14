@@ -1946,18 +1946,22 @@ export async function createPortalUser(u) {
 export async function upsertPortalUser(u) {
   const email = String(u?.email || '').trim();
   const emailNorm = email.toLowerCase();
-  const passwordHash = String(u?.passwordHash || u?.passhash || '').trim();
+  const passwordHashRaw = String(u?.passwordHash || u?.passhash || '').trim();
+  const passwordHash = passwordHashRaw || null;
   const role = String(u?.role || 'user').trim().toLowerCase() || 'user';
   const isActive = u?.portalStatus ? String(u.portalStatus).trim().toLowerCase() !== 'inactive' : u?.isActive !== false;
-  if (!emailNorm || !passwordHash) return null;
+  if (!emailNorm) return null;
 
   const result = await query(
     `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
-     VALUES ($1, $2, $3, $4, $5)
+     VALUES ($1, $2, NULLIF($3, ''), $4, $5)
      ON CONFLICT (email_norm)
      DO UPDATE SET
        email = EXCLUDED.email,
-       password_hash = EXCLUDED.password_hash,
+       password_hash = CASE
+         WHEN EXCLUDED.password_hash IS NOT NULL AND length(EXCLUDED.password_hash) > 0 THEN EXCLUDED.password_hash
+         ELSE portal_users.password_hash
+       END,
        role = EXCLUDED.role,
        is_active = EXCLUDED.is_active,
        updated_at = NOW()
