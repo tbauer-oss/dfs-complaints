@@ -83,14 +83,15 @@ function portalUserFromKeyValue(key, canonical) {
 
   const keyEmail = normalizeEmail(String(key).slice('dfs:portal:user:'.length));
   const email = normalizeEmail(value.email || value.mail || keyEmail);
-  const passwordHash = String(
+  const passwordHashRaw = String(
     value.password_hash || value.passwordHash || value.passhash || value.passHash || '',
   ).trim();
+  const passwordHash = passwordHashRaw || null;
   const role = String(value.role || 'user').trim().toLowerCase() || 'user';
   const portalStatus = String(value.portalStatus || value.status || '').toLowerCase();
   const isActive = portalStatus ? portalStatus !== 'inactive' : value.is_active !== false && value.isActive !== false;
 
-  if (!email || !passwordHash) return null;
+  if (!email) return null;
 
   return { email: value.email || email, email_norm: email, password_hash: passwordHash, role, is_active: isActive };
 }
@@ -181,10 +182,13 @@ async function main() {
         if (portalUser) {
           await client.query(
             `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
-             VALUES ($1, $2, $3, $4, $5)
+             VALUES ($1, $2, NULLIF($3, ''), $4, $5)
              ON CONFLICT (email_norm) DO UPDATE
              SET email = EXCLUDED.email,
-                 password_hash = EXCLUDED.password_hash,
+                 password_hash = CASE
+                   WHEN EXCLUDED.password_hash IS NOT NULL AND length(EXCLUDED.password_hash) > 0 THEN EXCLUDED.password_hash
+                   ELSE portal_users.password_hash
+                 END,
                  role = EXCLUDED.role,
                  is_active = EXCLUDED.is_active,
                  updated_at = NOW()`,

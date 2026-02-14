@@ -1,99 +1,81 @@
-# Upstash → Supabase Postgres KV migration runbook
+# Upstash → Supabase Postgres migration runbook
 
-## 1) Apply SQL migration (kv_store + triggers)
-Run this against your Supabase Postgres database:
+## 1) Required environment variables
 
+```bash
+export DATABASE_URL='postgresql://...'
+export UPSTASH_REDIS_REST_URL='https://<upstash-host>'
+export UPSTASH_REDIS_REST_TOKEN='<token>'
+```
+
+## 2) Apply DB migrations
+
+```bash
+npx prisma migrate deploy
+```
+
+This applies `kv_store`, `portal_users`, and the password-hash safety constraint (`password_hash IS NULL OR length(password_hash) >= 50`).
+
+## 3) Inventory Upstash keys
+
+```bash
+node scripts/list_upstash_keys.js
+```
+
+Scans `dfs:*` with Upstash REST `SCAN` and reports counts by prefix (`dfs:portal:user:`, `dfs:user:`, `dfs:reps:`, `dfs:wiki:`, `dfs:td:`, ...).
+
+## 4) Migrate Upstash KV → Supabase kv_store (pipeline)
+
+```bash
+node scripts/migrate_upstash_to_supabase_kv_pipeline.js
+```
+
+- Uses `SCAN` (`count=1000`) and Upstash `/pipeline` batches (`GET` batch size `100`).
+- Parses JSON strings where possible, otherwise keeps raw string values.
+- Writes to `kv_store` via `createKvRedisCompat` so existing upsert behavior is reused.
+
+## 5) Migrate portal users from KV → portal_users
+
+```bash
+node scripts/migrate_portal_users_from_kv.js
+```
+
+Notes:
+- Default source is Supabase `kv_store` keys `dfs:portal:user:*`.
+- Optional fallback source: `node scripts/migrate_portal_users_from_kv.js --source-upstash`.
+- Hash safety: empty hash values are converted to `NULL` and **never** overwrite a non-empty existing hash.
+- Role and active flags are migrated; roles can come from user objects and known role key patterns.
+- Script prints inserted/updated/skipped counts and missing-hash count.
+
+## 6) Verification SQL helpers
+
+### Users with missing hashes
 ```sql
-create table if not exists kv_store (
-  k text primary key,
-  v jsonb not null,
-  expires_at timestamptz null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists portal_users (
-  id bigserial primary key,
-  email text not null,
-  email_norm text not null unique,
-  password_hash text not null,
-  role text not null default 'user',
-  is_active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create or replace function set_updated_at()
-returns trigger language plpgsql as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_kv_store_updated_at on kv_store;
-create trigger trg_kv_store_updated_at
-before update on kv_store
-for each row execute function set_updated_at();
-
-drop trigger if exists trg_portal_users_updated_at on portal_users;
-create trigger trg_portal_users_updated_at
-before update on portal_users
-for each row execute function set_updated_at();
+select id, email, role, is_active, created_at, updated_at
+from portal_users
+where password_hash is null or length(trim(password_hash)) = 0
+order by updated_at desc;
 ```
 
-## 2) Configure environment variables
-Required runtime variables:
-
-- `DATABASE_URL` (Supabase **Transaction Pooler** endpoint recommended, usually port `6543`)
-- `JWT_SECRET`
-
-No `UPSTASH_*` variables are required by production runtime.
-
-## 3) Run full migration (Upstash → Supabase)
-The migration copies all `dfs:*` keys (string/set/hash/list/zset) with TTL and upserts portal users.
-
-```bash
-node scripts/migrate_upstash_to_supabase_full.js
+### Count portal keys in kv_store
+```sql
+select count(*) as portal_kv_keys
+from kv_store
+where k like 'dfs:portal:user:%'
+  and (expires_at is null or expires_at > now());
 ```
 
-Optional flags:
-
-- `--cursor=<cursor>` start from a cursor manually.
-- `--progress=<file>` use a custom resumable progress file.
-- `--count=<n>` tune SCAN batch size.
-
-The script writes progress to `scripts/.upstash-migration-progress.json` by default.
-
-## 4) Smoke tests
-
-### KV compatibility smoke test
-```bash
-node scripts/test_kv_store_basic.js
+### Compare migrated portal users count
+```sql
+select count(*) as portal_users_count from portal_users;
 ```
-Expected:
-- Prints `[test_kv_store_basic] ok`.
 
-### Portal login smoke test
+## 7) Smoke test portal login
+
 ```bash
 curl -i -X POST "https://<your-domain>/api/portal/login" \
   -H "content-type: application/json" \
   --data '{"email":"<existing-user-email>","password":"<existing-password>"}'
 ```
-Expected:
-- `HTTP/1.1 200` with JSON containing `token` and `user`.
-- Wrong password returns `401` with `{"code":"INVALID_CREDENTIALS",...}`.
 
-### KV-backed endpoint smoke test (representative store)
-```bash
-curl -i "https://<your-domain>/api/rep/customers" \
-  -H "authorization: Bearer <rep-jwt>"
-```
-Expected:
-- `HTTP/1.1 200` and JSON array response.
-
-## 5) Post-migration checklist
-- [ ] `/api` starts with only `DATABASE_URL` + `JWT_SECRET` (no Upstash env).
-- [ ] `node scripts/test_kv_store_basic.js` passes.
-- [ ] Existing portal users can log in with their historical passwords.
-- [ ] Representative/customer KV endpoints still return data.
+Expected: `HTTP 200` with token + user payload.
