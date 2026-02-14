@@ -49,13 +49,13 @@ function buildTokenAndProfile(u) {
   };
 }
 
-const BCRYPT_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+const BCRYPT_PATTERN = /^\$2[ab]\$\d{2}\$[./A-Za-z0-9]{53}$/;
 
 function normalizeBcryptHash(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
-  if (BCRYPT_PATTERN.test(raw)) return raw;
   if (/^\$2y\$\d{2}\$[./A-Za-z0-9]{53}$/.test(raw)) return `$2b$${raw.slice(4)}`;
+  if (BCRYPT_PATTERN.test(raw)) return raw;
   return '';
 }
 

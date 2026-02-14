@@ -181,6 +181,30 @@ test('portal login supports legacy passHash field for bcrypt hashes', async () =
   assert.ok(stored?.passhash);
   assert.equal(await bcrypt.compare(password, stored.passhash), true);
 });
+
+test('portal login accepts legacy $2y$ bcrypt prefixes and upgrades canonical hash fields', async () => {
+  const email = 'legacy.2y@dfs-diamon.de';
+  const password = 'Legacy2y#123';
+  const hash = await bcrypt.hash(password, 8);
+  const phpStyleHash = `$2y$${hash.slice(4)}`;
+
+  await portalUserSave({
+    email,
+    passHash: phpStyleHash,
+    role: 'superuser',
+    portalStatus: 'active',
+  });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const stored = await portalUserByEmail(email);
+  assert.ok(stored?.passhash);
+  assert.ok(String(stored.passhash).startsWith('$2b$'));
+  assert.equal(await bcrypt.compare(password, stored.passhash), true);
+});
 test('portal login supports legacy plaintext password field and upgrades hash', async () => {
   const email = 'legacy.plaintext@dfs-diamon.de';
   const password = 'Plaintext#123';
