@@ -1,27 +1,10 @@
 // api/_lib/repsStore.js
 export const config = { runtime: 'nodejs' };
 
-import { Redis } from '@upstash/redis';
-
-// ---- Upstash / Redis – ENV akzeptieren mehrere Varianten ----
-const redisUrl =
-  process.env.REDIS_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  '';
-const redisToken =
-  process.env.REDIS_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  '';
+import { redis as sharedRedis } from './redis.js';
 
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
-
-if (!redisUrl || !redisToken) {
-  console.warn('[repsStore] Redis not configured (set REDIS_URL/REDIS_TOKEN or UPSTASH_* envs).');
-}
-
-const redis = (redisUrl && redisToken)
-  ? new Redis({ url: redisUrl, token: redisToken })
-  : null;
+const redis = sharedRedis;
 
 // ---- Keys / Indizes ----
 const PFX     = 'dfs:';                               // Projekt-Prefix
@@ -46,9 +29,7 @@ const normalizeLang = (value, fallback = '') => {
 };
 
 async function requireRedis() {
-  if (!redis) {
-    throw new Error('redis not configured (REDIS_URL/REDIS_TOKEN or UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)');
-  }
+  if (!redis) throw new Error('store unavailable');
 }
 
 async function redisWithTimeout(promise, label = 'redis op') {

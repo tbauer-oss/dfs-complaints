@@ -2,32 +2,20 @@
 export const config = { runtime: 'nodejs' };
 
 import { setCors } from '../_lib/cors.js';
+import { redis } from '../_lib/redis.js';
 import { readJson } from '../_lib/http.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { userByEmail, userSave } from '../_lib/store.js';
 import { repCustomers as storeRepCustomers } from '../_lib/repsStore.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-const UP_URL = process.env.UPSTASH_REDIS_REST_URL || '';
-const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const KEY_REP_OF = (email) => `dfs:repOf:${email}`;
 const MAX_NOTE = 2000;
 
 const S = (v) => (v ?? '').toString().trim();
 
 async function upstashGet(key) {
-  if (!UP_URL || !UP_TOKEN) return null;
-  const r = await fetch(`${UP_URL}/get/${encodeURIComponent(key)}`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${UP_TOKEN}` },
-    cache: 'no-store',
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = j?.error || j?.message || `Upstash error ${r.status}`;
-    throw new Error(msg);
-  }
-  return j?.result ?? null;
+  return await redis.get(key);
 }
 
 async function repOwnsCustomer(repId, email) {

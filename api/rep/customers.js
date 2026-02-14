@@ -10,53 +10,26 @@ import { userSave, userByEmail } from '../_lib/store.js';
 import { generateStrongPassword, isStrongPassword } from '../_lib/passwords.js';
 import { send, tpl } from '../_lib/mail.js';
 import { isRepEmail } from '../_lib/repEmailGuard.js';
+import { redis } from '../_lib/redis.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 function S(v) { return (v ?? '').toString().trim(); }
 
-// ------- Minimaler Upstash-Client (REST) -------
-// nutzt ausschließlich Set-Befehle + kleine Helfer
-const UP_URL   = process.env.UPSTASH_REDIS_REST_URL  || '';
-const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
-
-async function upReq(path, { method = 'POST' } = {}) {
-  if (!UP_URL || !UP_TOKEN) throw new Error('UPSTASH env missing');
-  const r = await fetch(`${UP_URL}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${UP_TOKEN}` },
-    cache: 'no-store',
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = j?.error || j?.message || `Upstash error ${r.status}`;
-    throw new Error(msg);
-  }
-  return j?.result;
-}
-
-// Set-Helfer (SADD/SREM/SMEMBERS) – Members werden URL-encoded
+// ------- KV helpers -------
 async function kvSAdd(key, ...members) {
-  const m = members.filter(Boolean);
-  if (!m.length) return 0;
-  const seg = m.map(encodeURIComponent).join('/');
-  return await upReq(`/sadd/${encodeURIComponent(key)}/${seg}`);
+  return redis.sadd(key, ...members);
 }
 async function kvSRem(key, ...members) {
-  const m = members.filter(Boolean);
-  if (!m.length) return 0;
-  const seg = m.map(encodeURIComponent).join('/');
-  return await upReq(`/srem/${encodeURIComponent(key)}/${seg}`);
+  return redis.srem(key, ...members);
 }
 async function kvSMembers(key) {
-  const res = await upReq(`/smembers/${encodeURIComponent(key)}`);
+  const res = await redis.smembers(key);
   return Array.isArray(res) ? res.map(S) : [];
 }
-
-// klassische GET/SET/DEL nur für Migration des Legacy-Keys
-async function kvGet(key) { return await upReq(`/get/${encodeURIComponent(key)}`, { method: 'GET' }); }
-async function kvSet(key, value) { return await upReq(`/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}`); }
-async function kvDel(key) { return await upReq(`/del/${encodeURIComponent(key)}`); }
+async function kvGet(key) { return await redis.get(key); }
+async function kvSet(key, value) { return await redis.set(key, value); }
+async function kvDel(key) { return await redis.del(key); }
 
 // Key-Schema
 const KEY_SET   = (repId) => `dfs:rep:${repId}:customers`;     // ✅ korrektes Ziel (Set)

@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   const { client, counters } = createTrackedRedis(redis);
   const rdb = createRedisAdapter(client);
   const isDev = process.env.NODE_ENV !== 'production';
-  const hasRedisEnv = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  const hasRedisEnv = Boolean(process.env.DATABASE_URL);
 
   try {
     try {

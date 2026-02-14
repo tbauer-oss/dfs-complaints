@@ -1,6 +1,3 @@
-// /_lib/redis.js
-import { Redis } from '@upstash/redis';
-export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+import { createKvRedisCompat } from './kvStore.js';
+
+export const redis = createKvRedisCompat();

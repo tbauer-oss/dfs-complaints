@@ -3,26 +3,8 @@ export const config = { runtime: 'nodejs' };
 
 import jwt from 'jsonwebtoken';
 import { setCors } from '../_lib/cors.js';
+import { redis } from '../_lib/redis.js';
 import { loadRepById } from '../_lib/repsStore.js';
-
-// --- Minimaler Upstash-GET (wie in rep/customers.js) ---
-const UP_URL   = process.env.UPSTASH_REDIS_REST_URL  || '';
-const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
-
-async function upReq(path, { method = 'GET' } = {}) {
-  if (!UP_URL || !UP_TOKEN) throw new Error('UPSTASH env missing');
-  const r = await fetch(`${UP_URL}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${UP_TOKEN}` },
-    cache: 'no-store',
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = j?.error || j?.message || `Upstash error ${r.status}`;
-    throw new Error(msg);
-  }
-  return j?.result;
-}
 
 const KEY_REP_OF = (email) => `dfs:repOf:${email}`;
 
@@ -62,7 +44,7 @@ export default async function handler(req, res) {
     if (!email) return res.status(401).end(JSON.stringify({ error: 'no email in token' }));
 
     // 2) Mapping Kunde -> Rep (dfs:repOf:<email> → z.B. "rep_2")
-    const repId = await upReq(`/get/${encodeURIComponent(KEY_REP_OF(email))}`);
+    const repId = await redis.get(KEY_REP_OF(email));
     if (!repId) return res.status(204).end(); // keine Zuordnung
 
     // 3) Rep-Stammdaten laden

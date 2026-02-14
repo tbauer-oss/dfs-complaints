@@ -1,7 +1,6 @@
+import { redis } from './redis.js';
 // api/_lib/appMeta.js – zentrale App-Metadaten (Version, Testmodus)
 const APP_META_KEY = process.env.APP_META_KEY || 'dfs:app:meta';
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || '';
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const BLOB_TOKEN = (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_TOKEN || '').trim();
 const BLOB_BASE_URL = (process.env.BLOB_BASE_URL || 'https://blob.vercel-storage.com').replace(/\/+$/, '');
 const BLOB_APP_META_PATH = (process.env.APP_META_BLOB_PATH || 'meta/app-meta.json').replace(/^\/+/, '');
@@ -88,30 +87,12 @@ export function sanitizeAppMeta(input = {}) {
 }
 
 async function upstashGet() {
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
-  const res = await fetch(`${UPSTASH_URL}/get/${encodeURIComponent(APP_META_KEY)}`, {
-    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) return null;
-  const json = await res.json();
-  if (json && typeof json.result === 'string' && json.result) {
-    try { return JSON.parse(json.result); } catch (_) {}
-  }
-  return null;
+  return redis.get(APP_META_KEY);
 }
 
 async function upstashSet(meta) {
-  if (!UPSTASH_URL || !UPSTASH_TOKEN) return false;
-  const body = JSON.stringify(meta);
-  const res = await fetch(
-    `${UPSTASH_URL}/set/${encodeURIComponent(APP_META_KEY)}/${encodeURIComponent(body)}`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
-    },
-  );
-  return res.ok;
+  await redis.set(APP_META_KEY, meta);
+  return true;
 }
 
 async function blobGet() {
@@ -149,9 +130,7 @@ export async function loadAppMeta({ refresh = false } = {}) {
 
   let meta = null;
 
-  if (UPSTASH_URL && UPSTASH_TOKEN) {
-    meta = await upstashGet();
-  }
+  meta = await upstashGet();
 
   if (!meta && BLOB_TOKEN) {
     meta = await blobGet();
@@ -170,13 +149,11 @@ export async function loadAppMeta({ refresh = false } = {}) {
 
 export async function persistAppMeta(meta) {
   const sanitized = sanitizeAppMeta(meta);
-  if (UPSTASH_URL && UPSTASH_TOKEN) {
-    const ok = await upstashSet(sanitized);
-    if (ok) {
-      _cachedMeta = sanitized;
-      _cachedAt = Date.now();
-      return true;
-    }
+  const ok = await upstashSet(sanitized);
+  if (ok) {
+    _cachedMeta = sanitized;
+    _cachedAt = Date.now();
+    return true;
   }
 
   if (BLOB_TOKEN) {
