@@ -17,7 +17,7 @@ import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems }
 import { query } from './db.js';
 
 /* =========================================================
-   KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
+   KV / Redis – Supabase Postgres KV compat
    ========================================================= */
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
 const AUDIT_REDIS_DEBUG_LOG_ENABLED =
@@ -1697,7 +1697,7 @@ export async function kvStatus() {
   if (!r) {
     return {
       ok: true, useRedis: false,
-      reason: 'missing Upstash/Vercel KV ENV',
+      reason: 'kv backend unavailable',
       needed: ['DATABASE_URL'],
     };
   }

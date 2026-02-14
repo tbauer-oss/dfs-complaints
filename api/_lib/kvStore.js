@@ -16,10 +16,31 @@ function asArray(args) {
 }
 
 function globToLike(pattern = '*') {
-  return String(pattern || '*').replace(/\*/g, '%');
+  return String(pattern || '*')
+    .replace(/[\\%_]/g, (m) => `\\${m}`)
+    .replace(/\*/g, '%');
 }
 
-async function readValue(key) {
+function canonicalize(type, value) {
+  if (type === 'string') return { __type: 'string', value: value ?? null };
+  if (type === 'set') return { __type: 'set', members: Array.isArray(value) ? value : [] };
+  if (type === 'hash') return { __type: 'hash', value: value && typeof value === 'object' ? value : {} };
+  if (type === 'list') return { __type: 'list', items: Array.isArray(value) ? value : [] };
+  if (type === 'zset') return { __type: 'zset', items: Array.isArray(value) ? value : [] };
+  return { __type: 'string', value: value ?? null };
+}
+
+function decodeStored(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw ?? null;
+  if (raw.__type === 'string') return raw.value ?? null;
+  if (raw.__type === 'set') return Array.isArray(raw.members) ? raw.members : (Array.isArray(raw.value) ? raw.value : []);
+  if (raw.__type === 'hash') return raw.value && typeof raw.value === 'object' ? raw.value : {};
+  if (raw.__type === 'list') return Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.value) ? raw.value : []);
+  if (raw.__type === 'zset') return Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.value) ? raw.value : []);
+  return raw;
+}
+
+async function readRaw(key) {
   const { rows } = await query(
     `SELECT v, expires_at FROM ${TABLE} WHERE k = $1 AND (expires_at IS NULL OR expires_at > NOW())`,
     [key],
@@ -27,7 +48,11 @@ async function readValue(key) {
   return rows[0]?.v ?? null;
 }
 
-async function writeValue(key, value, exSeconds = null) {
+async function readValue(key) {
+  return decodeStored(await readRaw(key));
+}
+
+async function writeRaw(key, rawValue, exSeconds = null) {
   await query(
     `INSERT INTO ${TABLE} (k, v, expires_at)
      VALUES ($1, $2::jsonb, CASE WHEN $3::int IS NULL THEN NULL ELSE NOW() + ($3::text || ' seconds')::interval END)
@@ -35,18 +60,38 @@ async function writeValue(key, value, exSeconds = null) {
        SET v = EXCLUDED.v,
            expires_at = EXCLUDED.expires_at,
            updated_at = NOW()`,
-    [key, JSON.stringify(value ?? null), exSeconds],
+    [key, JSON.stringify(rawValue ?? null), exSeconds],
   );
 }
 
-async function readContainer(key, expectedType, fallback) {
-  const value = await readValue(key);
-  if (!value || typeof value !== 'object' || value.__type !== expectedType) return fallback;
-  return value.value;
+async function readTyped(key, expectedType, fallback) {
+  const raw = await readRaw(key);
+  if (!raw || typeof raw !== 'object' || raw.__type !== expectedType) return fallback;
+  if (expectedType === 'set') return Array.isArray(raw.members) ? raw.members : (Array.isArray(raw.value) ? raw.value : []);
+  if (expectedType === 'hash') return raw.value && typeof raw.value === 'object' ? raw.value : {};
+  if (expectedType === 'list') return Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.value) ? raw.value : []);
+  if (expectedType === 'zset') return Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.value) ? raw.value : []);
+  return fallback;
 }
 
-async function writeContainer(key, type, value) {
-  await writeValue(key, { __type: type, value });
+async function writeTyped(key, type, value, exSeconds = null) {
+  await writeRaw(key, canonicalize(type, value), exSeconds);
+}
+
+function normalizeRange(length, start, stop) {
+  let from = Number(start);
+  let to = Number(stop);
+  if (Number.isNaN(from)) from = 0;
+  if (Number.isNaN(to)) to = length - 1;
+
+  if (from < 0) from = length + from;
+  if (to < 0) to = length + to;
+
+  from = Math.max(from, 0);
+  to = Math.min(to, length - 1);
+
+  if (to < from || length <= 0) return [0, -1];
+  return [from, to];
 }
 
 export function createKvRedisCompat() {
@@ -59,7 +104,7 @@ export function createKvRedisCompat() {
 
     async set(key, value, options = {}) {
       try {
-        await writeValue(key, value, options?.ex ?? null);
+        await writeTyped(key, 'string', value, options?.ex ?? null);
         return 'OK';
       } catch (e) { throw toStoreError(e); }
     },
@@ -82,8 +127,8 @@ export function createKvRedisCompat() {
            WHERE k = ANY($1::text[]) AND (expires_at IS NULL OR expires_at > NOW())`,
           [list],
         );
-        const map = new Map(rows.map((r) => [r.k, r.v]));
-        return list.map((k) => map.has(k) ? map.get(k) : null);
+        const map = new Map(rows.map((r) => [r.k, decodeStored(r.v)]));
+        return list.map((k) => (map.has(k) ? map.get(k) : null));
       } catch (e) { throw toStoreError(e); }
     },
 
@@ -91,7 +136,7 @@ export function createKvRedisCompat() {
       try {
         const like = globToLike(pattern);
         const { rows } = await query(
-          `SELECT k FROM ${TABLE} WHERE k LIKE $1 AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY k`,
+          `SELECT k FROM ${TABLE} WHERE k LIKE $1 ESCAPE '\\' AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY k`,
           [like],
         );
         return rows.map((r) => r.k);
@@ -100,19 +145,20 @@ export function createKvRedisCompat() {
 
     async scan(cursor = '0', { match = '*', count = 100 } = {}) {
       try {
+        const limit = Math.max(1, Number(count) || 100);
         const like = globToLike(match);
         const start = cursor === '0' ? '' : String(cursor);
         const { rows } = await query(
           `SELECT k FROM ${TABLE}
-            WHERE k LIKE $1
+            WHERE k LIKE $1 ESCAPE '\\'
               AND (expires_at IS NULL OR expires_at > NOW())
               AND ($2 = '' OR k > $2)
             ORDER BY k
             LIMIT $3`,
-          [like, start, Number(count) || 100],
+          [like, start, limit],
         );
         const keys = rows.map((r) => r.k);
-        const next = keys.length < (Number(count) || 100) ? '0' : keys[keys.length - 1];
+        const next = keys.length < limit ? '0' : keys[keys.length - 1];
         return [next, keys];
       } catch (e) { throw toStoreError(e); }
     },
@@ -122,15 +168,16 @@ export function createKvRedisCompat() {
       try {
         client = await getDbClient();
         await client.query('BEGIN');
-        const current = await client.query(`SELECT v FROM ${TABLE} WHERE k = $1 FOR UPDATE`, [key]);
-        const existing = current.rows[0]?.v;
-        const num = typeof existing === 'number' ? existing : Number(existing || 0) || 0;
-        const next = num + 1;
+        const current = await client.query(
+          `SELECT v FROM ${TABLE} WHERE k = $1 AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
+          [key],
+        );
+        const next = (Number(decodeStored(current.rows[0]?.v) || 0) || 0) + 1;
         await client.query(
           `INSERT INTO ${TABLE} (k, v, expires_at)
            VALUES ($1, $2::jsonb, NULL)
-           ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v, updated_at = NOW()`,
-          [key, JSON.stringify(next)],
+           ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v, expires_at = NULL, updated_at = NOW()`,
+          [key, JSON.stringify(canonicalize('string', next))],
         );
         await client.query('COMMIT');
         return next;
@@ -144,9 +191,12 @@ export function createKvRedisCompat() {
 
     async expire(key, seconds) {
       try {
+        const sec = Math.max(0, Number(seconds) || 0);
         const res = await query(
-          `UPDATE ${TABLE} SET expires_at = NOW() + ($2::text || ' seconds')::interval, updated_at = NOW() WHERE k = $1`,
-          [key, Number(seconds) || 0],
+          `UPDATE ${TABLE}
+           SET expires_at = NOW() + ($2::text || ' seconds')::interval, updated_at = NOW()
+           WHERE k = $1 AND (expires_at IS NULL OR expires_at > NOW())`,
+          [key, sec],
         );
         return res.rowCount ? 1 : 0;
       } catch (e) { throw toStoreError(e); }
@@ -162,36 +212,45 @@ export function createKvRedisCompat() {
       } catch (e) { throw toStoreError(e); }
     },
 
-    async exists(key) {
-      return (await this.get(key)) === null ? 0 : 1;
+    async exists(...keys) {
+      try {
+        const list = asArray(keys).filter(Boolean);
+        if (!list.length) return 0;
+        const { rows } = await query(
+          `SELECT COUNT(*)::int AS cnt FROM ${TABLE}
+           WHERE k = ANY($1::text[]) AND (expires_at IS NULL OR expires_at > NOW())`,
+          [list],
+        );
+        return rows[0]?.cnt || 0;
+      } catch (e) { throw toStoreError(e); }
     },
 
     async sadd(key, ...members) {
       const list = asArray(members).map(String);
       try {
-        const set = new Set((await readContainer(key, 'set', [])) || []);
+        const set = new Set((await readTyped(key, 'set', [])) || []);
         let added = 0;
         for (const member of list) {
           if (!set.has(member)) { set.add(member); added += 1; }
         }
-        await writeContainer(key, 'set', Array.from(set));
+        await writeTyped(key, 'set', Array.from(set));
         return added;
       } catch (e) { throw toStoreError(e); }
     },
 
     async smembers(key) {
-      try { return (await readContainer(key, 'set', [])) || []; } catch (e) { throw toStoreError(e); }
+      try { return (await readTyped(key, 'set', [])) || []; } catch (e) { throw toStoreError(e); }
     },
 
     async srem(key, ...members) {
       const list = asArray(members).map(String);
       try {
-        const set = new Set((await readContainer(key, 'set', [])) || []);
+        const set = new Set((await readTyped(key, 'set', [])) || []);
         let removed = 0;
         for (const member of list) {
           if (set.delete(member)) removed += 1;
         }
-        await writeContainer(key, 'set', Array.from(set));
+        await writeTyped(key, 'set', Array.from(set));
         return removed;
       } catch (e) { throw toStoreError(e); }
     },
@@ -203,13 +262,13 @@ export function createKvRedisCompat() {
 
     async hset(key, objOrPairs) {
       try {
-        const current = (await readContainer(key, 'hash', {})) || {};
+        const current = { ...((await readTyped(key, 'hash', {})) || {}) };
         if (Array.isArray(objOrPairs)) {
           for (const [field, value] of objOrPairs) current[field] = value;
         } else {
           Object.assign(current, objOrPairs || {});
         }
-        await writeContainer(key, 'hash', current);
+        await writeTyped(key, 'hash', current);
         return 1;
       } catch (e) { throw toStoreError(e); }
     },
@@ -220,12 +279,12 @@ export function createKvRedisCompat() {
     },
 
     async hgetall(key) {
-      try { return (await readContainer(key, 'hash', {})) || {}; } catch (e) { throw toStoreError(e); }
+      try { return (await readTyped(key, 'hash', {})) || {}; } catch (e) { throw toStoreError(e); }
     },
 
     async hdel(key, ...fields) {
       try {
-        const hash = (await readContainer(key, 'hash', {})) || {};
+        const hash = { ...((await readTyped(key, 'hash', {})) || {}) };
         let removed = 0;
         for (const field of fields) {
           if (Object.prototype.hasOwnProperty.call(hash, field)) {
@@ -233,60 +292,62 @@ export function createKvRedisCompat() {
             removed += 1;
           }
         }
-        await writeContainer(key, 'hash', hash);
+        await writeTyped(key, 'hash', hash);
         return removed;
       } catch (e) { throw toStoreError(e); }
     },
 
     async rpush(key, ...values) {
       try {
-        const list = (await readContainer(key, 'list', [])) || [];
+        const list = (await readTyped(key, 'list', [])) || [];
         list.push(...values);
-        await writeContainer(key, 'list', list);
+        await writeTyped(key, 'list', list);
         return list.length;
       } catch (e) { throw toStoreError(e); }
     },
 
     async lrange(key, start, stop) {
       try {
-        const list = (await readContainer(key, 'list', [])) || [];
-        const from = Number(start) < 0 ? Math.max(list.length + Number(start), 0) : Number(start);
-        const toIdx = Number(stop) < 0 ? list.length + Number(stop) : Number(stop);
-        return list.slice(from, toIdx + 1);
+        const list = (await readTyped(key, 'list', [])) || [];
+        const [from, to] = normalizeRange(list.length, start, stop);
+        if (to < from) return [];
+        return list.slice(from, to + 1);
       } catch (e) { throw toStoreError(e); }
     },
 
     async zadd(key, ...entries) {
       try {
-        const zset = (await readContainer(key, 'zset', [])) || [];
+        const zset = (await readTyped(key, 'zset', [])) || [];
         const normalized = Array.isArray(entries[0]) ? entries[0] : entries;
         const map = new Map(zset.map((it) => [String(it.member), Number(it.score)]));
         for (const e of normalized) {
           map.set(String(e.member), Number(e.score));
         }
         const next = Array.from(map.entries()).map(([member, score]) => ({ member, score }));
-        await writeContainer(key, 'zset', next);
+        await writeTyped(key, 'zset', next);
         return normalized.length;
       } catch (e) { throw toStoreError(e); }
     },
 
     async zrem(key, ...members) {
       try {
-        const zset = (await readContainer(key, 'zset', [])) || [];
+        const zset = (await readTyped(key, 'zset', [])) || [];
         const set = new Set(asArray(members).map(String));
         const next = zset.filter((e) => !set.has(String(e.member)));
-        await writeContainer(key, 'zset', next);
+        await writeTyped(key, 'zset', next);
         return zset.length - next.length;
       } catch (e) { throw toStoreError(e); }
     },
 
     async zcard(key) {
-      const z = (await readContainer(key, 'zset', [])) || [];
-      return z.length;
+      try {
+        const z = (await readTyped(key, 'zset', [])) || [];
+        return z.length;
+      } catch (e) { throw toStoreError(e); }
     },
 
     async zrange(key, start, stop, options = {}) {
-      const z = ((await readContainer(key, 'zset', [])) || []).slice().sort((a, b) => a.score - b.score);
+      const z = ((await readTyped(key, 'zset', [])) || []).slice().sort((a, b) => a.score - b.score);
       const arr = options.rev ? z.reverse() : z;
       if (options.byScore) {
         const min = Number(start);
@@ -299,9 +360,9 @@ export function createKvRedisCompat() {
         }
         return options.withScores ? filtered : filtered.map((e) => e.member);
       }
-      const from = Number(start);
-      const to = Number(stop);
-      const slice = arr.slice(from, to === -1 ? undefined : to + 1);
+      const [from, to] = normalizeRange(arr.length, start, stop);
+      if (to < from) return [];
+      const slice = arr.slice(from, to + 1);
       return options.withScores ? slice : slice.map((e) => e.member);
     },
 

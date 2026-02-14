@@ -8,17 +8,27 @@ import { normalizeRole, normalizeStatus } from '../_lib/portalAuth.js';
 
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
+const AUTH_DEBUG = String(process.env.AUTH_DEBUG || '').toLowerCase() === 'true';
+const AUTH_DEBUG_KEY = String(process.env.AUTH_DEBUG_KEY || '').trim();
 
 function logOutcome(outcome) {
   console.info('[portal/login]', { outcome });
 }
 
-function respond(res, statusCode, payload) {
+function shouldIncludeReason(req) {
+  if (!AUTH_DEBUG) return false;
+  if (!AUTH_DEBUG_KEY) return true;
+  return String(req.headers?.['x-auth-debug'] || '').trim() === AUTH_DEBUG_KEY;
+}
+
+function respond(req, res, statusCode, payload, outcome = null) {
   if (!res.getHeader('Content-Type')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
+  const body = { ...payload };
+  if (outcome && shouldIncludeReason(req)) body.reason = outcome;
   res.statusCode = statusCode;
-  res.end(JSON.stringify(payload));
+  res.end(JSON.stringify(body));
 }
 
 export default async function handler(req, res) {
@@ -29,45 +39,52 @@ export default async function handler(req, res) {
   try {
     body = await readJson(req);
   } catch {
-    logOutcome('DB_ERROR');
-    return respond(res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' });
+    logOutcome('BAD_REQUEST');
+    return respond(req, res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' }, 'BAD_REQUEST');
   }
 
   const email = String(body?.email || '').trim().toLowerCase();
   const password = String(body?.password || '');
   if (!email || !password) {
-    logOutcome('PASSWORD_MISMATCH');
-    return respond(res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' });
+    logOutcome('BAD_REQUEST');
+    return respond(req, res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' }, 'BAD_REQUEST');
   }
 
   let user;
   try {
     user = await portalUserByEmail(email);
-  } catch (err) {
-    logOutcome('DB_ERROR');
-    return respond(res, 503, {
-      code: 'STORE_UNAVAILABLE',
-      message: 'Service temporär nicht verfügbar. Bitte später erneut versuchen.',
-    });
+  } catch {
+    const outcome = 'STORE_UNAVAILABLE';
+    logOutcome(outcome);
+    return respond(
+      req,
+      res,
+      503,
+      { code: outcome, message: 'Service temporär nicht verfügbar. Bitte später erneut versuchen.' },
+      outcome,
+    );
   }
 
   if (!user) {
-    logOutcome('USER_NOT_FOUND');
-    return respond(res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' });
+    const outcome = 'USER_NOT_FOUND';
+    logOutcome(outcome);
+    return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
   }
 
   const passwordHash = String(user.passhash || user.passwordHash || '').trim();
   const passwordOk = passwordHash ? await bcrypt.compare(password, passwordHash).catch(() => false) : false;
   if (!passwordOk) {
-    logOutcome('PASSWORD_MISMATCH');
-    return respond(res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' });
+    const outcome = 'PASSWORD_MISMATCH';
+    logOutcome(outcome);
+    return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
   }
 
   const role = normalizeRole(user.role);
   const portalStatus = normalizeStatus(user.portalStatus, user.revoked);
   if (portalStatus !== 'active') {
-    logOutcome('PASSWORD_MISMATCH');
-    return respond(res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' });
+    const outcome = 'USER_INACTIVE';
+    logOutcome(outcome);
+    return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
   }
 
   const token = jwt.sign(
@@ -77,7 +94,7 @@ export default async function handler(req, res) {
   );
 
   logOutcome('OK');
-  return respond(res, 200, {
+  return respond(req, res, 200, {
     token,
     user: { id: user.id, email: user.email, role },
     profile: { id: user.id, email: user.email, role, portalStatus },
