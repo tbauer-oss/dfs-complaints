@@ -2,10 +2,21 @@ export const config = { runtime: 'nodejs' };
 
 import { setCors } from '../_lib/cors.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
-import { redisScanAll, redisGet, redisMGet } from '../_lib/upstash.js';
+import { redis } from '../_lib/redis.js';
 
 function S(v) { return (v ?? '').toString().trim(); }
 const EMAIL_FROM_USER_KEY = (k) => k.slice('dfs:user:'.length); // "dfs:user:<email>"
+
+async function scanAll(match, count = 1000) {
+  let cursor = '0';
+  const out = [];
+  do {
+    const [next, keys] = await redis.scan(cursor, { match, count });
+    out.push(...(keys || []));
+    cursor = next;
+  } while (cursor !== '0');
+  return out;
+}
 
 export default async function handler(req, res) {
   // --- CORS immer zuerst ---
@@ -29,7 +40,7 @@ export default async function handler(req, res) {
 
   try {
     // 1) Alle Kundenkeys holen
-    const userKeys = await redisScanAll('dfs:user:*', 1000); // -> ["dfs:user:a@b.de", ...]
+    const userKeys = await scanAll('dfs:user:*', 1000); // -> ["dfs:user:a@b.de", ...]
     if (!Array.isArray(userKeys) || userKeys.length === 0) {
       return res.status(200).end(JSON.stringify([]));
     }
@@ -40,8 +51,8 @@ export default async function handler(req, res) {
     const repOfNoColonKeys = emails.map(e => `dfs:repOf${e.toLowerCase()}`);
 
     const [repOfColonVals, repOfNoColonVals] = await Promise.all([
-      redisMGet(repOfColonKeys),      // gleiche Reihenfolge
-      redisMGet(repOfNoColonKeys),
+      redis.mget(repOfColonKeys),      // gleiche Reihenfolge
+      redis.mget(repOfNoColonKeys),
     ]);
 
     // 3) Zusammenbauen & filtern
@@ -73,7 +84,7 @@ export default async function handler(req, res) {
       // 5) Wenn zugewiesen → reps:<id> anreichern
       if (isAssigned) {
         item.assignedTo = repOf;
-        const repJson = await redisGet(`dfs:reps:${repOf}`);
+        const repJson = await redis.get(`dfs:reps:${repOf}`);
         if (repJson) {
           try {
             const repObj = typeof repJson === 'string' ? JSON.parse(repJson) : repJson;
@@ -86,7 +97,7 @@ export default async function handler(req, res) {
       }
 
       // 6) Kunden-Details (Name/Firma) für hübsches Label
-      const userJson = await redisGet(`dfs:user:${email}`);
+      const userJson = await redis.get(`dfs:user:${email}`);
       if (userJson) {
         try {
           const u = typeof userJson === 'string' ? JSON.parse(userJson) : userJson;

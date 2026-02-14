@@ -86,11 +86,11 @@ export function sanitizeAppMeta(input = {}) {
   };
 }
 
-async function upstashGet() {
+async function kvGet() {
   return redis.get(APP_META_KEY);
 }
 
-async function upstashSet(meta) {
+async function kvSet(meta) {
   await redis.set(APP_META_KEY, meta);
   return true;
 }
@@ -130,7 +130,7 @@ export async function loadAppMeta({ refresh = false } = {}) {
 
   let meta = null;
 
-  meta = await upstashGet();
+  meta = await kvGet();
 
   if (!meta && BLOB_TOKEN) {
     meta = await blobGet();
@@ -149,7 +149,7 @@ export async function loadAppMeta({ refresh = false } = {}) {
 
 export async function persistAppMeta(meta) {
   const sanitized = sanitizeAppMeta(meta);
-  const ok = await upstashSet(sanitized);
+  const ok = await kvSet(sanitized);
   if (ok) {
     _cachedMeta = sanitized;
     _cachedAt = Date.now();

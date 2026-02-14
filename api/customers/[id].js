@@ -14,7 +14,7 @@ const MAX_NOTE = 2000;
 
 const S = (v) => (v ?? '').toString().trim();
 
-async function upstashGet(key) {
+async function kvGet(key) {
   return await redis.get(key);
 }
 
@@ -30,7 +30,7 @@ async function repOwnsCustomer(repId, email) {
     // fallback
   }
   try {
-    const mapped = await upstashGet(KEY_REP_OF(lower));
+    const mapped = await kvGet(KEY_REP_OF(lower));
     return S(mapped).toLowerCase() === repId.toLowerCase();
   } catch (_) {
     return false;
