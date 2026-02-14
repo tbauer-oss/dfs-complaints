@@ -988,9 +988,9 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
             (res.errorCode == 'INVALID_CREDENTIALS'
                 ? (t.login_failed_check_credentials)
                 : res.errorCode == 'RATE_LIMITED'
-                    ? 'Service temporär limitiert…'
+                    ? 'Bitte E-Mail/Passwort prüfen.'
                     : res.errorCode == 'STORE_UNAVAILABLE'
-                        ? 'Service temporär nicht verfügbar…'
+                        ? 'Server temporär nicht verfügbar.'
                         : res.errorCode == 'BAD_REQUEST'
                             ? 'Bitte alle Felder ausfüllen.'
                             : (res.statusCode == 401

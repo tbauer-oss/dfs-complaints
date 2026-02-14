@@ -4,9 +4,8 @@
 //  - Initialpasswort = ADMIN_SECRET (aus Umgebung)
 //  - Rollenprüfung für Portal-Endpunkte
 
-import bcrypt from 'bcryptjs';
 import { getAuthUser } from './auth.js';
-import { normalizeTilePermission, portalUserByEmail, portalUserSave, sanitizeTilePermissions } from './store.js';
+import { normalizeTilePermission, portalUserByEmail, sanitizeTilePermissions } from './store.js';
 
 // Die Portal-Rolle wird direkt am User-Objekt unter `user.role` gespeichert.
 // Gültige Werte sind unten definiert und werden in den Guards/Handlers geprüft.
@@ -125,56 +124,17 @@ export function isAdminUser(user) {
   return ADMIN_EMAILS.has(mail);
 }
 
-async function ensureInitialAdmin(email) {
-  const mail = String(email || '').trim().toLowerCase();
-  if (!mail) return null;
-  const existing = await portalUserByEmail(mail).catch(() => null);
-  const passhash = ADMIN_SECRET ? await bcrypt.hash(ADMIN_SECRET, 10) : '';
-  const base = {
-    email: mail,
-    passhash,
-    portalStatus: 'active',
-    role: PORTAL_ROLES.superuser,
-    displayName: mail.split('@')[0],
-    createdAt: Date.now(),
-  };
-
-  if (!existing) {
-    await portalUserSave(base);
-    return base;
-  }
-
-  const toSave = { ...existing };
-  toSave.passhash = resolvePortalPasshash(existing, passhash);
-  if (!toSave.role) toSave.role = PORTAL_ROLES.superuser;
-  if (!toSave.portalStatus) toSave.portalStatus = 'active';
-  await portalUserSave(toSave);
-  return toSave;
-}
-
 export async function ensureInitialAdmins() {
-  for (const mail of ADMIN_EMAILS) {
-    await ensureInitialAdmin(mail);
-  }
+  // Bootstrap wurde aus dem Login-Flow entfernt.
+  return;
 }
-
-let initialAdminBootstrapStarted = false;
-let initialAdminBootstrapPromise = null;
 
 export function shouldBootstrapInitialAdmins() {
-  return String(process.env.PORTAL_BOOTSTRAP_ADMINS || '').trim().toLowerCase() === 'true';
+  return false;
 }
 
-export function bootstrapInitialAdminsInBackground(logger = console) {
-  if (!shouldBootstrapInitialAdmins()) return null;
-  if (initialAdminBootstrapStarted) return initialAdminBootstrapPromise;
-  initialAdminBootstrapStarted = true;
-  initialAdminBootstrapPromise = ensureInitialAdmins()
-    .catch((err) => {
-      logger?.error?.('[portalAuth] ensureInitialAdmins failed', err?.message || err);
-      return null;
-    });
-  return initialAdminBootstrapPromise;
+export function bootstrapInitialAdminsInBackground() {
+  return null;
 }
 
 export async function portalUserFromRequest(req, { allowSecretFallback = true } = {}) {

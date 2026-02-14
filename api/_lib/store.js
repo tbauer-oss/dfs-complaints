@@ -14,6 +14,7 @@ import {
   normalizeReportLinksMap,
 } from './departments.js';
 import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems } from './gsprRequirements.js';
+import { query } from './db.js';
 
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
@@ -77,8 +78,6 @@ async function withRedisTimeout(promise, label = 'redis op') {
 
 const P = 'dfs:';
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
-const KEY_PORTAL_USER = (email) => `${P}portal:user:${email}`;
-const KEY_PORTAL_USERS = `${P}portal:users`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
 const KEY_PORTAL_USER_UI = (email) => `${P}portal:user-ui:${email}`;
 const KEY_PORTAL_NEWS = `${P}portal:news`;
@@ -1914,114 +1913,94 @@ function normalizePortalUser(u) {
   return normalized;
 }
 
-export async function portalUserByEmail(email) {
-  if (!email) return null;
-  const originalEmail = String(email).trim();
-  const normalizedEmail = originalEmail.toLowerCase();
-  const key = KEY_PORTAL_USER(normalizedEmail);
-  const originalKey = KEY_PORTAL_USER(originalEmail);
-  const r = getRedis();
-  const raw = r ? await rget(key, r, { throwOnError: true }) : mem.portalUsers.get(normalizedEmail) ?? null;
-  if (raw && typeof raw === 'object') return normalizePortalUser(raw);
-
-  if (originalEmail && originalEmail !== normalizedEmail) {
-    const rawOriginal = r ? await rget(originalKey) : mem.portalUsers.get(originalEmail) ?? null;
-    if (rawOriginal && typeof rawOriginal === 'object') {
-      const migrated = normalizePortalUser({ ...rawOriginal, email: normalizedEmail });
-      if (migrated) {
-        await portalUserSave(migrated);
-        if (r && originalKey !== key) await rdel(originalKey, r);
-        if (!r && originalEmail !== normalizedEmail) mem.portalUsers.delete(originalEmail);
-        return migrated;
-      }
-    }
-  }
-
-  // Legacy fallback: before email normalization, keys may have been stored with mixed casing.
-  try {
-    const legacyCaseKey = r
-      ? await findPortalUserKeyCaseInsensitive(normalizedEmail, r)
-      : findPortalUserKeyCaseInsensitiveInMemory(normalizedEmail);
-    if (legacyCaseKey) {
-      const legacyRaw = r ? await rget(legacyCaseKey, r) : mem.portalUsers.get(legacyCaseKey) ?? null;
-      if (legacyRaw && typeof legacyRaw === 'object') {
-        const migrated = normalizePortalUser({ ...legacyRaw, email: normalizedEmail });
-        if (migrated) {
-          await portalUserSave(migrated);
-          if (r && legacyCaseKey !== key) await rdel(legacyCaseKey, r);
-          if (!r && legacyCaseKey !== normalizedEmail) mem.portalUsers.delete(legacyCaseKey);
-          return migrated;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[store] portal legacy key lookup skipped:', err?.message || err);
-  }
-
-  // Legacy-Migration: Portal-User aus der Kundendatenbank holen und verschieben
-  const legacy = await _loadUserRecord(normalizedEmail);
-  if (hasPortalMarker(legacy)) {
-    const migrated = await migratePortalLikeUser(legacy);
-    if (migrated) return migrated;
-  }
-
-  return null;
-}
-
-async function findPortalUserKeyCaseInsensitive(normalizedEmail, redisClient) {
-  if (!normalizedEmail || !redisClient) return null;
-  const keys = await rkeys(`${P}portal:user:*`, redisClient);
-  const match = keys.find((entry) => {
-    const candidate = String(entry || '');
-    const prefix = `${P}portal:user:`;
-    if (!candidate.startsWith(prefix)) return false;
-    return candidate.slice(prefix.length).toLowerCase() === normalizedEmail;
+function mapPortalUserRow(row) {
+  if (!row) return null;
+  return normalizePortalUser({
+    id: row.id,
+    email: row.email,
+    emailNorm: row.email_norm,
+    passhash: row.password_hash,
+    passwordHash: row.password_hash,
+    role: row.role,
+    portalStatus: row.is_active ? 'active' : 'inactive',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   });
-  return match || null;
 }
 
-function findPortalUserKeyCaseInsensitiveInMemory(normalizedEmail) {
-  if (!normalizedEmail) return null;
-  for (const entry of mem.portalUsers.keys()) {
-    const candidate = String(entry || '');
-    if (candidate.toLowerCase() === normalizedEmail) return candidate;
-  }
-  return null;
+export async function portalUserByEmail(email) {
+  const emailNorm = String(email || '').trim().toLowerCase();
+  if (!emailNorm) return null;
+  const result = await query(
+    `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
+     FROM portal_users
+     WHERE email_norm = $1
+     LIMIT 1`,
+    [emailNorm],
+  );
+  return mapPortalUserRow(result.rows?.[0] || null);
+}
+
+export async function createPortalUser(u) {
+  const email = String(u?.email || '').trim();
+  const emailNorm = email.toLowerCase();
+  const passwordHash = String(u?.passwordHash || u?.passhash || '').trim();
+  const role = String(u?.role || 'user').trim().toLowerCase() || 'user';
+  const isActive = u?.portalStatus ? String(u.portalStatus).trim().toLowerCase() !== 'inactive' : u?.isActive !== false;
+  if (!emailNorm || !passwordHash) return null;
+
+  const result = await query(
+    `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+    [email, emailNorm, passwordHash, role, isActive],
+  );
+  return mapPortalUserRow(result.rows?.[0] || null);
+}
+
+export async function upsertPortalUser(u) {
+  const email = String(u?.email || '').trim();
+  const emailNorm = email.toLowerCase();
+  const passwordHash = String(u?.passwordHash || u?.passhash || '').trim();
+  const role = String(u?.role || 'user').trim().toLowerCase() || 'user';
+  const isActive = u?.portalStatus ? String(u.portalStatus).trim().toLowerCase() !== 'inactive' : u?.isActive !== false;
+  if (!emailNorm || !passwordHash) return null;
+
+  const result = await query(
+    `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (email_norm)
+     DO UPDATE SET
+       email = EXCLUDED.email,
+       password_hash = EXCLUDED.password_hash,
+       role = EXCLUDED.role,
+       is_active = EXCLUDED.is_active,
+       updated_at = NOW()
+     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+    [email, emailNorm, passwordHash, role, isActive],
+  );
+  return mapPortalUserRow(result.rows?.[0] || null);
 }
 
 export async function portalUserSave(u) {
-  const email = String(u?.email || '').toLowerCase();
-  if (!email) return false;
-  const key = KEY_PORTAL_USER(email);
-  const r = getRedis();
-  const toSave = normalizePortalUser({ ...u, email });
-  if (!toSave) return false;
-  if (r) await rset(key, toSave); else mem.portalUsers.set(email, toSave);
-  return true;
+  const saved = await upsertPortalUser(u);
+  return Boolean(saved);
 }
 
 export async function portalUserDelete(email) {
-  email = String(email || '').toLowerCase();
-  if (!email) return true;
-  const key = KEY_PORTAL_USER(email);
-  const r = getRedis();
-  if (r) await rdel(key); else mem.portalUsers.delete(email);
+  const emailNorm = String(email || '').trim().toLowerCase();
+  if (!emailNorm) return true;
+  await query('DELETE FROM portal_users WHERE email_norm = $1', [emailNorm]);
   return true;
 }
 
 export async function portalUsersList() {
-  const r = getRedis();
-  if (r) {
-    const keys = await rkeys(`${P}portal:user:*`);
-    const vals = await Promise.all(keys.map(k => rget(k)));
-    return vals
-      .filter(Boolean)
-      .map(normalizePortalUser)
-      .filter(Boolean);
-  }
-  return Array.from(mem.portalUsers.values())
-    .map(normalizePortalUser)
-    .filter(Boolean);
+  const result = await query(
+    `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
+     FROM portal_users
+     ORDER BY created_at DESC`,
+  );
+  return (result.rows || []).map(mapPortalUserRow).filter(Boolean);
 }
 
 function _uniqueStrings(list) {
