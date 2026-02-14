@@ -1881,9 +1881,23 @@ export async function portalUserByEmail(email) {
   const originalEmail = String(email).trim();
   const normalizedEmail = originalEmail.toLowerCase();
   const key = KEY_PORTAL_USER(normalizedEmail);
+  const originalKey = KEY_PORTAL_USER(originalEmail);
   const r = getRedis();
   const raw = r ? await rget(key) : mem.portalUsers.get(normalizedEmail) ?? null;
   if (raw && typeof raw === 'object') return normalizePortalUser(raw);
+
+  if (originalEmail && originalEmail !== normalizedEmail) {
+    const rawOriginal = r ? await rget(originalKey) : mem.portalUsers.get(originalEmail) ?? null;
+    if (rawOriginal && typeof rawOriginal === 'object') {
+      const migrated = normalizePortalUser({ ...rawOriginal, email: normalizedEmail });
+      if (migrated) {
+        await portalUserSave(migrated);
+        if (r && originalKey !== key) await rdel(originalKey, r);
+        if (!r && originalEmail !== normalizedEmail) mem.portalUsers.delete(originalEmail);
+        return migrated;
+      }
+    }
+  }
 
   // Legacy fallback: before email normalization, keys may have been stored with mixed casing.
   try {

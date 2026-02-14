@@ -2,6 +2,7 @@
 export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail, portalUserSave, sanitizeTilePermissions, userByEmail } from '../_lib/store.js';
@@ -13,7 +14,21 @@ import {
   PORTAL_ROLES,
 } from '../_lib/portalAuth.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
+const AUTH_DEBUG = String(process.env.AUTH_DEBUG || '').trim().toLowerCase() === 'true';
+const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
+
+function hashEmailForLogs(email) {
+  return crypto.createHash('sha256').update(String(email || '').toLowerCase()).digest('hex').slice(0, 12);
+}
+
+function authDebugLog(event, payload = {}) {
+  if (!AUTH_DEBUG) return;
+  console.info('[portal/login]', { event, ...payload });
+}
+
+function authError(res, statusCode, code, message, extra = {}) {
+  return bad(res, message, statusCode, { code, message, ...extra });
+}
 
 function passwordCandidates(user) {
   if (!user || typeof user !== 'object') return [];
@@ -165,10 +180,21 @@ export default async function handler(req, res) {
     await ensureInitialAdmins();
 
     const body = await readJson(req);
-    const email = String(body?.email || '').trim().toLowerCase();
+    const rawEmail = String(body?.email || '').trim();
+    const email = rawEmail.toLowerCase();
     const passwordRaw = String(body?.password || '');
-    if (!email || !passwordRaw) return bad(res, 'missing credentials', 400);
+    const emailHash = hashEmailForLogs(email);
+    if (!email || !passwordRaw) {
+      authDebugLog('login_attempt', {
+        emailHash,
+        outcome: 'MISSING_FIELDS',
+        hasEmail: Boolean(email),
+        hasPassword: Boolean(passwordRaw),
+      });
+      return authError(res, 400, 'BAD_REQUEST', 'Bitte alle Felder ausfüllen.');
+    }
     const passwordOptions = passwordInputCandidates(passwordRaw);
+    authDebugLog('login_attempt', { emailHash, normalizedEmailPresent: true, outcome: 'START' });
 
     // Hard recovery path for internal admin accounts.
     // If ADMIN_SECRET matches, always allow and self-heal the stored hash.
@@ -188,10 +214,17 @@ export default async function handler(req, res) {
       };
       try { await portalUserSave(repaired); } catch {}
       const auth = buildTokenAndProfile(repaired);
-      return ok(res, { ok: true, token: auth.token, profile: auth.profile });
+      authDebugLog('login_attempt', { emailHash, outcome: 'OK_ADMIN_SECRET' });
+      return ok(res, {
+        ok: true,
+        token: auth.token,
+        user: auth.profile,
+        profile: auth.profile,
+        expiresIn: '12h',
+      });
     }
 
-    let u = await portalUserByEmail(email);
+    let u = await portalUserByEmail(rawEmail) || await portalUserByEmail(email);
     const legacyUser = await userByEmail(email).catch(() => null);
     let legacyAdminUser = null;
     if (ADMIN_EMAILS.has(email)) {
@@ -218,7 +251,14 @@ export default async function handler(req, res) {
       await portalUserSave(u);
     }
 
-    if (!u) return bad(res, 'invalid credentials', 401);
+    if (!u) {
+      authDebugLog('login_attempt', {
+        emailHash,
+        outcome: 'USER_NOT_FOUND',
+        legacyUserFound: Boolean(legacyUser),
+      });
+      return authError(res, 401, 'INVALID_CREDENTIALS', 'E-Mail/Passwort ungültig.');
+    }
 
     let verification = { okPw: false, usedPlaintextFallback: false, comparableHash: '', comparableFromPassHashOnly: false };
     let matchedPassword = passwordRaw;
@@ -246,7 +286,14 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!verification.okPw) return bad(res, 'invalid credentials', 401);
+    if (!verification.okPw) {
+      authDebugLog('login_attempt', {
+        emailHash,
+        outcome: 'PASSWORD_MISMATCH',
+        legacyUserFound: Boolean(legacyUser),
+      });
+      return authError(res, 401, 'INVALID_CREDENTIALS', 'E-Mail/Passwort ungültig.');
+    }
 
     if (verification.usedPlaintextFallback) {
       const upgraded = await bcrypt.hash(matchedPassword, 10);
@@ -260,11 +307,25 @@ export default async function handler(req, res) {
 
     const role = normalizeRole(u.role);
     const portalStatus = normalizeStatus(u.portalStatus, u.revoked);
-    if (portalStatus !== 'active') return bad(res, 'inactive', 403);
+    if (portalStatus !== 'active') {
+      authDebugLog('login_attempt', { emailHash, outcome: 'DISABLED' });
+      return authError(res, 403, 'ACCOUNT_INACTIVE', 'Konto ist deaktiviert.');
+    }
 
     const auth = buildTokenAndProfile(u);
-    return ok(res, { ok: true, token: auth.token, profile: auth.profile });
+    authDebugLog('login_attempt', { emailHash, outcome: 'OK' });
+    return ok(res, {
+      ok: true,
+      token: auth.token,
+      user: auth.profile,
+      profile: auth.profile,
+      expiresIn: '12h',
+    });
   } catch (err) {
-    return bad(res, err?.message || 'server error', 500);
+    authDebugLog('login_attempt', {
+      outcome: 'ERROR',
+      message: err?.message || 'server error',
+    });
+    return authError(res, 500, 'SERVER_ERROR', 'server error');
   }
 }
