@@ -68,6 +68,44 @@ function isLikelyPortalEmail(email) {
   return /@dfs-diamon\.(de|com)$/i.test(String(email || '').trim());
 }
 
+
+async function verifyPasswordForUser(user, password) {
+  const storedPasshash = toPlain(user?.passhash);
+  const storedPasswordHash = toPlain(user?.passwordHash);
+  const storedPassHash = toPlain(user?.passHash);
+  const hashCandidates = passwordCandidates(user).map(normalizeBcryptHash).filter(Boolean);
+  const comparableHash = hashCandidates[0] || '';
+
+  let okPw = false;
+  if (comparableHash) {
+    try {
+      okPw = await bcrypt.compare(password, comparableHash);
+    } catch {
+      okPw = false;
+    }
+  }
+
+  const legacyCandidates = [
+    toPlain(user?.password),
+    storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
+    storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
+    storedPassHash && !normalizeBcryptHash(storedPassHash) ? storedPassHash : '',
+  ];
+  const usedPlaintextFallback = !okPw && legacyCandidates.some((candidate) => candidate && candidate === password);
+
+  return {
+    okPw: okPw || usedPlaintextFallback,
+    usedPlaintextFallback,
+    comparableHash,
+    comparableFromPassHashOnly: Boolean(
+      comparableHash
+      && !normalizeBcryptHash(storedPasshash)
+      && !normalizeBcryptHash(storedPasswordHash)
+      && normalizeBcryptHash(storedPassHash),
+    ),
+  };
+}
+
 function buildPortalUserFromLegacy(email, legacyUser = {}) {
   const role = normalizeRole(legacyUser.role || PORTAL_ROLES.user);
   return {
@@ -153,53 +191,25 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
-    const hashCandidates = passwordCandidates(u).map(normalizeBcryptHash).filter(Boolean);
-    const comparableHash = hashCandidates[0] || '';
+    let verification = await verifyPasswordForUser(u, pw);
 
-    const storedPasshash = toPlain(u.passhash);
-    const storedPasswordHash = toPlain(u.passwordHash);
-    const storedPassHash = toPlain(u.passHash);
-    const comparableFromPassHashOnly = Boolean(
-      comparableHash
-      && !normalizeBcryptHash(storedPasshash)
-      && !normalizeBcryptHash(storedPasswordHash)
-      && normalizeBcryptHash(storedPassHash),
-    );
-
-    let okPw = false;
-    if (comparableHash) {
-      try {
-        okPw = await bcrypt.compare(pw, comparableHash);
-      } catch (err) {
-        console.warn('[portal/login] password hash invalid for', email, err?.message || err);
+    if (!verification.okPw && legacyUser) {
+      const legacyVerification = await verifyPasswordForUser(legacyUser, pw);
+      if (legacyVerification.okPw) {
+        u = buildPortalUserFromLegacy(email, legacyUser);
+        await portalUserSave(u);
+        verification = legacyVerification;
       }
     }
 
-    const legacyCandidates = [
-      toPlain(u.password),
-      storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
-      storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
-      storedPassHash && !normalizeBcryptHash(storedPassHash) ? storedPassHash : '',
-    ];
-    const legacyPasswordMatch = !okPw && legacyCandidates.some((candidate) => candidate && candidate === pw);
-    const usedPlaintextFallback = legacyPasswordMatch;
-    if (legacyPasswordMatch) {
-      const migratedHash = await bcrypt.hash(pw, 10);
-      const migratedUser = { ...u, passhash: migratedHash, passwordHash: migratedHash };
-      delete migratedUser.password;
-      await portalUserSave(migratedUser);
-      u = migratedUser;
-      okPw = true;
-    }
+    if (!verification.okPw) return bad(res, 'invalid credentials', 401);
 
-    if (!okPw) return bad(res, 'invalid credentials', 401);
-
-    if (usedPlaintextFallback) {
+    if (verification.usedPlaintextFallback) {
       const upgraded = await bcrypt.hash(pw, 10);
       u = { ...u, passhash: upgraded, passwordHash: upgraded };
       await portalUserSave(u);
-    } else if (comparableFromPassHashOnly) {
-      u = { ...u, passhash: comparableHash, passwordHash: comparableHash };
+    } else if (verification.comparableFromPassHashOnly) {
+      u = { ...u, passhash: verification.comparableHash, passwordHash: verification.comparableHash };
       delete u.passHash;
       await portalUserSave(u);
     }

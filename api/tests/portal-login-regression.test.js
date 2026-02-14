@@ -79,6 +79,34 @@ test('portal login migrates legacy internal user record from customer store', as
   assert.equal(await bcrypt.compare(password, String(migrated?.passhash || '')), true);
 
 });
+
+
+test('portal login falls back to legacy user store when portal hash is stale', async () => {
+  const email = 'legacy.stale@dfs-diamon.de';
+  const validPassword = 'ValidLegacy#123';
+  const stalePassword = 'StalePortal#123';
+
+  await portalUserSave({
+    email,
+    passhash: await bcrypt.hash(stalePassword, 8),
+    role: 'user',
+    portalStatus: 'active',
+  });
+  await userSave({
+    email,
+    passhash: await bcrypt.hash(validPassword, 8),
+    role: 'admin',
+  });
+
+  const req = makeReq({ email, password: validPassword });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const migrated = await portalUserByEmail(email);
+  assert.ok(migrated?.passhash);
+  assert.equal(await bcrypt.compare(validPassword, String(migrated.passhash || '')), true);
+});
 test('portal login supports legacy passHash field for bcrypt hashes', async () => {
   const email = 'legacy.camel@dfs-diamon.de';
   const password = 'LegacyCamel#123';
