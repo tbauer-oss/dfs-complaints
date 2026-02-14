@@ -158,6 +158,25 @@ export async function ensureInitialAdmins() {
   }
 }
 
+let initialAdminBootstrapStarted = false;
+let initialAdminBootstrapPromise = null;
+
+export function shouldBootstrapInitialAdmins() {
+  return String(process.env.PORTAL_BOOTSTRAP_ADMINS || '').trim().toLowerCase() === 'true';
+}
+
+export function bootstrapInitialAdminsInBackground(logger = console) {
+  if (!shouldBootstrapInitialAdmins()) return null;
+  if (initialAdminBootstrapStarted) return initialAdminBootstrapPromise;
+  initialAdminBootstrapStarted = true;
+  initialAdminBootstrapPromise = ensureInitialAdmins()
+    .catch((err) => {
+      logger?.error?.('[portalAuth] ensureInitialAdmins failed', err?.message || err);
+      return null;
+    });
+  return initialAdminBootstrapPromise;
+}
+
 export async function portalUserFromRequest(req, { allowSecretFallback = true } = {}) {
   const tokenUser = getAuthUser(req);
   if (tokenUser?.email) {

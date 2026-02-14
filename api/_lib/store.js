@@ -464,8 +464,43 @@ function _normalizeCatalogConfig(input) {
   return out;
 }
 
+export class StoreInfraError extends Error {
+  constructor(message, { code = 'STORE_UNAVAILABLE', statusCode = 503, cause = null } = {}) {
+    super(message);
+    this.name = 'StoreInfraError';
+    this.code = code;
+    this.statusCode = statusCode;
+    this.cause = cause;
+  }
+}
+
+function classifyStoreInfraError(err, fallbackMessage = 'store unavailable') {
+  const message = String(err?.message || fallbackMessage);
+  const lower = message.toLowerCase();
+  const isRateLimited =
+    lower.includes('max requests limit exceeded')
+    || lower.includes('rate limit')
+    || lower.includes('too many requests')
+    || err?.status === 429
+    || err?.statusCode === 429;
+
+  if (isRateLimited) {
+    return new StoreInfraError(message, {
+      code: 'RATE_LIMITED',
+      statusCode: 429,
+      cause: err,
+    });
+  }
+
+  return new StoreInfraError(message, {
+    code: 'STORE_UNAVAILABLE',
+    statusCode: 503,
+    cause: err,
+  });
+}
+
 // ===== Helper (Redis IO) =====
-async function rget(k, rclient = null) {
+async function rget(k, rclient = null, { throwOnError = false } = {}) {
   try {
     const r = rclient || getRedis();
     if (!r) return null;
@@ -480,6 +515,9 @@ async function rget(k, rclient = null) {
     return raw;
   } catch (e) {
     console.error('KV GET', k, e);
+    if (throwOnError) {
+      throw classifyStoreInfraError(e, `KV GET ${k} failed`);
+    }
     return null;
   }
 }
@@ -1883,7 +1921,7 @@ export async function portalUserByEmail(email) {
   const key = KEY_PORTAL_USER(normalizedEmail);
   const originalKey = KEY_PORTAL_USER(originalEmail);
   const r = getRedis();
-  const raw = r ? await rget(key) : mem.portalUsers.get(normalizedEmail) ?? null;
+  const raw = r ? await rget(key, r, { throwOnError: true }) : mem.portalUsers.get(normalizedEmail) ?? null;
   if (raw && typeof raw === 'object') return normalizePortalUser(raw);
 
   if (originalEmail && originalEmail !== normalizedEmail) {
