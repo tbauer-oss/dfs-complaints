@@ -59,6 +59,87 @@ function makeRes() {
   };
 }
 
+
+
+
+
+test('portal login migrates legacy internal user record from customer store', async () => {
+  const email = 'legacy.portal@dfs-diamon.de';
+  const password = 'LegacyPortal#123';
+  const passhash = await bcrypt.hash(password, 8);
+  await userSave({ email, passhash, contact: 'Legacy Portal User', role: 'admin' });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const migrated = await portalUserByEmail(email);
+  assert.ok(migrated);
+  assert.equal(await bcrypt.compare(password, String(migrated?.passhash || '')), true);
+
+});
+
+
+test('portal login falls back to legacy user store when portal hash is stale', async () => {
+  const email = 'legacy.stale@dfs-diamon.de';
+  const validPassword = 'ValidLegacy#123';
+  const stalePassword = 'StalePortal#123';
+
+  await portalUserSave({
+    email,
+    passhash: await bcrypt.hash(stalePassword, 8),
+    role: 'user',
+    portalStatus: 'active',
+  });
+  await userSave({
+    email,
+    passhash: await bcrypt.hash(validPassword, 8),
+    role: 'admin',
+  });
+
+  const req = makeReq({ email, password: validPassword });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const migrated = await portalUserByEmail(email);
+  assert.ok(migrated?.passhash);
+  assert.equal(await bcrypt.compare(validPassword, String(migrated.passhash || '')), true);
+});
+
+
+test('portal login accepts accidental surrounding spaces in password input', async () => {
+  const email = 'legacy.trimmed@dfs-diamon.de';
+  const password = 'TrimmedSecret#123';
+  await portalUserSave({
+    email,
+    passhash: await bcrypt.hash(password, 8),
+    role: 'user',
+    portalStatus: 'active',
+  });
+
+  const req = makeReq({ email, password: ` ${password} ` });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+});
+test('portal login supports legacy passHash field for bcrypt hashes', async () => {
+  const email = 'legacy.camel@dfs-diamon.de';
+  const password = 'LegacyCamel#123';
+  const passHash = await bcrypt.hash(password, 8);
+  await portalUserSave({ email, passHash, role: 'superuser', portalStatus: 'active' });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const stored = await portalUserByEmail(email);
+  assert.ok(stored?.passhash);
+  assert.equal(await bcrypt.compare(password, stored.passhash), true);
+});
 test('portal login supports legacy plaintext password field and upgrades hash', async () => {
   const email = 'legacy.plaintext@dfs-diamon.de';
   const password = 'Plaintext#123';

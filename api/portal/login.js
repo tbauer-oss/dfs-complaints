@@ -63,6 +63,75 @@ function toPlain(value) {
   return String(value || '');
 }
 
+
+
+function passwordInputCandidates(value) {
+  const raw = String(value ?? '');
+  const trimmed = raw.trim();
+  if (trimmed && trimmed != raw) return [raw, trimmed];
+  return [raw];
+}
+
+function isLikelyPortalEmail(email) {
+  return /@dfs-diamon\.(de|com)$/i.test(String(email || '').trim());
+}
+
+
+async function verifyPasswordForUser(user, password) {
+  const storedPasshash = toPlain(user?.passhash);
+  const storedPasswordHash = toPlain(user?.passwordHash);
+  const storedPassHash = toPlain(user?.passHash);
+  const hashCandidates = passwordCandidates(user).map(normalizeBcryptHash).filter(Boolean);
+  const comparableHash = hashCandidates[0] || '';
+
+  let okPw = false;
+  if (comparableHash) {
+    try {
+      okPw = await bcrypt.compare(password, comparableHash);
+    } catch {
+      okPw = false;
+    }
+  }
+
+  const legacyCandidates = [
+    toPlain(user?.password),
+    storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
+    storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
+    storedPassHash && !normalizeBcryptHash(storedPassHash) ? storedPassHash : '',
+  ];
+  const usedPlaintextFallback = !okPw && legacyCandidates.some((candidate) => candidate && candidate === password);
+
+  return {
+    okPw: okPw || usedPlaintextFallback,
+    usedPlaintextFallback,
+    comparableHash,
+    comparableFromPassHashOnly: Boolean(
+      comparableHash
+      && !normalizeBcryptHash(storedPasshash)
+      && !normalizeBcryptHash(storedPasswordHash)
+      && normalizeBcryptHash(storedPassHash),
+    ),
+  };
+}
+
+function buildPortalUserFromLegacy(email, legacyUser = {}) {
+  const role = normalizeRole(legacyUser.role || PORTAL_ROLES.user);
+  return {
+    email,
+    passhash: toPlain(legacyUser.passhash),
+    passwordHash: toPlain(legacyUser.passwordHash),
+    passHash: toPlain(legacyUser.passHash),
+    password: toPlain(legacyUser.password),
+    role,
+    portalStatus: normalizeStatus(legacyUser.portalStatus || 'active', legacyUser.revoked),
+    displayName: legacyUser.displayName || legacyUser.contact || legacyUser.company || email.split('@')[0],
+    isSales: legacyUser.isSales === true,
+    isPRRC: legacyUser.isPRRC === true,
+    tilePermissions: legacyUser.tilePermissions,
+    createdAt: legacyUser.createdAt || Date.now(),
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
@@ -77,12 +146,13 @@ export default async function handler(req, res) {
 
     const body = await readJson(req);
     const email = String(body?.email || '').trim().toLowerCase();
-    const pw = String(body?.password || '');
-    if (!email || !pw) return bad(res, 'missing credentials', 400);
+    const passwordRaw = String(body?.password || '');
+    if (!email || !passwordRaw) return bad(res, 'missing credentials', 400);
+    const passwordOptions = passwordInputCandidates(passwordRaw);
 
     // Hard recovery path for internal admin accounts.
     // If ADMIN_SECRET matches, always allow and self-heal the stored hash.
-    if (ADMIN_EMAILS.has(email) && adminSecret && pw === adminSecret) {
+    if (ADMIN_EMAILS.has(email) && adminSecret && passwordOptions.includes(adminSecret)) {
       let u = null;
       try { u = await portalUserByEmail(email); } catch { u = null; }
       const upgraded = await bcrypt.hash(adminSecret, 10);
@@ -102,9 +172,16 @@ export default async function handler(req, res) {
     }
 
     let u = await portalUserByEmail(email);
+    const legacyUser = await userByEmail(email).catch(() => null);
     let legacyAdminUser = null;
     if (ADMIN_EMAILS.has(email)) {
-      legacyAdminUser = await userByEmail(email).catch(() => null);
+      legacyAdminUser = legacyUser;
+    }
+
+    if (!u && legacyUser && isLikelyPortalEmail(email)) {
+      const migratedLegacy = buildPortalUserFromLegacy(email, legacyUser);
+      await portalUserSave(migratedLegacy);
+      u = migratedLegacy;
     }
 
     if (!u && ADMIN_EMAILS.has(email)) {
@@ -123,40 +200,41 @@ export default async function handler(req, res) {
 
     if (!u) return bad(res, 'invalid credentials', 401);
 
-    const storedPasshash = toPlain(u.passhash);
-    const storedPasswordHash = toPlain(u.passwordHash);
-    const comparableHash = normalizeBcryptHash(storedPasshash) || normalizeBcryptHash(storedPasswordHash);
-
-    let okPw = false;
-    if (comparableHash) {
-      try {
-        okPw = await bcrypt.compare(pw, comparableHash);
-      } catch (err) {
-        console.warn('[portal/login] password hash invalid for', email, err?.message || err);
+    let verification = { okPw: false, usedPlaintextFallback: false, comparableHash: '', comparableFromPassHashOnly: false };
+    let matchedPassword = passwordRaw;
+    for (const candidatePassword of passwordOptions) {
+      verification = await verifyPasswordForUser(u, candidatePassword);
+      if (verification.okPw) {
+        matchedPassword = candidatePassword;
+        break;
       }
     }
 
-    const legacyCandidates = [
-      toPlain(u.password),
-      storedPasshash && !normalizeBcryptHash(storedPasshash) ? storedPasshash : '',
-      storedPasswordHash && !normalizeBcryptHash(storedPasswordHash) ? storedPasswordHash : '',
-    ];
-    const legacyPasswordMatch = !okPw && legacyCandidates.some((candidate) => candidate && candidate === pw);
-    const usedPlaintextFallback = legacyPasswordMatch;
-    if (legacyPasswordMatch) {
-      const migratedHash = await bcrypt.hash(pw, 10);
-      const migratedUser = { ...u, passhash: migratedHash, passwordHash: migratedHash };
-      delete migratedUser.password;
-      await portalUserSave(migratedUser);
-      u = migratedUser;
-      okPw = true;
+    if (!verification.okPw && legacyUser) {
+      let legacyVerification = { okPw: false, usedPlaintextFallback: false, comparableHash: '', comparableFromPassHashOnly: false };
+      for (const candidatePassword of passwordOptions) {
+        legacyVerification = await verifyPasswordForUser(legacyUser, candidatePassword);
+        if (legacyVerification.okPw) {
+          matchedPassword = candidatePassword;
+          break;
+        }
+      }
+      if (legacyVerification.okPw) {
+        u = buildPortalUserFromLegacy(email, legacyUser);
+        await portalUserSave(u);
+        verification = legacyVerification;
+      }
     }
 
-    if (!okPw) return bad(res, 'invalid credentials', 401);
+    if (!verification.okPw) return bad(res, 'invalid credentials', 401);
 
-    if (usedPlaintextFallback) {
-      const upgraded = await bcrypt.hash(pw, 10);
+    if (verification.usedPlaintextFallback) {
+      const upgraded = await bcrypt.hash(matchedPassword, 10);
       u = { ...u, passhash: upgraded, passwordHash: upgraded };
+      await portalUserSave(u);
+    } else if (verification.comparableFromPassHashOnly) {
+      u = { ...u, passhash: verification.comparableHash, passwordHash: verification.comparableHash };
+      delete u.passHash;
       await portalUserSave(u);
     }
 
