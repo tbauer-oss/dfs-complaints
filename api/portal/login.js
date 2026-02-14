@@ -77,6 +77,26 @@ function isLikelyPortalEmail(email) {
 }
 
 
+
+function looksPortalLikeLegacyUser(email, legacyUser) {
+  if (!legacyUser || typeof legacyUser !== 'object') return false;
+  if (ADMIN_EMAILS.has(email) || isLikelyPortalEmail(email)) return true;
+
+  const normalizedType = String(legacyUser.type || legacyUser.kind || '').trim().toLowerCase();
+  if (normalizedType === 'portal' || normalizedType === 'staff') return true;
+
+  const hasExplicitRole = Object.prototype.hasOwnProperty.call(legacyUser, 'role');
+  const normalizedRole = normalizeRole(legacyUser.role || '');
+  if (normalizedRole !== PORTAL_ROLES.user) return true;
+  if (hasExplicitRole) return true;
+
+  if (Object.prototype.hasOwnProperty.call(legacyUser, 'portalStatus')) return true;
+  if (legacyUser.isSales === true || legacyUser.isPRRC === true) return true;
+  if (legacyUser.tilePermissions && typeof legacyUser.tilePermissions === 'object') return true;
+
+  return false;
+}
+
 async function verifyPasswordForUser(user, password) {
   const storedPasshash = toPlain(user?.passhash);
   const storedPasswordHash = toPlain(user?.passwordHash);
@@ -178,7 +198,7 @@ export default async function handler(req, res) {
       legacyAdminUser = legacyUser;
     }
 
-    if (!u && legacyUser && isLikelyPortalEmail(email)) {
+    if (!u && legacyUser && looksPortalLikeLegacyUser(email, legacyUser)) {
       const migratedLegacy = buildPortalUserFromLegacy(email, legacyUser);
       await portalUserSave(migratedLegacy);
       u = migratedLegacy;

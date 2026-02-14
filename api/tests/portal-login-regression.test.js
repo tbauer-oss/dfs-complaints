@@ -81,6 +81,47 @@ test('portal login migrates legacy internal user record from customer store', as
 });
 
 
+
+
+test('portal login migrates legacy portal-like users even outside dfs-diamon domain', async () => {
+  const email = 'legacy.staff@example.com';
+  const password = 'LegacyStaff#123';
+  await userSave({
+    email,
+    passhash: await bcrypt.hash(password, 8),
+    role: 'admin',
+    type: 'staff',
+  });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const migrated = await portalUserByEmail(email);
+  assert.ok(migrated?.passhash);
+  assert.equal(await bcrypt.compare(password, String(migrated.passhash || '')), true);
+});
+
+
+test('portal login migrates legacy users with explicit role user outside dfs domain', async () => {
+  const email = 'legacy.role-user@example.com';
+  const password = 'RoleUser#123';
+  await userSave({
+    email,
+    passhash: await bcrypt.hash(password, 8),
+    role: 'user',
+  });
+
+  const req = makeReq({ email, password });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const migrated = await portalUserByEmail(email);
+  assert.ok(migrated?.passhash);
+  assert.equal(await bcrypt.compare(password, String(migrated.passhash || '')), true);
+});
 test('portal login falls back to legacy user store when portal hash is stale', async () => {
   const email = 'legacy.stale@dfs-diamon.de';
   const validPassword = 'ValidLegacy#123';
