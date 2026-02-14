@@ -42,12 +42,14 @@ class LoginResult {
   final bool revoked;
   final String? message;
   final int? statusCode;
+  final String? errorCode;
 
   const LoginResult({
     required this.ok,
     this.revoked = false,
     this.message,
     this.statusCode,
+    this.errorCode,
   });
 
   factory LoginResult.success() => const LoginResult(ok: true);
@@ -56,12 +58,14 @@ class LoginResult {
     bool revoked = false,
     String? message,
     int? statusCode,
+    String? errorCode,
   }) =>
       LoginResult(
         ok: false,
         revoked: revoked,
         message: message,
         statusCode: statusCode,
+        errorCode: errorCode,
       );
 }
 
@@ -1534,7 +1538,8 @@ class ApiClient {
     required String password,
     bool persist = true,
   }) async {
-    final body = {'email': email.trim(), 'password': password};
+    final normalizedEmail = email.trim().toLowerCase();
+    final body = {'email': normalizedEmail, 'password': password};
     try {
       final r = await http.post(
         _u('/api/portal/login'),
@@ -1542,9 +1547,17 @@ class ApiClient {
         body: jsonEncode(body),
       );
       if (!_ok2xx(r.statusCode)) {
+        String? code;
+        try {
+          final decoded = jsonDecode(r.body);
+          if (decoded is Map && decoded['code'] is String) {
+            code = decoded['code'] as String;
+          }
+        } catch (_) {}
         return LoginResult.failure(
           statusCode: r.statusCode,
           message: _extractMessage(r.body),
+          errorCode: code,
         );
       }
 

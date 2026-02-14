@@ -985,9 +985,13 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
       if (!res.ok) {
         final portalMsg = _mapPortalEmailError(res.message, t);
         final err = portalMsg ??
-            (res.statusCode == 401
-                ? t.login_failed_check_credentials
-                : (res.message?.isNotEmpty == true ? res.message! : t.login_failed));
+            (res.errorCode == 'INVALID_CREDENTIALS'
+                ? (t.login_failed_check_credentials)
+                : res.errorCode == 'BAD_REQUEST'
+                    ? 'Bitte alle Felder ausfüllen.'
+                    : (res.statusCode == 401
+                        ? t.login_failed_check_credentials
+                        : (res.message?.isNotEmpty == true ? res.message! : t.login_failed)));
         setState(() => _err = err);
         return;
       }

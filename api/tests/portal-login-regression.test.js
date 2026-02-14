@@ -49,7 +49,7 @@ function makeReq(body) {
 
 function makeRes() {
   const out = { statusCode: 200, headers: {}, body: '' };
-  return {
+  const res = {
     status(code) { out.statusCode = code; return this; },
     setHeader(k, v) { out.headers[String(k).toLowerCase()] = v; },
     getHeader(k) { return out.headers[String(k).toLowerCase()]; },
@@ -57,6 +57,11 @@ function makeRes() {
     json(payload) { out.body = JSON.stringify(payload); return this; },
     __out: out,
   };
+  Object.defineProperty(res, 'statusCode', {
+    get() { return out.statusCode; },
+    set(value) { out.statusCode = Number(value) || out.statusCode; },
+  });
+  return res;
 }
 
 
@@ -136,7 +141,7 @@ test('portal login falls back to legacy user store when portal hash is stale', a
   await userSave({
     email,
     passhash: await bcrypt.hash(validPassword, 8),
-    role: 'admin',
+    contact: 'Legacy Customer Account',
   });
 
   const req = makeReq({ email, password: validPassword });
@@ -297,6 +302,66 @@ test('portal login does not return 500 when legacy key scan fails', async () => 
     await loginHandler(req, res);
 
     assert.notEqual(res.__out.statusCode, 500);
+  } finally {
+    __setRedisClientForTests(null);
+  }
+});
+
+
+test('portal login returns structured 401 for invalid credentials', async () => {
+  const email = 'invalid.creds@dfs-diamon.de';
+  const password = 'Correct#123';
+  await portalUserSave({
+    email,
+    passhash: await bcrypt.hash(password, 8),
+    role: 'user',
+    portalStatus: 'active',
+  });
+
+  const req = makeReq({ email, password: 'Wrong#123' });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 401);
+  const payload = JSON.parse(res.__out.body || '{}');
+  assert.equal(payload.code, 'INVALID_CREDENTIALS');
+  assert.equal(typeof payload.message, 'string');
+});
+
+test('portal login returns structured 400 for missing fields', async () => {
+  const req = makeReq({ email: 'missing.fields@dfs-diamon.de', password: '' });
+  const res = makeRes();
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 400);
+  const payload = JSON.parse(res.__out.body || '{}');
+  assert.equal(payload.code, 'BAD_REQUEST');
+});
+
+test('portal login can recover mixed-case legacy key without redis scan when raw email matches', async () => {
+  const password = 'LegacyCaseRaw#123';
+  const hash = await bcrypt.hash(password, 8);
+  const legacyEmail = 'Case2.User@dfs-diamon.de';
+  const legacyKey = `dfs:portal:user:${legacyEmail}`;
+  const store = new Map([
+    [legacyKey, { email: legacyEmail, passhash: hash, role: 'user', portalStatus: 'active' }],
+  ]);
+
+  __setRedisClientForTests({
+    async get(key) { return store.get(key) ?? null; },
+    async set(key, value) { store.set(key, value); return 'ok'; },
+    async del(key) { store.delete(key); return 1; },
+    async keys() { throw new Error('ERR unknown command KEYS'); },
+    async scan() { throw new Error('scan disabled'); },
+  });
+
+  try {
+    const req = makeReq({ email: legacyEmail, password });
+    const res = makeRes();
+    await loginHandler(req, res);
+
+    assert.equal(res.__out.statusCode, 200);
+    assert.equal(store.has('dfs:portal:user:case2.user@dfs-diamon.de'), true);
   } finally {
     __setRedisClientForTests(null);
   }
