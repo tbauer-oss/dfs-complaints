@@ -1,22 +1,9 @@
 import crypto from 'node:crypto';
 import PDFDocument from 'pdfkit';
-import { Redis } from '@upstash/redis';
+import { redis as sharedRedis } from './redis.js';
 import { fmeaAll, capaAll, complaintsAll, supplierAll, trainingRecordsAll, gsprAssessmentsByTd } from './store.js';
 import { getUniqueMdrTdEntries } from './products.js';
 import { MDR_CLASSIFICATION_RULES, buildMdrRuleReference, resolveMdrClassificationRule } from './legalRefService.js';
-
-const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  process.env.REDIS_URL ||
-  null;
-const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  process.env.REDIS_TOKEN ||
-  null;
 
 const PREFIX = 'dfs:td:';
 const KEY_ALL = `${PREFIX}all`;
@@ -61,8 +48,7 @@ const impactStatuses = new Set(['Open', 'InProgress', 'Done', 'NotApplicable']);
 let _redis = null;
 function redis() {
   if (_redis) return _redis;
-  if (!REDIS_URL || !REDIS_TOKEN) return null;
-  _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
+  _redis = sharedRedis;
   return _redis;
 }
 

@@ -1,21 +1,9 @@
 // api/_lib/wikiStore.js
-import { Redis } from '@upstash/redis';
+import { redis } from './redis.js';
 import { wikiSeedArticles, wikiSeedCategories } from './wikiSeeds.js';
 import { normalizeLangValue } from './store.js';
 
-const redisUrl =
-  process.env.REDIS_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  '';
-const redisToken =
-  process.env.REDIS_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  '';
-
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
-const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
 
 const PFX = 'dfs:wiki:';
 const KEY_CATEGORIES = `${PFX}categories`;

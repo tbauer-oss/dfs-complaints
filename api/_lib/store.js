@@ -1,7 +1,7 @@
 // =======================================================
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
-import { Redis } from '@upstash/redis';
+import { redis as sharedRedis } from './redis.js';
 import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
@@ -19,20 +19,6 @@ import { query } from './db.js';
 /* =========================================================
    KV / Redis – ENV robust erkennen (Upstash & Vercel KV)
    ========================================================= */
-const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  process.env.REDIS_URL ||
-  null;
-
-const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  process.env.REDIS_TOKEN ||
-  null;
-
 const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
 const AUDIT_REDIS_DEBUG_LOG_ENABLED =
   String(process.env.AUDIT_REDIS_DEBUG_LOG || 'true').toLowerCase() !== 'false';
@@ -57,8 +43,7 @@ export function __setRedisClientForTests(client = null) {
 function getRedis() {
   if (_redisOverride) return _redisOverride;
   if (_redis) return _redis;
-  if (!REDIS_URL || !REDIS_TOKEN) return null;
-  _redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
+  _redis = sharedRedis;
   return _redis;
 }
 
@@ -1713,7 +1698,7 @@ export async function kvStatus() {
     return {
       ok: true, useRedis: false,
       reason: 'missing Upstash/Vercel KV ENV',
-      needed: ['KV_REST_API_URL & KV_REST_API_TOKEN', 'oder', 'UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN'],
+      needed: ['DATABASE_URL'],
     };
   }
   const t0 = Date.now();

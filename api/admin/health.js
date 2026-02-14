@@ -15,8 +15,6 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { portalUserFromRequest } from '../_lib/portalAuth.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
-const hasRedisUrl = !!process.env.UPSTASH_REDIS_REST_URL;
-const hasRedisToken = !!process.env.UPSTASH_REDIS_REST_TOKEN;
 const MAIL_REQUIRED = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
 const MAIL_OPTIONAL = ['SMTP_PORT', 'SMTP_FROM', 'MAIL_FROM', 'MAIL_REPLY_TO', 'MAIL_QM', 'MAIL_HOST', 'MAIL_USER', 'MAIL_PASS'];
 const JWT_SECRET = process.env.JWT_SECRET?.trim();
@@ -74,24 +72,7 @@ function combineStatus(entries) {
 }
 
 async function checkRedis() {
-  const label = 'Redis / Upstash';
-  if (!hasRedisUrl || !hasRedisToken) {
-    return {
-      ok: false,
-      status: 'critical',
-      label,
-      message: 'UPSTASH_REDIS_REST_URL/_TOKEN fehlen',
-      details: 'Bitte ENV-Variablen prüfen.',
-      meta: {
-        missingEnv: [
-          ...(!hasRedisUrl ? ['UPSTASH_REDIS_REST_URL'] : []),
-          ...(!hasRedisToken ? ['UPSTASH_REDIS_REST_TOKEN'] : []),
-        ],
-      },
-      order: 1,
-    };
-  }
-
+  const label = 'KV Store (Postgres)';
   const key = `dfs:health:${Date.now()}:${randomId()}`;
   const value = `dfs-health-${randomId()}`;
   const started = Date.now();

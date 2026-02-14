@@ -1,12 +1,9 @@
 // api/chat/v1/_lib/redisAdapter.js
-import { Redis as UpstashRedis } from '@upstash/redis';
+
 
 const isDev = process.env.NODE_ENV !== 'production';
 let commandFallbackLogged = false;
-const restRedis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new UpstashRedis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN })
-    : null;
+const restRedis = null;
 const warnedFallbacks = new Set();
 
 function unwrapResult(result, fallback) {

@@ -22,6 +22,17 @@ async function getPool() {
   return pool;
 }
 
+export async function getDbClient() {
+  if (dbOverride?.connect) return dbOverride.connect();
+  const activePool = await getPool();
+  if (!activePool) {
+    const err = new Error('DATABASE_URL is not configured');
+    err.code = 'DB_UNAVAILABLE';
+    throw err;
+  }
+  return activePool.connect();
+}
+
 export async function query(text, params = []) {
   if (dbOverride?.query) return dbOverride.query(text, params);
   const activePool = await getPool();

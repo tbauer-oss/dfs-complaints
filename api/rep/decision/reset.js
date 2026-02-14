@@ -2,90 +2,19 @@
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors } from '../../_lib/http.js';
+import { redis } from '../../_lib/redis.js';
 
 // --- Utils ---
 const S = (v) => (v ?? '').toString().trim();
 const nowIso = () => new Date().toISOString();
 const rid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-// --- Upstash-Facade: passt sich an eure Exporte an; mit lokalem Fallback ---
+// --- Store facade ---
 async function loadUpstashFacade() {
-  // 1) Versuche eure _lib/upstash.js zu laden
-  let exp = {};
-  try {
-    const mod = await import(new URL('../../_lib/upstash.js', import.meta.url));
-    exp = mod || {};
-  } catch {
-    // ignorieren – wir versuchen Fallback
-  }
-
-  // 2) Kandidaten aus eurer Facade
-  let get =
-    exp.redisGet ??
-    exp.get ??
-    exp.redisGetJSON ??
-    null;
-
-  let set = null;
-
-  // 3) Falls noch kein set/get: lokaler Upstash-Client per ENV aufbauen
-  const url =
-    process.env.REDIS_URL ||
-    process.env.UPSTASH_REDIS_REST_URL ||
-    '';
-  const token =
-    process.env.REDIS_TOKEN ||
-    process.env.UPSTASH_REDIS_REST_TOKEN ||
-    '';
-
-  let client = null;
-  if ((!get || !set) && url && token) {
-    try {
-      const { Redis } = await import('@upstash/redis');
-      client = new Redis({ url, token });
-    } catch {
-      // kein Client verfügbar – dann bleiben wir ohne Fallback
-    }
-  }
-
-  // 4) Falls get noch fehlt, nutze Client.get
-  if (!get && client) {
-    get = async (key) => client.get(key);
-  } else if (!get && typeof exp.redisMGet === 'function') {
-    // dein ursprünglicher MGET-Fallback
-    get = async (key) => {
-      const arr = await exp.redisMGet([key]);
-      return Array.isArray(arr) ? (arr[0] ?? null) : null;
-    };
-  }
-
-  // 5) set-Kandidatenauswahl (inkl. Client-Fallback)
-  if (typeof exp.redisSet === 'function') {
-    set = (key, value, ttlSec) => exp.redisSet(key, value, ttlSec);
-  } else if (typeof exp.set === 'function') {
-    set = (key, value, ttlSec) => {
-      const opts = ttlSec ? { ex: ttlSec } : undefined;
-      return exp.set(key, value, opts);
-    };
-  } else if (typeof exp.redisSetEx === 'function') {
-    set = (key, value, ttlSec) => exp.redisSetEx(key, value, ttlSec || 0);
-  } else if (typeof exp.redisSetJSON === 'function') {
-    set = (key, value, ttlSec) => exp.redisSetJSON(key, value, ttlSec);
-  } else if (client) {
-    // *** WICHTIGER FIX: lokaler Fallback, damit "No redis set function available" nicht mehr auftritt ***
-    set = (key, value, ttlSec) => {
-      const opts = ttlSec ? { ex: ttlSec } : undefined;
-      return client.set(key, value, opts);
-    };
-  }
-
-  if (!get) throw new Error('No redis get function available');
-  if (!set) throw new Error('No redis set function available');
-
   return {
-    get,
-    set,
-    _exports: Object.keys(exp),
+    get: async (key) => redis.get(key),
+    set: async (key, value, ttlSec) => redis.set(key, value, ttlSec ? { ex: ttlSec } : undefined),
+    _exports: ['redisCompat'],
   };
 }
 

@@ -1,25 +1,6 @@
 #!/usr/bin/env node
-import { Redis } from '@upstash/redis';
+import { redis } from '../_lib/redis.js';
 
-const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_URL ||
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.KV_REST_API_URL ||
-  process.env.REDIS_URL ||
-  null;
-const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.KV_REST_API_TOKEN ||
-  process.env.REDIS_TOKEN ||
-  null;
-
-if (!REDIS_URL || !REDIS_TOKEN) {
-  console.error('Missing Redis credentials (set UPSTASH_REDIS_REST_URL / TOKEN).');
-  process.exit(1);
-}
-
-const redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
 
 const P = 'dfs:';
 const AUDIT_INDEX_KEY = `${P}audits:index`;

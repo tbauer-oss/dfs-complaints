@@ -76,7 +76,7 @@ export default async function handler(req, res) {
         const repJson = await redisGet(`dfs:reps:${repOf}`);
         if (repJson) {
           try {
-            const repObj = JSON.parse(repJson);
+            const repObj = typeof repJson === 'string' ? JSON.parse(repJson) : repJson;
             const rMail = S(repObj.email);
             const rName = [S(repObj.firstName), S(repObj.lastName)].filter(Boolean).join(' ').trim();
             item.assignedToEmail = rMail;
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       const userJson = await redisGet(`dfs:user:${email}`);
       if (userJson) {
         try {
-          const u = JSON.parse(userJson);
+          const u = typeof userJson === 'string' ? JSON.parse(userJson) : userJson;
           const company = S(u.companyName || u.company || u.org);
           const first   = S(u.firstName);
           const last    = S(u.lastName);

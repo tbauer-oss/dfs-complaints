@@ -1,20 +1,10 @@
 // /api/rep/decision.js
 export const config = { runtime: 'nodejs' };
 
-import { Redis } from '@upstash/redis';
+import { redis } from '../_lib/redis.js';
 import { getRepFromAuthHeader } from '../_lib/repAuth.js';
 import { handlePreflight, setCors } from '../_lib/http.js';
 
-// ---- Upstash ----
-const redisUrl =
-  process.env.REDIS_URL ||
-  process.env.UPSTASH_REDIS_REST_URL || '';
-const redisToken =
-  process.env.REDIS_TOKEN ||
-  process.env.UPSTASH_REDIS_REST_TOKEN || '';
-const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redisToken }) : null;
-
-function requireRedis() { if (!redis) throw new Error('Redis not configured'); }
 const S = (v) => (v ?? '').toString().trim();
 
 // ---- Key-Präfixe (beide Varianten unterstützen) ----
