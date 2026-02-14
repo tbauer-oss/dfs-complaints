@@ -1917,7 +1917,7 @@ export async function portalUserByEmail(email) {
   const emailNorm = String(email || '').trim().toLowerCase();
   if (!emailNorm) return null;
   const result = await query(
-    `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
+    `SELECT id, email, email_norm, password_hash, role, is_active
      FROM portal_users
      WHERE email_norm = $1
      LIMIT 1`,

@@ -10,9 +10,28 @@ const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
 const AUTH_DEBUG = String(process.env.AUTH_DEBUG || '').toLowerCase() === 'true';
 const AUTH_DEBUG_KEY = String(process.env.AUTH_DEBUG_KEY || '').trim();
+const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
 
 function logOutcome(outcome) {
   console.info('[portal/login]', { outcome });
+}
+
+function normalizeBcryptHash(passwordHash) {
+  const hash = String(passwordHash || '').trim();
+  if (!hash) return '';
+  if (hash.startsWith('$2y$')) return `$2b$${hash.slice(4)}`;
+  if (!BCRYPT_PREFIX_PATTERN.test(hash)) return '';
+  return hash;
+}
+
+async function verifyPassword(password, passwordHash) {
+  const normalizedHash = normalizeBcryptHash(passwordHash);
+  if (!normalizedHash) return false;
+  try {
+    return await bcrypt.compare(password, normalizedHash);
+  } catch {
+    return false;
+  }
 }
 
 function shouldIncludeReason(req) {
@@ -72,7 +91,7 @@ export default async function handler(req, res) {
   }
 
   const passwordHash = String(user.passhash || user.passwordHash || '').trim();
-  const passwordOk = passwordHash ? await bcrypt.compare(password, passwordHash).catch(() => false) : false;
+  const passwordOk = await verifyPassword(password, passwordHash);
   if (!passwordOk) {
     const outcome = 'PASSWORD_MISMATCH';
     logOutcome(outcome);
@@ -93,7 +112,7 @@ export default async function handler(req, res) {
     { expiresIn: EXPIRES_IN },
   );
 
-  logOutcome('OK');
+  logOutcome('SUCCESS');
   return respond(req, res, 200, {
     token,
     user: { id: user.id, email: user.email, role },
