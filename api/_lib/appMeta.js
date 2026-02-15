@@ -89,12 +89,12 @@ export function sanitizeAppMeta(input = {}) {
 
 async function blobGet() {
   if (!BLOB_TOKEN) return null;
-  const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
-    headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) return null;
   try {
+    const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
+      headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
     return await res.json();
   } catch {
     return null;
@@ -103,20 +103,31 @@ async function blobGet() {
 
 async function blobSet(meta) {
   if (!BLOB_TOKEN) return false;
-  const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${BLOB_TOKEN}`,
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-    body: JSON.stringify(meta),
-  });
-  return res.ok;
+  try {
+    const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${BLOB_TOKEN}`,
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(meta),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function readKvMeta() {
   const raw = await redis.get(APP_META_KEY);
   if (!raw) return null;
+  if (typeof raw === 'string') {
+    try {
+      return sanitizeAppMeta(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
   return sanitizeAppMeta(raw);
 }
 
@@ -130,11 +141,20 @@ export async function loadAppMeta({ refresh = false } = {}) {
     return cachedMeta;
   }
 
-  let meta = await readKvMeta();
+  let meta = null;
+  try {
+    meta = await readKvMeta();
+  } catch {
+    meta = null;
+  }
   if (!meta) {
     const fromBlob = await blobGet();
     meta = sanitizeAppMeta(fromBlob || defaultAppMeta());
-    await writeKvMeta(meta);
+    try {
+      await writeKvMeta(meta);
+    } catch {
+      return sanitizeAppMeta(defaultAppMeta());
+    }
   }
 
   cachedMeta = meta;
@@ -148,7 +168,7 @@ export async function persistAppMeta(meta) {
   cachedMeta = sanitized;
   cachedAt = Date.now();
   if (BLOB_TOKEN) {
-    await blobSet(sanitized);
+    await blobSet(sanitized).catch(() => false);
   }
   return true;
 }

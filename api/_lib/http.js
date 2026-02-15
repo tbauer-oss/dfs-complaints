@@ -101,6 +101,57 @@ export function withCorsHandler(handler, options = {}) {
   };
 }
 
+const STORE_ERROR_CODES = new Set(['DB_UNAVAILABLE', 'STORE_UNAVAILABLE', 'REDIS_TIMEOUT']);
+
+function toErrorMessage(err) {
+  if (!err) return '';
+  if (typeof err.message === 'string') return err.message;
+  return String(err);
+}
+
+function redactSecrets(value) {
+  const text = String(value ?? '');
+  if (!text) return text;
+  return text
+    .replace(/(token|secret|password)=([^\s&]+)/gi, '$1=[redacted]')
+    .replace(/bearer\s+[a-z0-9._\-]+/gi, 'Bearer [redacted]')
+    .slice(0, 4000);
+}
+
+export function safeHandler(fn, options = {}) {
+  const route = options?.route || options?.name || fn?.name || 'unknown-route';
+
+  return async function wrappedSafeHandler(req, res) {
+    withCors(req, res);
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
+    try {
+      await fn(req, res);
+    } catch (err) {
+      const code = String(err?.code || '');
+      const message = redactSecrets(toErrorMessage(err));
+      const stack = redactSecrets(err?.stack || '');
+      console.error('[safeHandler] unhandled route error', {
+        route,
+        message,
+        code,
+        stack,
+      });
+
+      if (res.headersSent) {
+        return res.end();
+      }
+
+      if (STORE_ERROR_CODES.has(code)) {
+        return res.status(503).json({ code: 'STORE_UNAVAILABLE', message: 'Store unavailable' });
+      }
+      return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Internal server error' });
+    }
+  };
+}
+
 // --- Preflight helper (CORS policy is defined in vercel.json) ---
 export function setCors(req, res, allowHeaders = '') {
   void allowHeaders;
