@@ -1,15 +1,16 @@
 import { redis } from './redis.js';
-// api/_lib/appMeta.js – zentrale App-Metadaten (Version, Testmodus)
+
 const APP_META_KEY = process.env.APP_META_KEY || 'dfs:app:meta';
 const BLOB_TOKEN = (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_TOKEN || '').trim();
 const BLOB_BASE_URL = (process.env.BLOB_BASE_URL || 'https://blob.vercel-storage.com').replace(/\/+$/, '');
 const BLOB_APP_META_PATH = (process.env.APP_META_BLOB_PATH || 'meta/app-meta.json').replace(/^\/+/, '');
 
 const CACHE_TTL_MS = 30_000;
-let _cachedMeta = null;
-let _cachedAt = 0;
+let cachedMeta = null;
+let cachedAt = 0;
 
 const nowIso = () => new Date().toISOString();
+
 const envBuild = () => {
   const fromEnv =
     process.env.APP_BUILD ||
@@ -24,8 +25,8 @@ const boolVal = (value) => {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
   if (typeof value === 'string') {
-    const t = value.trim().toLowerCase();
-    return ['true', '1', 'yes', 'on'].includes(t);
+    const normalized = value.trim().toLowerCase();
+    return ['true', '1', 'yes', 'on'].includes(normalized);
   }
   return false;
 };
@@ -36,16 +37,16 @@ const normalizeList = (value) => {
     return Array.from(
       new Set(
         value
-          .flatMap((v) => normalizeList(v))
-          .filter((v) => typeof v === 'string' && v.trim())
-          .map((v) => v.trim()),
+          .flatMap((entry) => normalizeList(entry))
+          .filter((entry) => typeof entry === 'string' && entry.trim())
+          .map((entry) => entry.trim()),
       ),
     );
   }
   if (typeof value === 'string') {
     const tokens = value
       .split(/[;,\n]/g)
-      .map((v) => v.trim())
+      .map((entry) => entry.trim())
       .filter(Boolean);
     return Array.from(new Set(tokens));
   }
@@ -86,15 +87,6 @@ export function sanitizeAppMeta(input = {}) {
   };
 }
 
-async function kvGet() {
-  return redis.get(APP_META_KEY);
-}
-
-async function kvSet(meta) {
-  await redis.set(APP_META_KEY, meta);
-  return true;
-}
-
 async function blobGet() {
   if (!BLOB_TOKEN) return null;
   const res = await fetch(`${BLOB_BASE_URL}/${BLOB_APP_META_PATH}`, {
@@ -104,7 +96,7 @@ async function blobGet() {
   if (!res.ok) return null;
   try {
     return await res.json();
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -122,52 +114,42 @@ async function blobSet(meta) {
   return res.ok;
 }
 
+async function readKvMeta() {
+  const raw = await redis.get(APP_META_KEY);
+  if (!raw) return null;
+  return sanitizeAppMeta(raw);
+}
+
+async function writeKvMeta(meta) {
+  await redis.set(APP_META_KEY, meta);
+}
+
 export async function loadAppMeta({ refresh = false } = {}) {
   const now = Date.now();
-  if (!refresh && _cachedMeta && now - _cachedAt < CACHE_TTL_MS) {
-    return _cachedMeta;
+  if (!refresh && cachedMeta && now - cachedAt < CACHE_TTL_MS) {
+    return cachedMeta;
   }
 
-  let meta = null;
-
-  meta = await kvGet();
-
-  if (!meta && BLOB_TOKEN) {
-    meta = await blobGet();
-  }
-
+  let meta = await readKvMeta();
   if (!meta) {
-    global.__APP_META__ = global.__APP_META__ || defaultAppMeta();
-    meta = global.__APP_META__;
+    const fromBlob = await blobGet();
+    meta = sanitizeAppMeta(fromBlob || defaultAppMeta());
+    await writeKvMeta(meta);
   }
 
-  meta = sanitizeAppMeta(meta || defaultAppMeta());
-  _cachedMeta = meta;
-  _cachedAt = now;
+  cachedMeta = meta;
+  cachedAt = now;
   return meta;
 }
 
 export async function persistAppMeta(meta) {
   const sanitized = sanitizeAppMeta(meta);
-  const ok = await kvSet(sanitized);
-  if (ok) {
-    _cachedMeta = sanitized;
-    _cachedAt = Date.now();
-    return true;
-  }
-
+  await writeKvMeta(sanitized);
+  cachedMeta = sanitized;
+  cachedAt = Date.now();
   if (BLOB_TOKEN) {
-    const ok = await blobSet(sanitized);
-    if (ok) {
-      _cachedMeta = sanitized;
-      _cachedAt = Date.now();
-      return true;
-    }
+    await blobSet(sanitized);
   }
-
-  global.__APP_META__ = sanitized;
-  _cachedMeta = sanitized;
-  _cachedAt = Date.now();
   return true;
 }
 
@@ -212,6 +194,6 @@ export function applyTestPushRouting(meta, tokens = []) {
     return { tokens: [], testMode: true, suppressed: true };
   }
 
-  const filtered = normalized.filter((t) => allowed.includes(t));
+  const filtered = normalized.filter((token) => allowed.includes(token));
   return { tokens: filtered, testMode: true, allowed, suppressed: filtered.length === 0 };
 }

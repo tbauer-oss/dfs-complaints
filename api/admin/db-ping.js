@@ -23,14 +23,14 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
 
   try {
-    await query('select 1');
+    await query('select 1 as ok');
     res.statusCode = 200;
     return res.end(JSON.stringify({ ok: true, target, ms: Date.now() - startedAt }));
   } catch (err) {
     const message = err?.message || 'Database unavailable';
-    const code = err?.code === 'DB_UNAVAILABLE' ? 'DB_UNAVAILABLE' : 'DB_UNAVAILABLE';
+    const code = 'DB_UNAVAILABLE';
     console.warn('[admin/db-ping] failed', { target, code, message });
     res.statusCode = 503;
-    return res.end(JSON.stringify({ ok: false, error: message, code, target }));
+    return res.end(JSON.stringify({ ok: false, code, message, target }));
   }
 }
