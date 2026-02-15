@@ -14,12 +14,13 @@
 npx prisma migrate deploy
 ```
 
-- In Vercel, set `DATABASE_URL` to the **Supabase Transaction Pooler** endpoint on port **6543** (not direct 5432).
+- In Vercel, set `DATABASE_URL` to a Supabase Postgres endpoint (direct `5432` or transaction pooler `6543`).
+- Do **not** append `?sslmode=...` or `?uselibpqcompat=...` to `DATABASE_URL`; SSL is handled by `api/_lib/db.js`.
 
 ## 1) Set environment variables
 
 ```bash
-export DATABASE_URL='postgresql://...:6543/postgres?sslmode=require'
+export DATABASE_URL='postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres'
 export UPSTASH_REDIS_REST_URL='https://<upstash-host>'
 export UPSTASH_REDIS_REST_TOKEN='<token>'
 
@@ -33,6 +34,20 @@ export DRY_RUN='0'                    # set to 1 for scan/count only
 # export START_CURSOR_MAP='{"dfs:*":"0","chat:*":"12345"}'
 # export STOP_AFTER='1000'
 ```
+
+Supported `DATABASE_URL` formats:
+
+- Supabase Direct (port `5432`):
+
+  ```bash
+  postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+  ```
+
+- Supabase Transaction Pooler (port `6543`, username includes project ref):
+
+  ```bash
+  postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+  ```
 
 ## 2) Run full key-preserving migration
 
@@ -79,7 +94,9 @@ Behavior:
 ## 5) Deploy
 
 Deploy with:
-- `DATABASE_URL` (Supabase transaction pooler `:6543`)
+- `DATABASE_URL` (direct `:5432` or transaction pooler `:6543`, without `sslmode` query params)
 - `JWT_SECRET`
+
+In Vercel, set `DATABASE_URL` in the **Production** environment, then redeploy so runtime instances pick up the new value.
 
 Then smoke-test portal login.
