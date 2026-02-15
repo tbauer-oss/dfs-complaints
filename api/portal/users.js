@@ -14,6 +14,7 @@ import {
   PORTAL_ROLES,
 } from '../_lib/portalAuth.js';
 import { createTrackedRedis } from '../chat/v1/_lib/redisTracker.js';
+import { normalizeEmail } from '../_lib/identity.js';
 import { createRedisAdapter } from '../chat/v1/_lib/redisAdapter.js';
 import { keyAvatarMap, normalizeUserId } from '../chat/v1/_lib/schema.js';
 
@@ -89,7 +90,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = readJson(req) || {};
-      const email = String(body.email || '').trim().toLowerCase();
+      const email = normalizeEmail(body.email);
       const password = String(body.password || '');
       const role = normalizeRole(body.role);
       const displayName = String(body.displayName || '').trim();
@@ -119,10 +120,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'PATCH') {
       const body = readJson(req) || {};
-      const email = String(body.email || '').trim().toLowerCase();
+      const email = normalizeEmail(body.email);
       if (!email) return bad(res, 'missing email', 400);
       const list = await portalUsersList();
-      const existing = list.find(u => String(u.email || '').toLowerCase() === email);
+      const existing = list.find(u => normalizeEmail(u.email) === email);
       if (!existing) return bad(res, 'not found', 404);
 
       const patch = { ...existing };
@@ -148,7 +149,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const body = readJson(req) || {};
-      const email = String(body.email || '').trim().toLowerCase();
+      const email = normalizeEmail(body.email);
       if (!email) return bad(res, 'missing email', 400);
       if (ADMIN_EMAILS.has(email)) return bad(res, 'cannot delete initial admins', 400);
       await portalUserDelete(email);

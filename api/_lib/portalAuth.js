@@ -6,6 +6,7 @@
 
 import { getAuthUser } from './auth.js';
 import { normalizeTilePermission, portalUserByEmail, sanitizeTilePermissions } from './store.js';
+import { normalizeEmail } from './identity.js';
 
 // Die Portal-Rolle wird direkt am User-Objekt unter `user.role` gespeichert.
 // Gültige Werte sind unten definiert und werden in den Guards/Handlers geprüft.
@@ -56,7 +57,7 @@ export function normalizeStatus(status, revoked = false) {
 }
 
 export async function isPortalEmail(email) {
-  const mail = String(email || '').trim().toLowerCase();
+  const mail = normalizeEmail(email);
   if (!mail) return false;
   if (ADMIN_EMAILS.has(mail)) return true;
 
@@ -120,7 +121,7 @@ export function isAdminUser(user) {
   if (!user) return false;
   const role = normalizeRole(user.role);
   if (role === PORTAL_ROLES.superuser || role === PORTAL_ROLES.admin) return true;
-  const mail = String(user.email || '').trim().toLowerCase();
+  const mail = normalizeEmail(user.email);
   return ADMIN_EMAILS.has(mail);
 }
 

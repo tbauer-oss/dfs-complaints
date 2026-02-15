@@ -4,8 +4,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail } from '../_lib/store.js';
-import { normalizeRole, normalizeStatus } from '../_lib/portalAuth.js';
+import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
+import { normalizeEmail } from '../_lib/identity.js';
 
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
@@ -13,8 +14,8 @@ const AUTH_DEBUG = String(process.env.AUTH_DEBUG || '').toLowerCase() === 'true'
 const AUTH_DEBUG_KEY = String(process.env.AUTH_DEBUG_KEY || '').trim();
 const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
 
-function logOutcome(outcome) {
-  console.info('[portal/login]', { outcome });
+function logOutcome(outcome, details = {}) {
+  console.info('[portal/login]', { outcome, ...details });
 }
 
 function normalizeBcryptHash(passwordHash) {
@@ -23,16 +24,6 @@ function normalizeBcryptHash(passwordHash) {
   if (hash.startsWith('$2y$')) return `$2b$${hash.slice(4)}`;
   if (!BCRYPT_PREFIX_PATTERN.test(hash)) return '';
   return hash;
-}
-
-async function verifyPassword(password, passwordHash) {
-  const normalizedHash = normalizeBcryptHash(passwordHash);
-  if (!normalizedHash) return false;
-  try {
-    return await bcrypt.compare(password, normalizedHash);
-  } catch {
-    return false;
-  }
 }
 
 function shouldIncludeReason(req) {
@@ -63,23 +54,23 @@ export default async function handler(req, res) {
     return respond(req, res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' }, 'BAD_REQUEST');
   }
 
-  const email = String(body?.email || '').trim().toLowerCase();
+  const emailRaw = String(body?.email || '');
+  const emailNorm = normalizeEmail(emailRaw);
   const password = String(body?.password || '');
-  if (!email || !password) {
+  if (!emailNorm || !password) {
     logOutcome('BAD_REQUEST');
     return respond(req, res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' }, 'BAD_REQUEST');
   }
 
-
-  const forbiddenReason = forbiddenEmailReason(email);
+  const forbiddenReason = forbiddenEmailReason(emailNorm);
   if (forbiddenReason) {
-    logSecurityEvent({ req, email, reason: forbiddenReason });
+    logSecurityEvent({ req, email: emailNorm, reason: forbiddenReason });
     return respond(req, res, 403, { code: 'FORBIDDEN_EMAIL', message: 'E-Mail nicht zulässig.' }, forbiddenReason);
   }
 
   let user;
   try {
-    user = await portalUserByEmail(email);
+    user = await portalUserByEmail(emailNorm);
   } catch {
     const outcome = 'STORE_UNAVAILABLE';
     logOutcome(outcome);
@@ -94,37 +85,48 @@ export default async function handler(req, res) {
 
   if (!user) {
     const outcome = 'USER_NOT_FOUND';
-    logOutcome(outcome);
+    logOutcome(outcome, { email_norm: emailNorm });
     return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
   }
 
-  const passwordHash = String(user.passhash || user.passwordHash || '').trim();
-  const passwordOk = await verifyPassword(password, passwordHash);
+  if (user.portalStatus === 'inactive') {
+    const outcome = 'ACCOUNT_DISABLED';
+    logOutcome(outcome, { email_norm: emailNorm, user_id: user.id || null });
+    return respond(req, res, 403, { code: 'ACCOUNT_DISABLED', message: 'Konto deaktiviert.' }, outcome);
+  }
+
+  const passwordHash = normalizeBcryptHash(user.passhash || user.passwordHash || '');
+  if (!passwordHash) {
+    const outcome = 'PASSWORD_NOT_SET';
+    logOutcome(outcome, { email_norm: emailNorm, user_id: user.id || null });
+    return respond(req, res, 409, { code: 'PASSWORD_NOT_SET', message: 'Für dieses Konto ist kein Passwort gesetzt.' }, outcome);
+  }
+
+  let passwordOk = false;
+  try {
+    passwordOk = await bcrypt.compare(password, passwordHash);
+  } catch {
+    passwordOk = false;
+  }
+
   if (!passwordOk) {
     const outcome = 'PASSWORD_MISMATCH';
-    logOutcome(outcome);
+    logOutcome(outcome, { email_norm: emailNorm, user_id: user.id || null });
     return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
   }
 
   const role = normalizeRole(user.role);
-  const portalStatus = normalizeStatus(user.portalStatus, user.revoked);
-  if (portalStatus !== 'active') {
-    const outcome = 'USER_INACTIVE';
-    logOutcome(outcome);
-    return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
-  }
-
   const token = jwt.sign(
-    { sub: user.id || user.email, email: user.email, role, portalStatus },
+    { sub: user.id || user.email, email: user.email, role, portalStatus: 'active' },
     JWT_SECRET,
     { expiresIn: EXPIRES_IN },
   );
 
-  logOutcome('SUCCESS');
+  logOutcome('SUCCESS', { email_norm: emailNorm, user_id: user.id || null });
   return respond(req, res, 200, {
     token,
     user: { id: user.id, email: user.email, role },
-    profile: { id: user.id, email: user.email, role, portalStatus, tourSeen: user.tourSeen === true },
+    profile: { id: user.id, email: user.email, role, portalStatus: 'active', tourSeen: user.tourSeen === true },
     tourSeen: user.tourSeen === true,
     expiresIn: EXPIRES_IN,
   });

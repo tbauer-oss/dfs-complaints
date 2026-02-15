@@ -5,6 +5,7 @@ import { methodNotAllowed } from '../_lib/http.js';
 import { createPortalUser } from '../_lib/store.js';
 import { query } from '../_lib/db.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
+import { normalizeEmail } from '../_lib/identity.js';
 
 function respond(res, statusCode, payload) {
   if (!res.getHeader('Content-Type')) {
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
       return respond(res, 200, { ok: true, status: 'already_initialized' });
     }
 
-    const email = String(process.env.INITIAL_ADMIN_EMAIL || '').trim();
+    const email = normalizeEmail(process.env.INITIAL_ADMIN_EMAIL || '');
 
     const forbiddenReason = forbiddenEmailReason(email);
     if (forbiddenReason) {
