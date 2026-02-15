@@ -9,6 +9,7 @@ import {
 import { isStrongPassword } from '../_lib/passwords.js';
 import { isRepEmail } from '../_lib/repEmailGuard.js';
 import { DFS_PORTAL_EMAIL_FORBIDDEN_MSG, isPortalEmail } from '../_lib/portalAuth.js';
+import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 
 const isPreview  = process.env.VERCEL_ENV !== 'production';
 const validEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
@@ -87,6 +88,12 @@ export default async function handler(req, res) {
     }
 
     const email = gateEmail;
+
+    const forbiddenReason = forbiddenEmailReason(email);
+    if (forbiddenReason) {
+      logSecurityEvent({ req, email, reason: forbiddenReason });
+      return bad(res, 'forbidden email', 403);
+    }
     if (!validEmail(email))                return bad(res, 'invalid email', 400);
     if (await isRepEmail(email))           return bad(res, 'email belongs to representative', 400);
     if (await isPortalEmail(email))        return bad(res, DFS_PORTAL_EMAIL_FORBIDDEN_MSG, 403);

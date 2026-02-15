@@ -3,6 +3,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
 import { randomGateCode, hashGateCode } from '../_lib/gate.js';
 import { gateStoreSet, userByEmail } from '../_lib/store.js';
+import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 import { sendMail } from '../_lib/mailer.js';
 
 const INTERNAL_GATE_EMAIL = process.env.GATE_NOTIFY_EMAIL || 'noreply@dfs-diamon.com';
@@ -32,6 +33,12 @@ export default async function handler(req, res) {
     const note = normalizeString(body.note || body.message || '');
 
     if (!email) return bad(res, 'missing email', 400);
+
+    const forbiddenReason = forbiddenEmailReason(email);
+    if (forbiddenReason) {
+      logSecurityEvent({ req, email, reason: forbiddenReason });
+      return bad(res, 'forbidden email', 403);
+    }
     if (!company) return bad(res, 'missing company', 400);
 
     const existingUser = await userByEmail(email);

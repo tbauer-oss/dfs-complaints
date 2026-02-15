@@ -15,6 +15,7 @@ import {
 } from './departments.js';
 import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems } from './gsprRequirements.js';
 import { query } from './db.js';
+import { forbiddenEmailReason } from './forbiddenEmails.js';
 
 /* =========================================================
    KV / Redis – Supabase Postgres KV compat
@@ -1746,11 +1747,7 @@ export async function userByEmail(email) {
   const raw = await _loadUserRecord(email);
   if (!raw) return raw;
 
-  if (hasPortalMarker(raw)) {
-    try { await migratePortalLikeUser(raw); }
-    catch (e) { console.error('[store] portal migration failed (userByEmail):', e); }
-    return null;
-  }
+  if (hasPortalMarker(raw)) return null;
 
   if (!raw.type) raw.type = 'customer';
   if (!raw.kind) raw.kind = 'customer';
@@ -1760,6 +1757,11 @@ export async function userByEmail(email) {
 export async function userSave(u) {
   const email = String(u?.email || '').toLowerCase();
   if (!email) return false;
+  if (forbiddenEmailReason(email)) {
+    const err = new Error('forbidden email');
+    err.code = 'FORBIDDEN_EMAIL';
+    throw err;
+  }
   const key = `${P}user:${email}`;
   const r = getRedis();
   const toSave = { ...u, email };
@@ -1836,11 +1838,7 @@ export async function usersList() {
   const customers = [];
   for (const u of rawList) {
     if (!u || typeof u !== 'object') continue;
-    if (hasPortalMarker(u)) {
-      try { await migratePortalLikeUser(u); }
-      catch (e) { console.error('[store] portal migration failed (usersList):', e); }
-      continue;
-    }
+    if (hasPortalMarker(u)) continue;
 
     if (!isCustomerUser(u)) continue;
 
@@ -1871,16 +1869,6 @@ const isCustomerUser = (u) => {
   if (hasPortalMarker(u)) return false;
   return true;
 };
-
-async function migratePortalLikeUser(u) {
-  const email = String(u?.email || '').toLowerCase();
-  if (!email) return null;
-  const migrated = normalizePortalUser({ ...u, email });
-  if (!migrated) return null;
-  await portalUserSave(migrated);
-  await userDelete(email);
-  return migrated;
-}
 
 function normalizePortalUser(u) {
   if (!u || typeof u !== 'object') return null;
@@ -1929,6 +1917,11 @@ export async function portalUserByEmail(email) {
 export async function createPortalUser(u) {
   const email = String(u?.email || '').trim();
   const emailNorm = email.toLowerCase();
+  if (forbiddenEmailReason(emailNorm)) {
+    const err = new Error('forbidden email');
+    err.code = 'FORBIDDEN_EMAIL';
+    throw err;
+  }
   const passwordHash = String(u?.passwordHash || u?.passhash || '').trim();
   const role = String(u?.role || 'user').trim().toLowerCase() || 'user';
   const isActive = u?.portalStatus ? String(u.portalStatus).trim().toLowerCase() !== 'inactive' : u?.isActive !== false;
@@ -1946,6 +1939,11 @@ export async function createPortalUser(u) {
 export async function upsertPortalUser(u) {
   const email = String(u?.email || '').trim();
   const emailNorm = email.toLowerCase();
+  if (forbiddenEmailReason(emailNorm)) {
+    const err = new Error('forbidden email');
+    err.code = 'FORBIDDEN_EMAIL';
+    throw err;
+  }
   const passwordHashRaw = String(u?.passwordHash || u?.passhash || '').trim();
   const passwordHash = passwordHashRaw || null;
   const role = String(u?.role || 'user').trim().toLowerCase() || 'user';

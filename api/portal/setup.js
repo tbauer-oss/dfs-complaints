@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { methodNotAllowed } from '../_lib/http.js';
 import { createPortalUser } from '../_lib/store.js';
 import { query } from '../_lib/db.js';
+import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 
 function respond(res, statusCode, payload) {
   if (!res.getHeader('Content-Type')) {
@@ -35,6 +36,12 @@ export default async function handler(req, res) {
     }
 
     const email = String(process.env.INITIAL_ADMIN_EMAIL || '').trim();
+
+    const forbiddenReason = forbiddenEmailReason(email);
+    if (forbiddenReason) {
+      logSecurityEvent({ req, email, reason: forbiddenReason });
+      return respond(res, 403, { code: 'FORBIDDEN_EMAIL', message: 'E-Mail nicht zulässig.' });
+    }
     const password = String(process.env.INITIAL_ADMIN_PASSWORD || '');
     if (!email || !password) {
       return respond(res, 503, {
