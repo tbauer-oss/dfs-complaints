@@ -31,18 +31,21 @@ function sanitizeConnectionString(connectionString = '') {
 }
 
 function getSslConfigForHost(host = '') {
-  if (!host) return { rejectUnauthorized: false };
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return false;
-  if (host.includes('supabase.co') || host.includes('pooler.supabase.com')) {
-    return { rejectUnauthorized: false };
-  }
+  if (!host) return { rejectUnauthorized: false };
   return { rejectUnauthorized: false };
 }
 
 function toDbUnavailableError(err, target) {
-  const unavailableErr = new Error(`DB unavailable (${target})`);
+  if (err && typeof err === 'object') {
+    err.code = 'DB_UNAVAILABLE';
+    err.target = target;
+    return err;
+  }
+
+  const unavailableErr = new Error(String(err || `DB unavailable (${target})`));
   unavailableErr.code = 'DB_UNAVAILABLE';
-  unavailableErr.cause = err;
+  unavailableErr.target = target;
   return unavailableErr;
 }
 
@@ -73,8 +76,8 @@ async function getPool() {
   const Pool = pg.Pool || pg.default?.Pool;
   pool = new Pool({
     connectionString: sanitizedConnectionString,
-    max: Number(process.env.DB_POOL_MAX || 3),
-    connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 3000),
+    max: Number(process.env.DB_POOL_MAX || 2),
+    connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 8000),
     idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 5000),
     ssl: getSslConfigForHost(target.host),
   });

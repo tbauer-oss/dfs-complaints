@@ -60,7 +60,7 @@ test('admin db-ping returns ok payload when db query succeeds', async () => {
 
   __setDbForTests({
     async query(sql) {
-      assert.equal(String(sql).toLowerCase(), 'select 1');
+      assert.equal(String(sql).toLowerCase(), 'select 1 as ok');
       return { rows: [{ '?column?': 1 }] };
     },
   });
