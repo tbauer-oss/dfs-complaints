@@ -2,7 +2,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { methodNotAllowed, readJson } from '../_lib/http.js';
+import { logStoreError, methodNotAllowed, readJson, storeUnavailablePayload } from '../_lib/http.js';
 import { portalUserByEmail } from '../_lib/store.js';
 import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
@@ -73,15 +73,18 @@ export default async function handler(req, res) {
     user = await portalUserByEmail(emailNorm);
   } catch (err) {
     const outcome = 'STORE_UNAVAILABLE';
+    const unavailablePayload = storeUnavailablePayload('Service temporär nicht verfügbar. Bitte später erneut versuchen.');
+    logStoreError(err, unavailablePayload.debugId);
     logOutcome(outcome, {
       errorCode: err?.code || null,
       errorMessage: err?.message || String(err),
+      debugId: unavailablePayload.debugId,
     });
     return respond(
       req,
       res,
       503,
-      { code: outcome, message: 'Service temporär nicht verfügbar. Bitte später erneut versuchen.' },
+      unavailablePayload,
       outcome,
     );
   }

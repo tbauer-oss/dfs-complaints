@@ -1,7 +1,7 @@
 export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
-import { methodNotAllowed } from '../_lib/http.js';
+import { logStoreError, methodNotAllowed, storeUnavailablePayload } from '../_lib/http.js';
 import { createPortalUser } from '../_lib/store.js';
 import { query } from '../_lib/db.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
@@ -45,10 +45,7 @@ export default async function handler(req, res) {
     }
     const password = String(process.env.INITIAL_ADMIN_PASSWORD || '');
     if (!email || !password) {
-      return respond(res, 503, {
-        code: 'STORE_UNAVAILABLE',
-        message: 'Service temporär nicht verfügbar. Bitte später erneut versuchen.',
-      });
+      return respond(res, 503, storeUnavailablePayload('Service temporär nicht verfügbar. Bitte später erneut versuchen.'));
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -60,10 +57,9 @@ export default async function handler(req, res) {
     });
 
     return respond(res, 200, { ok: true, status: 'initialized' });
-  } catch {
-    return respond(res, 503, {
-      code: 'STORE_UNAVAILABLE',
-      message: 'Service temporär nicht verfügbar. Bitte später erneut versuchen.',
-    });
+  } catch (err) {
+    const payload = storeUnavailablePayload('Service temporär nicht verfügbar. Bitte später erneut versuchen.');
+    logStoreError(err, payload.debugId);
+    return respond(res, 503, payload);
   }
 }

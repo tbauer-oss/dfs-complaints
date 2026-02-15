@@ -103,6 +103,30 @@ export function withCorsHandler(handler, options = {}) {
 
 const STORE_ERROR_CODES = new Set(['DB_UNAVAILABLE', 'STORE_UNAVAILABLE', 'REDIS_TIMEOUT']);
 
+function createDebugId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function toErrorSummary(err) {
+  return {
+    message: err?.message || String(err),
+    code: err?.code || null,
+    stack: err?.stack?.split('\n').slice(0, 5).join('\n') || null,
+  };
+}
+
+export function logStoreError(err, debugId) {
+  console.error(`[store] debugId=${debugId}`, toErrorSummary(err));
+}
+
+export function storeUnavailablePayload(message = 'Store unavailable') {
+  return {
+    code: 'STORE_UNAVAILABLE',
+    message,
+    debugId: createDebugId(),
+  };
+}
+
 function toErrorMessage(err) {
   if (!err) return '';
   if (typeof err.message === 'string') return err.message;
@@ -145,7 +169,9 @@ export function safeHandler(fn, options = {}) {
       }
 
       if (STORE_ERROR_CODES.has(code)) {
-        return res.status(503).json({ code: 'STORE_UNAVAILABLE', message: 'Store unavailable' });
+        const payload = storeUnavailablePayload('Store unavailable');
+        logStoreError(err, payload.debugId);
+        return res.status(503).json(payload);
       }
       return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Internal server error' });
     }

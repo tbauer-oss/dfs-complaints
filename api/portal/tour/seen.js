@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 
-import { bad, handlePreflight, methodNotAllowed, ok, readJson, setCors } from '../../_lib/http.js';
+import { bad, handlePreflight, logStoreError, methodNotAllowed, ok, readJson, setCors, storeUnavailablePayload } from '../../_lib/http.js';
 import { portalUserFromRequest } from '../../_lib/portalAuth.js';
 import { markPortalTourSeen } from '../../_lib/store.js';
 
@@ -31,8 +31,11 @@ export default async function handler(req, res) {
     return ok(res, { ok: true, tourSeen: updated.tourSeen === true });
   } catch (error) {
     if (isStoreUnavailable(error)) {
-      return bad(res, 'Service temporär nicht verfügbar. Bitte später erneut versuchen.', 503, {
-        code: 'STORE_UNAVAILABLE',
+      const payload = storeUnavailablePayload('Service temporär nicht verfügbar. Bitte später erneut versuchen.');
+      logStoreError(error, payload.debugId);
+      return bad(res, payload.message, 503, {
+        code: payload.code,
+        debugId: payload.debugId,
       });
     }
     console.error('portal/tour/seen failed', error);
