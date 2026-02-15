@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 
-import { methodNotAllowed, withCors } from '../../_lib/http.js';
+import { logStoreError, methodNotAllowed, storeUnavailablePayload, withCors } from '../../_lib/http.js';
 import { markPortalTourSeen } from '../../_lib/store.js';
 
 export default async function handler(req, res) {
@@ -29,8 +29,10 @@ export default async function handler(req, res) {
   } catch (error) {
     const code = String(error?.code || '').toUpperCase();
     if (code === 'STORE_UNAVAILABLE' || code === 'DB_UNAVAILABLE') {
+      const payload = storeUnavailablePayload('Service temporär nicht verfügbar.');
+      logStoreError(error, payload.debugId);
       res.statusCode = 503;
-      return res.end(JSON.stringify({ code: 'STORE_UNAVAILABLE', message: 'Service temporär nicht verfügbar.' }));
+      return res.end(JSON.stringify(payload));
     }
     res.statusCode = 500;
     return res.end(JSON.stringify({ code: 'INTERNAL_ERROR', message: 'internal error' }));

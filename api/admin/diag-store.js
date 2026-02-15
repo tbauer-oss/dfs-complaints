@@ -1,28 +1,25 @@
 export const config = { runtime: 'nodejs' };
 
-// curl examples:
-// curl -sS 'https://<your-host>/api/admin/diag-store' -H 'x-admin-secret: <ADMIN_SECRET>'
-// curl -sS 'https://<your-host>/api/admin/diag-store' -H 'Authorization: Bearer <ADMIN_SECRET>'
-
 import { query } from '../_lib/db.js';
+import { withCors } from '../_lib/http.js';
 import { redis } from '../_lib/redis.js';
-import { safeHandler } from '../_lib/http.js';
 
-function asErrorMessage(err) {
-  if (!err) return 'unknown error';
-  if (typeof err?.message === 'string' && err.message) return err.message;
-  return String(err);
+function sanitizeError(err) {
+  return {
+    message: err?.message || String(err),
+    code: err?.code || null,
+  };
 }
 
-function parseDbTarget() {
+function getDbTarget() {
   const value = String(process.env.DATABASE_URL || '').trim();
   if (!value) return '';
   try {
     const parsed = new URL(value);
-    const host = parsed.hostname || '';
-    const port = parsed.port || '5432';
-    const dbName = (parsed.pathname || '').replace(/^\//, '') || '';
-    return `${host}:${port}/${dbName}`;
+    const host = String(parsed.hostname || '').trim();
+    const port = String(parsed.port || '5432').trim();
+    const database = String(parsed.pathname || '').replace(/^\//, '').trim() || 'postgres';
+    return `${host}:${port}/${database}`;
   } catch {
     return '';
   }
@@ -38,108 +35,105 @@ function isAuthorized(req) {
   const authorization = String(req.headers?.authorization || '').trim();
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   const bearerSecret = String(match?.[1] || '').trim();
-  return !!bearerSecret && bearerSecret === expected;
+  return Boolean(bearerSecret) && bearerSecret === expected;
 }
 
-export async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ ok: false, code: 'METHOD_NOT_ALLOWED' });
+function json(res, status, payload) {
+  if (!res.getHeader('Content-Type')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
   }
+  res.statusCode = status;
+  res.end(JSON.stringify(payload));
+}
 
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ ok: false, code: 'UNAUTHORIZED' });
-  }
+export default async function handler(req, res) {
+  withCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const diagnostics = {
+  const response = {
     ok: false,
     env: {
-      hasDatabaseUrl: !!String(process.env.DATABASE_URL || '').trim(),
-      hasJwtSecret: !!String(process.env.JWT_SECRET || '').trim(),
+      hasDatabaseUrl: Boolean(String(process.env.DATABASE_URL || '').trim()),
+      hasJwtSecret: Boolean(String(process.env.JWT_SECRET || '').trim()),
     },
+    dbTarget: getDbTarget(),
     db: {
-      ok: false,
-      target: parseDbTarget(),
-      ms: 0,
+      ping: {
+        ok: false,
+        ms: null,
+      },
     },
     schema: {
-      kv_store: { ok: false },
-      portal_users: { ok: false },
+      kv_store: null,
+      portal_users: null,
     },
     kv: {
-      setGetDel: { ok: false, ms: 0 },
-    },
-    portal: {
-      lookup: { ok: false, found: false, ms: 0 },
+      setGetDel: {
+        ok: false,
+        key: null,
+        got: null,
+        ms: null,
+      },
     },
   };
 
-  const dbStarted = Date.now();
   try {
-    await query('select 1 as ok');
-    diagnostics.db.ok = true;
-  } catch (err) {
-    diagnostics.db.error = asErrorMessage(err);
-  } finally {
-    diagnostics.db.ms = Date.now() - dbStarted;
-  }
-
-  let hasPortalUsersTable = false;
-
-  try {
-    const { rows } = await query("select to_regclass('public.kv_store') as exists");
-    const exists = !!rows?.[0]?.exists;
-    diagnostics.schema.kv_store.ok = exists;
-    if (!exists) diagnostics.schema.kv_store.error = 'table not found';
-  } catch (err) {
-    diagnostics.schema.kv_store.error = asErrorMessage(err);
-  }
-
-  try {
-    const { rows } = await query("select to_regclass('public.portal_users') as exists");
-    hasPortalUsersTable = !!rows?.[0]?.exists;
-    diagnostics.schema.portal_users.ok = hasPortalUsersTable;
-    if (!hasPortalUsersTable) diagnostics.schema.portal_users.error = 'table not found';
-  } catch (err) {
-    diagnostics.schema.portal_users.error = asErrorMessage(err);
-  }
-
-  const kvStarted = Date.now();
-  try {
-    const key = `dfs:diag:ping:${Date.now()}`;
-    await redis.set(key, { ok: true }, { ex: 60 });
-    await redis.get(key);
-    await redis.del(key);
-    diagnostics.kv.setGetDel.ok = true;
-  } catch (err) {
-    diagnostics.kv.setGetDel.error = asErrorMessage(err);
-  } finally {
-    diagnostics.kv.setGetDel.ms = Date.now() - kvStarted;
-  }
-
-  const portalStarted = Date.now();
-  try {
-    if (!hasPortalUsersTable) {
-      diagnostics.portal.lookup.error = diagnostics.schema.portal_users.error || 'table not found';
-    } else {
-      const { rows } = await query('select email_norm, is_active from portal_users limit 1');
-      diagnostics.portal.lookup.ok = true;
-      diagnostics.portal.lookup.found = (rows?.length || 0) > 0;
+    if (req.method !== 'GET') {
+      return json(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED' });
     }
+
+    if (!isAuthorized(req)) {
+      return json(res, 401, { ok: false, code: 'UNAUTHORIZED' });
+    }
+
+    const dbPingStarted = Date.now();
+    try {
+      await query('select 1 as ok');
+      response.db.ping.ok = true;
+    } catch (err) {
+      response.db.ping.error = sanitizeError(err);
+    } finally {
+      response.db.ping.ms = Date.now() - dbPingStarted;
+    }
+
+    try {
+      const { rows } = await query(
+        "select to_regclass('public.kv_store') as kv_store, to_regclass('public.portal_users') as portal_users",
+      );
+      response.schema.kv_store = rows?.[0]?.kv_store || null;
+      response.schema.portal_users = rows?.[0]?.portal_users || null;
+    } catch (err) {
+      response.schema.error = sanitizeError(err);
+    }
+
+    const key = `dfs:diag:ping:${Date.now()}`;
+    const kvStarted = Date.now();
+    response.kv.setGetDel.key = key;
+    try {
+      await redis.set(key, { ok: true }, { ex: 60 });
+      const got = await redis.get(key);
+      await redis.del(key);
+      response.kv.setGetDel.ok = true;
+      response.kv.setGetDel.got = got ?? null;
+    } catch (err) {
+      response.kv.setGetDel.error = sanitizeError(err);
+    } finally {
+      response.kv.setGetDel.ms = Date.now() - kvStarted;
+    }
+
+    response.ok = Boolean(
+      response.db.ping.ok
+      && response.schema.kv_store
+      && response.schema.portal_users
+      && response.kv.setGetDel.ok,
+    );
+
+    return json(res, 200, response);
   } catch (err) {
-    diagnostics.portal.lookup.error = asErrorMessage(err);
-  } finally {
-    diagnostics.portal.lookup.ms = Date.now() - portalStarted;
+    return json(res, 200, {
+      ...response,
+      ok: false,
+      fatal: sanitizeError(err),
+    });
   }
-
-  diagnostics.ok = Boolean(
-    diagnostics.db.ok
-      && diagnostics.schema.kv_store.ok
-      && diagnostics.schema.portal_users.ok
-      && diagnostics.kv.setGetDel.ok
-      && diagnostics.portal.lookup.ok,
-  );
-
-  return res.status(200).json(diagnostics);
 }
-
-export default safeHandler(handler, { route: '/api/admin/diag-store' });
