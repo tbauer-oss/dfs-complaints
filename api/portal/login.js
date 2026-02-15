@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { methodNotAllowed, readJson } from '../_lib/http.js';
 import { portalUserByEmail } from '../_lib/store.js';
 import { normalizeRole, normalizeStatus } from '../_lib/portalAuth.js';
+import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
@@ -67,6 +68,13 @@ export default async function handler(req, res) {
   if (!email || !password) {
     logOutcome('BAD_REQUEST');
     return respond(req, res, 400, { code: 'BAD_REQUEST', message: 'Bitte alle Felder ausfüllen.' }, 'BAD_REQUEST');
+  }
+
+
+  const forbiddenReason = forbiddenEmailReason(email);
+  if (forbiddenReason) {
+    logSecurityEvent({ req, email, reason: forbiddenReason });
+    return respond(req, res, 403, { code: 'FORBIDDEN_EMAIL', message: 'E-Mail nicht zulässig.' }, forbiddenReason);
   }
 
   let user;

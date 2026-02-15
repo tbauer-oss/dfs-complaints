@@ -1058,9 +1058,12 @@ class ApiClient {
       }
 
       final msg = _extractMessage(r.body);
+      // Strict auth mode: never keep/create a local session when login fails.
+      token = null;
       final revoked = status == 403 && msg.toLowerCase().contains('revoked');
       return LoginResult.failure(revoked: revoked, message: msg, statusCode: status);
     } catch (e) {
+      token = null;
       return LoginResult.failure(message: e.toString());
     }
   }

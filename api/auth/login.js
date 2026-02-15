@@ -14,6 +14,7 @@ import {
   normalizeRole,
   normalizeStatus,
 } from '../_lib/portalAuth.js';
+import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
 export default async function handler(req, res) {
@@ -30,6 +31,12 @@ export default async function handler(req, res) {
     if (!email || !pw) return bad(res, 'missing credentials', 400);
 
     await ensureInitialAdmins();
+
+    const forbiddenReason = forbiddenEmailReason(email);
+    if (forbiddenReason) {
+      logSecurityEvent({ req, email, reason: forbiddenReason });
+      return bad(res, 'forbidden email', 403);
+    }
 
     if (await isPortalEmail(email)) {
       return bad(res, DFS_PORTAL_EMAIL_FORBIDDEN_MSG, 403);
