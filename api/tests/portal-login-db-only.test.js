@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 
 import { __setDbForTests } from '../_lib/db.js';
 import loginHandler from '../portal/login.js';
-import diagHandler from '../admin/diag-portal-user.js';
+import diagHandler from '../admin/auth-diagnose.js';
 
 function makeReq({ method = 'POST', body = {}, query = {}, headers = {} } = {}) {
   return {
@@ -79,7 +79,7 @@ test('portal login accepts legacy $2y$ hashes from portal_users', async () => {
     },
   });
 
-  const req = makeReq({ body: { email: 'portal@dfs-diamon.de', password } });
+  const req = makeReq({ body: { email: ' Portal@dfs-diamon.de ', password } });
   const res = makeRes();
 
   await loginHandler(req, res);
@@ -87,7 +87,7 @@ test('portal login accepts legacy $2y$ hashes from portal_users', async () => {
   assert.equal(res.__out.statusCode, 200);
 });
 
-test('portal login returns INVALID_CREDENTIALS when password hash is missing', async () => {
+test('portal login returns PASSWORD_NOT_SET when password hash is missing', async () => {
   __setDbForTests({
     async query() {
       return {
@@ -110,12 +110,39 @@ test('portal login returns INVALID_CREDENTIALS when password hash is missing', a
 
   await loginHandler(req, res);
 
-  assert.equal(res.__out.statusCode, 401);
+  assert.equal(res.__out.statusCode, 409);
   const payload = JSON.parse(res.__out.body || '{}');
-  assert.equal(payload.code, 'INVALID_CREDENTIALS');
+  assert.equal(payload.code, 'PASSWORD_NOT_SET');
 });
 
+test('portal login returns ACCOUNT_DISABLED when user is inactive', async () => {
+  const hash = await bcrypt.hash('Secret#123', 8);
+  __setDbForTests({
+    async query() {
+      return {
+        rows: [{
+          id: 'u-4',
+          email: 'inactive@dfs-diamon.de',
+          email_norm: 'inactive@dfs-diamon.de',
+          password_hash: hash,
+          role: 'user',
+          is_active: false,
+          tour_seen: false,
+          tour_seen_at: null,
+        }],
+      };
+    },
+  });
 
+  const req = makeReq({ body: { email: 'inactive@dfs-diamon.de', password: 'Secret#123' } });
+  const res = makeRes();
+
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 403);
+  const payload = JSON.parse(res.__out.body || '{}');
+  assert.equal(payload.code, 'ACCOUNT_DISABLED');
+});
 
 test('portal login returns user-scoped tourSeen in payload', async () => {
   const password = 'Seen#123';
@@ -148,22 +175,29 @@ test('portal login returns user-scoped tourSeen in payload', async () => {
   assert.equal(payload.profile?.tourSeen, true);
 });
 
-test('diag portal user endpoint is admin-secret protected and masks hash data', async () => {
+test('auth diagnose endpoint is admin-secret protected and masks hash data', async () => {
   const previousSecret = process.env.ADMIN_SECRET;
   process.env.ADMIN_SECRET = 'diag-secret';
 
   __setDbForTests({
-    async query() {
-      return {
-        rows: [{
-          id: 'u-3',
-          email: 'portal@dfs-diamon.de',
-          email_norm: 'portal@dfs-diamon.de',
-          password_hash: '$2b$10$ABCDEFGHIJKLMNOPQRSTUV1234567890abcdefghijklmn',
-          role: 'admin',
-          is_active: true,
-        }],
-      };
+    async query(sql) {
+      if (String(sql).includes('SELECT id, email, email_norm, password_hash')) {
+        return {
+          rows: [{
+            id: 'u-3',
+            email: 'portal@dfs-diamon.de',
+            email_norm: 'portal@dfs-diamon.de',
+            password_hash: '$2b$10$ABCDEFGHIJKLMNOPQRSTUV1234567890abcdefghijklmn',
+            role: 'admin',
+            is_active: true,
+            updated_at: '2026-01-01T10:00:00.000Z',
+          }],
+        };
+      }
+      if (String(sql).includes('SELECT COUNT(*)::int AS cnt FROM kv_store')) {
+        return { rows: [{ cnt: 1 }] };
+      }
+      return { rows: [] };
     },
   });
 
@@ -179,11 +213,12 @@ test('diag portal user endpoint is admin-secret protected and masks hash data', 
 
     assert.equal(res.__out.statusCode, 200);
     const payload = JSON.parse(res.__out.body || '{}');
-    assert.equal(payload.found, true);
-    assert.equal(payload.role, 'admin');
+    assert.equal(payload.email_norm, 'portal@dfs-diamon.de');
+    assert.equal(payload.existsInPortalUsers, true);
     assert.equal(payload.is_active, true);
-    assert.equal(payload.hash_prefix, '$2b$');
-    assert.equal(typeof payload.hash_len, 'number');
+    assert.equal(payload.hasPasswordHash, true);
+    assert.equal(payload.passwordHashPrefix, '$2b$10$');
+    assert.equal(payload.legacyKvExists, true);
   } finally {
     if (previousSecret === undefined) delete process.env.ADMIN_SECRET;
     else process.env.ADMIN_SECRET = previousSecret;

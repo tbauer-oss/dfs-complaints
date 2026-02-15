@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { query } from '../api/_lib/db.js';
+import { normalizeEmail } from '../api/_lib/identity.js';
 
 const args = process.argv.slice(2);
 const hasArg = (name) => args.includes(`--${name}`);
@@ -15,10 +16,6 @@ if (!String(process.env.DATABASE_URL || '').trim()) {
 if (SOURCE === 'upstash' && (!UPSTASH_URL || !UPSTASH_TOKEN)) {
   console.error('[migrate_portal_users_from_kv] --source-upstash requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN');
   process.exit(1);
-}
-
-function normalizeEmail(email) {
-  return String(email || '').trim().toLowerCase();
 }
 
 function normalizeHash(raw) {
@@ -118,6 +115,17 @@ async function upsertPortalUser(user) {
   return result.rows?.[0] || { inserted: false, hash_missing: false };
 }
 
+
+async function markResetRequired(emailNorm) {
+  await query(
+    `INSERT INTO kv_store (k, v, expires_at, updated_at)
+     VALUES ($1, $2::jsonb, NULL, NOW())
+     ON CONFLICT (k)
+     DO UPDATE SET v = EXCLUDED.v, expires_at = NULL, updated_at = NOW()`,
+    [`dfs:portal:password-reset-required:${emailNorm}`, JSON.stringify({ __type: 'string', value: '1' })],
+  );
+}
+
 async function loadFromKvStore() {
   const users = await query(
     `SELECT k, v
@@ -204,7 +212,7 @@ async function loadFromUpstash() {
 }
 
 async function main() {
-  const stats = { scanned: 0, inserted: 0, updated: 0, skipped: 0, missingHashes: 0 };
+  const stats = { scanned: 0, inserted: 0, updated: 0, skipped: 0, missingHashes: 0, resetMarkers: 0 };
 
   const source = SOURCE === 'upstash' ? await loadFromUpstash() : await loadFromKvStore();
 
@@ -220,7 +228,11 @@ async function main() {
     const result = await upsertPortalUser(user);
     if (result.inserted) stats.inserted += 1;
     else stats.updated += 1;
-    if (result.hash_missing) stats.missingHashes += 1;
+    if (result.hash_missing) {
+      stats.missingHashes += 1;
+      await markResetRequired(user.email_norm);
+      stats.resetMarkers += 1;
+    }
   }
 
   console.log('[migrate_portal_users_from_kv] done', { source: SOURCE, ...stats });

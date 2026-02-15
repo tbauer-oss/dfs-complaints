@@ -16,6 +16,7 @@ import {
 import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems } from './gsprRequirements.js';
 import { query } from './db.js';
 import { forbiddenEmailReason } from './forbiddenEmails.js';
+import { normalizeEmail } from './identity.js';
 
 /* =========================================================
    KV / Redis – Supabase Postgres KV compat
@@ -1904,7 +1905,7 @@ function mapPortalUserRow(row) {
 }
 
 export async function portalUserByEmail(email) {
-  const emailNorm = String(email || '').trim().toLowerCase();
+  const emailNorm = normalizeEmail(email);
   if (!emailNorm) return null;
   const result = await query(
     `SELECT id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at
@@ -1918,7 +1919,7 @@ export async function portalUserByEmail(email) {
 
 export async function createPortalUser(u) {
   const email = String(u?.email || '').trim();
-  const emailNorm = email.toLowerCase();
+  const emailNorm = normalizeEmail(email);
   if (forbiddenEmailReason(emailNorm)) {
     const err = new Error('forbidden email');
     err.code = 'FORBIDDEN_EMAIL';
@@ -1940,7 +1941,7 @@ export async function createPortalUser(u) {
 
 export async function upsertPortalUser(u) {
   const email = String(u?.email || '').trim();
-  const emailNorm = email.toLowerCase();
+  const emailNorm = normalizeEmail(email);
   if (forbiddenEmailReason(emailNorm)) {
     const err = new Error('forbidden email');
     err.code = 'FORBIDDEN_EMAIL';
@@ -1972,7 +1973,7 @@ export async function upsertPortalUser(u) {
 }
 
 export async function markPortalTourSeen(email, { seen = true } = {}) {
-  const emailNorm = String(email || '').trim().toLowerCase();
+  const emailNorm = normalizeEmail(email);
   if (!emailNorm) return null;
 
   const nextSeen = seen !== false;
@@ -1995,7 +1996,7 @@ export async function portalUserSave(u) {
 }
 
 export async function portalUserDelete(email) {
-  const emailNorm = String(email || '').trim().toLowerCase();
+  const emailNorm = normalizeEmail(email);
   if (!emailNorm) return true;
   await query('DELETE FROM portal_users WHERE email_norm = $1', [emailNorm]);
   return true;
