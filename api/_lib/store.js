@@ -1895,6 +1895,8 @@ function mapPortalUserRow(row) {
     passhash: row.password_hash,
     passwordHash: row.password_hash,
     role: row.role,
+    tourSeen: row.tour_seen === true,
+    tourSeenAt: row.tour_seen_at || null,
     portalStatus: row.is_active ? 'active' : 'inactive',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1905,7 +1907,7 @@ export async function portalUserByEmail(email) {
   const emailNorm = String(email || '').trim().toLowerCase();
   if (!emailNorm) return null;
   const result = await query(
-    `SELECT id, email, email_norm, password_hash, role, is_active
+    `SELECT id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at
      FROM portal_users
      WHERE email_norm = $1
      LIMIT 1`,
@@ -1930,7 +1932,7 @@ export async function createPortalUser(u) {
   const result = await query(
     `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
      VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+     RETURNING id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at`,
     [email, emailNorm, passwordHash, role, isActive],
   );
   return mapPortalUserRow(result.rows?.[0] || null);
@@ -1963,9 +1965,27 @@ export async function upsertPortalUser(u) {
        role = EXCLUDED.role,
        is_active = EXCLUDED.is_active,
        updated_at = NOW()
-     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+     RETURNING id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at`,
     [email, emailNorm, passwordHash, role, isActive],
   );
+  return mapPortalUserRow(result.rows?.[0] || null);
+}
+
+export async function markPortalTourSeen(email, { seen = true } = {}) {
+  const emailNorm = String(email || '').trim().toLowerCase();
+  if (!emailNorm) return null;
+
+  const nextSeen = seen !== false;
+  const result = await query(
+    `UPDATE portal_users
+     SET tour_seen = $2,
+         tour_seen_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
+         updated_at = NOW()
+     WHERE email_norm = $1
+     RETURNING id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at`,
+    [emailNorm, nextSeen],
+  );
+
   return mapPortalUserRow(result.rows?.[0] || null);
 }
 
@@ -1983,7 +2003,7 @@ export async function portalUserDelete(email) {
 
 export async function portalUsersList() {
   const result = await query(
-    `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
+    `SELECT id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at
      FROM portal_users
      ORDER BY created_at DESC`,
   );

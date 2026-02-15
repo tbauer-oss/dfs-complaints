@@ -627,6 +627,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   List<OnboardingTourStep> _onboardingSteps = const [];
   OverlayEntry? _onboardingOverlayEntry;
   bool _onboardingScrollInProgress = false;
+  bool _tourStartedThisSession = false;
+  bool _tourAutoStartEvaluated = false;
+  bool _tourMarkSeenRequestInFlight = false;
+  bool _tourSeenFromBackend = false;
   final ScrollController _menuScrollController = ScrollController();
   bool _menuTilesLogged = false;
   String _portalRole = '';
@@ -933,6 +937,8 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     final nextTilePermissions = _sanitizeTilePermissionMap(profile['tilePermissions']);
     final nextPermissions = profile['permissions'];
     final nextTileGrants = profile['tileGrants'];
+    final nextTourSeen = _isTruthyFlag(profile['tourSeen']);
+    final currentUser = _onboardingUserId;
 
     void apply() {
       if (nextRole.isNotEmpty) {
@@ -953,6 +959,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         ..addAll(
           nextTileGrants is List ? nextTileGrants.whereType<String>() : const <String>[],
         );
+      _tourSeenFromBackend = nextTourSeen;
     }
 
     if (notify && mounted) {
@@ -960,6 +967,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     } else {
       apply();
     }
+
+    if (currentUser != _onboardingUserId) {
+      _tourAutoStartEvaluated = false;
+      _tourStartedThisSession = false;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _evaluateOnboardingAutoStart());
   }
 
   MyRep? get _portalRep {
@@ -1037,18 +1050,63 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   String get _onboardingUserId {
-    String s(Object? v) => (v ?? '').toString().trim();
     final profile = widget.api.portalProfile ?? widget.portalProfile ?? const {};
-    for (final candidate in [
-      s(profile['id']),
-      s(profile['userId']),
-      s(profile['email']),
-      s(profile['username']),
-      _portalDisplayName,
-    ]) {
-      if (candidate.isNotEmpty) return candidate;
+    final emailNorm = (profile['emailNorm'] ?? profile['email'] ?? '').toString().trim().toLowerCase();
+    if (emailNorm.isNotEmpty) return emailNorm;
+    final id = (profile['id'] ?? profile['userId'] ?? '').toString().trim();
+    return id.isEmpty ? 'local' : id;
+  }
+
+
+  Future<void> _markTourSeen({required String reason}) async {
+    if (_tourMarkSeenRequestInFlight) return;
+    _tourMarkSeenRequestInFlight = true;
+    try {
+      final result = await widget.api.markPortalTourSeen(seen: true);
+      if (!result.ok && kDebugMode) {
+        debugPrint('Onboarding tourSeen sync failed ($reason): ${result.message}');
+      }
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Onboarding tourSeen sync exception ($reason): $error');
+      }
+    } finally {
+      _tourMarkSeenRequestInFlight = false;
+      _tourSeenFromBackend = true;
+      await OnboardingPrefs.markSeen(_onboardingUserId);
     }
-    return 'local';
+  }
+
+  void _evaluateOnboardingAutoStart() {
+    if (_tourAutoStartEvaluated || !mounted || _fatalErr != null) return;
+
+    final localSeen = OnboardingPrefs.isSeen(_onboardingUserId);
+    final backendSeen = _tourSeenFromBackend;
+    final shouldAutoStart = !_tourStartedThisSession && !backendSeen && !localSeen;
+
+    if (kDebugMode) {
+      debugPrint(
+        'Onboarding state: backendSeen=$backendSeen, localSeen=$localSeen, '
+        'startedThisSession=$_tourStartedThisSession, autoStart=$shouldAutoStart',
+      );
+    }
+
+    _tourAutoStartEvaluated = true;
+
+    if (backendSeen) {
+      OnboardingPrefs.markSeen(_onboardingUserId);
+      return;
+    }
+
+    if (localSeen) {
+      _tourStartedThisSession = true;
+      _markTourSeen(reason: 'local_seen_sync');
+      return;
+    }
+
+    if (shouldAutoStart) {
+      _startOnboarding(source: 'auto');
+    }
   }
 
   Widget _registerOnboardingTile({
@@ -1270,13 +1328,16 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _onboardingOverlayEntry = null;
   }
 
-  void _startOnboarding({bool force = false}) {
-    if (!force && OnboardingPrefs.isSeen(_onboardingUserId)) return;
-    if (force) {
-      OnboardingPrefs.reset(_onboardingUserId);
+  void _startOnboarding({bool force = false, String source = 'manual'}) {
+    if (!force && (_tourStartedThisSession || OnboardingPrefs.isSeen(_onboardingUserId) || _tourSeenFromBackend)) {
+      return;
     }
     _onboardingSteps = _buildOnboardingSteps();
     if (_onboardingSteps.isEmpty) return;
+    _tourStartedThisSession = true;
+    if (kDebugMode) {
+      debugPrint('Starting onboarding tour (source=$source, force=$force)');
+    }
     setState(() {
       _onboardingIndex = 0;
       _onboardingVisible = true;
@@ -1288,8 +1349,9 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   void _finishOnboarding({required bool markSeen}) {
     setState(() => _onboardingVisible = false);
     _removeOnboardingOverlay();
+    _tourStartedThisSession = true;
     if (markSeen) {
-      OnboardingPrefs.markSeen(_onboardingUserId);
+      _markTourSeen(reason: 'tour_finished');
     }
   }
 
@@ -2233,7 +2295,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _fatalErr != null) return;
-      _startOnboarding();
+      _evaluateOnboardingAutoStart();
     });
 
     _refreshAll();
@@ -7370,10 +7432,35 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           icon: Icon(searchToggleIcon),
           label: Text(searchToggleLabel),
         ),
-        TextButton.icon(
-          onPressed: () => _startOnboarding(force: true),
-          icon: const Icon(Icons.help_outline),
-          label: const Text('Tour starten'),
+        PopupMenuButton<String>(
+          tooltip: 'Hilfe',
+          onSelected: (value) {
+            if (value == 'restart-tour') {
+              _startOnboarding(force: true, source: 'manual_restart');
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'restart-tour',
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.play_circle_outline),
+                title: Text('Restart Tour'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ],
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.help_outline),
+                SizedBox(width: 6),
+                Text('Hilfe'),
+              ],
+            ),
+          ),
         ),
         TextButton.icon(
           onPressed: _logoutAdmin,

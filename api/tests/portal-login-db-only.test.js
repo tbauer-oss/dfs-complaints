@@ -72,6 +72,8 @@ test('portal login accepts legacy $2y$ hashes from portal_users', async () => {
           password_hash: twoYHash,
           role: 'user',
           is_active: true,
+          tour_seen: false,
+          tour_seen_at: null,
         }],
       };
     },
@@ -96,6 +98,8 @@ test('portal login returns INVALID_CREDENTIALS when password hash is missing', a
           password_hash: '',
           role: 'user',
           is_active: true,
+          tour_seen: false,
+          tour_seen_at: null,
         }],
       };
     },
@@ -109,6 +113,39 @@ test('portal login returns INVALID_CREDENTIALS when password hash is missing', a
   assert.equal(res.__out.statusCode, 401);
   const payload = JSON.parse(res.__out.body || '{}');
   assert.equal(payload.code, 'INVALID_CREDENTIALS');
+});
+
+
+
+test('portal login returns user-scoped tourSeen in payload', async () => {
+  const password = 'Seen#123';
+  const hash = await bcrypt.hash(password, 8);
+  __setDbForTests({
+    async query() {
+      return {
+        rows: [{
+          id: 'u-tour',
+          email: 'tour@dfs-diamon.de',
+          email_norm: 'tour@dfs-diamon.de',
+          password_hash: hash,
+          role: 'user',
+          is_active: true,
+          tour_seen: true,
+          tour_seen_at: new Date().toISOString(),
+        }],
+      };
+    },
+  });
+
+  const req = makeReq({ body: { email: 'tour@dfs-diamon.de', password } });
+  const res = makeRes();
+
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+  const payload = JSON.parse(res.__out.body || '{}');
+  assert.equal(payload.tourSeen, true);
+  assert.equal(payload.profile?.tourSeen, true);
 });
 
 test('diag portal user endpoint is admin-secret protected and masks hash data', async () => {
