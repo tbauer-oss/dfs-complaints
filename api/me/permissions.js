@@ -101,6 +101,7 @@ export default async function handler(req, res) {
     tilePermissions,
     isSales: actor.isSales === true,
     isPRRC: actor.isPRRC === true,
+    tourSeen: actor.tourSeen === true,
   };
 
   return ok(res, {

@@ -1567,6 +1567,8 @@ class ApiClient {
         final profile = (decoded['profile'] is Map)
             ? (decoded['profile'] as Map).cast<String, dynamic>()
             : <String, dynamic>{};
+        final backendTourSeen = decoded['tourSeen'] == true || profile['tourSeen'] == true;
+        profile['tourSeen'] = backendTourSeen;
         if (tok.isNotEmpty) {
           setPortalSession(token: tok, profile: profile, persist: persist);
           return LoginResult.success();
@@ -1574,6 +1576,23 @@ class ApiClient {
       }
     } catch (_) {}
     return LoginResult.failure(statusCode: 0, message: 'Login fehlgeschlagen');
+  }
+
+
+  Future<SimpleResult> markPortalTourSeen({bool seen = true}) async {
+    try {
+      final r = await _post('/api/portal/tour/seen', {'seen': seen}, auth: true);
+      if (_ok2xx(r.statusCode)) {
+        if (portalProfile != null) {
+          portalProfile = {...portalProfile!, 'tourSeen': seen};
+          _saveSession();
+        }
+        return SimpleResult(ok: true, statusCode: r.statusCode);
+      }
+      return SimpleResult.failure(r.statusCode, _extractMessage(r.body));
+    } catch (e) {
+      return SimpleResult.failure(500, e.toString());
+    }
   }
 
   Future<Map<String, dynamic>?> refreshPortalProfile() async {

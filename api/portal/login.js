@@ -124,7 +124,8 @@ export default async function handler(req, res) {
   return respond(req, res, 200, {
     token,
     user: { id: user.id, email: user.email, role },
-    profile: { id: user.id, email: user.email, role, portalStatus },
+    profile: { id: user.id, email: user.email, role, portalStatus, tourSeen: user.tourSeen === true },
+    tourSeen: user.tourSeen === true,
     expiresIn: EXPIRES_IN,
   });
 }
