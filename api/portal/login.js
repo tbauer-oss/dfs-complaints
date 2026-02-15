@@ -71,9 +71,12 @@ export default async function handler(req, res) {
   let user;
   try {
     user = await portalUserByEmail(emailNorm);
-  } catch {
+  } catch (err) {
     const outcome = 'STORE_UNAVAILABLE';
-    logOutcome(outcome);
+    logOutcome(outcome, {
+      errorCode: err?.code || null,
+      errorMessage: err?.message || String(err),
+    });
     return respond(
       req,
       res,
