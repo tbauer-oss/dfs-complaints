@@ -3,6 +3,9 @@ import { getDbClient, query } from './db.js';
 const TABLE = 'kv_store';
 
 function toStoreError(err) {
+  if (String(err?.code || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN' || String(err?.message || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN') {
+    throw err;
+  }
   const error = new Error('STORE_UNAVAILABLE');
   error.code = 'STORE_UNAVAILABLE';
   error.status = 503;
@@ -78,6 +81,39 @@ async function writeTyped(key, type, value, exSeconds = null) {
   await writeRaw(key, canonicalize(type, value), exSeconds);
 }
 
+
+function throwAuthCacheForbidden() {
+  const err = new Error('SECURITY_GUARD_AUTH_CACHE_FORBIDDEN');
+  err.code = 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN';
+  throw err;
+}
+
+function isPortalLegacyAuthKey(key) {
+  const normalized = String(key || '').trim().toLowerCase();
+  return normalized.startsWith('dfs:portal:user:') || normalized.startsWith('dfs:portal:user_safe:');
+}
+
+function hasPasswordHashField(value) {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some((entry) => hasPasswordHashField(entry));
+  if (Object.prototype.hasOwnProperty.call(value, 'password_hash')) return true;
+  if (Object.prototype.hasOwnProperty.call(value, 'passwordHash')) return true;
+  if (Object.prototype.hasOwnProperty.call(value, 'passhash')) return true;
+  return false;
+}
+
+function assertAuthCacheReadAllowed({ key, field = null, value = undefined }) {
+  const normalizedField = String(field || '').trim().toLowerCase();
+  if (normalizedField === 'password_hash' || normalizedField === 'passwordhash' || normalizedField === 'passhash') {
+    throwAuthCacheForbidden();
+  }
+  if (isPortalLegacyAuthKey(key)) {
+    throwAuthCacheForbidden();
+  }
+  if (value !== undefined && hasPasswordHashField(value)) {
+    throwAuthCacheForbidden();
+  }
+}
 function normalizeRange(length, start, stop) {
   let from = Number(start);
   let to = Number(stop);
@@ -99,7 +135,11 @@ export function createKvRedisCompat() {
     async ping() { return 'PONG'; },
 
     async get(key) {
-      try { return await readValue(key); } catch (e) { throw toStoreError(e); }
+      try {
+        const value = await readValue(key);
+        assertAuthCacheReadAllowed({ key, value });
+        return value;
+      } catch (e) { throw toStoreError(e); }
     },
 
     async set(key, value, options = {}) {
@@ -128,7 +168,11 @@ export function createKvRedisCompat() {
           [list],
         );
         const map = new Map(rows.map((r) => [r.k, decodeStored(r.v)]));
-        return list.map((k) => (map.has(k) ? map.get(k) : null));
+        return list.map((k) => {
+          const value = map.has(k) ? map.get(k) : null;
+          assertAuthCacheReadAllowed({ key: k, value });
+          return value;
+        });
       } catch (e) { throw toStoreError(e); }
     },
 
@@ -274,12 +318,19 @@ export function createKvRedisCompat() {
     },
 
     async hget(key, field) {
+      assertAuthCacheReadAllowed({ key, field });
       const hash = await this.hgetall(key);
-      return Object.prototype.hasOwnProperty.call(hash, field) ? hash[field] : null;
+      const value = Object.prototype.hasOwnProperty.call(hash, field) ? hash[field] : null;
+      assertAuthCacheReadAllowed({ key, field, value });
+      return value;
     },
 
     async hgetall(key) {
-      try { return (await readTyped(key, 'hash', {})) || {}; } catch (e) { throw toStoreError(e); }
+      try {
+        const value = (await readTyped(key, 'hash', {})) || {};
+        assertAuthCacheReadAllowed({ key, value });
+        return value;
+      } catch (e) { throw toStoreError(e); }
     },
 
     async hdel(key, ...fields) {

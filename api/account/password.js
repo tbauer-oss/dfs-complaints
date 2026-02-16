@@ -5,8 +5,6 @@ import bcrypt from 'bcryptjs';
 import { getAuthUser } from '../_lib/auth.js';
 import { query } from '../_lib/db.js';
 import { methodNotAllowed, setCors } from '../_lib/http.js';
-import { normalizeEmail } from '../_lib/identity.js';
-import { redis } from '../_lib/redis.js';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -95,12 +93,6 @@ export default async function handler(req, res) {
        WHERE id = $2`,
       [hash, user.id],
     );
-
-    const emailNorm = normalizeEmail(user.email_norm || auth.email || '');
-    if (emailNorm) {
-      await redis.del(`dfs:portal:user:${emailNorm}`);
-      await redis.del(`dfs:portal:user_safe:${emailNorm}`);
-    }
 
     return sendJson(res, 200, { ok: true });
   } catch (err) {
