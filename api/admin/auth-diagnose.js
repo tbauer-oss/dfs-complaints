@@ -2,7 +2,6 @@ export const config = { runtime: 'nodejs' };
 
 import { logStoreError, methodNotAllowed, storeUnavailablePayload, withCors } from '../_lib/http.js';
 import { portalUserByEmail } from '../_lib/store.js';
-import { redis } from '../_lib/redis.js';
 import { normalizeEmail } from '../_lib/identity.js';
 
 function unauthorized(res) {
@@ -34,10 +33,8 @@ export default async function handler(req, res) {
   }
 
   let user;
-  let legacyKvExists = false;
   try {
     user = await portalUserByEmail(emailNorm);
-    legacyKvExists = (await redis.exists(`dfs:portal:user:${emailNorm}`)) > 0;
   } catch (err) {
     const payload = storeUnavailablePayload('Service temporär nicht verfügbar.');
     logStoreError(err, payload.debugId);
@@ -58,7 +55,6 @@ export default async function handler(req, res) {
     hasPasswordHash: hash.length > 0,
     passwordHashPrefix: hash ? hash.slice(0, 7) : null,
     updated_at: user?.updatedAt || null,
-    legacyKvExists,
   };
 
   res.statusCode = 200;

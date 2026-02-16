@@ -7,7 +7,6 @@ import { query } from '../_lib/db.js';
 import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 import { normalizeEmail } from '../_lib/identity.js';
-import { redis } from '../_lib/redis.js';
 
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
@@ -61,7 +60,7 @@ function mapAuthUserRow(row) {
   if (!row) return null;
   return {
     id: row.id,
-    email: row.email,
+    email: row.email_norm,
     emailNorm: row.email_norm,
     passhash: row.password_hash,
     role: row.role,
@@ -79,15 +78,10 @@ function mapAuthUserRow(row) {
 async function loadPortalAuthUser(emailNorm) {
   const result = await query(
     `SELECT id,
-            email,
             email_norm,
             password_hash,
             role,
-            is_active,
-            CASE WHEN is_active THEN 'active' ELSE 'inactive' END AS portal_status,
-            tour_seen,
-            created_at,
-            updated_at
+            is_active
      FROM public.portal_users
      WHERE email_norm = $1
      LIMIT 1`,
@@ -114,18 +108,6 @@ function assertDbOnlyAuthSource(user) {
     err.code = 'SECURITY_GUARD_KV_AUTH_FORBIDDEN';
     throw err;
   }
-}
-
-function safePortalUserCache(user) {
-  return {
-    id: user.id,
-    email_norm: user.emailNorm,
-    role: user.role,
-    is_active: user.portalStatus !== 'inactive',
-    portal_status: user.portalStatus,
-    tour_seen: user.tourSeen === true,
-    updated_at: user.updatedAt,
-  };
 }
 
 function shouldIncludeReason(req) {
@@ -257,17 +239,6 @@ export default async function handler(req, res) {
   );
 
   logOutcome('SUCCESS', { email_norm: emailNorm, user_id: user.id || null });
-
-  try {
-    await redis.del(`dfs:portal:user:${emailNorm}`);
-    await redis.set(`dfs:portal:user_safe:${emailNorm}`, safePortalUserCache(user), { ex: 300 });
-  } catch (err) {
-    logOutcome('KV_CACHE_REFRESH_FAILED', {
-      email_norm: emailNorm,
-      errorCode: err?.code || null,
-      errorMessage: err?.message || String(err),
-    });
-  }
 
   return respond(req, res, 200, {
     token,

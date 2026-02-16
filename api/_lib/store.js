@@ -1940,13 +1940,13 @@ export async function portalUserByEmail(email) {
   const result = await queryPortalUserRows({
     sql:
     `SELECT id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at
-     FROM portal_users
+     FROM public.portal_users
      WHERE email_norm = $1
      LIMIT 1`,
     params: [emailNorm],
     fallbackSql:
     `SELECT id, email, email_norm, password_hash, role, is_active
-     FROM portal_users
+     FROM public.portal_users
      WHERE email_norm = $1
      LIMIT 1`,
     fallbackMapper: withTourFallbackRow,
