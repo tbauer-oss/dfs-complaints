@@ -224,3 +224,57 @@ test('auth diagnose endpoint is admin-secret protected and masks hash data', asy
     else process.env.ADMIN_SECRET = previousSecret;
   }
 });
+
+
+test('portal login clears legacy cache key and only stores safe cache payload', async () => {
+  const password = 'SafeCache#123';
+  const hash = await bcrypt.hash(password, 8);
+  const queries = [];
+
+  __setDbForTests({
+    async query(sql, params = []) {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      queries.push({ sql: normalized, params });
+      if (normalized.includes('FROM public.portal_users')) {
+        return {
+          rows: [{
+            id: 'u-cache',
+            email: 'cache@dfs-diamon.de',
+            email_norm: 'cache@dfs-diamon.de',
+            password_hash: hash,
+            role: 'admin',
+            is_active: true,
+            portal_status: 'active',
+            tour_seen: true,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          }],
+        };
+      }
+      if (normalized.startsWith('DELETE FROM kv_store')) return { rowCount: 1, rows: [] };
+      if (normalized.startsWith('INSERT INTO kv_store')) return { rowCount: 1, rows: [] };
+      throw new Error(`unexpected query: ${normalized}`);
+    },
+  });
+
+  const req = makeReq({ body: { email: 'cache@dfs-diamon.de', password } });
+  const res = makeRes();
+
+  await loginHandler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+
+  const deleteQuery = queries.find((q) => q.sql.startsWith('DELETE FROM kv_store'));
+  assert.ok(deleteQuery);
+  assert.deepEqual(deleteQuery.params, [['dfs:portal:user:cache@dfs-diamon.de']]);
+
+  const cacheWrite = queries.find((q) => q.sql.startsWith('INSERT INTO kv_store'));
+  assert.ok(cacheWrite);
+  assert.equal(cacheWrite.params[0], 'dfs:portal:user_safe:cache@dfs-diamon.de');
+
+  const cachePayload = JSON.parse(String(cacheWrite.params[1] || '{}'));
+  assert.equal(cachePayload.__type, 'string');
+  assert.equal(cachePayload.value.email_norm, 'cache@dfs-diamon.de');
+  assert.equal(cachePayload.value.portal_status, 'active');
+  assert.equal(Object.prototype.hasOwnProperty.call(cachePayload.value, 'password_hash'), false);
+});

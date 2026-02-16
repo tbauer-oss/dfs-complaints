@@ -100,3 +100,15 @@ Deploy with:
 In Vercel, set `DATABASE_URL` in the **Production** environment, then redeploy so runtime instances pick up the new value.
 
 Then smoke-test portal login.
+
+## 6) One-time cleanup of legacy portal user KV keys
+
+```bash
+node scripts/cleanup_legacy_portal_user_keys.js
+```
+
+Behavior:
+- Removes legacy keys matching `dfs:portal:user:%` from `kv_store`.
+- Use `--dry-run` (or `DRY_RUN=1`) to count matching keys without deleting.
+- Run once after DB-backed auth is live so no legacy `password_hash` payloads remain in KV.
+

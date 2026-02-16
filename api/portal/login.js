@@ -3,10 +3,11 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { logStoreError, methodNotAllowed, readJson, storeUnavailablePayload } from '../_lib/http.js';
-import { portalUserByEmail } from '../_lib/store.js';
+import { query } from '../_lib/db.js';
 import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 import { normalizeEmail } from '../_lib/identity.js';
+import { redis } from '../_lib/redis.js';
 
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
@@ -56,6 +57,56 @@ function normalizeBcryptHash(passwordHash) {
   return hash;
 }
 
+function mapAuthUserRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    emailNorm: row.email_norm,
+    passhash: row.password_hash,
+    role: row.role,
+    tourSeen: row.tour_seen === true,
+    portalStatus: String(row.portal_status || '').toLowerCase() === 'inactive'
+      || row.is_active === false
+      ? 'inactive'
+      : 'active',
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+async function loadPortalAuthUser(emailNorm) {
+  const result = await query(
+    `SELECT id,
+            email,
+            email_norm,
+            password_hash,
+            role,
+            is_active,
+            CASE WHEN is_active THEN 'active' ELSE 'inactive' END AS portal_status,
+            tour_seen,
+            created_at,
+            updated_at
+     FROM public.portal_users
+     WHERE email_norm = $1
+     LIMIT 1`,
+    [emailNorm],
+  );
+  return mapAuthUserRow(result?.rows?.[0] || null);
+}
+
+function safePortalUserCache(user) {
+  return {
+    id: user.id,
+    email_norm: user.emailNorm,
+    role: user.role,
+    is_active: user.portalStatus !== 'inactive',
+    portal_status: user.portalStatus,
+    tour_seen: user.tourSeen === true,
+    updated_at: user.updatedAt,
+  };
+}
+
 function shouldIncludeReason(req) {
   if (!AUTH_DEBUG) return false;
   if (!AUTH_DEBUG_KEY) return true;
@@ -100,7 +151,7 @@ export default async function handler(req, res) {
 
   let user;
   try {
-    user = await portalUserByEmail(emailNorm);
+    user = await loadPortalAuthUser(emailNorm);
   } catch (err) {
     if (isSchemaMismatchError(err)) {
       const outcome = 'SCHEMA_MISMATCH';
@@ -172,6 +223,18 @@ export default async function handler(req, res) {
   );
 
   logOutcome('SUCCESS', { email_norm: emailNorm, user_id: user.id || null });
+
+  try {
+    await redis.del(`dfs:portal:user:${emailNorm}`);
+    await redis.set(`dfs:portal:user_safe:${emailNorm}`, safePortalUserCache(user), { ex: 300 });
+  } catch (err) {
+    logOutcome('KV_CACHE_REFRESH_FAILED', {
+      email_norm: emailNorm,
+      errorCode: err?.code || null,
+      errorMessage: err?.message || String(err),
+    });
+  }
+
   return respond(req, res, 200, {
     token,
     user: { id: user.id, email: user.email, role },
