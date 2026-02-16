@@ -1,7 +1,7 @@
 // =======================================================
 // api/_lib/store.js  (ESM) – DFS Complaints Backend
 // =======================================================
-import { redis as sharedRedis } from './redis.js';
+import { redis } from './redis.js';
 import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { loadRepByEmail, loadRepById, repCustomers } from './repsStore.js';
@@ -36,17 +36,21 @@ function getAuditRedisDebugContext() {
   return auditRedisDebugContext.getStore() || {};
 }
 
-let _redis = null;
 let _redisOverride = null;
 export function __setRedisClientForTests(client = null) {
   _redisOverride = client;
-  _redis = client;
 }
 function getRedis() {
   if (_redisOverride) return _redisOverride;
-  if (_redis) return _redis;
-  _redis = sharedRedis;
-  return _redis;
+  return redis;
+}
+
+function ensureRedisMethod(client, method) {
+  if (!client) return null;
+  if (typeof client[method] !== 'function') {
+    throw new StoreInfraError(`KV client missing '${method}' method`, { code: 'STORE_UNAVAILABLE', statusCode: 503 });
+  }
+  return client;
 }
 
 async function withRedisTimeout(promise, label = 'redis op') {
@@ -488,7 +492,7 @@ function classifyStoreInfraError(err, fallbackMessage = 'store unavailable') {
 // ===== Helper (Redis IO) =====
 async function rget(k, rclient = null, { throwOnError = false } = {}) {
   try {
-    const r = rclient || getRedis();
+    const r = ensureRedisMethod(rclient || getRedis(), 'get');
     if (!r) return null;
     const raw = await withRedisTimeout(r.get(k), `KV GET ${k}`);
     if (typeof raw === 'string') {
@@ -526,7 +530,7 @@ function enforceRedisWritePolicy({ operation, key }) {
 
 async function rset(k, v, rclient = null) {
   try {
-    const r = rclient || getRedis();
+    const r = ensureRedisMethod(rclient || getRedis(), 'set');
     if (!r) return null;
     enforceRedisWritePolicy({ operation: 'set', key: k });
     const payload = typeof v === 'string' ? v : JSON.stringify(v);
