@@ -14,11 +14,13 @@ export function getDatabaseConnectionString() {
 
 function parseConnectionTarget(connectionString = '') {
   try {
-    const parsed = new URL(connectionString);
-    const host = String(parsed.hostname || '').trim() || 'unknown-host';
-    const port = String(parsed.port || '5432').trim();
-    const dbName = String(parsed.pathname || '/').replace(/^\//, '') || 'postgres';
-    return { host: host.toLowerCase(), port, dbName };
+    const u = new URL(connectionString);
+    const dbName = (u.pathname || '').replace(/^\//, '') || 'postgres';
+    return {
+      host: String(u.hostname || '').trim().toLowerCase() || 'unknown-host',
+      port: String(u.port || '5432').trim(),
+      dbName,
+    };
   } catch {
     return { host: 'unknown-host', port: 'unknown-port', dbName: 'unknown-db' };
   }
@@ -42,7 +44,6 @@ function sanitizeConnectionString(connectionString = '') {
 
 function getSslConfigForHost(host = '') {
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return false;
-  if (!host) return { rejectUnauthorized: false };
   return { rejectUnauthorized: false };
 }
 
@@ -106,7 +107,11 @@ export async function getDbClient() {
   try {
     return await activePool.connect();
   } catch (err) {
-    console.error('[db] connect failed', { target, message: err?.message || String(err) });
+    console.error('[db] connect failed', {
+      target,
+      message: err?.message || String(err),
+      cause: err?.cause,
+    });
     throw toDbUnavailableError(err, target);
   }
 }
@@ -123,7 +128,11 @@ export async function query(text, params = []) {
   try {
     return await activePool.query(text, params);
   } catch (err) {
-    console.error('[db] query failed', { target, message: err?.message || String(err) });
+    console.error('[db] query failed', {
+      target,
+      message: err?.message || String(err),
+      cause: err?.cause,
+    });
     throw toDbUnavailableError(err, target);
   }
 }
