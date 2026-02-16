@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { logStoreError, methodNotAllowed, readJson, storeUnavailablePayload } from '../_lib/http.js';
-import { query } from '../_lib/db.js';
+import { queryWithFallback } from '../_lib/db.js';
 import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 import { normalizeEmail } from '../_lib/identity.js';
@@ -17,18 +17,6 @@ const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
 
 function logOutcome(outcome, details = {}) {
   console.info('[portal/login]', { outcome, ...details });
-}
-
-function isSchemaMismatchError(err) {
-  const code = String(err?.code || '').toUpperCase();
-  const message = String(err?.message || '').toLowerCase();
-  if (code === '42703' || code === '42P01' || code === '3F000') return true;
-  return (
-    message.includes('column')
-    || message.includes('relation')
-    || message.includes('does not exist')
-    || message.includes('schema')
-  );
 }
 
 function isConnectivityError(err) {
@@ -77,17 +65,35 @@ function mapAuthUserRow(row) {
 }
 
 async function loadPortalAuthUser(emailNorm) {
-  const result = await query(
-    `SELECT id,
-            email_norm,
-            password_hash,
-            role,
-            is_active
-     FROM public.portal_users
-     WHERE email_norm = $1
-     LIMIT 1`,
-    [emailNorm],
-  );
+  const result = await queryWithFallback({
+    primarySql:
+      `SELECT id,
+              email_norm,
+              password_hash,
+              role,
+              is_active,
+              tour_seen,
+              created_at,
+              updated_at
+       FROM public.portal_users
+       WHERE email_norm = $1
+       LIMIT 1`,
+    primaryParams: [emailNorm],
+    fallbackSql:
+      `SELECT id,
+              email_norm,
+              password_hash,
+              role,
+              true AS is_active,
+              false AS tour_seen,
+              created_at,
+              updated_at
+       FROM public.portal_users
+       WHERE email_norm = $1
+       LIMIT 1`,
+    tableHint: 'portal_users',
+    route: '/api/portal/login',
+  });
   return mapAuthUserRow(result?.rows?.[0] || null);
 }
 
@@ -157,15 +163,6 @@ export default async function handler(req, res) {
   try {
     user = await loadPortalAuthUser(emailNorm);
   } catch (err) {
-    if (isSchemaMismatchError(err)) {
-      const outcome = 'SCHEMA_MISMATCH';
-      logOutcome(outcome, {
-        errorCode: err?.code || null,
-        errorMessage: err?.message || String(err),
-      });
-      return respond(req, res, 500, { code: outcome, message: 'Database migration missing' }, outcome);
-    }
-
     const outcome = 'STORE_UNAVAILABLE';
     const unavailablePayload = storeUnavailablePayload('Service temporär nicht verfügbar. Bitte später erneut versuchen.');
     logStoreError(err, unavailablePayload.debugId);

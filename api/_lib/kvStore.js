@@ -85,7 +85,8 @@ async function writeTyped(key, type, value, exSeconds = null) {
 function throwAuthCacheForbidden() {
   const err = new Error('SECURITY_GUARD_AUTH_CACHE_FORBIDDEN');
   err.code = 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN';
-  throw err;
+  console.warn('[kvStore] ignoring forbidden auth-cache access');
+  return err;
 }
 
 function isPortalLegacyAuthKey(key) {
@@ -106,13 +107,17 @@ function assertAuthCacheReadAllowed({ key, field = null, value = undefined }) {
   const normalizedField = String(field || '').trim().toLowerCase();
   if (normalizedField === 'password_hash' || normalizedField === 'passwordhash' || normalizedField === 'passhash') {
     throwAuthCacheForbidden();
+    return false;
   }
   if (isPortalLegacyAuthKey(key)) {
     throwAuthCacheForbidden();
+    return false;
   }
   if (value !== undefined && hasPasswordHashField(value)) {
     throwAuthCacheForbidden();
+    return false;
   }
+  return true;
 }
 function normalizeRange(length, start, stop) {
   let from = Number(start);
@@ -137,7 +142,7 @@ export function createKvRedisCompat() {
     async get(key) {
       try {
         const value = await readValue(key);
-        assertAuthCacheReadAllowed({ key, value });
+        if (!assertAuthCacheReadAllowed({ key, value })) return null;
         return value;
       } catch (e) { throw toStoreError(e); }
     },
@@ -170,7 +175,7 @@ export function createKvRedisCompat() {
         const map = new Map(rows.map((r) => [r.k, decodeStored(r.v)]));
         return list.map((k) => {
           const value = map.has(k) ? map.get(k) : null;
-          assertAuthCacheReadAllowed({ key: k, value });
+          if (!assertAuthCacheReadAllowed({ key: k, value })) return null;
           return value;
         });
       } catch (e) { throw toStoreError(e); }
@@ -318,17 +323,17 @@ export function createKvRedisCompat() {
     },
 
     async hget(key, field) {
-      assertAuthCacheReadAllowed({ key, field });
+      if (!assertAuthCacheReadAllowed({ key, field })) return null;
       const hash = await this.hgetall(key);
       const value = Object.prototype.hasOwnProperty.call(hash, field) ? hash[field] : null;
-      assertAuthCacheReadAllowed({ key, field, value });
+      if (!assertAuthCacheReadAllowed({ key, field, value })) return null;
       return value;
     },
 
     async hgetall(key) {
       try {
         const value = (await readTyped(key, 'hash', {})) || {};
-        assertAuthCacheReadAllowed({ key, value });
+        if (!assertAuthCacheReadAllowed({ key, value })) return null;
         return value;
       } catch (e) { throw toStoreError(e); }
     },

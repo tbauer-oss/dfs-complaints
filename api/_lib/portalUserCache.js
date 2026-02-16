@@ -28,6 +28,7 @@ export async function invalidatePortalUserCaches(email, { logPrefix = 'portal/us
     try {
       await redis.del(key);
     } catch (err) {
+      if (String(err?.code || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN') continue;
       cacheInvalidated = false;
       console.warn(`[${logPrefix}] cache delete failed`, { key, error: err?.message || String(err) });
     }
@@ -45,18 +46,27 @@ export async function writePortalUserSafeCache(email, user) {
   const emailNorm = normalizeEmail(email);
   if (!emailNorm) return false;
 
-  const redis = createKvRedisCompat();
   const safeKey = `dfs:portal:user_safe:${emailNorm}`;
   const safePayload = {
+    id: user?.id || null,
     email_norm: emailNorm,
     role: String(user?.role || 'user').toLowerCase(),
     is_active: user?.portalStatus !== 'inactive',
     portal_status: user?.portalStatus === 'inactive' ? 'inactive' : 'active',
+    is_prrc: user?.isPRRC === true,
+    is_sales: user?.isSales === true,
+    assigned_departments: Array.isArray(user?.assignedDepartments) ? user.assignedDepartments : [],
+    department: user?.department || '',
+    display_name: user?.displayName || '',
+    tile_permissions: user?.tilePermissions && typeof user.tilePermissions === 'object' ? user.tilePermissions : {},
     tour_seen: user?.tourSeen === true,
+    tour_version: user?.tourVersion || null,
+    created_at: user?.createdAt || null,
     updated_at: user?.updatedAt || null,
   };
 
   try {
+    const redis = createKvRedisCompat();
     await redis.set(safeKey, safePayload, { ex: 900 });
     return true;
   } catch (err) {

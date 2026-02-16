@@ -14,7 +14,7 @@ import {
   normalizeReportLinksMap,
 } from './departments.js';
 import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems } from './gsprRequirements.js';
-import { query } from './db.js';
+import { query, queryWithFallback } from './db.js';
 import { forbiddenEmailReason } from './forbiddenEmails.js';
 import { normalizeEmail } from './identity.js';
 
@@ -537,12 +537,19 @@ async function rget(k, rclient = null, { throwOnError = false } = {}) {
     }
     return raw;
   } catch (e) {
+    if (String(e?.code || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN' || String(e?.message || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN') {
+      return null;
+    }
     console.error('KV GET', k, e);
     if (throwOnError) {
       throw classifyStoreInfraError(e, `KV GET ${k} failed`);
     }
     return null;
   }
+}
+
+export async function rgetCache(key) {
+  return await rget(key);
 }
 const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -570,7 +577,29 @@ async function rset(k, v, rclient = null) {
     logAuditRedisWrite({ operation: 'set', key: k, payload });
     return await withRedisTimeout(r.set(k, payload), `KV SET ${k}`);
   } catch (e) {
+    if (String(e?.code || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN' || String(e?.message || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN') {
+      return null;
+    }
     console.error('KV SET', k, e);
+    return null;
+  }
+}
+
+export async function rsetCache(key, value, ttlSeconds = 900) {
+  try {
+    const r = ensureRedisMethod(redisClient(), 'set');
+    if (!r) return null;
+    const payload = typeof value === 'string' ? value : JSON.stringify(value);
+    if (typeof r.set !== 'function') return null;
+    if (ttlSeconds && Number(ttlSeconds) > 0) {
+      return await withRedisTimeout(r.set(key, payload, { ex: Number(ttlSeconds) }), `KV SETEX ${key}`);
+    }
+    return await withRedisTimeout(r.set(key, payload), `KV SET ${key}`);
+  } catch (e) {
+    if (String(e?.code || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN' || String(e?.message || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN') {
+      return null;
+    }
+    console.warn('[cache] rsetCache failed', { key, message: e?.message || String(e) });
     return null;
   }
 }
@@ -583,9 +612,16 @@ async function rdel(k, rclient = null) {
     logAuditRedisWrite({ operation: 'del', key: k });
     return await withRedisTimeout(r.del(k), `KV DEL ${k}`);
   } catch (e) {
+    if (String(e?.code || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN' || String(e?.message || '') === 'SECURITY_GUARD_AUTH_CACHE_FORBIDDEN') {
+      return null;
+    }
     console.error('KV DEL', k, e);
     return null;
   }
+}
+
+export async function rdelCache(key) {
+  return await rdel(key);
 }
 
 async function rsadd(k, member, rclient = null) {
@@ -675,20 +711,30 @@ async function rkeys(pattern, rclient = null) {
     try { return await withRedisTimeout(r.keys(pattern), `KV KEYS ${pattern}`); } catch { /* continue */ }
   }
   if (typeof r.scan === 'function') {
-    let cursor = 0, out = [];
-    do {
-      const res = await withRedisTimeout(
-        r.scan(cursor, { match: pattern, count: 1000 }),
-        `KV SCAN ${pattern}`
-      );
-      if (Array.isArray(res)) {
-        cursor = Number(res[0]);
-        out.push(...(res[1] || []));
-      } else {
-        cursor = Number(res.cursor || 0);
-        out.push(...(res.members || res.keys || []));
-      }
-    } while (cursor !== 0);
+    let cursor = 0;
+    const out = [];
+    try {
+      do {
+        const res = await withRedisTimeout(
+          r.scan(cursor, { match: pattern, count: 1000 }),
+          `KV SCAN ${pattern}`
+        );
+        if (Array.isArray(res)) {
+          cursor = Number(res[0]);
+          out.push(...(res[1] || []));
+        } else {
+          cursor = Number(res.cursor || 0);
+          out.push(...(res.members || res.keys || []));
+        }
+      } while (cursor !== 0);
+    } catch (err) {
+      console.warn('[kv] scan partial result due to timeout/error', {
+        pattern,
+        cursor,
+        partialCount: out.length,
+        message: err?.message || String(err),
+      });
+    }
     return out;
   }
   return [];
@@ -1868,11 +1914,19 @@ export async function userDelete(email) {
 }
 
 export async function usersList() {
-  const { rows } = await query(
-    `SELECT id, email, email_norm, role, is_active, department, tile_permissions, updated_at
-       FROM public.portal_users
-      ORDER BY email ASC`
-  );
+  const { rows } = await queryWithFallback({
+    primarySql:
+      `SELECT id, email, email_norm, role, is_active, department, tile_permissions, updated_at
+         FROM public.portal_users
+        ORDER BY email ASC`,
+    fallbackSql:
+      `SELECT id, email, email_norm, role, is_active, updated_at
+         FROM public.portal_users
+        ORDER BY email ASC`,
+    fallbackMapper: (row) => ({ ...row, department: '', tile_permissions: {} }),
+    tableHint: 'portal_users',
+    route: '/api/portal/users',
+  });
 
   const users = (Array.isArray(rows) ? rows : [])
     .map((row) => {
@@ -1962,26 +2016,22 @@ function mapPortalUserRow(row) {
   });
 }
 
-function isMissingPortalUserSchemaError(err) {
-  const code = String(err?.code || '').toUpperCase();
-  const message = String(err?.message || '').toLowerCase();
-  if (code === '42703' && (message.includes('tour_seen') || message.includes('tour_seen_at') || message.includes('display_name') || message.includes('is_prrc') || message.includes('is_sales') || message.includes('assigned_departments') || message.includes('tile_permissions'))) return true;
-  if (code === '42P01' && message.includes('portal_users')) return true;
-  if (code === '3F000' && message.includes('public')) return true;
-  return false;
-}
-
-async function queryPortalUserRows({ sql, params = [], fallbackSql = null, fallbackParams = null, fallbackMapper = null }) {
-  try {
-    return await query(sql, params);
-  } catch (err) {
-    if (!fallbackSql || !isMissingPortalUserSchemaError(err)) throw err;
-    const fallbackResult = await query(fallbackSql, Array.isArray(fallbackParams) ? fallbackParams : params);
-    if (typeof fallbackMapper === 'function') {
-      fallbackResult.rows = (fallbackResult.rows || []).map((row) => fallbackMapper(row));
-    }
-    return fallbackResult;
-  }
+async function queryPortalUserRows({
+  sql,
+  params = [],
+  fallbackSql = null,
+  fallbackParams = null,
+  fallbackMapper = null,
+  tableHint = 'portal_users',
+}) {
+  return await queryWithFallback({
+    primarySql: sql,
+    primaryParams: params,
+    fallbackSql,
+    fallbackParams,
+    fallbackMapper,
+    tableHint,
+  });
 }
 
 function withTourFallbackRow(row) {
@@ -2014,6 +2064,29 @@ export async function portalUserByEmail(email) {
     `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
      FROM public.portal_users
      WHERE email_norm = $1
+     LIMIT 1`,
+    fallbackMapper: withTourFallbackRow,
+  });
+  return mapPortalUserRow(result.rows?.[0] || null);
+}
+
+export async function portalUserById(id) {
+  const userId = String(id || '').trim();
+  if (!userId) return null;
+  const result = await queryPortalUserRows({
+    sql:
+    `SELECT id, email, email_norm, password_hash, role, is_active,
+            display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
+            tour_seen, tour_seen_at,
+            created_at, updated_at
+     FROM public.portal_users
+     WHERE id = $1
+     LIMIT 1`,
+    params: [userId],
+    fallbackSql:
+    `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
+     FROM public.portal_users
+     WHERE id = $1
      LIMIT 1`,
     fallbackMapper: withTourFallbackRow,
   });
