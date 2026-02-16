@@ -21,7 +21,8 @@ import { normalizeEmail } from './identity.js';
 /* =========================================================
    KV / Redis – Supabase Postgres KV compat
    ========================================================= */
-const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.REDIS_TIMEOUT_MS || 2500));
+const REDIS_TIMEOUT_MS = Math.max(0, Number(process.env.KV_TIMEOUT_MS || process.env.REDIS_TIMEOUT_MS || 12000));
+const KV_BULK_GET_CONCURRENCY = Math.max(1, Number(process.env.KV_BULK_GET_CONCURRENCY || 10));
 const AUDIT_REDIS_DEBUG_LOG_ENABLED =
   String(process.env.AUDIT_REDIS_DEBUG_LOG || 'true').toLowerCase() !== 'false';
 
@@ -67,6 +68,37 @@ async function withRedisTimeout(promise, label = 'redis op') {
   ]);
 }
 
+async function mapWithConcurrency(items, limit, worker) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const concurrency = Math.max(1, Number(limit) || 1);
+  const out = new Array(list.length);
+  let next = 0;
+
+  async function run() {
+    while (next < list.length) {
+      const index = next++;
+      out[index] = await worker(list[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, list.length) }, () => run()));
+  return out;
+}
+
+async function rgetMany(keys, { concurrency = KV_BULK_GET_CONCURRENCY } = {}) {
+  const list = Array.isArray(keys) ? keys.map((key) => String(key || '').trim()).filter(Boolean) : [];
+  if (!list.length) return [];
+  return await mapWithConcurrency(list, concurrency, async (key) => {
+    try {
+      return await rget(key);
+    } catch (err) {
+      console.error('KV BULK GET', key, err);
+      return null;
+    }
+  });
+}
+
 const P = 'dfs:';
 const KEY_REP_PUSH = (repId) => `${P}rep:${repId}:pushTokens`;
 const KEY_PORTAL_ADMIN_UI = `${P}portal:admin:ui`;
@@ -97,6 +129,7 @@ const mem = {
   gsprAssessments: new Map(),
   gsprAssessmentIndex: new Map(),
   gsprAssessmentHistory: new Map(),
+  gsprAssessmentGlobalIndex: [],
   gsprTdSignoff: new Map(),
   gsprItems: new Map(),
   gsprAudit: new Map(),
@@ -4424,6 +4457,7 @@ export async function gsprWorkflowAction(id, { action, actor, comment, reason })
    ===================================================================== */
 
 const KEY_GSPR_ASSESSMENT = (id) => `${P}gspr:assessment:${id}`;
+const KEY_GSPR_ASSESSMENT_GLOBAL_INDEX = `${P}gspr:assessment:index`;
 const KEY_GSPR_ASSESSMENT_INDEX = (tdId) => `${P}gspr:td:${tdId}:assessments`;
 const KEY_GSPR_ASSESSMENT_HISTORY = (id) => `${P}gspr:assessment:${id}:history`;
 const KEY_GSPR_TD_SIGNOFF = (tdId) => `${P}gspr:td:${tdId}:signoff`;
@@ -4563,6 +4597,21 @@ async function gsprAssessmentIndexSave(tdId, list) {
   return unique;
 }
 
+async function gsprAssessmentGlobalIndexGet() {
+  const r = redisClient();
+  const direct = r ? await rget(KEY_GSPR_ASSESSMENT_GLOBAL_INDEX) : mem.gsprAssessmentGlobalIndex ?? null;
+  return Array.isArray(direct) ? direct.map((v) => v.toString()) : [];
+}
+
+async function gsprAssessmentGlobalIndexSave(list) {
+  const unique = Array.from(new Set((list || []).map((v) => v.toString()).filter(Boolean)));
+  const r = redisClient();
+  if (r) await rset(KEY_GSPR_ASSESSMENT_GLOBAL_INDEX, unique); else {
+    mem.gsprAssessmentGlobalIndex = unique;
+  }
+  return unique;
+}
+
 async function gsprAssessmentHistoryList(assessmentId) {
   if (!assessmentId) return [];
   const key = KEY_GSPR_ASSESSMENT_HISTORY(assessmentId);
@@ -4652,35 +4701,46 @@ export async function gsprAssessmentSave(record) {
       await gsprAssessmentIndexSave(data.tdId, [...currentIndex, data.id]);
     }
   }
+  const globalIndex = await gsprAssessmentGlobalIndexGet();
+  if (!globalIndex.includes(data.id)) {
+    await gsprAssessmentGlobalIndexSave([...globalIndex, data.id]);
+  }
   return data;
 }
 
 export async function gsprAssessmentsByTd(tdId) {
   if (!tdId) return [];
-  let ids = await gsprAssessmentIndexGet(tdId);
-  const r = redisClient();
-  if (!ids.length && r) {
-    const keys = await rkeys(`${P}gspr:assessment:*`);
-    if (keys.length) {
-      const vals = await Promise.all(keys.map((key) => rget(key)));
-      const matched = [];
-      keys.forEach((key, index) => {
-        const val = vals[index];
-        if (!val) return;
-        if ((val.tdId || '') === tdId) {
-          const id = key.replace(`${P}gspr:assessment:`, '');
-          matched.push(id);
-        }
-      });
-      ids = await gsprAssessmentIndexSave(tdId, matched);
-    }
+  const ids = await gsprAssessmentIndexGet(tdId);
+  if (!ids.length) return [];
+  const values = await rgetMany(ids.map((id) => KEY_GSPR_ASSESSMENT(id)));
+  return values
+    .map((entry, index) => (entry ? normalizeGsprAssessment({ ...entry, id: ids[index] }) : null))
+    .filter(Boolean);
+}
+
+export async function gsprAssessmentsPage({ cursor = '', limit = 100, tdId = '' } = {}) {
+  const pageSize = Math.max(1, Math.min(200, Number(limit) || 100));
+  const source = tdId ? await gsprAssessmentIndexGet(tdId) : await gsprAssessmentGlobalIndexGet();
+  const ids = Array.isArray(source) ? source : [];
+  if (!ids.length) {
+    return { items: [], nextCursor: null, hasMore: false, total: 0 };
   }
-  const list = [];
-  for (const id of ids) {
-    const assessment = await gsprAssessmentGet(id);
-    if (assessment) list.push(assessment);
-  }
-  return list;
+
+  const startIndex = cursor ? ids.indexOf(String(cursor)) + 1 : 0;
+  const safeStart = Math.max(0, startIndex);
+  const pageIds = ids.slice(safeStart, safeStart + pageSize);
+  const values = await rgetMany(pageIds.map((id) => KEY_GSPR_ASSESSMENT(id)));
+  const items = values
+    .map((entry, index) => (entry ? normalizeGsprAssessment({ ...entry, id: pageIds[index] }) : null))
+    .filter(Boolean);
+  const nextIndex = safeStart + pageSize;
+
+  return {
+    items,
+    nextCursor: nextIndex < ids.length ? pageIds[pageIds.length - 1] : null,
+    hasMore: nextIndex < ids.length,
+    total: ids.length,
+  };
 }
 
 export async function gsprAssessmentsByTdAndChapter(tdId, chapter) {

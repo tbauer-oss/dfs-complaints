@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const td = await tdGet(id);
       if (!td || td.deletedAt) return bad(res, 'not found', 404);
-      const [sections, links, summary] = await Promise.all([tdSections(id), tdLinks(id), tdComputedSummary(td)]);
+      const [sections, links, summary] = await Promise.all([tdSections(id), tdLinks(id), tdComputedSummary(td, { includeGsprAssessments: false })]);
       return ok(res, { ok: true, item: td, sections, links, summary });
     }
     if (req.method === 'PATCH') {
