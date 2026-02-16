@@ -5,6 +5,8 @@
 //  - Rollenprüfung für Portal-Endpunkte
 
 import { getAuthUser } from './auth.js';
+import bcrypt from 'bcryptjs';
+import { query } from './db.js';
 import { normalizeTilePermission, portalUserByEmail, sanitizeTilePermissions } from './store.js';
 import { normalizeEmail } from './identity.js';
 
@@ -126,8 +128,39 @@ export function isAdminUser(user) {
 }
 
 export async function ensureInitialAdmins() {
-  // Bootstrap wurde aus dem Login-Flow entfernt.
-  return;
+  if (!ADMIN_SECRET) return;
+
+  for (const rawEmail of ADMIN_EMAILS) {
+    const emailNorm = normalizeEmail(rawEmail);
+    if (!emailNorm) continue;
+
+    const existing = await query(
+      `SELECT id
+       FROM public.portal_users
+       WHERE email_norm = $1
+       LIMIT 1`,
+      [emailNorm],
+    );
+
+    if (existing?.rows?.[0]?.id) {
+      console.info('[portalAuth/ensureInitialAdmins]', {
+        outcome: 'ADMIN_EXISTS_NOOP',
+        email_norm: emailNorm,
+      });
+      continue;
+    }
+
+    const passwordHash = await bcrypt.hash(ADMIN_SECRET, 10);
+    await query(
+      `INSERT INTO public.portal_users (email, email_norm, password_hash, role, is_active)
+       VALUES ($1, $2, $3, 'superuser', true)`,
+      [emailNorm, emailNorm, passwordHash],
+    );
+    console.info('[portalAuth/ensureInitialAdmins]', {
+      outcome: 'ADMIN_CREATED',
+      email_norm: emailNorm,
+    });
+  }
 }
 
 export function shouldBootstrapInitialAdmins() {

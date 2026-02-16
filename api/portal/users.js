@@ -136,7 +136,7 @@ export default async function handler(req, res) {
       if (body.isPRRC !== undefined) patch.isPRRC = isTruthy(body.isPRRC);
       if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
       if (body.tilePermissions !== undefined) patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
-      if (body.password) patch.passhash = await bcrypt.hash(String(body.password), 10);
+      if (body.password) return bad(res, 'password updates are only allowed via /api/account/password', 400);
 
       if (ADMIN_EMAILS.has(email)) {
         patch.role = PORTAL_ROLES.superuser;

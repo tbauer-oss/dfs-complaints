@@ -2003,10 +2003,6 @@ export async function upsertPortalUser(u) {
      ON CONFLICT (email_norm)
      DO UPDATE SET
        email = EXCLUDED.email,
-       password_hash = CASE
-         WHEN EXCLUDED.password_hash IS NOT NULL AND length(EXCLUDED.password_hash) > 0 THEN EXCLUDED.password_hash
-         ELSE portal_users.password_hash
-       END,
        role = EXCLUDED.role,
        is_active = EXCLUDED.is_active,
        updated_at = NOW()
@@ -2018,10 +2014,6 @@ export async function upsertPortalUser(u) {
      ON CONFLICT (email_norm)
      DO UPDATE SET
        email = EXCLUDED.email,
-       password_hash = CASE
-         WHEN EXCLUDED.password_hash IS NOT NULL AND length(EXCLUDED.password_hash) > 0 THEN EXCLUDED.password_hash
-         ELSE portal_users.password_hash
-       END,
        role = EXCLUDED.role,
        is_active = EXCLUDED.is_active,
        updated_at = NOW()
