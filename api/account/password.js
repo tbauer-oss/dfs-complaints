@@ -12,13 +12,34 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function parseBody(req) {
+async function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
-  if (typeof req.body === 'string') {
-    const trimmed = req.body.trim();
-    return JSON.parse(trimmed || '{}');
-  }
-  return {};
+
+  const parse = (value) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return JSON.parse(trimmed || '{}');
+    }
+    if (Buffer.isBuffer(value)) {
+      const trimmed = value.toString('utf8').trim();
+      return JSON.parse(trimmed || '{}');
+    }
+    return value && typeof value === 'object' ? value : {};
+  };
+
+  if (req.body != null) return parse(req.body);
+
+  const raw = await new Promise((resolve, reject) => {
+    if (!req || typeof req.on !== 'function') return resolve('');
+    let chunks = '';
+    req.on('data', (chunk) => {
+      chunks += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '');
+    });
+    req.on('end', () => resolve(chunks));
+    req.on('error', reject);
+  });
+
+  return parse(raw);
 }
 
 function isDbConnectivityError(err) {
@@ -41,12 +62,26 @@ export default async function handler(req, res) {
 
   let body;
   try {
-    body = parseBody(req);
+    body = await readJsonBody(req);
   } catch {
     return sendJson(res, 400, { code: 'VALIDATION_ERROR', message: 'Request body must be valid JSON.' });
   }
 
-  const { currentPassword, newPassword } = body || {};
+  const presentKeys = body && typeof body === 'object' ? Object.keys(body).sort() : [];
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[account/password] payload keys', presentKeys);
+  }
+
+  const currentPassword = body?.currentPassword
+    ?? body?.current_password
+    ?? body?.oldPassword
+    ?? body?.old_password
+    ?? body?.password;
+
+  const newPassword = body?.newPassword
+    ?? body?.new_password
+    ?? body?.newPass
+    ?? body?.new_pass;
 
   if (!currentPassword || !newPassword) {
     return sendJson(res, 400, {
