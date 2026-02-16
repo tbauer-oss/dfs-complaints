@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { getAuthUser } from '../_lib/auth.js';
 import { query } from '../_lib/db.js';
 import { methodNotAllowed, setCors } from '../_lib/http.js';
+import { invalidatePortalUserCaches } from '../_lib/portalUserCache.js';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -129,7 +130,9 @@ export default async function handler(req, res) {
       [hash, user.id],
     );
 
-    return sendJson(res, 200, { ok: true });
+    const cacheInfo = await invalidatePortalUserCaches(user.email_norm || auth.email, { logPrefix: 'account/password' });
+
+    return sendJson(res, 200, { ok: true, cacheInvalidated: cacheInfo.cacheInvalidated });
   } catch (err) {
     if (isDbConnectivityError(err)) {
       return sendJson(res, 503, { code: 'DB_UNAVAILABLE', message: 'Database unavailable.' });

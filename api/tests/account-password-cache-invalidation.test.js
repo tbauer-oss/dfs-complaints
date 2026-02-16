@@ -73,7 +73,10 @@ test('password change invalidates legacy and safe portal user cache keys', async
 
   assert.equal(res.__out.statusCode, 200);
   const deletes = seen.filter((entry) => entry.sql.startsWith('DELETE FROM kv_store'));
-  assert.equal(deletes.length, 2);
-  assert.deepEqual(deletes[0].params, [['dfs:portal:user:cache@dfs-diamon.de']]);
-  assert.deepEqual(deletes[1].params, [['dfs:portal:user_safe:cache@dfs-diamon.de']]);
+  const deletedKeys = deletes.map((entry) => entry.params?.[0]?.[0]).filter(Boolean);
+  assert.ok(deletedKeys.includes('dfs:portal:user:cache@dfs-diamon.de'));
+  assert.ok(deletedKeys.includes('dfs:portal:user_safe:cache@dfs-diamon.de'));
+  assert.ok(deletedKeys.includes('dfs:users'));
+  assert.ok(deletedKeys.includes('dfs:userDirectory'));
+  assert.ok(deletedKeys.includes('dfs:roles'));
 });

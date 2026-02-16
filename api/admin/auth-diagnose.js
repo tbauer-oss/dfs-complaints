@@ -2,6 +2,7 @@ export const config = { runtime: 'nodejs' };
 
 import { logStoreError, methodNotAllowed, storeUnavailablePayload, withCors } from '../_lib/http.js';
 import { portalUserByEmail } from '../_lib/store.js';
+import { query } from '../_lib/db.js';
 import { normalizeEmail } from '../_lib/identity.js';
 
 function unauthorized(res) {
@@ -47,6 +48,18 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
+
+  let legacyKvExists = null;
+  try {
+    const kvCheck = await query(
+      `SELECT COUNT(*)::int AS cnt FROM kv_store WHERE k = $1`,
+      [`dfs:portal:user:${emailNorm}`],
+    );
+    legacyKvExists = Number(kvCheck?.rows?.[0]?.cnt || 0) > 0;
+  } catch {
+    legacyKvExists = null;
+  }
+
   const hash = String(user?.passhash || user?.passwordHash || '').trim();
   const body = {
     email_norm: emailNorm,
@@ -55,6 +68,7 @@ export default async function handler(req, res) {
     hasPasswordHash: hash.length > 0,
     passwordHashPrefix: hash ? hash.slice(0, 7) : null,
     updated_at: user?.updatedAt || null,
+    legacyKvExists,
   };
 
   res.statusCode = 200;
