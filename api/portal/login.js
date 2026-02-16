@@ -65,6 +65,7 @@ function mapAuthUserRow(row) {
     emailNorm: row.email_norm,
     passhash: row.password_hash,
     role: row.role,
+    authSource: 'db',
     tourSeen: row.tour_seen === true,
     portalStatus: String(row.portal_status || '').toLowerCase() === 'inactive'
       || row.is_active === false
@@ -93,6 +94,26 @@ async function loadPortalAuthUser(emailNorm) {
     [emailNorm],
   );
   return mapAuthUserRow(result?.rows?.[0] || null);
+}
+
+
+function assertDbOnlyAuthSource(user) {
+  if (!user) return;
+  const source = String(user.authSource || '').toLowerCase();
+  const hasKvMarker = user.fromKv === true
+    || user.kv === true
+    || String(user.source || '').toLowerCase() === 'kv'
+    || String(user.cacheSource || '').toLowerCase() === 'kv';
+  if (source && source !== 'db') {
+    const err = new Error('auth user source is not db');
+    err.code = 'SECURITY_GUARD_KV_AUTH_FORBIDDEN';
+    throw err;
+  }
+  if (hasKvMarker) {
+    const err = new Error('auth user has kv marker');
+    err.code = 'SECURITY_GUARD_KV_AUTH_FORBIDDEN';
+    throw err;
+  }
 }
 
 function safePortalUserCache(user) {
@@ -187,6 +208,19 @@ export default async function handler(req, res) {
     const outcome = 'USER_NOT_FOUND';
     logOutcome(outcome, { email_norm: emailNorm });
     return respond(req, res, 401, { code: 'INVALID_CREDENTIALS', message: 'E-Mail/Passwort ungültig.' }, outcome);
+  }
+
+  try {
+    assertDbOnlyAuthSource(user);
+  } catch (err) {
+    const outcome = 'SECURITY_GUARD_KV_AUTH_FORBIDDEN';
+    logOutcome(outcome, {
+      email_norm: emailNorm,
+      user_id: user.id || null,
+      errorCode: err?.code || null,
+      errorMessage: err?.message || String(err),
+    });
+    return respond(req, res, 500, { code: outcome, message: 'Auth source violation.' }, outcome);
   }
 
   if (user.portalStatus === 'inactive') {
