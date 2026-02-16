@@ -612,8 +612,11 @@ class GsprSummary {
   final String sourceName;
   final String sourcePermalink;
   final DateTime? sourceLastSyncAt;
+  final DateTime? sourceLastGoodSyncAt;
   final DateTime? sourceLastAttemptAt;
+  final DateTime? sourceLastSyncAttemptAt;
   final String sourceLastError;
+  final String sourceLastSyncError;
   final String sourceUpdatedBy;
   final DateTime? sourceLastChangeAt;
   final String sourceLastChangeSummary;
@@ -631,8 +634,11 @@ class GsprSummary {
     required this.sourceName,
     required this.sourcePermalink,
     required this.sourceLastSyncAt,
+    required this.sourceLastGoodSyncAt,
     required this.sourceLastAttemptAt,
+    required this.sourceLastSyncAttemptAt,
     required this.sourceLastError,
+    required this.sourceLastSyncError,
     required this.sourceUpdatedBy,
     required this.sourceLastChangeAt,
     required this.sourceLastChangeSummary,
@@ -661,8 +667,11 @@ class GsprSummary {
       sourceName: (source['name'] ?? '').toString(),
       sourcePermalink: (source['permalink'] ?? '').toString(),
       sourceLastSyncAt: DateTime.tryParse(source['lastSyncAt']?.toString() ?? ''),
+      sourceLastGoodSyncAt: DateTime.tryParse(source['lastGoodSyncAt']?.toString() ?? ''),
       sourceLastAttemptAt: DateTime.tryParse(source['lastAttemptAt']?.toString() ?? ''),
+      sourceLastSyncAttemptAt: DateTime.tryParse(source['lastSyncAttemptAt']?.toString() ?? ''),
       sourceLastError: (source['lastError'] ?? '').toString(),
+      sourceLastSyncError: (source['lastSyncError'] ?? source['lastError'] ?? '').toString(),
       sourceUpdatedBy: (source['updatedBy'] ?? '').toString(),
       sourceLastChangeAt: DateTime.tryParse(source['lastChangeAt']?.toString() ?? ''),
       sourceLastChangeSummary: (source['lastChangeSummary'] ?? '').toString(),
@@ -677,8 +686,11 @@ class GsprSourceSyncResult {
   final String sourceName;
   final String sourcePermalink;
   final DateTime? lastSyncAt;
+  final DateTime? lastGoodSyncAt;
   final DateTime? lastAttemptAt;
+  final DateTime? lastSyncAttemptAt;
   final String lastError;
+  final String lastSyncError;
   final String updatedBy;
   final bool changesDetected;
   final List<GsprSourceChangeDetail> changeDetails;
@@ -687,8 +699,11 @@ class GsprSourceSyncResult {
     required this.sourceName,
     required this.sourcePermalink,
     required this.lastSyncAt,
+    required this.lastGoodSyncAt,
     required this.lastAttemptAt,
+    required this.lastSyncAttemptAt,
     required this.lastError,
+    required this.lastSyncError,
     required this.updatedBy,
     required this.changesDetected,
     required this.changeDetails,
@@ -704,8 +719,11 @@ class GsprSourceSyncResult {
       sourceName: (source['name'] ?? '').toString(),
       sourcePermalink: (source['permalink'] ?? '').toString(),
       lastSyncAt: DateTime.tryParse(source['lastSyncAt']?.toString() ?? ''),
+      lastGoodSyncAt: DateTime.tryParse(source['lastGoodSyncAt']?.toString() ?? ''),
       lastAttemptAt: DateTime.tryParse(source['lastAttemptAt']?.toString() ?? ''),
+      lastSyncAttemptAt: DateTime.tryParse(source['lastSyncAttemptAt']?.toString() ?? ''),
       lastError: (source['lastError'] ?? '').toString(),
+      lastSyncError: (source['lastSyncError'] ?? source['lastError'] ?? '').toString(),
       updatedBy: (source['updatedBy'] ?? '').toString(),
       changesDetected: json['changesDetected'] == true,
       changeDetails: details,
