@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
 import { handlePreflight, setCors, ok, bad, methodNotAllowed, readJson } from '../_lib/http.js';
-import { portalUsersList, portalUserSave, portalUserDelete, sanitizeTilePermissions } from '../_lib/store.js';
+import { portalUsersList, portalUserDelete, sanitizeTilePermissions, createPortalUser, upsertPortalUser, portalUserByEmail } from '../_lib/store.js';
 import { normalizeDepartments } from '../_lib/departments.js';
 import {
   ADMIN_EMAILS,
@@ -17,6 +17,7 @@ import { createTrackedRedis } from '../chat/v1/_lib/redisTracker.js';
 import { normalizeEmail } from '../_lib/identity.js';
 import { createRedisAdapter } from '../chat/v1/_lib/redisAdapter.js';
 import { keyAvatarMap, normalizeUserId } from '../chat/v1/_lib/schema.js';
+import { invalidatePortalUserCaches } from '../_lib/portalUserCache.js';
 
 const isTruthy = flag => flag === true || flag === 'true' || flag === 1 || flag === '1';
 
@@ -114,28 +115,50 @@ export default async function handler(req, res) {
         createdAt: Date.now(),
         tilePermissions,
       };
-      await portalUserSave(user);
-      return ok(res, sanitizeUser(user));
+      const savedUser = await createPortalUser(user);
+      const cacheInfo = await invalidatePortalUserCaches(email, { logPrefix: 'portal/users/create' });
+      console.info('[portal/users/update]', { userId: savedUser?.id || null, fieldsChanged: ['create'], cacheInvalidated: cacheInfo.cacheInvalidated });
+      return ok(res, sanitizeUser(savedUser || user));
     }
 
     if (req.method === 'PATCH') {
       const body = readJson(req) || {};
       const email = normalizeEmail(body.email);
       if (!email) return bad(res, 'missing email', 400);
-      const list = await portalUsersList();
-      const existing = list.find(u => normalizeEmail(u.email) === email);
+      const existing = await portalUserByEmail(email);
       if (!existing) return bad(res, 'not found', 404);
 
       const patch = { ...existing };
-      if (body.displayName !== undefined) patch.displayName = String(body.displayName || '').trim();
-      if (body.role) patch.role = normalizeRole(body.role);
-      if (body.portalStatus) patch.portalStatus = normalizeStatus(body.portalStatus);
+      const fieldsChanged = [];
+      if (body.displayName !== undefined) {
+        patch.displayName = String(body.displayName || '').trim();
+        fieldsChanged.push('displayName');
+      }
+      if (body.role) {
+        patch.role = normalizeRole(body.role);
+        fieldsChanged.push('role');
+      }
+      if (body.portalStatus) {
+        patch.portalStatus = normalizeStatus(body.portalStatus);
+        fieldsChanged.push('portalStatus');
+      }
       const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
-      if (salesFlag !== undefined)
+      if (salesFlag !== undefined) {
         patch.isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
-      if (body.isPRRC !== undefined) patch.isPRRC = isTruthy(body.isPRRC);
-      if (body.assignedDepartments) patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
-      if (body.tilePermissions !== undefined) patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
+        fieldsChanged.push('isSales');
+      }
+      if (body.isPRRC !== undefined) {
+        patch.isPRRC = isTruthy(body.isPRRC);
+        fieldsChanged.push('isPRRC');
+      }
+      if (body.assignedDepartments !== undefined) {
+        patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
+        fieldsChanged.push('assignedDepartments');
+      }
+      if (body.tilePermissions !== undefined) {
+        patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
+        fieldsChanged.push('tilePermissions');
+      }
       if (body.password) return bad(res, 'password updates are only allowed via /api/account/password', 400);
 
       if (ADMIN_EMAILS.has(email)) {
@@ -143,8 +166,17 @@ export default async function handler(req, res) {
         patch.portalStatus = 'active';
       }
 
-      await portalUserSave(patch);
-      return ok(res, sanitizeUser(patch));
+      const saved = await upsertPortalUser(patch);
+      if (!saved) return bad(res, 'update failed', 500);
+
+      const cacheInfo = await invalidatePortalUserCaches(email, { logPrefix: 'portal/users/update' });
+      console.info('[portal/users/update]', {
+        userId: saved.id || null,
+        fieldsChanged,
+        cacheInvalidated: cacheInfo.cacheInvalidated,
+      });
+
+      return ok(res, sanitizeUser(saved));
     }
 
     if (req.method === 'DELETE') {
@@ -153,6 +185,7 @@ export default async function handler(req, res) {
       if (!email) return bad(res, 'missing email', 400);
       if (ADMIN_EMAILS.has(email)) return bad(res, 'cannot delete initial admins', 400);
       await portalUserDelete(email);
+      await invalidatePortalUserCaches(email, { logPrefix: 'portal/users/delete' });
       return ok(res, { deleted: email });
     }
 

@@ -7,6 +7,7 @@ import { query } from '../_lib/db.js';
 import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 import { normalizeEmail } from '../_lib/identity.js';
+import { invalidatePortalUserCaches, writePortalUserSafeCache } from '../_lib/portalUserCache.js';
 
 const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
 const EXPIRES_IN = '12h';
@@ -238,7 +239,15 @@ export default async function handler(req, res) {
     { expiresIn: EXPIRES_IN },
   );
 
-  logOutcome('SUCCESS', { email_norm: emailNorm, user_id: user.id || null });
+  const cacheInfo = await invalidatePortalUserCaches(emailNorm, { logPrefix: 'portal/login' });
+  const safeCacheWritten = await writePortalUserSafeCache(emailNorm, { ...user, role, portalStatus: 'active' });
+
+  logOutcome('SUCCESS', {
+    email_norm: emailNorm,
+    user_id: user.id || null,
+    cacheInvalidated: cacheInfo.cacheInvalidated,
+    safeCacheWritten,
+  });
 
   return respond(req, res, 200, {
     token,
