@@ -2,6 +2,16 @@ let pool = null;
 let dbOverride = null;
 let warnedAboutSslMode = false;
 
+const DATABASE_URL_ENV_KEYS = ['DATABASE_URL', 'POSTGRES_URL', 'SUPABASE_DB_URL'];
+
+export function getDatabaseConnectionString() {
+  for (const key of DATABASE_URL_ENV_KEYS) {
+    const value = String(process.env[key] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function parseConnectionTarget(connectionString = '') {
   try {
     const parsed = new URL(connectionString);
@@ -14,7 +24,7 @@ function parseConnectionTarget(connectionString = '') {
   }
 }
 
-export function getSanitizedDbTarget(connectionString = String(process.env.DATABASE_URL || '').trim()) {
+export function getSanitizedDbTarget(connectionString = getDatabaseConnectionString()) {
   const { host, port, dbName } = parseConnectionTarget(connectionString);
   return `${host}:${port}/${dbName}`;
 }
@@ -55,7 +65,7 @@ export function __setDbForTests(mock = null) {
 
 async function getPool() {
   if (pool) return pool;
-  const connectionString = String(process.env.DATABASE_URL || '').trim();
+  const connectionString = getDatabaseConnectionString();
   if (!connectionString) return null;
 
   const lowerConn = connectionString.toLowerCase();
@@ -88,7 +98,7 @@ export async function getDbClient() {
   if (dbOverride?.connect) return dbOverride.connect();
   const activePool = await getPool();
   if (!activePool) {
-    const err = new Error('DATABASE_URL is not configured');
+    const err = new Error(`${DATABASE_URL_ENV_KEYS.join(' / ')} is not configured`);
     err.code = 'DB_UNAVAILABLE';
     throw err;
   }
@@ -105,7 +115,7 @@ export async function query(text, params = []) {
   if (dbOverride?.query) return dbOverride.query(text, params);
   const activePool = await getPool();
   if (!activePool) {
-    const err = new Error('DATABASE_URL is not configured');
+    const err = new Error(`${DATABASE_URL_ENV_KEYS.join(' / ')} is not configured`);
     err.code = 'DB_UNAVAILABLE';
     throw err;
   }

@@ -115,6 +115,41 @@ test('admin db-ping returns DB_UNAVAILABLE payload on query failure', async () =
   }
 });
 
+
+test('admin db-ping uses POSTGRES_URL when DATABASE_URL is missing', async () => {
+  const previousSecret = process.env.ADMIN_SECRET;
+  const previousUrl = process.env.DATABASE_URL;
+  const previousPostgresUrl = process.env.POSTGRES_URL;
+  process.env.ADMIN_SECRET = 'top-secret';
+  delete process.env.DATABASE_URL;
+  process.env.POSTGRES_URL = 'postgresql://user:pass@fallback-db.internal:6543/postgres';
+
+  __setDbForTests({
+    async query(sql) {
+      assert.equal(String(sql).toLowerCase(), 'select 1 as ok');
+      return { rows: [{ '?column?': 1 }] };
+    },
+  });
+
+  try {
+    const req = makeReq({ headers: { 'x-admin-secret': 'top-secret' } });
+    const res = makeRes();
+    await dbPingHandler(req, res);
+
+    assert.equal(res.__out.statusCode, 200);
+    const payload = JSON.parse(res.__out.body || '{}');
+    assert.equal(payload.ok, true);
+    assert.equal(payload.target, 'fallback-db.internal:6543/postgres');
+  } finally {
+    if (previousSecret === undefined) delete process.env.ADMIN_SECRET;
+    else process.env.ADMIN_SECRET = previousSecret;
+    if (previousUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousUrl;
+    if (previousPostgresUrl === undefined) delete process.env.POSTGRES_URL;
+    else process.env.POSTGRES_URL = previousPostgresUrl;
+  }
+});
+
 test('getSanitizedDbTarget strips credentials from url', () => {
   const target = getSanitizedDbTarget('postgresql://secret-user:super-secret@127.0.0.1:5432/devdb');
   assert.equal(target, '127.0.0.1:5432/devdb');
