@@ -1253,7 +1253,7 @@ function computeReadinessStatus(score, reasons) {
   return 'Yellow';
 }
 
-export async function tdComputedSummary(td) {
+export async function tdComputedSummary(td, { includeGsprAssessments = true } = {}) {
   const sections = await tdSections(td.id);
   const links = await tdLinks(td.id);
   const reasons = [];
@@ -1271,8 +1271,10 @@ export async function tdComputedSummary(td) {
   if (!hasFmea) reasons.push('Missing mandatory link: FMEA');
   if (!hasPms) reasons.push('Missing mandatory link: PMS plan/report');
 
-  const gspr = asArray(await gsprAssessmentsByTd(td.id));
-  const gsprAssessed = gspr.length ? Math.round((gspr.filter((x) => x.status && x.status !== 'open').length / gspr.length) * 100) : 0;
+  const gspr = includeGsprAssessments ? asArray(await gsprAssessmentsByTd(td.id)) : [];
+  const gsprAssessed = includeGsprAssessments
+    ? (gspr.length ? Math.round((gspr.filter((x) => x.status && x.status !== 'open').length / gspr.length) * 100) : 0)
+    : (hasGspr ? 100 : 0);
 
   const fmeas = asArray(await fmeaAll()).filter((f) => f.mdrTd === td.code || f.mdrTd === td.id);
   const capa = asArray(await capaAll()).filter((c) => c.tdId === td.id || c.mdrTd === td.code);

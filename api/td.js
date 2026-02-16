@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const list = await tdList();
       const withSummary = await Promise.all(
-        list.map(async (td) => ({ ...td, summary: await tdComputedSummary(td) })),
+        list.map(async (td) => ({ ...td, summary: await tdComputedSummary(td, { includeGsprAssessments: false }) })),
       );
       return ok(res, { ok: true, items: withSummary });
     }
