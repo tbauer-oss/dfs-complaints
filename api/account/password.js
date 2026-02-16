@@ -1,17 +1,29 @@
 // api/account/password.js
 export const config = { runtime: 'nodejs' };
 
-import { setCors, ok, bad, methodNotAllowed } from '../_lib/http.js';
-import { getAuthUser } from '../_lib/auth.js';
-import {
-  portalUserByEmail,
-  portalUserSave,
-  userByEmail,
-  userSave,
-} from '../_lib/store.js';
-import { isStrongPassword } from '../_lib/passwords.js';
 import bcrypt from 'bcryptjs';
-import { sendMail } from '../_lib/mailer.js';
+import { getAuthUser } from '../_lib/auth.js';
+import { query } from '../_lib/db.js';
+import { methodNotAllowed, setCors } from '../_lib/http.js';
+
+function sendJson(res, statusCode, payload) {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify(payload));
+}
+
+function parseBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    const trimmed = req.body.trim();
+    return JSON.parse(trimmed || '{}');
+  }
+  return {};
+}
+
+function isDbConnectivityError(err) {
+  return String(err?.code || '').toUpperCase() === 'DB_UNAVAILABLE';
+}
 
 export default async function handler(req, res) {
   setCors(req, res);
@@ -19,66 +31,76 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const auth = getAuthUser(req);
-  if (!auth) return bad(res, 'unauthorized', 401);
-
-  let body = req.body;
-  if (typeof body !== 'object') {
-    try {
-      body = JSON.parse(req.body ?? '{}');
-    } catch (error) {
-      console.error('[account/password] invalid json body', error);
-      return bad(res, 'invalid json body', 400);
-    }
-  }
-  const oldPw = body?.oldPassword || '';
-  const newPw = body?.newPassword || '';
-
-  const u = (await userByEmail(auth.email)) || (await portalUserByEmail(auth.email));
-  if (!u) return bad(res, 'not found', 404);
-
-  const okOld = await bcrypt.compare(oldPw, u.passhash || u.passwordHash || '');
-  if (!okOld) return bad(res, 'wrong password', 400);
-
-  if (!isStrongPassword(newPw)) {
-    return bad(res, 'password requirements not met (min. 8 chars incl. letters, numbers & special characters)', 400);
+  if (!auth) {
+    return sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Missing or invalid authorization token.' });
   }
 
-  const passhash = await bcrypt.hash(newPw, 10);
-  const updatedUser = { ...u, passhash, passwordHash: passhash };
-  const type = String(u.type || '').toLowerCase();
-  const kind = String(u.kind || '').toLowerCase();
-  const isPortalUser = type === 'portal' || type === 'staff'
-    || kind === 'portal' || kind === 'staff'
-    || Object.prototype.hasOwnProperty.call(u || {}, 'portalStatus')
-    || Object.prototype.hasOwnProperty.call(u || {}, 'role');
-  
-  if (isPortalUser) {
-    await portalUserSave(updatedUser);
-  } else {
-    await userSave(updatedUser);
+  if (!auth.sub) {
+    return sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Token subject is missing.' });
   }
 
-  const verifySaved = isPortalUser
-    ? await portalUserByEmail(auth.email)
-    : await userByEmail(auth.email);
-  if (!verifySaved) return bad(res, 'account not found after update', 500);
+  let body;
+  try {
+    body = parseBody(req);
+  } catch {
+    return sendJson(res, 400, { code: 'VALIDATION_ERROR', message: 'Request body must be valid JSON.' });
+  }
 
-  const okNew = await bcrypt.compare(newPw, verifySaved.passhash || verifySaved.passwordHash || '');
-  if (!okNew) return bad(res, 'could not persist new password', 500);
+  const { currentPassword, newPassword } = body || {};
+
+  if (!currentPassword || !newPassword) {
+    return sendJson(res, 400, {
+      code: 'VALIDATION_ERROR',
+      message: 'Both currentPassword and newPassword are required.',
+    });
+  }
+
+  if (String(newPassword).length < 8) {
+    return sendJson(res, 400, {
+      code: 'WEAK_PASSWORD',
+      message: 'newPassword must be at least 8 characters long.',
+    });
+  }
 
   try {
-    const mailResult = await sendMail({
-      to: auth.email, cc: 'complaint@dfs-diamon.de',
-      subject: '[DFS Complaint] Passwort geändert',
-      html: `<p>Ihr Passwort wurde erfolgreich geändert.</p>`
-    });
+    const userResult = await query(
+      `SELECT id, password_hash
+       FROM portal_users
+       WHERE id = $1
+       LIMIT 1`,
+      [auth.sub],
+    );
 
-    if (!mailResult?.ok) {
-      console.warn('[account/password] password change mail not sent', mailResult);
+    const user = userResult?.rows?.[0] || null;
+    if (!user) {
+      return sendJson(res, 404, { code: 'USER_NOT_FOUND', message: 'User account not found.' });
     }
-  } catch (err) {
-    console.error('[account/password] password change mail failed', err);
-  }
 
-  return ok(res, { ok: true });
+    const ok = await bcrypt.compare(currentPassword, String(user.password_hash || ''));
+    if (!ok) {
+      return sendJson(res, 400, {
+        code: 'INVALID_CURRENT_PASSWORD',
+        message: 'The current password is incorrect.',
+      });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    await query(
+      `UPDATE portal_users
+       SET password_hash = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [hash, user.id],
+    );
+
+    return sendJson(res, 200, { ok: true });
+  } catch (err) {
+    if (isDbConnectivityError(err)) {
+      return sendJson(res, 503, { code: 'DB_UNAVAILABLE', message: 'Database unavailable.' });
+    }
+
+    console.error('[account/password] unexpected error', err);
+    return sendJson(res, 500, { code: 'INTERNAL_ERROR', message: 'Internal server error.' });
+  }
 }
