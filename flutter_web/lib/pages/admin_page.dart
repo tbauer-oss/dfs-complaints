@@ -13856,7 +13856,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
         _portalUsersErr = null;
         final idx = _portalUsers.indexWhere((p) => p.email == saved.email);
         if (idx >= 0) {
-          _portalUsers[idx] = saved;
+          _portalUsers[idx] = _mergePortalUserPreservingAvatar(_portalUsers[idx], saved);
         } else {
           _portalUsers.add(saved);
         }
@@ -13889,9 +13889,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
       setState(() {
         final idx = _portalUsers.indexWhere((p) => p.email == updated.email);
-        if (idx >= 0) _portalUsers[idx] = updated;
+        if (idx >= 0) {
+          _portalUsers[idx] = _mergePortalUserPreservingAvatar(_portalUsers[idx], updated);
+        }
         if (_editingPortalUser?.email == updated.email) {
-          _startPortalUserEdit(updated);
+          final merged = idx >= 0 ? _portalUsers[idx] : updated;
+          _startPortalUserEdit(merged);
         }
       });
     } catch (e) {
@@ -13903,6 +13906,12 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
 
   void _setAvatarBusy(String email, bool value) {
     setState(() => _portalUserAvatarBusy[email] = value);
+  }
+
+  PortalUser _mergePortalUserPreservingAvatar(PortalUser current, PortalUser updated) {
+    final hasUpdatedAvatar = (updated.avatar ?? '').isNotEmpty;
+    if (hasUpdatedAvatar) return updated;
+    return updated.copyWith(avatar: current.avatar);
   }
 
   void _updatePortalUserAvatarLocal(String email, String? avatarUrl) {
