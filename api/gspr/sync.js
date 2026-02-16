@@ -1,8 +1,6 @@
 // /api/gspr/sync.js – manual source sync trigger for GSPR metadata
 export const config = { runtime: 'nodejs' };
 
-import { createHash } from 'node:crypto';
-
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
 import {
@@ -10,144 +8,78 @@ import {
   GSPR_SOURCE_PERMALINK,
 } from '../_lib/gsprRequirements.js';
 import { gsprSourceMetaGet, gsprSourceMetaSave } from '../_lib/store.js';
+import { redis } from '../_lib/redis.js';
+import { fetchEurLexMdrText } from '../_lib/eurlexMdr.js';
 
 const GSPR_TILE = 'gspr';
-const GSPR_SYNC_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const EUR_LEX_FALLBACK_URL = 'https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32017R0745';
-const EUR_LEX_FETCH_TIMEOUT_MS = 12_000;
-const EUR_LEX_FETCH_ATTEMPTS = 2;
+const SYNC_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const ANTI_BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const RAW_CACHE_TTL_SECONDS = 15 * 60;
+const RAW_CACHE_KEY = 'dfs:gspr:eurlex:raw:last';
 
-function normalizeTextForHash(html = '') {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/\s+/g, ' ')
-    .trim();
+function isTruthy(value) {
+  return ['1', 'true', 'yes', 'on'].includes((value ?? '').toString().trim().toLowerCase());
 }
 
-function extractTextLines(normalizedText = '') {
-  if (!normalizedText) return [];
-  return normalizedText
-    .split(/(?<=[\.;:])\s+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 35)
-    .slice(0, 140);
+function readForceFlag(req) {
+  return isTruthy(req.query?.force) || isTruthy(req.body?.force);
 }
 
-const BOILERPLATE_LINE_PATTERNS = [
-  /javascript is disabled/i,
-  /verify that you're not a robot/i,
-  /enable javascript and then reload the page/i,
-  /sign in register my recent searches/i,
-  /official eu languages/i,
-  /experimental features/i,
-  /eur-lex access to european union law/i,
-];
-
-function sanitizeExtractedLines(lines = []) {
-  return lines.filter((line) => !BOILERPLATE_LINE_PATTERNS.some((pattern) => pattern.test(line)));
+function mapSourceForResponse(source = {}) {
+  const lastGoodSyncAt = source.lastGoodSyncAt || source.lastSyncAt || null;
+  const lastSyncError = source.lastSyncError || source.lastError || '';
+  return {
+    name: source.name || GSPR_SOURCE_NAME,
+    permalink: source.permalink || GSPR_SOURCE_PERMALINK,
+    sourceUrl: source.sourceUrl || source.permalink || GSPR_SOURCE_PERMALINK,
+    parserVersion: source.parserVersion || '',
+    contentHash: source.contentHash || '',
+    previousContentHash: source.previousContentHash || '',
+    lastSyncAt: source.lastSyncAt || lastGoodSyncAt,
+    lastGoodSyncAt,
+    lastAttemptAt: source.lastAttemptAt || source.lastSyncAttemptAt || null,
+    lastSyncAttemptAt: source.lastSyncAttemptAt || source.lastAttemptAt || null,
+    lastError: source.lastError || lastSyncError,
+    lastSyncError,
+    lastFailureReason: source.lastFailureReason || '',
+    cooldownUntil: source.cooldownUntil || null,
+    updatedBy: source.updatedBy || '',
+    lastChangeAt: source.lastChangeAt || null,
+    lastChangeSummary: source.lastChangeSummary || '',
+    lastChangeDetails: source.lastChangeDetails || [],
+  };
 }
 
-function ensureContentLooksLikeEurLexDocument(lines = []) {
-  if (!lines.length) return false;
-
-  const combined = lines.join(' ').toLowerCase();
-  const legalAnchors = [
-    /verordnung \(eu\) 2017\/745/i,
-    /grundlegende sicherheits- und leistungsanforderungen/i,
-    /medizinprodukte/i,
-  ];
-
-  return legalAnchors.some((pattern) => pattern.test(combined));
+function withinWindow(isoDate, windowMs) {
+  const ts = Date.parse((isoDate || '').toString());
+  if (!Number.isFinite(ts)) return false;
+  return (Date.now() - ts) < windowMs;
 }
 
-function detectChangedLines(previous = [], current = []) {
-  if (!previous.length || !current.length) return [];
-  const previousSet = new Set(previous);
-  const currentSet = new Set(current);
-  const added = current.filter((line) => !previousSet.has(line));
-  const removed = previous.filter((line) => !currentSet.has(line));
-
-  const max = Math.min(5, Math.max(added.length, removed.length));
-  const details = [];
-  for (let index = 0; index < max; index += 1) {
-    details.push({
-      location: `EUR-Lex konsolidierte Fassung (Ausschnitt ${index + 1})`,
-      before: removed[index] || '—',
-      after: added[index] || '—',
-    });
-  }
-  return details;
+function isAntiBotReason(reason = '') {
+  const normalized = (reason || '').toString().toLowerCase();
+  return normalized.includes('anti_bot') || normalized.includes('access denied') || normalized.includes('forbidden');
 }
 
-function hasCachedSource(source = {}) {
-  if (!source || typeof source !== 'object') return false;
-  if (source.lastSyncAt) return true;
-  if ((source.contentHash || '').toString().trim()) return true;
-  if (Array.isArray(source.lastSeenLines) && source.lastSeenLines.length > 0) return true;
-  return false;
+function shouldApplyCooldown(reason = '') {
+  return isAntiBotReason(reason) || reason.startsWith('HTTP_403');
 }
 
-function isWithinSyncTtl(source = {}) {
-  if (!source?.lastSyncAt) return false;
-  const lastSyncTs = Date.parse(source.lastSyncAt);
-  if (!Number.isFinite(lastSyncTs)) return false;
-  return (Date.now() - lastSyncTs) < GSPR_SYNC_TTL_MS;
-}
-
-async function fetchEurLexPage(url) {
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= EUR_LEX_FETCH_ATTEMPTS; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort('timeout'), EUR_LEX_FETCH_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(url, {
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: {
-          'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
-          'cache-control': 'no-cache',
-        },
-      });
-
-      if (!response.ok) {
-        lastError = new Error(`HTTP ${response.status} ${response.statusText}`);
-        continue;
-      }
-
-      const html = await response.text();
-      if (!html || html.trim().length === 0) {
-        lastError = new Error('empty response body');
-        continue;
-      }
-
-      return { html, url: response.url || url };
-    } catch (err) {
-      lastError = err;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  const reason = lastError?.message || 'unknown fetch failure';
-  throw new Error(`EUR-Lex request failed (${url}): ${reason}`);
-}
-
-async function saveStaleState(before, actorEmail, reasonText) {
-  return await gsprSourceMetaSave({
-    name: GSPR_SOURCE_NAME,
-    permalink: before?.permalink || GSPR_SOURCE_PERMALINK,
-    lastAttemptAt: new Date().toISOString(),
-    lastError: reasonText,
-    updatedBy: actorEmail || '',
+async function cacheRawResponse(result) {
+  if (!result?.rawBody) return;
+  if (!redis || typeof redis.set !== 'function') return;
+  const payload = JSON.stringify({
+    at: new Date().toISOString(),
+    reason: result.reason || '',
+    sourceMeta: result.sourceMeta || {},
+    snippet: result.rawBody.slice(0, 500),
   });
+
+  try {
+    await redis.set(RAW_CACHE_KEY, payload, { ex: RAW_CACHE_TTL_SECONDS });
+  } catch (err) {
+    console.warn('[gspr/sync] raw response cache failed', err?.message || err);
+  }
 }
 
 export default async function handler(req, res) {
@@ -160,133 +92,124 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const source = await gsprSourceMetaGet();
-      return ok(res, {
-        ok: true,
-        source: {
-          name: source.name || GSPR_SOURCE_NAME,
-          permalink: source.permalink || GSPR_SOURCE_PERMALINK,
-          lastSyncAt: source.lastSyncAt || null,
-          lastAttemptAt: source.lastAttemptAt || null,
-          lastError: source.lastError || '',
-          updatedBy: source.updatedBy || '',
-          contentHash: source.contentHash || '',
-          previousContentHash: source.previousContentHash || '',
-          lastChangeAt: source.lastChangeAt || null,
-          lastChangeSummary: source.lastChangeSummary || '',
-          lastChangeDetails: source.lastChangeDetails || [],
-        },
-      });
+      return ok(res, { ok: true, source: mapSourceForResponse(source) });
     }
 
     if (req.method !== 'POST') return bad(res, 'method not allowed', 405);
 
+    const force = readForceFlag(req);
     const before = await gsprSourceMetaGet();
-    const cacheAvailable = hasCachedSource(before);
-    if (isWithinSyncTtl(before)) {
+    const cooldownUntilTs = Date.parse(before.cooldownUntil || '');
+
+    if (!force && Number.isFinite(cooldownUntilTs) && cooldownUntilTs > Date.now()) {
+      const msg = `GSPR sync is in cooldown until ${new Date(cooldownUntilTs).toISOString()} (anti-bot suspected).`;
+      return bad(res, msg, 429, {
+        code: 'SYNC_COOLDOWN_ACTIVE',
+        retryAfterSeconds: Math.max(1, Math.ceil((cooldownUntilTs - Date.now()) / 1000)),
+        source: mapSourceForResponse(before),
+      });
+    }
+
+    if (!force && withinWindow(before.lastSyncAttemptAt || before.lastAttemptAt, SYNC_MIN_INTERVAL_MS)) {
       return ok(res, {
         ok: true,
         skipped: true,
-        reason: 'SYNC_TTL_ACTIVE',
-        usedCache: cacheAvailable,
-        source: before,
+        reason: 'SYNC_RATE_LIMIT_12H',
+        source: mapSourceForResponse(before),
       });
     }
 
     const startedAt = new Date().toISOString();
     await gsprSourceMetaSave({
       name: GSPR_SOURCE_NAME,
-      permalink: before?.permalink || GSPR_SOURCE_PERMALINK,
       lastAttemptAt: startedAt,
+      lastSyncAttemptAt: startedAt,
       lastError: '',
+      lastSyncError: '',
       updatedBy: actor?.email || '',
     });
 
-    const candidates = [GSPR_SOURCE_PERMALINK, EUR_LEX_FALLBACK_URL];
-    let validatedFrom = null;
-    let fetchedHtml = '';
-    let lastSyncError = null;
-    for (const candidate of candidates) {
-      try {
-        const result = await fetchEurLexPage(candidate);
-        validatedFrom = result.url;
-        fetchedHtml = result.html;
-        break;
-      } catch (err) {
-        lastSyncError = err;
+    const result = await fetchEurLexMdrText();
+    await cacheRawResponse(result);
+
+    if (!result.ok) {
+      const failureReason = result.reason || 'SYNC_FAILED';
+      const debugSnippet = (result.rawBody || '').slice(0, 500);
+      console.error('[gspr/sync] EUR-Lex fetch failed', {
+        reason: failureReason,
+        sourceUrl: result.sourceMeta?.sourceUrl || '',
+        debugSnippet,
+      });
+
+      const patch = {
+        name: GSPR_SOURCE_NAME,
+        permalink: before?.permalink || GSPR_SOURCE_PERMALINK,
+        lastAttemptAt: startedAt,
+        lastSyncAttemptAt: startedAt,
+        lastError: `MDR sync failed: ${failureReason}`,
+        lastSyncError: `MDR sync failed: ${failureReason}`,
+        lastFailureReason: failureReason,
+        updatedBy: actor?.email || '',
+      };
+
+      if (shouldApplyCooldown(failureReason)) {
+        patch.cooldownUntil = new Date(Date.now() + ANTI_BOT_COOLDOWN_MS).toISOString();
       }
-    }
 
-    if (!validatedFrom) {
-      const reasonText = lastSyncError?.message || 'EUR-Lex source validation failed';
-      if (cacheAvailable) {
-        const source = await saveStaleState(before, actor?.email || '', reasonText);
-        return ok(res, { ok: false, stale: true, reason: 'EUR_LEX_FETCH_FAILED', usedCache: true, source });
-      }
-      throw new Error(reasonText);
-    }
-
-    const normalizedText = normalizeTextForHash(fetchedHtml);
-    const currentLines = sanitizeExtractedLines(extractTextLines(normalizedText));
-    if (!ensureContentLooksLikeEurLexDocument(currentLines)) {
-      const reasonText = 'EUR-Lex response did not contain stable regulation text (likely anti-bot or navigation markup)';
-      if (cacheAvailable) {
-        const source = await saveStaleState(before, actor?.email || '', reasonText);
-        return ok(res, { ok: false, stale: true, reason: 'EUR_LEX_UNSTABLE', usedCache: true, source });
-      }
-      throw new Error(reasonText);
-    }
-
-    const contentFingerprint = currentLines.join('\n');
-    const contentHash = createHash('sha256').update(contentFingerprint).digest('hex');
-    const previousHash = (before?.contentHash || '').toString();
-    const changed = previousHash.length > 0 && previousHash !== contentHash;
-
-    const previousLines = Array.isArray(before?.lastSeenLines)
-      ? before.lastSeenLines.map((entry) => (entry ?? '').toString())
-      : [];
-    const changeDetails = changed ? detectChangedLines(previousLines, currentLines) : [];
-
-    const finishedAt = new Date().toISOString();
-    const source = await gsprSourceMetaSave({
-      name: GSPR_SOURCE_NAME,
-      permalink: validatedFrom,
-      lastSyncAt: finishedAt,
-      lastAttemptAt: finishedAt,
-      lastError: '',
-      updatedBy: actor?.email || '',
-      previousContentHash: previousHash,
-      contentHash,
-      lastSeenLines: currentLines,
-      lastChangeAt: changed ? finishedAt : before?.lastChangeAt || null,
-      lastChangeSummary: changed
-        ? `Inhaltliche Änderungen in der EUR-Lex-Quelle erkannt (${changeDetails.length || 1} Textstelle(n)).`
-        : '',
-      lastChangeDetails: changed ? changeDetails : [],
-    });
-
-    return ok(res, { ok: true, source, changesDetected: changed, changeDetails });
-  } catch (err) {
-    const before = await gsprSourceMetaGet();
-    const cacheAvailable = hasCachedSource(before);
-    if (cacheAvailable) {
-      const source = await saveStaleState(before, actor?.email || '', err?.message || 'sync failed');
-      return ok(res, {
-        ok: false,
-        stale: true,
-        reason: 'EUR_LEX_SYNC_FAILED',
-        usedCache: true,
-        source,
+      const source = await gsprSourceMetaSave(patch);
+      const statusCode = shouldApplyCooldown(failureReason) ? 503 : 502;
+      return bad(res, patch.lastSyncError, statusCode, {
+        code: shouldApplyCooldown(failureReason) ? 'EUR_LEX_ANTI_BOT_SUSPECTED' : 'EUR_LEX_SYNC_FAILED',
+        detectedFailureReason: failureReason,
+        debugSnippet,
+        source: mapSourceForResponse(source),
       });
     }
 
+    const finishedAt = new Date().toISOString();
+    const previousHash = (before?.contentHash || '').toString();
+    const changed = previousHash.length > 0 && previousHash !== result.contentHash;
+
+    const source = await gsprSourceMetaSave({
+      name: GSPR_SOURCE_NAME,
+      permalink: result.sourceMeta?.sourceUrl || GSPR_SOURCE_PERMALINK,
+      sourceUrl: result.sourceMeta?.sourceUrl || GSPR_SOURCE_PERMALINK,
+      parserVersion: result.sourceMeta?.parserVersion || '',
+      normalizedText: result.text,
+      previousContentHash: previousHash,
+      contentHash: result.contentHash,
+      lastSyncAt: finishedAt,
+      lastGoodSyncAt: finishedAt,
+      lastAttemptAt: finishedAt,
+      lastSyncAttemptAt: finishedAt,
+      lastError: '',
+      lastSyncError: '',
+      lastFailureReason: '',
+      cooldownUntil: null,
+      updatedBy: actor?.email || '',
+      lastChangeAt: changed ? finishedAt : before?.lastChangeAt || null,
+      lastChangeSummary: changed ? 'MDR source content hash changed.' : '',
+      lastChangeDetails: changed
+        ? [{
+            location: result.sourceMeta?.sourceUrl || GSPR_SOURCE_PERMALINK,
+            before: previousHash || '—',
+            after: result.contentHash,
+          }]
+        : [],
+    });
+
+    return ok(res, { ok: true, source: mapSourceForResponse(source), changesDetected: changed });
+  } catch (err) {
+    console.error('[gspr/sync] unhandled error', err);
     const failedAt = new Date().toISOString();
     const source = await gsprSourceMetaSave({
       name: GSPR_SOURCE_NAME,
-      permalink: GSPR_SOURCE_PERMALINK,
       lastAttemptAt: failedAt,
+      lastSyncAttemptAt: failedAt,
       lastError: err?.message || 'sync failed',
+      lastSyncError: err?.message || 'sync failed',
       updatedBy: actor?.email || '',
     });
-    return bad(res, source.lastError || 'sync failed', 502);
+    return bad(res, source.lastSyncError || 'sync failed', 502, { source: mapSourceForResponse(source) });
   }
 }
