@@ -1868,27 +1868,41 @@ export async function userDelete(email) {
 }
 
 export async function usersList() {
-  const r = redisClient();
-  const rawList = r
-    ? await Promise.all((await rkeys(`${P}user:*`)).map(k => rget(k)))
-    : Array.from(mem.users.values());
+  const { rows } = await query(
+    `SELECT id, email, email_norm, role, is_active, department, tile_permissions, updated_at
+       FROM public.portal_users
+      ORDER BY email ASC`
+  );
 
-  const customers = [];
-  for (const u of rawList) {
-    if (!u || typeof u !== 'object') continue;
-    if (hasPortalMarker(u)) continue;
+  const users = (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null;
+      const email = String(row.email || '').trim().toLowerCase();
+      if (!email) return null;
 
-    if (!isCustomerUser(u)) continue;
+      const tilePermissions = sanitizeTilePermissions(row.tile_permissions || {});
 
-    const normalized = normalizePushTokens(u.pushTokens);
-    if (normalized.length > 0) u.pushTokens = normalized; else delete u.pushTokens;
-    u.lang = normLang(u.lang || '');
-    if (!u.type) u.type = 'customer';
-    if (!u.kind) u.kind = 'customer';
-    customers.push(u);
-  }
+      return {
+        id: row.id,
+        email,
+        emailNorm: row.email_norm || normalizeEmail(email),
+        role: row.role || null,
+        portalStatus: row.is_active ? 'active' : 'inactive',
+        isActive: row.is_active === true,
+        department: row.department || '',
+        tilePermissions,
+        updatedAt: row.updated_at || null,
+        // legacy-compatible defaults expected by existing callers
+        lang: 'de',
+        type: 'portal',
+        kind: 'staff',
+        pushTokens: [],
+      };
+    })
+    .filter(Boolean);
 
-  return customers;
+  console.info(`[usersList] source: 'db', count: ${users.length}`);
+  return users;
 }
 
 /* ============== Portal Users (Mitarbeiter) ============== */
