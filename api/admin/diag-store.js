@@ -1,6 +1,6 @@
 export const config = { runtime: 'nodejs' };
 
-import { query } from '../_lib/db.js';
+import { getDatabaseConnectionString, query } from '../_lib/db.js';
 import { withCors } from '../_lib/http.js';
 import { redis } from '../_lib/redis.js';
 
@@ -12,7 +12,7 @@ function sanitizeError(err) {
 }
 
 function getDbTarget() {
-  const value = String(process.env.DATABASE_URL || '').trim();
+  const value = getDatabaseConnectionString();
   if (!value) return '';
   try {
     const parsed = new URL(value);
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
   const response = {
     ok: false,
     env: {
-      hasDatabaseUrl: Boolean(String(process.env.DATABASE_URL || '').trim()),
+      hasDatabaseUrl: Boolean(getDatabaseConnectionString()),
       hasJwtSecret: Boolean(String(process.env.JWT_SECRET || '').trim()),
     },
     dbTarget: getDbTarget(),
