@@ -12,6 +12,7 @@ import {
 import { gsprSourceMetaGet, gsprSourceMetaSave } from '../_lib/store.js';
 
 const GSPR_TILE = 'gspr';
+const GSPR_SYNC_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const EUR_LEX_FALLBACK_URL = 'https://eur-lex.europa.eu/legal-content/DE/TXT/HTML/?uri=CELEX:32017R0745';
 const EUR_LEX_FETCH_TIMEOUT_MS = 12_000;
 const EUR_LEX_FETCH_ATTEMPTS = 2;
@@ -82,6 +83,21 @@ function detectChangedLines(previous = [], current = []) {
   return details;
 }
 
+function hasCachedSource(source = {}) {
+  if (!source || typeof source !== 'object') return false;
+  if (source.lastSyncAt) return true;
+  if ((source.contentHash || '').toString().trim()) return true;
+  if (Array.isArray(source.lastSeenLines) && source.lastSeenLines.length > 0) return true;
+  return false;
+}
+
+function isWithinSyncTtl(source = {}) {
+  if (!source?.lastSyncAt) return false;
+  const lastSyncTs = Date.parse(source.lastSyncAt);
+  if (!Number.isFinite(lastSyncTs)) return false;
+  return (Date.now() - lastSyncTs) < GSPR_SYNC_TTL_MS;
+}
+
 async function fetchEurLexPage(url) {
   let lastError = null;
 
@@ -94,9 +110,9 @@ async function fetchEurLexPage(url) {
         redirect: 'follow',
         signal: controller.signal,
         headers: {
-          'user-agent': 'DFS-Complaints GSPR sync/1.0 (+https://dfs-complaints-backend.vercel.app)',
-          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'accept-language': 'de,en;q=0.8',
+          'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
           'cache-control': 'no-cache',
         },
       });
@@ -112,7 +128,7 @@ async function fetchEurLexPage(url) {
         continue;
       }
 
-      return { html, url };
+      return { html, url: response.url || url };
     } catch (err) {
       lastError = err;
     } finally {
@@ -122,6 +138,16 @@ async function fetchEurLexPage(url) {
 
   const reason = lastError?.message || 'unknown fetch failure';
   throw new Error(`EUR-Lex request failed (${url}): ${reason}`);
+}
+
+async function saveStaleState(before, actorEmail, reasonText) {
+  return await gsprSourceMetaSave({
+    name: GSPR_SOURCE_NAME,
+    permalink: before?.permalink || GSPR_SOURCE_PERMALINK,
+    lastAttemptAt: new Date().toISOString(),
+    lastError: reasonText,
+    updatedBy: actorEmail || '',
+  });
 }
 
 export default async function handler(req, res) {
@@ -154,11 +180,22 @@ export default async function handler(req, res) {
 
     if (req.method !== 'POST') return bad(res, 'method not allowed', 405);
 
-    const startedAt = new Date().toISOString();
     const before = await gsprSourceMetaGet();
+    const cacheAvailable = hasCachedSource(before);
+    if (isWithinSyncTtl(before)) {
+      return ok(res, {
+        ok: true,
+        skipped: true,
+        reason: 'SYNC_TTL_ACTIVE',
+        usedCache: cacheAvailable,
+        source: before,
+      });
+    }
+
+    const startedAt = new Date().toISOString();
     await gsprSourceMetaSave({
       name: GSPR_SOURCE_NAME,
-      permalink: GSPR_SOURCE_PERMALINK,
+      permalink: before?.permalink || GSPR_SOURCE_PERMALINK,
       lastAttemptAt: startedAt,
       lastError: '',
       updatedBy: actor?.email || '',
@@ -179,12 +216,24 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!validatedFrom) throw lastSyncError || new Error('EUR-Lex source validation failed');
+    if (!validatedFrom) {
+      const reasonText = lastSyncError?.message || 'EUR-Lex source validation failed';
+      if (cacheAvailable) {
+        const source = await saveStaleState(before, actor?.email || '', reasonText);
+        return ok(res, { ok: false, stale: true, reason: 'EUR_LEX_FETCH_FAILED', usedCache: true, source });
+      }
+      throw new Error(reasonText);
+    }
 
     const normalizedText = normalizeTextForHash(fetchedHtml);
     const currentLines = sanitizeExtractedLines(extractTextLines(normalizedText));
     if (!ensureContentLooksLikeEurLexDocument(currentLines)) {
-      throw new Error('EUR-Lex response did not contain stable regulation text (likely anti-bot or navigation markup)');
+      const reasonText = 'EUR-Lex response did not contain stable regulation text (likely anti-bot or navigation markup)';
+      if (cacheAvailable) {
+        const source = await saveStaleState(before, actor?.email || '', reasonText);
+        return ok(res, { ok: false, stale: true, reason: 'EUR_LEX_UNSTABLE', usedCache: true, source });
+      }
+      throw new Error(reasonText);
     }
 
     const contentFingerprint = currentLines.join('\n');
@@ -217,6 +266,19 @@ export default async function handler(req, res) {
 
     return ok(res, { ok: true, source, changesDetected: changed, changeDetails });
   } catch (err) {
+    const before = await gsprSourceMetaGet();
+    const cacheAvailable = hasCachedSource(before);
+    if (cacheAvailable) {
+      const source = await saveStaleState(before, actor?.email || '', err?.message || 'sync failed');
+      return ok(res, {
+        ok: false,
+        stale: true,
+        reason: 'EUR_LEX_SYNC_FAILED',
+        usedCache: true,
+        source,
+      });
+    }
+
     const failedAt = new Date().toISOString();
     const source = await gsprSourceMetaSave({
       name: GSPR_SOURCE_NAME,

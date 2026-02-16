@@ -40,7 +40,7 @@ let _redisOverride = null;
 export function __setRedisClientForTests(client = null) {
   _redisOverride = client;
 }
-function getRedis() {
+function redisClient() {
   if (_redisOverride) return _redisOverride;
   return redis;
 }
@@ -492,7 +492,7 @@ function classifyStoreInfraError(err, fallbackMessage = 'store unavailable') {
 // ===== Helper (Redis IO) =====
 async function rget(k, rclient = null, { throwOnError = false } = {}) {
   try {
-    const r = ensureRedisMethod(rclient || getRedis(), 'get');
+    const r = ensureRedisMethod(rclient || redisClient(), 'get');
     if (!r) return null;
     const raw = await withRedisTimeout(r.get(k), `KV GET ${k}`);
     if (typeof raw === 'string') {
@@ -530,7 +530,7 @@ function enforceRedisWritePolicy({ operation, key }) {
 
 async function rset(k, v, rclient = null) {
   try {
-    const r = ensureRedisMethod(rclient || getRedis(), 'set');
+    const r = ensureRedisMethod(rclient || redisClient(), 'set');
     if (!r) return null;
     enforceRedisWritePolicy({ operation: 'set', key: k });
     const payload = typeof v === 'string' ? v : JSON.stringify(v);
@@ -543,7 +543,7 @@ async function rset(k, v, rclient = null) {
 }
 async function rdel(k, rclient = null) {
   try {
-    const r = rclient || getRedis();
+    const r = rclient || redisClient();
     if (!r) return null;
     if (typeof r.del !== 'function') return null;
     enforceRedisWritePolicy({ operation: 'del', key: k });
@@ -557,7 +557,7 @@ async function rdel(k, rclient = null) {
 
 async function rsadd(k, member, rclient = null) {
   try {
-    const r = rclient || getRedis();
+    const r = rclient || redisClient();
     if (!r) return null;
     if (typeof r.sadd !== 'function') return null;
     enforceRedisWritePolicy({ operation: 'sadd', key: k });
@@ -573,7 +573,7 @@ async function rsadd(k, member, rclient = null) {
 
 async function rsrem(k, member, rclient = null) {
   try {
-    const r = rclient || getRedis();
+    const r = rclient || redisClient();
     if (!r) return null;
     if (typeof r.srem !== 'function') return null;
     enforceRedisWritePolicy({ operation: 'srem', key: k });
@@ -589,7 +589,7 @@ async function rsrem(k, member, rclient = null) {
 
 async function rsmembers(k, rclient = null) {
   try {
-    const r = rclient || getRedis();
+    const r = rclient || redisClient();
     if (!r) return [];
     if (typeof r.smembers !== 'function') return [];
     return await withRedisTimeout(r.smembers(k), `KV SMEMBERS ${k}`);
@@ -601,7 +601,7 @@ async function rsmembers(k, rclient = null) {
 
 async function rincr(k, rclient = null) {
   try {
-    const r = rclient || getRedis();
+    const r = rclient || redisClient();
     if (!r) return null;
     enforceRedisWritePolicy({ operation: 'incr', key: k });
     logAuditRedisWrite({ operation: 'incr', key: k });
@@ -626,7 +626,7 @@ function logAuditRedisWrite({ operation, key, payload }) {
   console.warn('[audit-redis-write]', {
     operation,
     key: keyStr,
-    method: ctx.method,
+    method: (ctx.method || 'UNKNOWN').toString().toUpperCase(),
     route: ctx.route,
     auditId: ctx.auditId || auditIdMatch?.[1],
     stack,
@@ -636,7 +636,7 @@ function logAuditRedisWrite({ operation, key, payload }) {
 
 // ===== Key-Scan kompatibel zu Upstash =====
 async function rkeys(pattern, rclient = null) {
-  const r = rclient || getRedis();
+  const r = rclient || redisClient();
   if (!r) return [];
   if (typeof r.keys === 'function') {
     try { return await withRedisTimeout(r.keys(pattern), `KV KEYS ${pattern}`); } catch { /* continue */ }
@@ -840,7 +840,7 @@ function _sortNews(list = []) {
 
 async function _loadCustomerNews() {
   let list = null;
-  const primary = getRedis();
+  const primary = redisClient();
   if (primary) {
     const raw = await rget(KEY_CUSTOMER_NEWS, primary);
     if (Array.isArray(raw)) {
@@ -881,7 +881,7 @@ async function _loadCustomerNews() {
 async function _persistCustomerNews(list) {
   const safeList = _sortNews(list).map((item) => ({ ...item }));
   mem.customerNews = safeList.map((item) => ({ ...item }));
-  const primary = getRedis();
+  const primary = redisClient();
   if (primary) {
     await rset(KEY_CUSTOMER_NEWS, safeList, primary);
   } else {
@@ -1027,7 +1027,7 @@ export async function customerNewsDelete(id) {
 
 async function _loadPortalNews() {
   if (mem.portalNews?.length > 0) return mem.portalNews;
-  const r = getRedis();
+  const r = redisClient();
   let list = [];
   if (r) {
     const raw = await rget(KEY_PORTAL_NEWS);
@@ -1054,7 +1054,7 @@ async function _loadPortalNews() {
 async function _persistPortalNews(list) {
   const safeList = _sortNews(list).map((item) => ({ ...item }));
   mem.portalNews = safeList.map((item) => ({ ...item }));
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_PORTAL_NEWS, safeList);
   } else {
@@ -1550,7 +1550,7 @@ function _sortFaqItems(list = [], categories = []) {
 
 async function _loadFaqCategories() {
   let list = null;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_FAQ_CATEGORIES);
     if (Array.isArray(raw)) {
@@ -1579,7 +1579,7 @@ async function _loadFaqCategories() {
 async function _loadFaqItems(categories = null) {
   const cats = Array.isArray(categories) ? categories : await _loadFaqCategories();
   let list = null;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_FAQ_ITEMS);
     if (Array.isArray(raw)) {
@@ -1608,7 +1608,7 @@ async function _loadFaqItems(categories = null) {
 async function _persistFaqCategories(list) {
   const safeList = _sortFaqCategories(list).map((item) => ({ ...item }));
   mem.faqCategories = safeList.map((item) => ({ ...item }));
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_FAQ_CATEGORIES, safeList);
   } else {
@@ -1621,7 +1621,7 @@ async function _persistFaqItems(list, categories = null) {
   const cats = Array.isArray(categories) ? categories : await _loadFaqCategories();
   const safeList = _sortFaqItems(list, cats).map((item) => ({ ...item }));
   mem.faqItems = safeList.map((item) => ({ ...item }));
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_FAQ_ITEMS, safeList);
   } else {
@@ -1699,7 +1699,7 @@ export async function faqDeleteEntry(id) {
 
 /* ============== Diagnose /api/diag/kv ============== */
 export async function kvStatus() {
-  const r = getRedis();
+  const r = redisClient();
   if (!r) {
     return {
       ok: true, useRedis: false,
@@ -1726,7 +1726,7 @@ export async function kvStatus() {
 
 /* ============== Tickets ============== */
 export async function nextTicket() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const n = await r.incr(`${P}counter:ticket`);
     return `DFS_CP${String(n).padStart(6, '0')}`;
@@ -1739,7 +1739,7 @@ export async function nextTicket() {
 async function _loadUserRecord(email) {
   if (!email) return null;
   const key = `${P}user:${String(email).toLowerCase()}`;
-  const r = getRedis();
+  const r = redisClient();
   const raw = r ? await rget(key) : mem.users.get(String(email).toLowerCase()) ?? null;
   if (!raw || typeof raw !== 'object') return raw;
   const normalized = normalizePushTokens(raw.pushTokens);
@@ -1768,7 +1768,7 @@ export async function userSave(u) {
     throw err;
   }
   const key = `${P}user:${email}`;
-  const r = getRedis();
+  const r = redisClient();
   const toSave = { ...u, email };
   if (!toSave.type) toSave.type = 'customer';
   if (!toSave.kind) toSave.kind = 'customer';
@@ -1786,7 +1786,7 @@ export async function userDelete(email) {
   email = String(email || '').toLowerCase();
   if (!email) return true;
 
-  const r = getRedis();
+  const r = redisClient();
 
   if (r) {
     const repOfKey = `${P}repOf:${email}`;
@@ -1835,7 +1835,7 @@ export async function userDelete(email) {
 }
 
 export async function usersList() {
-  const r = getRedis();
+  const r = redisClient();
   const rawList = r
     ? await Promise.all((await rkeys(`${P}user:*`)).map(k => rget(k)))
     : Array.from(mem.users.values());
@@ -2178,7 +2178,7 @@ function sanitizePortalUserUi(raw) {
 }
 
 export async function loadPortalAdminUi() {
-  const r = getRedis();
+  const r = redisClient();
   let stored = null;
 
   if (r) {
@@ -2209,7 +2209,7 @@ export async function savePortalAdminUi(config) {
     next.navOrder = patch.navOrder;
   }
 
-  const r = getRedis();
+  const r = redisClient();
   if (!r) throw new Error('portal admin UI config requires Redis/KV');
 
   const persisted = await rset(KEY_PORTAL_ADMIN_UI, next);
@@ -2222,7 +2222,7 @@ export async function loadPortalUserUiConfig(email) {
   const normalizedEmail = String(email || '').toLowerCase();
   if (!normalizedEmail) return {};
   const key = KEY_PORTAL_USER_UI(normalizedEmail);
-  const r = getRedis();
+  const r = redisClient();
   const stored = r ? await rget(key) : mem.portalUserUi.get(normalizedEmail) ?? null;
   return sanitizePortalUserUi(stored || {});
 }
@@ -2244,7 +2244,7 @@ export async function savePortalUserUiConfig(email, config) {
   }
 
   const payload = { userId: normalizedEmail, updatedAt: Date.now(), ...next };
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, payload); else mem.portalUserUi.set(normalizedEmail, payload);
   return sanitizePortalUserUi(payload);
 }
@@ -2253,7 +2253,7 @@ export async function resetPortalUserUiConfig(email) {
   const normalizedEmail = String(email || '').toLowerCase();
   if (!normalizedEmail) return {};
   const key = KEY_PORTAL_USER_UI(normalizedEmail);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rdel(key); else mem.portalUserUi.delete(normalizedEmail);
   return {};
 }
@@ -2367,7 +2367,7 @@ export async function repPushTokens(repId) {
   if (!id) return [];
 
   const key = KEY_REP_PUSH(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(key);
     let list = null;
@@ -2394,7 +2394,7 @@ export async function repPushTokensSave(repId, list = []) {
   const id = (repId || '').toString().trim();
   if (!id) return [];
   const normalized = normalizePushTokens(list);
-  const r = getRedis();
+  const r = redisClient();
   if (normalized.length > 0) {
     if (r) {
       try { await rset(KEY_REP_PUSH(id), normalized); }
@@ -2471,7 +2471,7 @@ export async function repPushTokenRegister(repId, token, meta = {}) {
     });
   }
 
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     try { await rset(KEY_REP_PUSH(id), existing); }
     catch (e) { console.error('repPushTokenRegister/save', e); }
@@ -2488,7 +2488,7 @@ export async function repPushTokenRemove(repId, token) {
   if (!id || !tok) return false;
 
   const list = (await repPushTokens(id)).filter(t => t.token !== tok);
-  const r = getRedis();
+  const r = redisClient();
   if (list.length > 0) {
     if (r) {
       try { await rset(KEY_REP_PUSH(id), list); }
@@ -2507,7 +2507,7 @@ export async function repPushTokenRemove(repId, token) {
 
 export async function adminPushTokens() {
   const key = KEY_ADMIN_PUSH;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(key);
     let list = null;
@@ -2559,7 +2559,7 @@ export async function adminPushTokenRegister(token, meta = {}) {
     });
   }
 
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     try { await rset(KEY_ADMIN_PUSH, list); }
     catch (e) { console.error('adminPushTokenRegister/save', e); }
@@ -2574,7 +2574,7 @@ export async function adminPushTokenRemove(token) {
   const tok = (token || '').toString().trim();
   if (!tok) return false;
   const list = (await adminPushTokens()).filter(t => t.token !== tok);
-  const r = getRedis();
+  const r = redisClient();
   if (list.length > 0) {
     if (r) {
       try { await rset(KEY_ADMIN_PUSH, list); }
@@ -2596,7 +2596,7 @@ export async function pendingSave(e) {
   const mail = String(e?.email || '').toLowerCase();
   if (!mail) return false;
   const key = `${P}pending:${mail}`;
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, e); else mem.pending.set(mail, e);
   return true;
 }
@@ -2604,7 +2604,7 @@ export async function pendingSave(e) {
 export async function pendingGet(email) {
   email = String(email || '').toLowerCase();
   const key = `${P}pending:${email}`;
-  const r = getRedis();
+  const r = redisClient();
   if (r) return await rget(key);
   return mem.pending.get(email) ?? null;
 }
@@ -2612,13 +2612,13 @@ export async function pendingGet(email) {
 export async function pendingDelete(email) {
   email = String(email || '').toLowerCase();
   const key = `${P}pending:${email}`;
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rdel(key); else mem.pending.delete(email);
   return true;
 }
 
 export async function pendingList() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}pending:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
@@ -2789,7 +2789,7 @@ export async function complaintSave(c) {
   if (!c?.ticket) c.ticket = await nextTicket();
   const normalized = normalizeComplaintRecord(c);
   const key = `${P}complaint:${normalized.ticket}`;
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, normalized); else mem.complaints.set(normalized.ticket, normalized);
   return normalized;
 }
@@ -2797,14 +2797,14 @@ export async function complaintSave(c) {
 export async function complaintDelete(ticket) {
   if (!ticket) return false;
   const key = `${P}complaint:${ticket}`;
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rdel(key); else mem.complaints.delete(ticket);
   return true;
 }
 
 export async function complaintGet(ticket) {
   const key = `${P}complaint:${ticket}`;
-  const r = getRedis();
+  const r = redisClient();
   if (r) return await rget(key);
   return mem.complaints.get(ticket) ?? null;
 }
@@ -2836,7 +2836,7 @@ function _emailsFromComplaint(c) {
 export async function complaintsByEmail(email) {
   const target = _nm(email);
   if (!target) return [];
-  const r = getRedis();
+  const r = redisClient();
   const extract = (c) => _emailsFromComplaint(c).includes(target);
 
   if (r) {
@@ -2853,7 +2853,7 @@ export async function complaintsByEmail(email) {
 
 /* ============== Komplettlisten / Admin / Rep ============== */
 export async function complaintsAll() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}complaint:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
@@ -3110,7 +3110,7 @@ function _mergeDefaultCategories(list = []) {
 
 async function _loadDownloadCategories() {
   if (Array.isArray(mem.downloadCategories)) return [...mem.downloadCategories];
-  const r = getRedis();
+  const r = redisClient();
   let list = null;
   if (r) {
     const raw = await rget(KEY_DOWNLOAD_CATEGORIES);
@@ -3133,7 +3133,7 @@ async function _loadDownloadCategories() {
 async function _persistDownloadCategories(list) {
   const safe = list.map(_normalizeCategoryName).filter(Boolean);
   mem.downloadCategories = [...safe];
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(KEY_DOWNLOAD_CATEGORIES, safe);
   else global[KEY_GLOBAL_DOWNLOAD_CATEGORIES] = [...safe];
   return safe;
@@ -3275,7 +3275,7 @@ function _normalizeDownload(input = {}, existing = null, { bumpVersion = true } 
 }
 
 async function _loadDownloads() {
-  const r = getRedis();
+  const r = redisClient();
   let list = null;
 
   if (r) {
@@ -3310,7 +3310,7 @@ async function _persistDownloads(list) {
   const safe = list.map((d) => ({ ...d }));
   mem.downloads = safe.map((d) => ({ ...d }));
   mem.downloadsCacheVersion += 1;
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(KEY_DOWNLOADS, safe);
   else global.__DFS_DOWNLOADS__ = safe;
   return safe;
@@ -3346,7 +3346,7 @@ async function _loadRepDownloadSeen(repId) {
   const key = KEY_REP_DOWNLOAD_SEEN(repId);
   const fromMem = mem.repDownloadSeen.get(repId);
   if (fromMem) return { ...fromMem };
-  const r = getRedis();
+  const r = redisClient();
   let data = null;
   if (r) {
     const raw = await rget(key);
@@ -3363,7 +3363,7 @@ async function _loadRepDownloadSeen(repId) {
 
 async function _persistRepDownloadSeen(repId, map) {
   mem.repDownloadSeen.set(repId, { ...map });
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(KEY_REP_DOWNLOAD_SEEN(repId), map);
   else {
     if (!global.__DFS_REP_DOWNLOAD_SEEN__) global.__DFS_REP_DOWNLOAD_SEEN__ = new Map();
@@ -3440,7 +3440,7 @@ export async function gateStoreSet(email, entry = {}, options = {}) {
   const ttlRaw = options?.ttlSeconds ?? DEFAULT_GATE_TTL_SECONDS;
   const ttlSeconds = Number.isFinite(ttlRaw) && ttlRaw > 0 ? Math.round(ttlRaw) : null;
 
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     try {
       if (ttlSeconds) await r.set(KEY_GATE(mail), record, { ex: ttlSeconds });
@@ -3460,7 +3460,7 @@ export async function gateStoreSet(email, entry = {}, options = {}) {
 export async function gateStoreGet(email) {
   const mail = _gateEmail(email);
   if (!mail) return null;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_GATE(mail));
     if (!raw) return mem.gateCodes.get(mail) ?? null;
@@ -3477,7 +3477,7 @@ export async function gateStoreGet(email) {
 export async function gateStoreDelete(email) {
   const mail = _gateEmail(email);
   if (!mail) return true;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     try { await rdel(KEY_GATE(mail)); }
     catch (e) { console.error('[store] gateStoreDelete failed:', e); }
@@ -3605,7 +3605,7 @@ function normalizeCapaStatus(status) {
 }
 
 export async function nextCapaNumber() {
-  const r = getRedis();
+  const r = redisClient();
   const year = new Date().getFullYear().toString().slice(-2);
   const key = KEY_CAPA_COUNTER(year);
   if (r) {
@@ -3652,7 +3652,7 @@ function capaInternalErrorKey(internalErrorId) {
 
 async function capaFindByNumber(capaNumber) {
   if (!capaNumber) return null;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}capa:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
@@ -3666,7 +3666,7 @@ async function capaFindByNumber(capaNumber) {
 
 export async function capaFindByInternalErrorId(internalErrorId) {
   if (!internalErrorId) return null;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const id = await rget(capaInternalErrorKey(internalErrorId));
     if (!id) return null;
@@ -3681,7 +3681,7 @@ export async function capaSave(record) {
   const data = normalizeCapaRecord(record);
   if (!data.capaNumber) data.capaNumber = await nextCapaNumber();
   const key = capaKey(data.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, data); else mem.capaReports.set(data.id, data);
   if (data.internalErrorId) {
     if (r) await rset(capaInternalErrorKey(data.internalErrorId), data.id);
@@ -3693,7 +3693,7 @@ export async function capaSave(record) {
 export async function capaGet(idOrNumber) {
   if (!idOrNumber) return null;
   const key = capaKey(idOrNumber);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.capaReports.get(idOrNumber) ?? null;
   if (direct) return normalizeCapaRecord({ ...direct, id: idOrNumber });
   const byNumber = await capaFindByNumber(idOrNumber);
@@ -3701,7 +3701,7 @@ export async function capaGet(idOrNumber) {
 }
 
 export async function capaAll() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}capa:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
@@ -3731,7 +3731,7 @@ export async function capaDelete(id) {
   if (!id) return false;
   const current = await capaGet(id);
   const key = capaKey(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rdel(key); else mem.capaReports.delete(id);
   if (current?.internalErrorId) {
     if (r) await rdel(capaInternalErrorKey(current.internalErrorId));
@@ -3764,7 +3764,7 @@ function normalizeChangeEnum(value, allowed, fallback) {
 }
 
 export async function nextChangeNumber() {
-  const r = getRedis();
+  const r = redisClient();
   const year = new Date().getFullYear().toString().slice(-2);
   const key = KEY_CHANGE_COUNTER(year);
   if (r) {
@@ -3853,7 +3853,7 @@ function changeKey(id) {
 
 async function changeFindByNumber(changeId) {
   if (!changeId) return null;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}change:*`);
     const vals = await Promise.all(keys.map(k => rget(k)));
@@ -3871,14 +3871,14 @@ async function changeFindByNumber(changeId) {
 export async function changeSave(record = {}) {
   const data = normalizeChangeRecord(record);
   const key = changeKey(data.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, data); else mem.changeRecords.set(data.id, data);
   return data;
 }
 
 export async function changeGet(idOrNumber) {
   const key = changeKey(idOrNumber);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const direct = await rget(key);
     if (direct) return normalizeChangeRecord({ ...direct, id: idOrNumber });
@@ -3890,7 +3890,7 @@ export async function changeGet(idOrNumber) {
 }
 
 export async function changeAll() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}change:*`);
     const list = await Promise.all(keys.map(k => rget(k)));
@@ -3915,7 +3915,7 @@ export async function changeUpdate(id, patch = {}) {
 
 export async function changeDelete(id) {
   const key = changeKey(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rdel(key); else mem.changeRecords.delete(id);
 }
 
@@ -4046,7 +4046,7 @@ async function fmeaAllFromRedis() {
 }
 
 export async function fmeaAll() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) return await fmeaAllFromRedis();
   const list = Array.from(mem.fmeas?.values?.() || []).map(v => normalizeFmeaRecord(v));
   list.sort((a, b) => (b?.updatedAt || 0) - (a?.updatedAt || 0));
@@ -4056,7 +4056,7 @@ export async function fmeaAll() {
 export async function fmeaGet(id) {
   if (!id) return null;
   const key = KEY_FMEA(id);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.fmeas?.get?.(id) ?? null;
   return direct ? normalizeFmeaRecord({ ...direct, id }) : null;
 }
@@ -4064,7 +4064,7 @@ export async function fmeaGet(id) {
 export async function fmeaSave(record) {
   const data = normalizeFmeaRecord(record);
   const key = KEY_FMEA(data.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, data); else {
     if (!mem.fmeas) mem.fmeas = new Map();
     mem.fmeas.set(data.id, data);
@@ -4082,7 +4082,7 @@ export async function fmeaUpdate(id, patch) {
 export async function fmeaDelete(id) {
   if (!id) return false;
   const key = KEY_FMEA(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rdel(key); else mem.fmeas?.delete?.(id);
   return true;
 }
@@ -4281,7 +4281,7 @@ function normalizeGsprAuditEvent(event = {}) {
 
 async function gsprAuditSave(itemId, events) {
   const key = KEY_GSPR_AUDIT(itemId);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, events); else {
     if (!mem.gsprAudit) mem.gsprAudit = new Map();
     mem.gsprAudit.set(itemId, events);
@@ -4291,7 +4291,7 @@ async function gsprAuditSave(itemId, events) {
 export async function gsprAuditList(itemId) {
   if (!itemId) return [];
   const key = KEY_GSPR_AUDIT(itemId);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.gsprAudit?.get?.(itemId) ?? null;
   const list = Array.isArray(direct) ? direct.map(normalizeGsprAuditEvent) : [];
   return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -4305,7 +4305,7 @@ export async function gsprAddAuditEvent(itemId, event) {
 }
 
 export async function gsprAll() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const keys = await rkeys(`${P}gspr:item:*`);
     const vals = await Promise.all(keys.map((key) => rget(key)));
@@ -4333,7 +4333,7 @@ export async function gsprAllByChapter(chapter) {
 export async function gsprGet(id) {
   if (!id) return null;
   const key = KEY_GSPR_ITEM(id);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.gsprItems?.get?.(id) ?? null;
   return direct ? normalizeGsprItem({ ...direct, id }) : null;
 }
@@ -4341,7 +4341,7 @@ export async function gsprGet(id) {
 export async function gsprSave(record) {
   const data = normalizeGsprItem(record);
   const key = KEY_GSPR_ITEM(data.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, data); else {
     if (!mem.gsprItems) mem.gsprItems = new Map();
     mem.gsprItems.set(data.id, data);
@@ -4547,7 +4547,7 @@ function normalizeGsprSourceMeta(input = {}) {
 async function gsprAssessmentIndexGet(tdId) {
   if (!tdId) return [];
   const key = KEY_GSPR_ASSESSMENT_INDEX(tdId);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.gsprAssessmentIndex?.get?.(tdId) ?? null;
   return Array.isArray(direct) ? direct.map((v) => v.toString()) : [];
 }
@@ -4555,7 +4555,7 @@ async function gsprAssessmentIndexGet(tdId) {
 async function gsprAssessmentIndexSave(tdId, list) {
   const key = KEY_GSPR_ASSESSMENT_INDEX(tdId);
   const unique = Array.from(new Set((list || []).map((v) => v.toString()).filter(Boolean)));
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, unique); else {
     if (!mem.gsprAssessmentIndex) mem.gsprAssessmentIndex = new Map();
     mem.gsprAssessmentIndex.set(tdId, unique);
@@ -4566,7 +4566,7 @@ async function gsprAssessmentIndexSave(tdId, list) {
 async function gsprAssessmentHistoryList(assessmentId) {
   if (!assessmentId) return [];
   const key = KEY_GSPR_ASSESSMENT_HISTORY(assessmentId);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.gsprAssessmentHistory?.get?.(assessmentId) ?? null;
   const list = Array.isArray(direct) ? direct.map(normalizeGsprAssessmentHistory) : [];
   return list.sort((a, b) => (b.changedAt || '').localeCompare(a.changedAt || ''));
@@ -4584,7 +4584,7 @@ async function gsprAssessmentHistoryAdd(assessment, actor) {
   });
   const updated = [entry, ...list];
   const key = KEY_GSPR_ASSESSMENT_HISTORY(assessment.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, updated); else {
     if (!mem.gsprAssessmentHistory) mem.gsprAssessmentHistory = new Map();
     mem.gsprAssessmentHistory.set(assessment.id, updated);
@@ -4595,7 +4595,7 @@ async function gsprAssessmentHistoryAdd(assessment, actor) {
 export async function gsprTdSignoffGet(tdId) {
   if (!tdId) return null;
   const key = KEY_GSPR_TD_SIGNOFF(tdId);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.gsprTdSignoff?.get?.(tdId) ?? null;
   if (!direct) return normalizeGsprTdSignoff({ tdId, status: 'draft' });
   return normalizeGsprTdSignoff({ ...direct, tdId });
@@ -4606,7 +4606,7 @@ export async function gsprTdSignoffSave(tdId, patch = {}) {
   const current = await gsprTdSignoffGet(tdId);
   const next = normalizeGsprTdSignoff({ ...current, ...patch, tdId });
   const key = KEY_GSPR_TD_SIGNOFF(tdId);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, next); else {
     if (!mem.gsprTdSignoff) mem.gsprTdSignoff = new Map();
     mem.gsprTdSignoff.set(tdId, next);
@@ -4615,7 +4615,7 @@ export async function gsprTdSignoffSave(tdId, patch = {}) {
 }
 
 export async function gsprSourceMetaGet() {
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(KEY_GSPR_SOURCE_META) : mem.gsprSourceMeta || null;
   return normalizeGsprSourceMeta(direct || {});
 }
@@ -4623,7 +4623,7 @@ export async function gsprSourceMetaGet() {
 export async function gsprSourceMetaSave(patch = {}) {
   const current = await gsprSourceMetaGet();
   const next = normalizeGsprSourceMeta({ ...current, ...patch });
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(KEY_GSPR_SOURCE_META, next); else {
     mem.gsprSourceMeta = next;
   }
@@ -4633,7 +4633,7 @@ export async function gsprSourceMetaSave(patch = {}) {
 export async function gsprAssessmentGet(id) {
   if (!id) return null;
   const key = KEY_GSPR_ASSESSMENT(id);
-  const r = getRedis();
+  const r = redisClient();
   const direct = r ? await rget(key) : mem.gsprAssessments?.get?.(id) ?? null;
   return direct ? normalizeGsprAssessment({ ...direct, id }) : null;
 }
@@ -4641,7 +4641,7 @@ export async function gsprAssessmentGet(id) {
 export async function gsprAssessmentSave(record) {
   const data = normalizeGsprAssessment(record);
   const key = KEY_GSPR_ASSESSMENT(data.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, data); else {
     if (!mem.gsprAssessments) mem.gsprAssessments = new Map();
     mem.gsprAssessments.set(data.id, data);
@@ -4658,7 +4658,7 @@ export async function gsprAssessmentSave(record) {
 export async function gsprAssessmentsByTd(tdId) {
   if (!tdId) return [];
   let ids = await gsprAssessmentIndexGet(tdId);
-  const r = getRedis();
+  const r = redisClient();
   if (!ids.length && r) {
     const keys = await rkeys(`${P}gspr:assessment:*`);
     if (keys.length) {
@@ -4841,12 +4841,12 @@ const AUDIT_CACHE_TTL_SECONDS = 0;
 
 function getAuditRedisForRead() {
   if (!AUDIT_REDIS_ENABLED) return null;
-  return getRedis();
+  return redisClient();
 }
 
 function getAuditRedisForWrite() {
   if (!AUDIT_REDIS_ENABLED) return null;
-  return getRedis();
+  return redisClient();
 }
 
 function getAuditRedis() {
@@ -4855,12 +4855,12 @@ function getAuditRedis() {
 
 function getAuditorRedisForWrite() {
   if (!AUDITOR_REDIS_WRITE_ENABLED) return null;
-  return getRedis();
+  return redisClient();
 }
 
 function getAuditorRedisForRead() {
   if (!AUDITOR_REDIS_READ_ENABLED) return null;
-  return getRedis();
+  return redisClient();
 }
 
 let auditStoresHydrated = false;
@@ -6651,7 +6651,7 @@ function removeSupplierEscIndex(id) {
 }
 
 async function persistSupplierIndex(rclient = null) {
-  const r = rclient || getRedis();
+  const r = rclient || redisClient();
   if (!r) return;
   const ids = await supplierIndexIds();
   await rdel(KEY_SUPPLIER_INDEX, r);
@@ -6659,7 +6659,7 @@ async function persistSupplierIndex(rclient = null) {
 }
 
 async function persistSupplierPerfIndex(rclient = null) {
-  const r = rclient || getRedis();
+  const r = rclient || redisClient();
   if (!r) return;
   const ids = await supplierPerfIndexIds();
   await rdel(KEY_SUPPLIER_PERF_INDEX, r);
@@ -6667,7 +6667,7 @@ async function persistSupplierPerfIndex(rclient = null) {
 }
 
 async function persistSupplierEvalIndex(rclient = null) {
-  const r = rclient || getRedis();
+  const r = rclient || redisClient();
   if (!r) return;
   const ids = await supplierEvalIndexIds();
   await rdel(KEY_SUPPLIER_EVAL_INDEX, r);
@@ -6675,7 +6675,7 @@ async function persistSupplierEvalIndex(rclient = null) {
 }
 
 async function persistSupplierEscIndex(rclient = null) {
-  const r = rclient || getRedis();
+  const r = rclient || redisClient();
   if (!r) return;
   const ids = await supplierEscIndexIds();
   await rdel(KEY_SUPPLIER_ESC_INDEX, r);
@@ -6684,7 +6684,7 @@ async function persistSupplierEscIndex(rclient = null) {
 
 export async function supplierAll() {
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const ids = await rsmembers(KEY_SUPPLIER_INDEX, r);
     const list = [];
@@ -6704,7 +6704,7 @@ export async function supplierAll() {
 export async function supplierGet(id) {
   if (!id) return null;
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const raw = r ? await rget(KEY_SUPPLIER(id), r) : mem.suppliers.get(id);
   return raw ? normalizeSupplierRecord({ ...raw, id }) : null;
 }
@@ -6714,7 +6714,7 @@ export async function supplierSave(record = {}) {
   ensureSupplierStores();
   mem.suppliers.set(normalized.id, normalized);
   addSupplierIndex(normalized.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER(normalized.id), normalized);
     await persistSupplierIndex(r);
@@ -6734,7 +6734,7 @@ export async function supplierDelete(id) {
   ensureSupplierStores();
   mem.suppliers.delete(id);
   removeSupplierIndex(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rdel(KEY_SUPPLIER(id), r);
     await persistSupplierIndex(r);
@@ -6744,7 +6744,7 @@ export async function supplierDelete(id) {
 
 export async function supplierPerformanceAll(filter = {}) {
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const filterSupplierId = normalizeString(filter.supplierId || '');
   const includeDeleted = filter.includeDeleted === true;
   if (r) {
@@ -6771,7 +6771,7 @@ export async function supplierPerformanceAll(filter = {}) {
 export async function supplierPerformanceGet(id) {
   if (!id) return null;
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const raw = r ? await rget(KEY_SUPPLIER_PERF(id), r) : mem.supplierPerformance.get(id);
   return raw ? normalizePerformanceRecord({ ...raw, id }) : null;
 }
@@ -6781,7 +6781,7 @@ export async function supplierPerformanceSave(record = {}) {
   ensureSupplierStores();
   mem.supplierPerformance.set(normalized.id, normalized);
   addSupplierPerfIndex(normalized.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER_PERF(normalized.id), normalized);
     await persistSupplierPerfIndex(r);
@@ -6801,7 +6801,7 @@ export async function supplierPerformanceDelete(id) {
   ensureSupplierStores();
   mem.supplierPerformance.delete(id);
   removeSupplierPerfIndex(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rdel(KEY_SUPPLIER_PERF(id), r);
     await persistSupplierPerfIndex(r);
@@ -6811,7 +6811,7 @@ export async function supplierPerformanceDelete(id) {
 
 export async function supplierEvaluationAll(filter = {}) {
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const filterSupplierId = normalizeString(filter.supplierId || '');
   if (r) {
     const ids = await rsmembers(KEY_SUPPLIER_EVAL_INDEX, r);
@@ -6835,7 +6835,7 @@ export async function supplierEvaluationAll(filter = {}) {
 export async function supplierEvaluationGet(id) {
   if (!id) return null;
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const raw = r ? await rget(KEY_SUPPLIER_EVAL(id), r) : mem.supplierEvaluations.get(id);
   return raw ? normalizeSupplierEvaluationRecord({ ...raw, id }) : null;
 }
@@ -6845,7 +6845,7 @@ export async function supplierEvaluationSave(record = {}) {
   ensureSupplierStores();
   mem.supplierEvaluations.set(normalized.id, normalized);
   addSupplierEvalIndex(normalized.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER_EVAL(normalized.id), normalized);
     await persistSupplierEvalIndex(r);
@@ -6865,7 +6865,7 @@ export async function supplierEvaluationDelete(id) {
   ensureSupplierStores();
   mem.supplierEvaluations.delete(id);
   removeSupplierEvalIndex(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rdel(KEY_SUPPLIER_EVAL(id), r);
     await persistSupplierEvalIndex(r);
@@ -6875,7 +6875,7 @@ export async function supplierEvaluationDelete(id) {
 
 export async function supplierEscalationAll(filter = {}) {
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const filterSupplierId = normalizeString(filter.supplierId || '');
   if (r) {
     const ids = await rsmembers(KEY_SUPPLIER_ESC_INDEX, r);
@@ -6899,7 +6899,7 @@ export async function supplierEscalationAll(filter = {}) {
 export async function supplierEscalationGet(id) {
   if (!id) return null;
   ensureSupplierStores();
-  const r = getRedis();
+  const r = redisClient();
   const raw = r ? await rget(KEY_SUPPLIER_ESC(id), r) : mem.supplierEscalations.get(id);
   return raw ? normalizeSupplierEscalationRecord({ ...raw, id }) : null;
 }
@@ -6909,7 +6909,7 @@ export async function supplierEscalationSave(record = {}) {
   ensureSupplierStores();
   mem.supplierEscalations.set(normalized.id, normalized);
   addSupplierEscIndex(normalized.id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER_ESC(normalized.id), normalized);
     await persistSupplierEscIndex(r);
@@ -6929,7 +6929,7 @@ export async function supplierEscalationDelete(id) {
   ensureSupplierStores();
   mem.supplierEscalations.delete(id);
   removeSupplierEscIndex(id);
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rdel(KEY_SUPPLIER_ESC(id), r);
     await persistSupplierEscIndex(r);
@@ -6938,7 +6938,7 @@ export async function supplierEscalationDelete(id) {
 }
 
 export async function supplierEvalConfigGet() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_SUPPLIER_EVAL_CONFIG, r);
     if (raw && typeof raw === 'object') return normalizeSupplierEvalConfig(raw);
@@ -6950,7 +6950,7 @@ export async function supplierEvalConfigGet() {
 }
 
 export async function supplierReportLetterLayoutGet() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_SUPPLIER_REPORT_LETTER_LAYOUT, r);
     if (raw && typeof raw === 'object') return normalizeSupplierReportLetterLayout(raw);
@@ -6979,7 +6979,7 @@ export async function supplierReportLetterLayoutSave(input = {}, { updatedBy = '
     history: [...(current.history || []), historyEntry],
   });
   mem.supplierReportLetterLayout = merged;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER_REPORT_LETTER_LAYOUT, merged, r);
   }
@@ -7004,7 +7004,7 @@ export async function supplierEvalConfigSave(input = {}, { updatedBy = '' } = {}
     history: [...(current.history || []), historyEntry],
   });
   mem.supplierEvalConfig = merged;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER_EVAL_CONFIG, merged, r);
   }
@@ -7012,7 +7012,7 @@ export async function supplierEvalConfigSave(input = {}, { updatedBy = '' } = {}
 }
 
 export async function supplierLookupsGet() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_SUPPLIER_LOOKUPS, r);
     if (raw && typeof raw === 'object') return normalizeSupplierLookups(raw);
@@ -7036,7 +7036,7 @@ export async function supplierLookupsSave(input = {}, { updatedBy = '' } = {}) {
     ],
   });
   mem.supplierLookups = merged;
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     await rset(KEY_SUPPLIER_LOOKUPS, merged, r);
   }
@@ -7064,7 +7064,7 @@ export async function supplierApprovedSnapshotGet({ supplierId, year } = {}) {
   const normalizedYear = Number(year || 0);
   if (!normalizedSupplierId || !normalizedYear) return null;
   const key = KEY_SUPPLIER_APPROVED_SNAPSHOT(normalizedSupplierId, normalizedYear);
-  const r = getRedis();
+  const r = redisClient();
   const raw = r ? await rget(key, r) : mem.supplierApprovedSnapshots.get(key);
   if (!raw) return null;
   return normalizeApprovedSupplierSnapshot(raw);
@@ -7076,7 +7076,7 @@ export async function supplierApprovedSnapshotSave(record = {}) {
   if (!normalized.supplierId || !normalized.year) return null;
   const key = KEY_SUPPLIER_APPROVED_SNAPSHOT(normalized.supplierId, normalized.year);
   mem.supplierApprovedSnapshots.set(key, normalized);
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, normalized, r);
   return normalized;
 }
@@ -7565,7 +7565,7 @@ function normalizeTrainingWkAssessment(record = {}) {
 }
 
 async function trainingNeedsRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAINING_NEEDS, r);
     if (Array.isArray(raw)) return raw;
@@ -7574,7 +7574,7 @@ async function trainingNeedsRaw() {
 }
 
 async function trainingProgramsRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAINING_PROGRAMS, r);
     if (Array.isArray(raw)) return raw;
@@ -7583,7 +7583,7 @@ async function trainingProgramsRaw() {
 }
 
 async function trainingProgramNeedLinksRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAINING_PROGRAM_NEED_LINKS, r);
     if (Array.isArray(raw)) return raw;
@@ -7592,7 +7592,7 @@ async function trainingProgramNeedLinksRaw() {
 }
 
 async function trainingRecordsRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAININGS, r);
     if (Array.isArray(raw)) return raw;
@@ -7601,7 +7601,7 @@ async function trainingRecordsRaw() {
 }
 
 async function trainingTemplatesRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAINING_TEMPLATES, r);
     if (Array.isArray(raw)) return raw;
@@ -7610,7 +7610,7 @@ async function trainingTemplatesRaw() {
 }
 
 async function trainingQuestionnairesRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAINING_QUESTIONNAIRES, r);
     if (Array.isArray(raw)) return raw;
@@ -7619,7 +7619,7 @@ async function trainingQuestionnairesRaw() {
 }
 
 async function trainingWkAssessmentsRaw() {
-  const r = getRedis();
+  const r = redisClient();
   if (r) {
     const raw = await rget(KEY_TRAINING_WK_ASSESSMENTS, r);
     if (Array.isArray(raw)) return raw;
@@ -7628,7 +7628,7 @@ async function trainingWkAssessmentsRaw() {
 }
 
 async function persistTrainingList(key, list) {
-  const r = getRedis();
+  const r = redisClient();
   if (r) await rset(key, list, r);
 }
 
@@ -7914,7 +7914,7 @@ async function ensureTrainingQuestionnaireAssignments(training, updatedBy = '') 
 
 export async function nextTrainingNumber({ year, prefix = 'TRN', subtype = '' } = {}) {
   const y = Number(year || new Date().getFullYear());
-  const r = getRedis();
+  const r = redisClient();
   let counter = 0;
   if (r) {
     counter = await rincr(KEY_TRAINING_COUNTER(y), r);
