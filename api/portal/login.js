@@ -18,6 +18,36 @@ function logOutcome(outcome, details = {}) {
   console.info('[portal/login]', { outcome, ...details });
 }
 
+function isSchemaMismatchError(err) {
+  const code = String(err?.code || '').toUpperCase();
+  const message = String(err?.message || '').toLowerCase();
+  if (code === '42703' || code === '42P01' || code === '3F000') return true;
+  return (
+    message.includes('column')
+    || message.includes('relation')
+    || message.includes('does not exist')
+    || message.includes('schema')
+  );
+}
+
+function isConnectivityError(err) {
+  const code = String(err?.code || '').toUpperCase();
+  const message = String(err?.message || '').toLowerCase();
+  const connectivityCodes = new Set([
+    'STORE_UNAVAILABLE',
+    'DB_UNAVAILABLE',
+    'REDIS_TIMEOUT',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    '57P01',
+  ]);
+  if (connectivityCodes.has(code)) return true;
+  return message.includes('timeout') || message.includes('connect') || message.includes('connection');
+}
+
 function normalizeBcryptHash(passwordHash) {
   const hash = String(passwordHash || '').trim();
   if (!hash) return '';
@@ -72,6 +102,15 @@ export default async function handler(req, res) {
   try {
     user = await portalUserByEmail(emailNorm);
   } catch (err) {
+    if (isSchemaMismatchError(err)) {
+      const outcome = 'SCHEMA_MISMATCH';
+      logOutcome(outcome, {
+        errorCode: err?.code || null,
+        errorMessage: err?.message || String(err),
+      });
+      return respond(req, res, 500, { code: outcome, message: 'Database migration missing' }, outcome);
+    }
+
     const outcome = 'STORE_UNAVAILABLE';
     const unavailablePayload = storeUnavailablePayload('Service temporär nicht verfügbar. Bitte später erneut versuchen.');
     logStoreError(err, unavailablePayload.debugId);
@@ -80,13 +119,17 @@ export default async function handler(req, res) {
       errorMessage: err?.message || String(err),
       debugId: unavailablePayload.debugId,
     });
-    return respond(
-      req,
-      res,
-      503,
-      unavailablePayload,
-      outcome,
-    );
+    if (isConnectivityError(err)) {
+      return respond(
+        req,
+        res,
+        503,
+        unavailablePayload,
+        outcome,
+      );
+    }
+
+    return respond(req, res, 500, { code: 'INTERNAL_ERROR', message: 'Internal server error' }, 'INTERNAL_ERROR');
   }
 
   if (!user) {

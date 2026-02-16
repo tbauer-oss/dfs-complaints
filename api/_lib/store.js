@@ -1904,16 +1904,53 @@ function mapPortalUserRow(row) {
   });
 }
 
+function isMissingPortalUserSchemaError(err) {
+  const code = String(err?.code || '').toUpperCase();
+  const message = String(err?.message || '').toLowerCase();
+  if (code === '42703' && (message.includes('tour_seen') || message.includes('tour_seen_at'))) return true;
+  if (code === '42P01' && message.includes('portal_users')) return true;
+  if (code === '3F000' && message.includes('public')) return true;
+  return false;
+}
+
+async function queryPortalUserRows({ sql, params = [], fallbackSql = null, fallbackMapper = null }) {
+  try {
+    return await query(sql, params);
+  } catch (err) {
+    if (!fallbackSql || !isMissingPortalUserSchemaError(err)) throw err;
+    const fallbackResult = await query(fallbackSql, params);
+    if (typeof fallbackMapper === 'function') {
+      fallbackResult.rows = (fallbackResult.rows || []).map((row) => fallbackMapper(row));
+    }
+    return fallbackResult;
+  }
+}
+
+function withTourFallbackRow(row) {
+  return {
+    ...row,
+    tour_seen: false,
+    tour_seen_at: null,
+  };
+}
+
 export async function portalUserByEmail(email) {
   const emailNorm = normalizeEmail(email);
   if (!emailNorm) return null;
-  const result = await query(
+  const result = await queryPortalUserRows({
+    sql:
     `SELECT id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at
      FROM portal_users
      WHERE email_norm = $1
      LIMIT 1`,
-    [emailNorm],
-  );
+    params: [emailNorm],
+    fallbackSql:
+    `SELECT id, email, email_norm, password_hash, role, is_active
+     FROM portal_users
+     WHERE email_norm = $1
+     LIMIT 1`,
+    fallbackMapper: withTourFallbackRow,
+  });
   return mapPortalUserRow(result.rows?.[0] || null);
 }
 
@@ -1930,12 +1967,18 @@ export async function createPortalUser(u) {
   const isActive = u?.portalStatus ? String(u.portalStatus).trim().toLowerCase() !== 'inactive' : u?.isActive !== false;
   if (!emailNorm || !passwordHash) return null;
 
-  const result = await query(
+  const result = await queryPortalUserRows({
+    sql:
     `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at`,
-    [email, emailNorm, passwordHash, role, isActive],
-  );
+    params: [email, emailNorm, passwordHash, role, isActive],
+    fallbackSql:
+    `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+    fallbackMapper: withTourFallbackRow,
+  });
   return mapPortalUserRow(result.rows?.[0] || null);
 }
 
@@ -1953,7 +1996,8 @@ export async function upsertPortalUser(u) {
   const isActive = u?.portalStatus ? String(u.portalStatus).trim().toLowerCase() !== 'inactive' : u?.isActive !== false;
   if (!emailNorm) return null;
 
-  const result = await query(
+  const result = await queryPortalUserRows({
+    sql:
     `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
      VALUES ($1, $2, NULLIF($3, ''), $4, $5)
      ON CONFLICT (email_norm)
@@ -1967,8 +2011,23 @@ export async function upsertPortalUser(u) {
        is_active = EXCLUDED.is_active,
        updated_at = NOW()
      RETURNING id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at`,
-    [email, emailNorm, passwordHash, role, isActive],
-  );
+    params: [email, emailNorm, passwordHash, role, isActive],
+    fallbackSql:
+    `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
+     VALUES ($1, $2, NULLIF($3, ''), $4, $5)
+     ON CONFLICT (email_norm)
+     DO UPDATE SET
+       email = EXCLUDED.email,
+       password_hash = CASE
+         WHEN EXCLUDED.password_hash IS NOT NULL AND length(EXCLUDED.password_hash) > 0 THEN EXCLUDED.password_hash
+         ELSE portal_users.password_hash
+       END,
+       role = EXCLUDED.role,
+       is_active = EXCLUDED.is_active,
+       updated_at = NOW()
+     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+    fallbackMapper: withTourFallbackRow,
+  });
   return mapPortalUserRow(result.rows?.[0] || null);
 }
 
@@ -1977,15 +2036,22 @@ export async function markPortalTourSeen(email, { seen = true } = {}) {
   if (!emailNorm) return null;
 
   const nextSeen = seen !== false;
-  const result = await query(
+  const result = await queryPortalUserRows({
+    sql:
     `UPDATE portal_users
      SET tour_seen = $2,
          tour_seen_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
          updated_at = NOW()
      WHERE email_norm = $1
      RETURNING id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at`,
-    [emailNorm, nextSeen],
-  );
+    params: [emailNorm, nextSeen],
+    fallbackSql:
+    `UPDATE portal_users
+     SET updated_at = NOW()
+     WHERE email_norm = $1
+     RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
+    fallbackMapper: withTourFallbackRow,
+  });
 
   return mapPortalUserRow(result.rows?.[0] || null);
 }
@@ -2003,11 +2069,17 @@ export async function portalUserDelete(email) {
 }
 
 export async function portalUsersList() {
-  const result = await query(
+  const result = await queryPortalUserRows({
+    sql:
     `SELECT id, email, email_norm, password_hash, role, is_active, tour_seen, tour_seen_at, created_at, updated_at
      FROM portal_users
      ORDER BY created_at DESC`,
-  );
+    fallbackSql:
+    `SELECT id, email, email_norm, password_hash, role, is_active, created_at, updated_at
+     FROM portal_users
+     ORDER BY created_at DESC`,
+    fallbackMapper: withTourFallbackRow,
+  });
   return (result.rows || []).map(mapPortalUserRow).filter(Boolean);
 }
 
