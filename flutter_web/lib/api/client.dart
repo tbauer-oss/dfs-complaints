@@ -3929,7 +3929,7 @@ class ApiClient {
   }
 
   Future<List<TdFile>> fetchTdSummary() async {
-    const path = '/api/td/summary';
+    const path = '/api/tdk/summary';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -3943,7 +3943,7 @@ class ApiClient {
 
 
   Future<Map<String, dynamic>> fetchTdOverview(String tdKey) async {
-    final path = '/api/td/$tdKey/overview';
+    final path = '/api/tdk/$tdKey/overview';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
@@ -3951,7 +3951,7 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> fetchTdSectionByTd(String tdKey, String sectionId) async {
-    final path = '/api/td/$tdKey/section/$sectionId';
+    final path = '/api/tdk/$tdKey/section/$sectionId';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
