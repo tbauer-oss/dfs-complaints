@@ -176,6 +176,30 @@ export async function getDbClient() {
   }
 }
 
+
+
+async function runWithStatementTimeout(sql, params = [], timeoutMs = 4000) {
+  const client = await getDbClient();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL statement_timeout = ${Number(timeoutMs) || 4000}`);
+    const result = await client.query(sql, params);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    if (String(err?.code || '') === '57014') {
+      const timeoutErr = new Error('Query timeout');
+      timeoutErr.code = 'DB_TIMEOUT';
+      timeoutErr.cause = err;
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function query(text, params = []) {
   if (dbOverride?.query) return dbOverride.query(text, params);
   const activePool = await getPool();
@@ -294,4 +318,9 @@ export async function queryWithFallback({
   fallbackErr.sqlState = lastError?.sqlState || null;
   fallbackErr.cause = lastError?.cause || null;
   throw fallbackErr;
+}
+
+
+export async function queryWithStatementTimeout(text, params = [], timeoutMs = 4000) {
+  return runWithStatementTimeout(text, params, timeoutMs);
 }

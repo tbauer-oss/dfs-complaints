@@ -228,6 +228,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   }
 
   bool _structureLoaded = false;
+  bool _isLoadingStructure = false;
   bool _linksLoaded = false;
   bool _changesLoaded = false;
   bool _applicabilityLoaded = false;
@@ -235,7 +236,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   bool _isLoadingReadiness = false;
   bool _isLoadingApplicability = false;
   bool _isLoadingChanges = false;
+  bool _isLoadingLinks = false;
   Map<String, dynamic> _overviewLight = const {};
+  int? _sectionsNextCursor;
 
   @override
   void initState() {
@@ -267,6 +270,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _applicability = null;
         _overviewLight = const {};
         _structureLoaded = false;
+        _sectionsNextCursor = null;
         _linksLoaded = false;
         _changesLoaded = false;
         _applicabilityLoaded = false;
@@ -274,7 +278,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _error = null;
       });
       if (selected != null) {
-        await _loadOverviewLight(selected.id);
+        _loadOverviewLight(selected.id);
       }
     } catch (e) {
       setState(() => _error = '$e');
@@ -298,12 +302,18 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     final td = _selected;
     if (td == null) return;
     if (tabIndex == 1 && !_structureLoaded) {
-      final sections = await widget.api.fetchTdSections(td.id);
-      if (!mounted) return;
-      setState(() {
-        _sections = sections;
-        _structureLoaded = true;
-      });
+      await _runHeavyOperation(
+        key: 'structure',
+        onRun: () async {
+          final page = await widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: 0);
+          if (!mounted) return;
+          setState(() {
+            _sections = page.$1;
+            _sectionsNextCursor = page.$2;
+            _structureLoaded = true;
+          });
+        },
+      );
     }
     if (tabIndex == 2 && !_applicabilityLoaded) {
       await _runHeavyOperation(
@@ -319,12 +329,17 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       );
     }
     if (tabIndex == 3 && !_linksLoaded) {
-      final links = await widget.api.fetchTdLinks(td.id);
-      if (!mounted) return;
-      setState(() {
-        _links = links;
-        _linksLoaded = true;
-      });
+      await _runHeavyOperation(
+        key: 'links',
+        onRun: () async {
+          final links = await widget.api.fetchTdLinks(td.id);
+          if (!mounted) return;
+          setState(() {
+            _links = links;
+            _linksLoaded = true;
+          });
+        },
+      );
     }
     if (tabIndex == 4 && !_changesLoaded) {
       await _runHeavyOperation(
@@ -356,12 +371,13 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                               _applicability = null;
                               _overviewLight = const {};
                               _structureLoaded = false;
+                              _sectionsNextCursor = null;
                               _linksLoaded = false;
                               _changesLoaded = false;
                               _applicabilityLoaded = false;
                               _readinessLoaded = false;
                             });
-                            await _loadOverviewLight(td.id);
+                            _loadOverviewLight(td.id);
                             await _ensureTabLoaded(_tabs.index);
                           },)).toList()))]))),
       const SizedBox(width: 12),
@@ -375,19 +391,25 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   Future<void> _runHeavyOperation({required String key, required Future<void> Function() onRun}) async {
     final status = {
-      'readiness': 'Technische Analyse wird durchgeführt...',
-      'applicability': 'MDR-Struktur wird geprüft...',
-      'changes': 'GSPR-Verknüpfungen werden validiert...',
+      'readiness': 'Readiness-Analyse läuft...',
+      'applicability': 'Anwendbarkeit wird berechnet...',
+      'changes': 'Change-Analyse läuft...',
+      'structure': 'Struktur wird geladen (Abschnitte & Zähler)...',
+      'links': 'Links werden geladen...',
     }[key] ?? 'Analyse wird durchgeführt...';
 
     if (key == 'readiness' && _isLoadingReadiness) return;
     if (key == 'applicability' && _isLoadingApplicability) return;
     if (key == 'changes' && _isLoadingChanges) return;
+    if (key == 'structure' && _isLoadingStructure) return;
+    if (key == 'links' && _isLoadingLinks) return;
 
     setState(() {
       if (key == 'readiness') _isLoadingReadiness = true;
       if (key == 'applicability') _isLoadingApplicability = true;
       if (key == 'changes') _isLoadingChanges = true;
+      if (key == 'structure') _isLoadingStructure = true;
+      if (key == 'links') _isLoadingLinks = true;
     });
 
     showDialog<void>(
@@ -419,8 +441,27 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
           if (key == 'readiness') _isLoadingReadiness = false;
           if (key == 'applicability') _isLoadingApplicability = false;
           if (key == 'changes') _isLoadingChanges = false;
+          if (key == 'structure') _isLoadingStructure = false;
+          if (key == 'links') _isLoadingLinks = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadMoreSections() async {
+    final td = _selected;
+    final next = _sectionsNextCursor;
+    if (td == null || next == null || _isLoadingStructure) return;
+    setState(() => _isLoadingStructure = true);
+    try {
+      final page = await widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: next);
+      if (!mounted) return;
+      setState(() {
+        _sections = [..._sections, ...page.$1];
+        _sectionsNextCursor = page.$2;
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingStructure = false);
     }
   }
 
@@ -540,10 +581,17 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   }
 
   Widget _structureTab() {
-    if (!_structureLoaded) return const Center(child: CircularProgressIndicator());
-    return ListView(
+    if (!_structureLoaded) {
+      return ListView.builder(
         padding: const EdgeInsets.all(12),
-        children: _sections
+        itemCount: 6,
+        itemBuilder: (_, __) => const Card(child: ListTile(title: Text('Abschnitt wird geladen...'), subtitle: LinearProgressIndicator())),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        ..._sections
             .map((s) => Card(
                   child: ListTile(
                     title: Text(_sectionNameDe(s)),
@@ -565,7 +613,21 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                   ),
                 ))
             .toList(),
-      );
+        if (_sectionsNextCursor != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Center(
+              child: FilledButton.icon(
+                onPressed: _isLoadingStructure ? null : _loadMoreSections,
+                icon: _isLoadingStructure
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.expand_more),
+                label: const Text('Mehr laden'),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
 
