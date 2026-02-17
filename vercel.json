@@ -118,6 +118,18 @@
       "dest": "/api/admin/push/devices/[deviceId].js?deviceId=$1"
     },
     {
+      "src": "/api/tdk/summary$",
+      "dest": "/api/tdk/summary.js"
+    },
+    {
+      "src": "/api/tdk/([^/]+)/overview$",
+      "dest": "/api/tdk/[tdKey]/overview.js?tdKey=$1"
+    },
+    {
+      "src": "/api/tdk/([^/]+)/section/([^/]+)$",
+      "dest": "/api/tdk/[tdKey]/section/[sectionId].js?tdKey=$1&sectionId=$2"
+    },
+    {
       "src": "/api/td/([^/]+)/export/nb-package$",
       "dest": "/api/td/[id]/export/nb-package.js?id=$1"
     },
