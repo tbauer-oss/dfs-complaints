@@ -595,6 +595,27 @@ export async function tdList() {
   return out;
 }
 
+export async function tdSummaryFast() {
+  const items = await tdList();
+  const summaries = await Promise.all(items.map(async (td) => {
+    const sections = await tdSections(td.id);
+    const completedSections = sections.filter((s) => s.status === 'Complete' || s.status === 'NotApplicable').length;
+    return {
+      id: td.id,
+      tdKey: td.code,
+      code: td.code,
+      title: td.title,
+      status: td.status,
+      lifecycleState: td.lifecycleState,
+      sectionCount: sections.length,
+      completedSections,
+      completionPercent: sections.length ? Math.round((completedSections / sections.length) * 100) : 0,
+      lastUpdated: td.updatedAt || td.createdAt || null,
+    };
+  }));
+  return summaries;
+}
+
 export async function tdGet(id) {
   await ensureSeedTdFiles();
   return getEntity(KEY, id, mem.files);
@@ -837,6 +858,48 @@ export async function tdSectionGetDetailed(sectionId) {
   const content = await tdSectionContentBackfill(sectionId);
   const links = (await tdLinks(section.tdId)).filter((l) => l.sectionId === sectionId);
   return { ...section, content, links };
+}
+
+export async function tdOverviewFast(tdId) {
+  const td = await tdGet(tdId);
+  if (!td || td.deletedAt) return null;
+  const sections = await tdSections(tdId);
+  const sectionStats = sections.map((section) => ({
+    id: section.id,
+    name: section.name,
+    templateKey: section.templateKey,
+    status: section.status,
+    order: section.order,
+    ownerUserId: section.ownerUserId || null,
+    dueAt: section.dueAt || null,
+    nextReviewAt: section.nextReviewAt || null,
+    lastUpdatedAt: section.lastUpdatedAt || null,
+  }));
+  return {
+    td: {
+      id: td.id,
+      code: td.code,
+      title: td.title,
+      status: td.status,
+      lifecycleState: td.lifecycleState,
+      updatedAt: td.updatedAt || td.createdAt || null,
+    },
+    counts: {
+      sections: sectionStats.length,
+      completed: sectionStats.filter((item) => item.status === 'Complete' || item.status === 'NotApplicable').length,
+    },
+    sections: sectionStats,
+  };
+}
+
+export async function tdSectionByTd(tdId, sectionId) {
+  const section = await getEntity(KEY_SECTION, sectionId, mem.sections);
+  if (!section || section.tdId !== tdId) return null;
+  const content = await tdSectionContentBackfill(sectionId);
+  return {
+    ...section,
+    content,
+  };
 }
 
 export async function tdSectionUpdate(sectionId, patch) {

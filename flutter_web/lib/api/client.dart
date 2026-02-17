@@ -3925,7 +3925,11 @@ class ApiClient {
 
 
   Future<List<TdFile>> fetchTdFiles() async {
-    const path = '/api/td';
+    return fetchTdSummary();
+  }
+
+  Future<List<TdFile>> fetchTdSummary() async {
+    const path = '/api/td/summary';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
@@ -3934,6 +3938,25 @@ class ApiClient {
     final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     final items = (body['items'] as List?) ?? const [];
     return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+  }
+
+
+
+  Future<Map<String, dynamic>> fetchTdOverview(String tdKey) async {
+    final path = '/api/td/$tdKey/overview';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> fetchTdSectionByTd(String tdKey, String sectionId) async {
+    final path = '/api/td/$tdKey/section/$sectionId';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return (body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> fetchTdDetail(String id) async {

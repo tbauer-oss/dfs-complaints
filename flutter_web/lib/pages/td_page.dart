@@ -237,30 +237,21 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final list = await widget.api.fetchTdFiles();
+      final list = await widget.api.fetchTdSummary();
       final selected = list.isNotEmpty ? (_selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first)) : null;
-      List<TdSection> sections = const [];
-      List<TdChangeRequest> changes = const [];
-      List<TdArtifactLink> links = const [];
-      Map<String, dynamic>? readiness;
-      TdApplicabilityBundle? applicability;
-      if (selected != null) {
-        sections = await widget.api.fetchTdSections(selected.id);
-        changes = await widget.api.fetchTdChanges(selected.id);
-        links = await widget.api.fetchTdLinks(selected.id);
-        readiness = await widget.api.fetchTdReadiness(selected.id);
-        applicability = await widget.api.fetchTdApplicability(selected.id);
-      }
       setState(() {
         _items = list;
         _selected = selected;
-        _sections = sections;
-        _changes = changes;
-        _links = links;
-        _readiness = readiness;
-        _applicability = applicability;
+        _sections = const [];
+        _changes = const [];
+        _links = const [];
+        _readiness = null;
+        _applicability = null;
         _error = null;
       });
+      if (selected != null) {
+        await _loadTdDetails(selected.id);
+      }
     } catch (e) {
       setState(() => _error = '$e');
     } finally {
@@ -268,12 +259,30 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadTdDetails(String tdId) async {
+    final overview = await widget.api.fetchTdOverview(tdId);
+    final sectionsRaw = (overview['sections'] as List?) ?? const [];
+    final sections = sectionsRaw.whereType<Map>().map((e) => TdSection.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+    final changes = await widget.api.fetchTdChanges(tdId);
+    final links = await widget.api.fetchTdLinks(tdId);
+    final readiness = await widget.api.fetchTdReadiness(tdId);
+    final applicability = await widget.api.fetchTdApplicability(tdId);
+    if (!mounted) return;
+    setState(() {
+      _sections = sections;
+      _changes = changes;
+      _links = links;
+      _readiness = readiness;
+      _applicability = applicability;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     return Row(children: [
-      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () { setState(() => _selected = td); _load(); },)).toList()))]))),
+      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () async { setState(() => _selected = td); await _loadTdDetails(td.id); },)).toList()))]))),
       const SizedBox(width: 12),
       Expanded(child: Card(child: Column(children: [
         TabBar(controller: _tabs, isScrollable: true, tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Anwendbarkeit'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),

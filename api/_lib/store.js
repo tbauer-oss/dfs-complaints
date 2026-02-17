@@ -2164,16 +2164,8 @@ export async function createPortalUser(u) {
   const tilePermissions = sanitizeTilePermissions(u?.tilePermissions || {});
   if (!emailNorm || !passwordHash) return null;
 
-  const caps = await buildPortalUsersWriteConfig();
-  const assignedIsTextArray = isTextArrayColumn(caps.assignedDepartmentsType);
-  const sql = assignedIsTextArray
-    ? `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
+  const sql = `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::text[], $10::jsonb)
-       RETURNING id, email, email_norm, password_hash, role, is_active,
-                 display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
-                 tour_seen, tour_seen_at, created_at, updated_at`
-    : `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
        RETURNING id, email, email_norm, password_hash, role, is_active,
                  display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
                  tour_seen, tour_seen_at, created_at, updated_at`;
@@ -2189,7 +2181,7 @@ export async function createPortalUser(u) {
       displayName,
       isSales,
       isPRRC,
-      assignedIsTextArray ? assignedDepartments : JSON.stringify(assignedDepartments),
+      assignedDepartments,
       JSON.stringify(tilePermissions),
     ],
     fallbackSql:
@@ -2222,27 +2214,8 @@ export async function upsertPortalUser(u) {
   const tilePermissions = sanitizeTilePermissions(u?.tilePermissions || {});
   if (!emailNorm) return null;
 
-  const caps = await buildPortalUsersWriteConfig();
-  const assignedIsTextArray = isTextArrayColumn(caps.assignedDepartmentsType);
-  const sql = assignedIsTextArray
-    ? `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
+  const sql = `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
        VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9::text[], $10::jsonb)
-       ON CONFLICT (email_norm)
-       DO UPDATE SET
-         email = EXCLUDED.email,
-         role = EXCLUDED.role,
-         is_active = EXCLUDED.is_active,
-         display_name = EXCLUDED.display_name,
-         is_sales = EXCLUDED.is_sales,
-         is_prrc = EXCLUDED.is_prrc,
-         assigned_departments = EXCLUDED.assigned_departments,
-         tile_permissions = EXCLUDED.tile_permissions,
-         updated_at = NOW()
-       RETURNING id, email, email_norm, password_hash, role, is_active,
-                 display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
-                 tour_seen, tour_seen_at, created_at, updated_at`
-    : `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
-       VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
        ON CONFLICT (email_norm)
        DO UPDATE SET
          email = EXCLUDED.email,
@@ -2269,7 +2242,7 @@ export async function upsertPortalUser(u) {
       displayName,
       isSales,
       isPRRC,
-      assignedIsTextArray ? assignedDepartments : JSON.stringify(assignedDepartments),
+      assignedDepartments,
       JSON.stringify(tilePermissions),
     ],
     fallbackSql:

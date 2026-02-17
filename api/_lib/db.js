@@ -237,6 +237,7 @@ export async function queryWithFallback({
   fallbackSql = null,
   fallbackParams = null,
   fallbackMapper = null,
+  fallbacks = null,
   tableHint = null,
   route = null,
   sqlTag = null,
@@ -252,7 +253,11 @@ export async function queryWithFallback({
   const primary = await safeQuery(effectiveSql, effectiveParams);
   if (primary.ok) return primary.result;
 
-  if (primary.error?.code !== 'DB_SCHEMA_MISMATCH' || !fallbackSql) {
+  const fallbackChain = Array.isArray(fallbacks) && fallbacks.length
+    ? fallbacks
+    : (fallbackSql ? [{ sql: fallbackSql, params: fallbackParams, mapper: fallbackMapper }] : []);
+
+  if (primary.error?.code !== 'DB_SCHEMA_MISMATCH' || !fallbackChain.length) {
     const err = new Error(primary.error?.message || 'queryWithFallback failed');
     err.code = primary.error?.code || 'DB_QUERY_FAILED';
     err.sqlState = primary.error?.sqlState || null;
@@ -272,18 +277,21 @@ export async function queryWithFallback({
     sqlTag: sqlTag || 'unknown',
   });
 
-  const fallback = await safeQuery(fallbackSql, Array.isArray(fallbackParams) ? fallbackParams : effectiveParams);
-  if (!fallback.ok) {
-    const fallbackErr = new Error(fallback.error?.message || 'fallback query failed');
-    fallbackErr.code = fallback.error?.code || 'DB_QUERY_FAILED';
-    fallbackErr.sqlState = fallback.error?.sqlState || null;
-    fallbackErr.cause = fallback.error?.cause || null;
-    throw fallbackErr;
+  let lastError = null;
+  for (const candidate of fallbackChain) {
+    const fallback = await safeQuery(candidate?.sql, Array.isArray(candidate?.params) ? candidate.params : effectiveParams);
+    if (!fallback.ok) {
+      lastError = fallback.error;
+      continue;
+    }
+    if (typeof candidate?.mapper === 'function') {
+      fallback.result.rows = (fallback.result.rows || []).map((row) => candidate.mapper(row));
+    }
+    return fallback.result;
   }
-
-  if (typeof fallbackMapper === 'function') {
-    fallback.result.rows = (fallback.result.rows || []).map((row) => fallbackMapper(row));
-  }
-
-  return fallback.result;
+  const fallbackErr = new Error(lastError?.message || 'fallback query failed');
+  fallbackErr.code = lastError?.code || 'DB_QUERY_FAILED';
+  fallbackErr.sqlState = lastError?.sqlState || null;
+  fallbackErr.cause = lastError?.cause || null;
+  throw fallbackErr;
 }
