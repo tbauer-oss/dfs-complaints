@@ -15,6 +15,7 @@ import {
 } from './departments.js';
 import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprAssessableItems } from './gsprRequirements.js';
 import { query, queryWithFallback } from './db.js';
+import { getTableColumnTypes } from './dbCaps.js';
 import { forbiddenEmailReason } from './forbiddenEmails.js';
 import { normalizeEmail } from './identity.js';
 
@@ -1994,7 +1995,7 @@ function normalizePortalUser(u) {
 
 function mapPortalUserRow(row) {
   if (!row) return null;
-  const assignedDepartments = normalizeDepartments(row.assigned_departments || row.assignedDepartments || []);
+  const assignedDepartments = normalizeAssignedDepartmentsValue(row.assigned_departments ?? row.assignedDepartments ?? []);
   const tilePermissions = sanitizeTilePermissions(row.tile_permissions || row.tilePermissions || {});
   return normalizePortalUser({
     id: row.id,
@@ -2016,6 +2017,55 @@ function mapPortalUserRow(row) {
   });
 }
 
+function normalizeAssignedDepartmentsValue(value) {
+  if (Array.isArray(value)) return normalizeDepartments(value);
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.departments)) return normalizeDepartments(value.departments);
+    if (Array.isArray(value.value)) return normalizeDepartments(value.value);
+  }
+  const raw = String(value ?? '').trim();
+  if (!raw) return [];
+  if (raw.startsWith('[') || raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return normalizeDepartments(parsed);
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.departments)) return normalizeDepartments(parsed.departments);
+        if (Array.isArray(parsed.value)) return normalizeDepartments(parsed.value);
+      }
+    } catch {
+      return normalizeDepartments(raw.split(',').map((entry) => entry.trim()).filter(Boolean));
+    }
+  }
+  return normalizeDepartments(raw.split(',').map((entry) => entry.trim()).filter(Boolean));
+}
+
+async function getPortalUsersColumnTypes() {
+  return await getTableColumnTypes('portal_users', query);
+}
+
+function isTextArrayColumn(columnType = {}) {
+  const dataType = String(columnType?.dataType || '').toLowerCase();
+  const udtName = String(columnType?.udtName || '').toLowerCase();
+  return dataType === 'array' || udtName === '_text';
+}
+
+async function buildPortalUsersWriteConfig() {
+  const columnTypes = await getPortalUsersColumnTypes();
+  const cfg = {
+    hasDisplayName: Boolean(columnTypes.display_name),
+    hasIsSales: Boolean(columnTypes.is_sales),
+    hasIsPrrc: Boolean(columnTypes.is_prrc),
+    hasAssignedDepartments: Boolean(columnTypes.assigned_departments),
+    hasTilePermissions: Boolean(columnTypes.tile_permissions),
+    hasTourSeen: Boolean(columnTypes.tour_seen),
+    hasTourSeenAt: Boolean(columnTypes.tour_seen_at),
+    assignedDepartmentsType: columnTypes.assigned_departments || null,
+  };
+  return cfg;
+}
+
+
 async function queryPortalUserRows({
   sql,
   params = [],
@@ -2023,14 +2073,17 @@ async function queryPortalUserRows({
   fallbackParams = null,
   fallbackMapper = null,
   tableHint = 'portal_users',
+  sqlTag = 'portal_users',
 }) {
   return await queryWithFallback({
-    primarySql: sql,
-    primaryParams: params,
+    sql,
+    params,
     fallbackSql,
     fallbackParams,
     fallbackMapper,
     tableHint,
+    route: '/api/portal/users',
+    sqlTag,
   });
 }
 
@@ -2111,20 +2164,41 @@ export async function createPortalUser(u) {
   const tilePermissions = sanitizeTilePermissions(u?.tilePermissions || {});
   if (!emailNorm || !passwordHash) return null;
 
+  const caps = await buildPortalUsersWriteConfig();
+  const assignedIsTextArray = isTextArrayColumn(caps.assignedDepartmentsType);
+  const sql = assignedIsTextArray
+    ? `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::text[], $10::jsonb)
+       RETURNING id, email, email_norm, password_hash, role, is_active,
+                 display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
+                 tour_seen, tour_seen_at, created_at, updated_at`
+    : `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
+       RETURNING id, email, email_norm, password_hash, role, is_active,
+                 display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
+                 tour_seen, tour_seen_at, created_at, updated_at`;
+
   const result = await queryPortalUserRows({
-    sql:
-    `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
-     RETURNING id, email, email_norm, password_hash, role, is_active,
-               display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
-               tour_seen, tour_seen_at, created_at, updated_at`,
-    params: [email, emailNorm, passwordHash, role, isActive, displayName, isSales, isPRRC, JSON.stringify(assignedDepartments), JSON.stringify(tilePermissions)],
+    sql,
+    params: [
+      email,
+      emailNorm,
+      passwordHash,
+      role,
+      isActive,
+      displayName,
+      isSales,
+      isPRRC,
+      assignedIsTextArray ? assignedDepartments : JSON.stringify(assignedDepartments),
+      JSON.stringify(tilePermissions),
+    ],
     fallbackSql:
     `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
     fallbackParams: [email, emailNorm, passwordHash, role, isActive],
     fallbackMapper: withTourFallbackRow,
+    sqlTag: 'portalUserCreate',
   });
   return mapPortalUserRow(result.rows?.[0] || null);
 }
@@ -2148,24 +2222,44 @@ export async function upsertPortalUser(u) {
   const tilePermissions = sanitizeTilePermissions(u?.tilePermissions || {});
   if (!emailNorm) return null;
 
+  const caps = await buildPortalUsersWriteConfig();
+  const assignedIsTextArray = isTextArrayColumn(caps.assignedDepartmentsType);
+  const sql = assignedIsTextArray
+    ? `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
+       VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9::text[], $10::jsonb)
+       ON CONFLICT (email_norm)
+       DO UPDATE SET
+         email = EXCLUDED.email,
+         role = EXCLUDED.role,
+         is_active = EXCLUDED.is_active,
+         display_name = EXCLUDED.display_name,
+         is_sales = EXCLUDED.is_sales,
+         is_prrc = EXCLUDED.is_prrc,
+         assigned_departments = EXCLUDED.assigned_departments,
+         tile_permissions = EXCLUDED.tile_permissions,
+         updated_at = NOW()
+       RETURNING id, email, email_norm, password_hash, role, is_active,
+                 display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
+                 tour_seen, tour_seen_at, created_at, updated_at`
+    : `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
+       VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
+       ON CONFLICT (email_norm)
+       DO UPDATE SET
+         email = EXCLUDED.email,
+         role = EXCLUDED.role,
+         is_active = EXCLUDED.is_active,
+         display_name = EXCLUDED.display_name,
+         is_sales = EXCLUDED.is_sales,
+         is_prrc = EXCLUDED.is_prrc,
+         assigned_departments = EXCLUDED.assigned_departments,
+         tile_permissions = EXCLUDED.tile_permissions,
+         updated_at = NOW()
+       RETURNING id, email, email_norm, password_hash, role, is_active,
+                 display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
+                 tour_seen, tour_seen_at, created_at, updated_at`;
+
   const result = await queryPortalUserRows({
-    sql:
-    `INSERT INTO portal_users (email, email_norm, password_hash, role, is_active, display_name, is_sales, is_prrc, assigned_departments, tile_permissions)
-     VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb)
-     ON CONFLICT (email_norm)
-     DO UPDATE SET
-       email = EXCLUDED.email,
-       role = EXCLUDED.role,
-       is_active = EXCLUDED.is_active,
-       display_name = EXCLUDED.display_name,
-       is_sales = EXCLUDED.is_sales,
-       is_prrc = EXCLUDED.is_prrc,
-       assigned_departments = EXCLUDED.assigned_departments,
-       tile_permissions = EXCLUDED.tile_permissions,
-       updated_at = NOW()
-     RETURNING id, email, email_norm, password_hash, role, is_active,
-               display_name, is_sales, is_prrc, assigned_departments, tile_permissions,
-               tour_seen, tour_seen_at, created_at, updated_at`,
+    sql,
     params: [
       email,
       emailNorm,
@@ -2175,7 +2269,7 @@ export async function upsertPortalUser(u) {
       displayName,
       isSales,
       isPRRC,
-      JSON.stringify(assignedDepartments),
+      assignedIsTextArray ? assignedDepartments : JSON.stringify(assignedDepartments),
       JSON.stringify(tilePermissions),
     ],
     fallbackSql:
@@ -2190,6 +2284,7 @@ export async function upsertPortalUser(u) {
      RETURNING id, email, email_norm, password_hash, role, is_active, created_at, updated_at`,
     fallbackParams: [email, emailNorm, passwordHash, role, isActive],
     fallbackMapper: withTourFallbackRow,
+    sqlTag: 'portalUserUpsert',
   });
   return mapPortalUserRow(result.rows?.[0] || null);
 }

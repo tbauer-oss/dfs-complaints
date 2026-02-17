@@ -15,6 +15,8 @@ const CONNECTIVITY_ERROR_CODES = new Set([
   'EAI_AGAIN',
   '57P01',
 ]);
+const SCHEMA_DRIFT_ERROR_CODES = new Set(['42703', '42804', '22P02', '42883', '42P01']);
+const schemaFallbackLogGuard = new Map();
 
 export function getDatabaseConnectionString() {
   for (const key of DATABASE_URL_ENV_KEYS) {
@@ -88,15 +90,27 @@ export function mapSchemaMismatchError(err) {
   const lower = message.toLowerCase();
   const isMissingColumn = sqlState === '42703' || lower.includes('undefined_column') || (lower.includes('column') && lower.includes('does not exist'));
   const isMissingTable = sqlState === '42P01' || (lower.includes('relation') && lower.includes('does not exist'));
-  if (!isMissingColumn && !isMissingTable) return null;
+  const isSchemaDriftCode = SCHEMA_DRIFT_ERROR_CODES.has(sqlState);
+  if (!isMissingColumn && !isMissingTable && !isSchemaDriftCode) return null;
 
   return {
     code: 'DB_SCHEMA_MISMATCH',
     sqlState: sqlState || null,
     message,
     columnName: isMissingColumn ? extractMissingColumnName(err) : null,
+    isSchemaDrift: true,
     cause: err,
   };
+}
+
+function logSchemaFallbackOnce({ area = 'db', code = 'unknown', message = '', sqlTag = 'unknown' } = {}) {
+  const normalizedMessage = String(message || '').slice(0, 200);
+  const key = `${area}:${code}:${sqlTag}:${normalizedMessage}`;
+  const now = Date.now();
+  const last = schemaFallbackLogGuard.get(key) || 0;
+  if (now - last < 1000) return;
+  schemaFallbackLogGuard.set(key, now);
+  console.warn('[dbSchemaFallback]', { area, code, message: normalizedMessage, usedFallback: true, sqlTag });
 }
 
 export function isConnectivityError(err) {
@@ -216,21 +230,26 @@ export async function safeQuery(text, params = []) {
 }
 
 export async function queryWithFallback({
-  primarySql,
-  primaryParams = [],
+  sql = null,
+  params = [],
+  primarySql = null,
+  primaryParams = null,
   fallbackSql = null,
   fallbackParams = null,
   fallbackMapper = null,
   tableHint = null,
   route = null,
+  sqlTag = null,
 } = {}) {
-  if (!primarySql) throw new Error('queryWithFallback primarySql is required');
+  const effectiveSql = primarySql || sql;
+  const effectiveParams = Array.isArray(primaryParams) ? primaryParams : params;
+  if (!effectiveSql) throw new Error('queryWithFallback sql is required');
 
   if (tableHint) {
     await probeTableColumns(tableHint, query).catch(() => null);
   }
 
-  const primary = await safeQuery(primarySql, primaryParams);
+  const primary = await safeQuery(effectiveSql, effectiveParams);
   if (primary.ok) return primary.result;
 
   if (primary.error?.code !== 'DB_SCHEMA_MISMATCH' || !fallbackSql) {
@@ -246,9 +265,14 @@ export async function queryWithFallback({
     if (String(primary.error.sqlState || '').toUpperCase() === '42P01') rememberMissingTable(tableHint);
   }
 
-  console.warn(`[dbQueryFallback] usedFallback=true sqlState=${primary.error.sqlState || 'unknown'} column=${primary.error.columnName || 'unknown'} route=${route || 'unknown'}`);
+  logSchemaFallbackOnce({
+    area: route || tableHint || 'db',
+    code: primary.error.sqlState || 'unknown',
+    message: primary.error.message || 'schema drift fallback',
+    sqlTag: sqlTag || 'unknown',
+  });
 
-  const fallback = await safeQuery(fallbackSql, Array.isArray(fallbackParams) ? fallbackParams : primaryParams);
+  const fallback = await safeQuery(fallbackSql, Array.isArray(fallbackParams) ? fallbackParams : effectiveParams);
   if (!fallback.ok) {
     const fallbackErr = new Error(fallback.error?.message || 'fallback query failed');
     fallbackErr.code = fallback.error?.code || 'DB_QUERY_FAILED';

@@ -18,8 +18,15 @@ import { normalizeEmail } from '../_lib/identity.js';
 import { createRedisAdapter } from '../chat/v1/_lib/redisAdapter.js';
 import { keyAvatarMap, normalizeUserId } from '../chat/v1/_lib/schema.js';
 import { invalidatePortalUserCaches } from '../_lib/portalUserCache.js';
+import { getTableColumnTypes } from '../_lib/dbCaps.js';
+import { query } from '../_lib/db.js';
 
 const isTruthy = flag => flag === true || flag === 'true' || flag === 1 || flag === '1';
+
+
+async function getPortalUsersCaps() {
+  return await getTableColumnTypes('portal_users', query);
+}
 
 function sanitizeUser(u) {
   const role = normalizeRole(u.role);
@@ -130,9 +137,16 @@ export default async function handler(req, res) {
 
       const patch = { ...existing };
       const fieldsChanged = [];
+      const warnings = [];
+      const caps = await getPortalUsersCaps();
+      const hasColumn = (columnName) => !caps || Object.keys(caps).length === 0 || Boolean(caps?.[columnName]);
       if (body.displayName !== undefined) {
-        patch.displayName = String(body.displayName || '').trim();
-        fieldsChanged.push('displayName');
+        if (hasColumn('display_name')) {
+          patch.displayName = String(body.displayName || '').trim();
+          fieldsChanged.push('displayName');
+        } else {
+          warnings.push('display_name column missing; ignored displayName');
+        }
       }
       if (body.role) {
         patch.role = normalizeRole(body.role);
@@ -144,20 +158,36 @@ export default async function handler(req, res) {
       }
       const salesFlag = body.isSales ?? body.canEditSales ?? body.salesAllowed;
       if (salesFlag !== undefined) {
-        patch.isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
-        fieldsChanged.push('isSales');
+        if (hasColumn('is_sales')) {
+          patch.isSales = salesFlag === true || salesFlag === 'true' || salesFlag === 1 || salesFlag === '1';
+          fieldsChanged.push('isSales');
+        } else {
+          warnings.push('is_sales column missing; ignored isSales');
+        }
       }
       if (body.isPRRC !== undefined) {
-        patch.isPRRC = isTruthy(body.isPRRC);
-        fieldsChanged.push('isPRRC');
+        if (hasColumn('is_prrc')) {
+          patch.isPRRC = isTruthy(body.isPRRC);
+          fieldsChanged.push('isPRRC');
+        } else {
+          warnings.push('is_prrc column missing; ignored isPRRC');
+        }
       }
       if (body.assignedDepartments !== undefined) {
-        patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
-        fieldsChanged.push('assignedDepartments');
+        if (hasColumn('assigned_departments')) {
+          patch.assignedDepartments = normalizeDepartments(body.assignedDepartments);
+          fieldsChanged.push('assignedDepartments');
+        } else {
+          warnings.push('assigned_departments column missing; ignored assignedDepartments');
+        }
       }
       if (body.tilePermissions !== undefined) {
-        patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
-        fieldsChanged.push('tilePermissions');
+        if (hasColumn('tile_permissions')) {
+          patch.tilePermissions = sanitizeTilePermissions(body.tilePermissions || {});
+          fieldsChanged.push('tilePermissions');
+        } else {
+          warnings.push('tile_permissions column missing; ignored tilePermissions');
+        }
       }
       if (body.password) return bad(res, 'password updates are only allowed via /api/account/password', 400);
 
@@ -176,7 +206,7 @@ export default async function handler(req, res) {
         cacheInvalidated: cacheInfo.cacheInvalidated,
       });
 
-      return ok(res, sanitizeUser(saved));
+      return ok(res, { ...sanitizeUser(saved), warnings });
     }
 
     if (req.method === 'DELETE') {
