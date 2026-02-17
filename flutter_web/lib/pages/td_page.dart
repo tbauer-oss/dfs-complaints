@@ -406,9 +406,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Fehler bei Analyse'),
-          content: Text('Die Analyse konnte nicht abgeschlossen werden.
-
-$e'),
+          content: Text('Die Analyse konnte nicht abgeschlossen werden.\n\n$e'),
           actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
         ),
       );
