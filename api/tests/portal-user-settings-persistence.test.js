@@ -172,3 +172,99 @@ test('portal user settings persist in DB and remain after re-login', async () =>
   assert.deepEqual(afterRelogin?.assignedDepartments, ['QM', 'Produktion']);
   assert.deepEqual(afterRelogin?.tilePermissions, { complaints: 'write', users: 'read' });
 });
+
+
+test('portal user PATCH writes assigned_departments as text[] when schema reports text array', async () => {
+  const passwordHash = await bcrypt.hash('Secret#123', 8);
+  const users = new Map();
+  users.set('admin@dfs-diamon.de', {
+    id: 'u-admin',
+    email: 'admin@dfs-diamon.de',
+    email_norm: 'admin@dfs-diamon.de',
+    password_hash: passwordHash,
+    role: 'superuser',
+    is_active: true,
+    display_name: 'Admin',
+    is_sales: false,
+    is_prrc: false,
+    assigned_departments: ['QM'],
+    tile_permissions: {},
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  });
+  users.set('target@dfs-diamon.de', {
+    id: 'u-target',
+    email: 'target@dfs-diamon.de',
+    email_norm: 'target@dfs-diamon.de',
+    password_hash: passwordHash,
+    role: 'user',
+    is_active: true,
+    display_name: 'Target',
+    is_sales: false,
+    is_prrc: false,
+    assigned_departments: ['QM'],
+    tile_permissions: {},
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  });
+
+  let usedTextArrayCast = false;
+
+  __setDbForTests({
+    async query(sql, params = []) {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (normalized.includes('FROM information_schema.columns')) {
+        return {
+          rows: [
+            { column_name: 'assigned_departments', data_type: 'ARRAY', udt_name: '_text' },
+            { column_name: 'display_name', data_type: 'text', udt_name: 'text' },
+            { column_name: 'is_sales', data_type: 'boolean', udt_name: 'bool' },
+            { column_name: 'is_prrc', data_type: 'boolean', udt_name: 'bool' },
+            { column_name: 'tile_permissions', data_type: 'jsonb', udt_name: 'jsonb' },
+          ],
+        };
+      }
+      if (normalized.includes('FROM public.portal_users') && normalized.includes('WHERE email_norm = $1')) {
+        const row = users.get(String(params[0] || '').toLowerCase());
+        return { rows: row ? [{ ...row }] : [] };
+      }
+      if (normalized.startsWith('INSERT INTO portal_users') && normalized.includes('ON CONFLICT (email_norm)')) {
+        usedTextArrayCast = normalized.includes('$9::text[]');
+        const [email, emailNorm, hashMaybe, role, isActive, displayName, isSales, isPrrc, assignedDepartments] = params;
+        const prev = users.get(String(emailNorm || '').toLowerCase());
+        const next = {
+          ...(prev || {}),
+          id: prev?.id || 'u-target',
+          email,
+          email_norm: emailNorm,
+          password_hash: hashMaybe || prev?.password_hash,
+          role,
+          is_active: isActive,
+          display_name: displayName,
+          is_sales: isSales === true,
+          is_prrc: isPrrc === true,
+          assigned_departments: Array.isArray(assignedDepartments) ? assignedDepartments : [],
+          tile_permissions: {},
+        };
+        users.set(String(emailNorm).toLowerCase(), next);
+        return { rows: [next] };
+      }
+      if (normalized.startsWith('DELETE FROM kv_store WHERE k = ANY($1::text[])')) return { rowCount: 1, rows: [] };
+      throw new Error(`unexpected query: ${normalized}`);
+    },
+  });
+
+  const adminToken = jwt.sign({ sub: 'u-admin', email: 'admin@dfs-diamon.de', role: 'superuser', portalStatus: 'active' }, JWT_SECRET);
+  const patchReq = makeReq({
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${adminToken}` },
+    body: { email: 'target@dfs-diamon.de', assignedDepartments: ['QM', 'Produktion'] },
+  });
+  const patchRes = makeRes();
+  await portalUsersHandler(patchReq, patchRes);
+
+  assert.equal(patchRes.__out.statusCode, 200);
+  assert.equal(usedTextArrayCast, true);
+  const updated = await portalUserByEmail('target@dfs-diamon.de');
+  assert.deepEqual(updated?.assignedDepartments, ['QM', 'Produktion']);
+});
