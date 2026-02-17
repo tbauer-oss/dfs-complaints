@@ -599,18 +599,20 @@ export async function tdSummaryFast() {
   const items = await tdList();
   const summaries = await Promise.all(items.map(async (td) => {
     const sections = await tdSections(td.id);
+    const links = await tdLinks(td.id);
     const completedSections = sections.filter((s) => s.status === 'Complete' || s.status === 'NotApplicable').length;
     return {
       id: td.id,
-      tdKey: td.code,
-      code: td.code,
       title: td.title,
+      version: td.version || null,
       status: td.status,
-      lifecycleState: td.lifecycleState,
-      sectionCount: sections.length,
-      completedSections,
-      completionPercent: sections.length ? Math.round((completedSections / sections.length) * 100) : 0,
-      lastUpdated: td.updatedAt || td.createdAt || null,
+      created_at: td.createdAt || null,
+      updated_at: td.updatedAt || td.createdAt || null,
+      counters: {
+        section_count: sections.length,
+        completed_section_count: completedSections,
+        link_count: links.length,
+      },
     };
   }));
   return summaries;
@@ -753,11 +755,7 @@ export async function tdApplicabilityGet(tdId) {
   const td = await getEntity(KEY, tdId, mem.files);
   if (!td || td.deletedAt) throw new Error('TD not found');
   const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
-  let results = await tdApplicabilityResults(tdId);
-  if (!results.length) {
-    const generated = await generateApplicability(tdId);
-    results = generated.results;
-  }
+  const results = await tdApplicabilityResults(tdId);
   const overrides = await tdApplicabilityOverrides(tdId);
   return { profile, results, overrides };
 }
@@ -864,31 +862,13 @@ export async function tdOverviewFast(tdId) {
   const td = await tdGet(tdId);
   if (!td || td.deletedAt) return null;
   const sections = await tdSections(tdId);
-  const sectionStats = sections.map((section) => ({
-    id: section.id,
-    name: section.name,
-    templateKey: section.templateKey,
-    status: section.status,
-    order: section.order,
-    ownerUserId: section.ownerUserId || null,
-    dueAt: section.dueAt || null,
-    nextReviewAt: section.nextReviewAt || null,
-    lastUpdatedAt: section.lastUpdatedAt || null,
-  }));
+  const links = await tdLinks(tdId);
+  const answers = await tdQueryAnswersRaw(tdId);
+  const answeredCount = answers.filter((item) => ['Complete', 'NotApplicable'].includes(item.status)).length;
   return {
-    td: {
-      id: td.id,
-      code: td.code,
-      title: td.title,
-      status: td.status,
-      lifecycleState: td.lifecycleState,
-      updatedAt: td.updatedAt || td.createdAt || null,
-    },
-    counts: {
-      sections: sectionStats.length,
-      completed: sectionStats.filter((item) => item.status === 'Complete' || item.status === 'NotApplicable').length,
-    },
-    sections: sectionStats,
+    section_count: sections.length,
+    answered_count: answeredCount,
+    link_count: links.length,
   };
 }
 

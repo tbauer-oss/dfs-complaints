@@ -129,17 +129,29 @@ class TdFile {
     required this.summary,
   });
 
-  factory TdFile.fromJson(Map<String, dynamic> json) => TdFile(
-        id: (json['id'] ?? '').toString(),
-        code: (json['code'] ?? '').toString(),
-        title: (json['title'] ?? '').toString(),
-        lifecycleState: (json['lifecycleState'] ?? 'Development').toString(),
-        productGroup: json['productGroup']?.toString(),
-        classification: json['classification']?.toString(),
-        rule: json['rule']?.toString(),
-        status: (json['status'] ?? 'Draft').toString(),
-        summary: TdSummary.fromJson((json['summary'] as Map?)?.cast<String, dynamic>()),
-      );
+  factory TdFile.fromJson(Map<String, dynamic> json) {
+    final counters = (json['counters'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final summaryJson = (json['summary'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{
+      'complianceScore': counters['section_count'] == null
+          ? 0
+          : (((counters['completed_section_count'] as num?)?.toDouble() ?? 0) / (((counters['section_count'] as num?)?.toDouble() ?? 1)) * 100).round(),
+      'readinessStatus': 'Yellow',
+      'overdueReviews': 0,
+      'openCapaCount': 0,
+      'reasons': const <String>[],
+    };
+    return TdFile(
+      id: (json['id'] ?? '').toString(),
+      code: (json['code'] ?? json['tdKey'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      lifecycleState: (json['lifecycleState'] ?? 'Development').toString(),
+      productGroup: json['productGroup']?.toString(),
+      classification: json['classification']?.toString(),
+      rule: json['rule']?.toString(),
+      status: (json['status'] ?? 'Draft').toString(),
+      summary: TdSummary.fromJson(summaryJson),
+    );
+  }
 }
 
 class TdSectionContent {
