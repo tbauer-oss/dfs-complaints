@@ -16,6 +16,7 @@ const SYNC_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const ANTI_BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const RAW_CACHE_TTL_SECONDS = 15 * 60;
 const RAW_CACHE_KEY = 'dfs:gspr:eurlex:raw:last';
+const TD_META_KEY = (tdKey) => `dfs:gspr:source-meta:${tdKey}`;
 
 function isTruthy(value) {
   return ['1', 'true', 'yes', 'on'].includes((value ?? '').toString().trim().toLowerCase());
@@ -82,6 +83,36 @@ async function cacheRawResponse(result) {
   }
 }
 
+
+function readTdKey(req) {
+  return String(req.query?.tdKey || req.body?.tdKey || 'MDR-TD1').trim().toUpperCase();
+}
+
+async function readSourceMeta(tdKey) {
+  const global = await gsprSourceMetaGet();
+  if (!tdKey || !redis || typeof redis.get !== 'function') return global;
+  try {
+    const raw = await redis.get(TD_META_KEY(tdKey));
+    if (!raw) return global;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return { ...global, ...parsed };
+  } catch {
+    return global;
+  }
+}
+
+async function saveSourceMeta(tdKey, patch = {}) {
+  const saved = await gsprSourceMetaSave(patch);
+  if (tdKey && redis && typeof redis.set === 'function') {
+    try {
+      await redis.set(TD_META_KEY(tdKey), JSON.stringify(saved), { ex: 60 * 60 * 24 * 14 });
+    } catch (err) {
+      console.warn('[gspr/sync] td scoped source meta cache failed', err?.message || err);
+    }
+  }
+  return saved;
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
@@ -91,14 +122,16 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const source = await gsprSourceMetaGet();
-      return ok(res, { ok: true, source: mapSourceForResponse(source) });
+      const tdKey = readTdKey(req);
+      const source = await readSourceMeta(tdKey);
+      return ok(res, { ok: true, tdKey, source: mapSourceForResponse(source) });
     }
 
     if (req.method !== 'POST') return bad(res, 'method not allowed', 405);
 
     const force = readForceFlag(req);
-    const before = await gsprSourceMetaGet();
+    const tdKey = readTdKey(req);
+    const before = await readSourceMeta(tdKey);
     const cooldownUntilTs = Date.parse(before.cooldownUntil || '');
 
     if (!force && Number.isFinite(cooldownUntilTs) && cooldownUntilTs > Date.now()) {
@@ -106,6 +139,7 @@ export default async function handler(req, res) {
       return bad(res, msg, 429, {
         code: 'SYNC_COOLDOWN_ACTIVE',
         retryAfterSeconds: Math.max(1, Math.ceil((cooldownUntilTs - Date.now()) / 1000)),
+        tdKey,
         source: mapSourceForResponse(before),
       });
     }
@@ -115,12 +149,13 @@ export default async function handler(req, res) {
         ok: true,
         skipped: true,
         reason: 'SYNC_RATE_LIMIT_12H',
+        tdKey,
         source: mapSourceForResponse(before),
       });
     }
 
     const startedAt = new Date().toISOString();
-    await gsprSourceMetaSave({
+    await saveSourceMeta(tdKey, {
       name: GSPR_SOURCE_NAME,
       lastAttemptAt: startedAt,
       lastSyncAttemptAt: startedAt,
@@ -156,12 +191,23 @@ export default async function handler(req, res) {
         patch.cooldownUntil = new Date(Date.now() + ANTI_BOT_COOLDOWN_MS).toISOString();
       }
 
-      const source = await gsprSourceMetaSave(patch);
+      const source = await saveSourceMeta(tdKey, patch);
+      if (before?.normalizedText) {
+        return ok(res, {
+          ok: false,
+          code: 'SOURCE_UNSTABLE',
+          lastGoodAt: before?.lastGoodSyncAt || before?.lastSyncAt || null,
+          lastGoodHash: before?.contentHash || '',
+          tdKey,
+          source: mapSourceForResponse(source),
+        });
+      }
       const statusCode = shouldApplyCooldown(failureReason) ? 503 : 502;
       return bad(res, patch.lastSyncError, statusCode, {
         code: shouldApplyCooldown(failureReason) ? 'EUR_LEX_ANTI_BOT_SUSPECTED' : 'EUR_LEX_SYNC_FAILED',
         detectedFailureReason: failureReason,
         debugSnippet,
+        tdKey,
         source: mapSourceForResponse(source),
       });
     }
@@ -170,7 +216,7 @@ export default async function handler(req, res) {
     const previousHash = (before?.contentHash || '').toString();
     const changed = previousHash.length > 0 && previousHash !== result.contentHash;
 
-    const source = await gsprSourceMetaSave({
+    const source = await saveSourceMeta(tdKey, {
       name: GSPR_SOURCE_NAME,
       permalink: result.sourceMeta?.sourceUrl || GSPR_SOURCE_PERMALINK,
       sourceUrl: result.sourceMeta?.sourceUrl || GSPR_SOURCE_PERMALINK,
@@ -198,11 +244,12 @@ export default async function handler(req, res) {
         : [],
     });
 
-    return ok(res, { ok: true, source: mapSourceForResponse(source), changesDetected: changed });
+    return ok(res, { ok: true, tdKey, source: mapSourceForResponse(source), changesDetected: changed });
   } catch (err) {
     console.error('[gspr/sync] unhandled error', err);
     const failedAt = new Date().toISOString();
-    const source = await gsprSourceMetaSave({
+    const tdKey = readTdKey(req);
+    const source = await saveSourceMeta(tdKey, {
       name: GSPR_SOURCE_NAME,
       lastAttemptAt: failedAt,
       lastSyncAttemptAt: failedAt,
@@ -210,6 +257,6 @@ export default async function handler(req, res) {
       lastSyncError: err?.message || 'sync failed',
       updatedBy: actor?.email || '',
     });
-    return bad(res, source.lastSyncError || 'sync failed', 502, { source: mapSourceForResponse(source) });
+    return bad(res, source.lastSyncError || 'sync failed', 502, { tdKey, source: mapSourceForResponse(source) });
   }
 }
