@@ -13,8 +13,8 @@ export default async function handler(req, res) {
   if (!actor) return;
   if (req.method !== 'GET') return bad(res, 'method not allowed', 405);
 
-  return withTiming('tdk.summary', async (timing) => {
-    timing.stats.route = '/api/tdk/summary';
+  return withTiming('td.summary', async (timing) => {
+    timing.stats.route = '/api/td/summary';
     const items = await tdSummaryFast();
     timing.addRows(items.length);
     timing.setServerTiming(res);
