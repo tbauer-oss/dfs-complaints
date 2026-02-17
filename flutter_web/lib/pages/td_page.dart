@@ -227,11 +227,29 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  bool _structureLoaded = false;
+  bool _linksLoaded = false;
+  bool _changesLoaded = false;
+  bool _applicabilityLoaded = false;
+  bool _readinessLoaded = false;
+  bool _isLoadingReadiness = false;
+  bool _isLoadingApplicability = false;
+  bool _isLoadingChanges = false;
+  Map<String, dynamic> _overviewLight = const {};
+
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 8, vsync: this);
+    _tabs.addListener(_handleTabChange);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabs.removeListener(_handleTabChange);
+    _tabs.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -247,10 +265,16 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _links = const [];
         _readiness = null;
         _applicability = null;
+        _overviewLight = const {};
+        _structureLoaded = false;
+        _linksLoaded = false;
+        _changesLoaded = false;
+        _applicabilityLoaded = false;
+        _readinessLoaded = false;
         _error = null;
       });
       if (selected != null) {
-        await _loadTdDetails(selected.id);
+        await _loadOverviewLight(selected.id);
       }
     } catch (e) {
       setState(() => _error = '$e');
@@ -259,22 +283,62 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _loadTdDetails(String tdId) async {
+  void _handleTabChange() {
+    if (_tabs.indexIsChanging) return;
+    _ensureTabLoaded(_tabs.index);
+  }
+
+  Future<void> _loadOverviewLight(String tdId) async {
     final overview = await widget.api.fetchTdOverview(tdId);
-    final sectionsRaw = (overview['sections'] as List?) ?? const [];
-    final sections = sectionsRaw.whereType<Map>().map((e) => TdSection.fromJson(e.cast<String, dynamic>())).toList(growable: false);
-    final changes = await widget.api.fetchTdChanges(tdId);
-    final links = await widget.api.fetchTdLinks(tdId);
-    final readiness = await widget.api.fetchTdReadiness(tdId);
-    final applicability = await widget.api.fetchTdApplicability(tdId);
     if (!mounted) return;
-    setState(() {
-      _sections = sections;
-      _changes = changes;
-      _links = links;
-      _readiness = readiness;
-      _applicability = applicability;
-    });
+    setState(() => _overviewLight = overview);
+  }
+
+  Future<void> _ensureTabLoaded(int tabIndex) async {
+    final td = _selected;
+    if (td == null) return;
+    if (tabIndex == 1 && !_structureLoaded) {
+      final sections = await widget.api.fetchTdSections(td.id);
+      if (!mounted) return;
+      setState(() {
+        _sections = sections;
+        _structureLoaded = true;
+      });
+    }
+    if (tabIndex == 2 && !_applicabilityLoaded) {
+      await _runHeavyOperation(
+        key: 'applicability',
+        onRun: () async {
+          final bundle = await widget.api.fetchTdApplicability(td.id);
+          if (!mounted) return;
+          setState(() {
+            _applicability = bundle;
+            _applicabilityLoaded = true;
+          });
+        },
+      );
+    }
+    if (tabIndex == 3 && !_linksLoaded) {
+      final links = await widget.api.fetchTdLinks(td.id);
+      if (!mounted) return;
+      setState(() {
+        _links = links;
+        _linksLoaded = true;
+      });
+    }
+    if (tabIndex == 4 && !_changesLoaded) {
+      await _runHeavyOperation(
+        key: 'changes',
+        onRun: () async {
+          final changes = await widget.api.fetchTdChanges(td.id);
+          if (!mounted) return;
+          setState(() {
+            _changes = changes;
+            _changesLoaded = true;
+          });
+        },
+      );
+    }
   }
 
   @override
@@ -282,14 +346,102 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     return Row(children: [
-      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text('${td.code} · ${td.title}', maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () async { setState(() => _selected = td); await _loadTdDetails(td.id); },)).toList()))]))),
+      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text(td.title, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () async {
+                            setState(() {
+                              _selected = td;
+                              _sections = const [];
+                              _changes = const [];
+                              _links = const [];
+                              _readiness = null;
+                              _applicability = null;
+                              _overviewLight = const {};
+                              _structureLoaded = false;
+                              _linksLoaded = false;
+                              _changesLoaded = false;
+                              _applicabilityLoaded = false;
+                              _readinessLoaded = false;
+                            });
+                            await _loadOverviewLight(td.id);
+                            await _ensureTabLoaded(_tabs.index);
+                          },)).toList()))]))),
       const SizedBox(width: 12),
       Expanded(child: Card(child: Column(children: [
-        TabBar(controller: _tabs, isScrollable: true, tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Anwendbarkeit'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),
+        TabBar(controller: _tabs, isScrollable: true, onTap: (index) => _ensureTabLoaded(index), tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Anwendbarkeit'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),
         Expanded(child: TabBarView(controller: _tabs, children: [_dashboardTab(), _structureTab(), _applicabilityTab(), _linksTab(), _changesTab(), _heatmapTab(), _exportTab(), _calendarTab()])),
       ]))),
     ]);
   }
+
+
+  Future<void> _runHeavyOperation({required String key, required Future<void> Function() onRun}) async {
+    final status = {
+      'readiness': 'Technische Analyse wird durchgeführt...',
+      'applicability': 'MDR-Struktur wird geprüft...',
+      'changes': 'GSPR-Verknüpfungen werden validiert...',
+    }[key] ?? 'Analyse wird durchgeführt...';
+
+    if (key == 'readiness' && _isLoadingReadiness) return;
+    if (key == 'applicability' && _isLoadingApplicability) return;
+    if (key == 'changes' && _isLoadingChanges) return;
+
+    setState(() {
+      if (key == 'readiness') _isLoadingReadiness = true;
+      if (key == 'applicability') _isLoadingApplicability = true;
+      if (key == 'changes') _isLoadingChanges = true;
+    });
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => TdHeavyProgressDialog(statusText: status),
+    );
+
+    try {
+      await onRun();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Analyse abgeschlossen')));
+    } catch (e) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Fehler bei Analyse'),
+          content: Text('Die Analyse konnte nicht abgeschlossen werden.
+
+$e'),
+          actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+        ),
+      );
+    } finally {
+      if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      if (mounted) {
+        setState(() {
+          if (key == 'readiness') _isLoadingReadiness = false;
+          if (key == 'applicability') _isLoadingApplicability = false;
+          if (key == 'changes') _isLoadingChanges = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadReadiness() async {
+    final td = _selected;
+    if (td == null || _readinessLoaded) return;
+    await _runHeavyOperation(
+      key: 'readiness',
+      onRun: () async {
+        final readiness = await widget.api.fetchTdReadiness(td.id);
+        if (!mounted) return;
+        setState(() {
+          _readiness = readiness;
+          _readinessLoaded = true;
+        });
+      },
+    );
+  }
+
 
   Widget _dashboardTab() {
     final td = _selected;
@@ -297,6 +449,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     final readinessStatus = (_readiness?['readinessStatus'] ?? td.summary.readinessStatus).toString();
     final progressPercent = _completionPercent(td);
     final gaps = (_readiness?['gaps'] as List?)?.map((e) => '$e').toList() ?? const [];
+    final sectionCount = (_overviewLight['section_count'] as num?)?.toInt() ?? 0;
+    final answeredCount = (_overviewLight['answered_count'] as num?)?.toInt() ?? 0;
+    final linkCount = (_overviewLight['link_count'] as num?)?.toInt() ?? 0;
     return ListView(padding: const EdgeInsets.all(16), children: [
       Container(
         padding: const EdgeInsets.all(16),
@@ -311,7 +466,16 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
           Wrap(spacing: 16, runSpacing: 12, children: [
             _trafficLightCard(readinessStatus),
             _progressCard(progressPercent),
+            Chip(label: Text('Sektionen: $sectionCount')),
+            Chip(label: Text('Beantwortet: $answeredCount')),
+            Chip(label: Text('Links: $linkCount')),
           ]),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _isLoadingReadiness ? null : _loadReadiness,
+            icon: _isLoadingReadiness ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.analytics_outlined),
+            label: const Text('Readiness-Analyse starten'),
+          ),
         ]),
       ),
       const SizedBox(height: 12),
@@ -377,7 +541,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     );
   }
 
-  Widget _structureTab() => ListView(
+  Widget _structureTab() {
+    if (!_structureLoaded) return const Center(child: CircularProgressIndicator());
+    return ListView(
         padding: const EdgeInsets.all(12),
         children: _sections
             .map((s) => Card(
@@ -402,6 +568,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                 ))
             .toList(),
       );
+  }
 
 
   Chip _applicabilityChip(String state) {
@@ -543,8 +710,10 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   Widget _applicabilityTab() {
     final selected = _selected;
+    if (selected == null) return const Center(child: Text('Keine Anwendbarkeitsdaten'));
+    if (_isLoadingApplicability && !_applicabilityLoaded) return const Center(child: CircularProgressIndicator());
     final bundle = _applicability;
-    if (selected == null || bundle == null) return const Center(child: Text('Keine Anwendbarkeitsdaten'));
+    if (!_applicabilityLoaded || bundle == null) return const Center(child: Text('Keine Anwendbarkeitsdaten'));
     final profile = bundle.profile;
     return ListView(padding: const EdgeInsets.all(12), children: [
       Card(child: Padding(padding: const EdgeInsets.all(12), child: Wrap(spacing: 12, runSpacing: 12, children: [
@@ -556,7 +725,24 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       ]))),
       Wrap(spacing: 8, children: [
         FilledButton.icon(onPressed: widget.canEdit ? _openEditTdMetadataDialog : null, icon: const Icon(Icons.edit_outlined), label: const Text('Metadaten bearbeiten')),
-        FilledButton(onPressed: widget.canEdit ? () async { await widget.api.regenerateTdApplicability(selected.id); await _load(); } : null, child: const Text('Anwendbarkeit neu berechnen')),
+        FilledButton(
+          onPressed: (widget.canEdit && !_isLoadingApplicability)
+              ? () async {
+                  await _runHeavyOperation(
+                    key: 'applicability',
+                    onRun: () async {
+                      final regenerated = await widget.api.regenerateTdApplicability(selected.id);
+                      if (!mounted) return;
+                      setState(() {
+                        _applicability = regenerated;
+                        _applicabilityLoaded = true;
+                      });
+                    },
+                  );
+                }
+              : null,
+          child: const Text('Anwendbarkeit neu berechnen'),
+        ),
       ]),
       const SizedBox(height: 12),
       ...bundle.results.where((r) => r.queryKey == null).map((r) {
@@ -567,6 +753,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   }
 
   Widget _linksTab() {
+    if (!_linksLoaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Align(alignment: Alignment.centerRight, child: Padding(
         padding: const EdgeInsets.all(12),
@@ -610,7 +797,10 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  Widget _changesTab() => Column(children: [
+  Widget _changesTab() {
+    if (_isLoadingChanges && !_changesLoaded) return const Center(child: CircularProgressIndicator());
+    if (!_changesLoaded) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
     Align(alignment: Alignment.centerRight, child: Padding(padding: const EdgeInsets.all(12), child: FilledButton.icon(onPressed: widget.canEdit ? _createChange : null, icon: const Icon(Icons.add), label: const Text('Änderungsantrag erstellen')))),
     Expanded(child: ListView(children: _changes.map((c) => ListTile(
       title: Text(c.title),
@@ -627,6 +817,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       },
     )).toList())),
   ]);
+  }
 
 
   Future<void> _editChange(TdChangeRequest change) async {
@@ -681,6 +872,56 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   }, icon: const Icon(Icons.picture_as_pdf), label: const Text('NB-Paket erzeugen')));
 
   Widget _calendarTab() => ListView(children: _sections.map((s) => ListTile(title: Text(_sectionNameDe(s)), subtitle: Text(s.nextReviewAt ?? 'nicht gesetzt'))).toList());
+}
+
+
+class TdHeavyProgressDialog extends StatefulWidget {
+  final String statusText;
+  const TdHeavyProgressDialog({super.key, required this.statusText});
+
+  @override
+  State<TdHeavyProgressDialog> createState() => _TdHeavyProgressDialogState();
+}
+
+class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
+  double _percent = 8;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+  }
+
+  Future<void> _tick() async {
+    while (mounted && _percent < 92) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      setState(() => _percent = (_percent + 4).clamp(8, 92));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Analyse läuft'),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LinearProgressIndicator(value: _percent / 100),
+            const SizedBox(height: 8),
+            Text('${_percent.toInt()} %'),
+            const SizedBox(height: 8),
+            Text(widget.statusText),
+            const SizedBox(height: 8),
+            const Text('Dies kann je nach Umfang einige Sekunden dauern.'),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class TdSectionDetailPage extends StatefulWidget {

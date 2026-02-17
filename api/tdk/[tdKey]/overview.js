@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   try {
     const overview = await tdOverviewFast(tdKey);
     if (!overview) return bad(res, 'not found', 404);
-    console.info('[td/overview]', { td_key: tdKey, total_ms: Date.now() - started, section_count: overview.sections.length });
+    console.info('[td/overview]', { td_key: tdKey, total_ms: Date.now() - started, section_count: overview.section_count });
     return ok(res, { ok: true, ...overview });
   } catch (err) {
     return bad(res, err?.message || 'server error', 500);
