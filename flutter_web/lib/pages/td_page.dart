@@ -241,8 +241,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   bool _isLoadingApplicability = false;
   bool _isLoadingChanges = false;
   bool _isLoadingLinks = false;
+  bool _overviewStageLoaded = false;
+  bool _sectionsMetaStageLoaded = false;
   Map<String, dynamic> _overviewLight = const {};
   int? _sectionsNextCursor;
+  final Map<String, TdSection> _sectionContentById = <String, TdSection>{};
+  final Set<String> _sectionContentLoading = <String>{};
 
   @override
   void initState() {
@@ -282,8 +286,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _readiness = null;
         _applicability = null;
         _overviewLight = const {};
+        _overviewStageLoaded = false;
+        _sectionsMetaStageLoaded = false;
         _structureLoaded = false;
         _sectionsNextCursor = null;
+        _sectionContentById.clear();
+        _sectionContentLoading.clear();
         _linksLoaded = false;
         _changesLoaded = false;
         _applicabilityLoaded = false;
@@ -291,7 +299,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       });
 
       if (selected != null) {
-        unawaited(_loadStartupBootstrap(selected.id));
+        unawaited(_loadStartupData(selected.id));
       }
 
       if (list.isEmpty) {
@@ -318,34 +326,42 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     _ensureTabLoaded(_tabs.index);
   }
 
-  Future<void> _loadStartupBootstrap(String tdId) async {
+  Future<void> _loadStartupData(String tdId) async {
+    unawaited(_loadStartupOverview(tdId));
+    unawaited(_loadStartupSectionsMeta(tdId));
+  }
+
+  Future<void> _loadStartupOverview(String tdId) async {
     try {
-      final bootstrap = await widget.api.fetchTdStartupBootstrap(tdId);
+      final overview = await widget.api.fetchTdOverview(tdId);
       if (!mounted) return;
-      final overview = (bootstrap['overview'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-      final sectionPayload = (bootstrap['sections'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-      final sectionItems = (sectionPayload['items'] as List?) ?? const [];
-      final sections = sectionItems
-          .whereType<Map>()
-          .map((e) => TdSection.fromJson(e.cast<String, dynamic>()))
-          .toList(growable: false);
-      final page = (sectionPayload['page'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
       setState(() {
         _overviewLight = overview;
-        if (sections.isNotEmpty) {
-          _sections = sections;
-          _structureLoaded = true;
-          _sectionsNextCursor = (page['nextCursor'] as num?)?.toInt();
-        }
+        _overviewStageLoaded = true;
       });
     } catch (e) {
       if (!_summaryFailureLogged) {
         _summaryFailureLogged = true;
-        debugPrint('[td] startup bootstrap failed: $e');
+        debugPrint('[td] startup overview failed: $e');
       }
-      final overview = await widget.api.fetchTdOverview(tdId);
+    }
+  }
+
+  Future<void> _loadStartupSectionsMeta(String tdId) async {
+    try {
+      final page = await widget.api.fetchTdSectionsPaged(tdId, limit: 50, cursor: 0);
       if (!mounted) return;
-      setState(() => _overviewLight = overview);
+      setState(() {
+        _sections = page.$1;
+        _sectionsNextCursor = page.$2;
+        _structureLoaded = true;
+        _sectionsMetaStageLoaded = true;
+      });
+    } catch (e) {
+      if (!_summaryFailureLogged) {
+        _summaryFailureLogged = true;
+        debugPrint('[td] startup sections/meta failed: $e');
+      }
     }
   }
 
@@ -358,7 +374,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _items = list;
         _selected = selected;
       });
-      unawaited(_loadStartupBootstrap(selected.id));
+      unawaited(_loadStartupData(selected.id));
     } catch (_) {
       // Optional background refresh.
     }
@@ -377,6 +393,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
             _sections = page.$1;
             _sectionsNextCursor = page.$2;
             _structureLoaded = true;
+            _sectionsMetaStageLoaded = true;
           });
         },
       );
@@ -435,14 +452,18 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                               _readiness = null;
                               _applicability = null;
                               _overviewLight = const {};
+                              _overviewStageLoaded = false;
+                              _sectionsMetaStageLoaded = false;
                               _structureLoaded = false;
                               _sectionsNextCursor = null;
+                              _sectionContentById.clear();
+                              _sectionContentLoading.clear();
                               _linksLoaded = false;
                               _changesLoaded = false;
                               _applicabilityLoaded = false;
                               _readinessLoaded = false;
                             });
-                            unawaited(_loadStartupBootstrap(td.id));
+                            unawaited(_loadStartupData(td.id));
                             await _ensureTabLoaded(_tabs.index);
                           },)).toList()))]))),
       const SizedBox(width: 12),
@@ -561,6 +582,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Widget _dashboardTab() {
     final td = _selected;
     if (td == null) return const Center(child: Text('Keine TD ausgewählt. Die Liste wird im Hintergrund geladen.'));
+    final startupDone = _overviewStageLoaded && _sectionsMetaStageLoaded;
     final readinessStatus = (_readiness?['readinessStatus'] ?? td.summary.readinessStatus).toString();
     final progressPercent = _completionPercent(td);
     final gaps = (_readiness?['gaps'] as List?)?.map((e) => '$e').toList() ?? const [];
@@ -568,6 +590,13 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     final answeredCount = (_overviewLight['answered_count'] as num?)?.toInt() ?? 0;
     final linkCount = (_overviewLight['link_count'] as num?)?.toInt() ?? 0;
     return ListView(padding: const EdgeInsets.all(16), children: [
+      if (!startupDone)
+        const Card(
+          child: ListTile(
+            title: Text('TD wird vorbereitet...'),
+            subtitle: Text('Stufe 1: Übersicht laden · Stufe 2: Abschnitt-Metadaten laden'),
+          ),
+        ),
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -667,28 +696,54 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        ..._sections
-            .map((s) => Card(
-                  child: ListTile(
-                    title: Text(_sectionNameDe(s)),
-                    subtitle: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+        ..._sections.map((s) {
+          final details = _sectionContentById[s.id];
+          final detailSummary = details?.content?.summaryMarkdown ?? '';
+          final isLoading = _sectionContentLoading.contains(s.id);
+          return Card(
+            child: ExpansionTile(
+              title: Text(_sectionNameDe(s)),
+              subtitle: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (s.completion != null) Chip(label: Text('Vollständigkeit ${s.completion}%')),
+                ],
+              ),
+              trailing: Chip(label: Text(_statusDe(s.status))),
+              onExpansionChanged: (expanded) {
+                if (expanded) unawaited(_loadSectionContent(s.id));
+              },
+              children: [
+                if (isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: LinearProgressIndicator(),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${s.templateKey} · Links ${s.linkCount ?? 0}'),
-                        if (s.completion != null) Chip(label: Text('Vollständigkeit ${s.completion}%')),
-                        if (s.queryTotal != null) Chip(label: Text('Abfragen ${s.queryTotal}')),
+                        Text(detailSummary.isEmpty ? 'Keine Abschnittsinhalte vorhanden.' : detailSummary, maxLines: 4, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            if (_selected == null) return;
+                            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TdSectionDetailPage(api: widget.api, td: _selected!, sectionId: s.id, canEdit: widget.canEdit)));
+                            _load();
+                          },
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Details öffnen'),
+                        ),
                       ],
                     ),
-                    trailing: Wrap(spacing: 8, children: [if (s.applicability != null) _applicabilityChip(s.applicability!.state), Chip(label: Text(_statusDe(s.status)))]),
-                    onTap: () async {
-                      if (_selected == null) return;
-                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TdSectionDetailPage(api: widget.api, td: _selected!, sectionId: s.id, canEdit: widget.canEdit)));
-                      _load();
-                    },
                   ),
-                ))
-            .toList(),
+              ],
+            ),
+          );
+        }).toList(),
         if (_sectionsNextCursor != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -706,6 +761,22 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     );
   }
 
+  Future<void> _loadSectionContent(String sectionId) async {
+    final td = _selected;
+    if (td == null || _sectionContentById.containsKey(sectionId) || _sectionContentLoading.contains(sectionId)) return;
+    setState(() => _sectionContentLoading.add(sectionId));
+    try {
+      final map = await widget.api.fetchTdSectionContent(td.id, sectionId);
+      if (!mounted) return;
+      setState(() => _sectionContentById[sectionId] = TdSection.fromJson(map));
+    } catch (_) {
+      // optional for preview
+    } finally {
+      if (mounted) {
+        setState(() => _sectionContentLoading.remove(sectionId));
+      }
+    }
+  }
 
   Chip _applicabilityChip(String state) {
     final map = {

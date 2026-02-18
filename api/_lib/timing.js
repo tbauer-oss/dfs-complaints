@@ -45,7 +45,7 @@ export function withTiming(name, fn, context = {}) {
     },
     setServerTiming: (res) => {
       const total = Date.now() - startedAt;
-      res.setHeader('Server-Timing', `app;dur=${total}, db;dur=${stats.ms_db}, kv;dur=${stats.ms_kv}`);
+      res.setHeader('Server-Timing', `db;dur=${stats.ms_db}, total;dur=${total}`);
     },
   };
 

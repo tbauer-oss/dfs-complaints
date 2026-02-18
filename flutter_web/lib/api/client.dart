@@ -4076,14 +4076,27 @@ class ApiClient {
   }
 
   Future<(List<TdSection>, int?)> fetchTdSectionsPaged(String tdId, {int limit = 50, int cursor = 0}) async {
-    final path = '/api/td/$tdId/sections';
+    final path = '/api/td/$tdId/sections/meta';
     final qp = '?limit=$limit&cursor=$cursor';
     final r = await http.get(_u('$path$qp'), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
     final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     final items = (body['items'] as List?) ?? const [];
-    final sections = items.whereType<Map>().map((e) => TdSection.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+    final sections = items
+        .whereType<Map>()
+        .map((entry) {
+          final map = entry.cast<String, dynamic>();
+          return TdSection.fromJson({
+            'id': map['id'],
+            'name': map['title'] ?? '',
+            'title': map['title'] ?? '',
+            'status': map['status'] ?? 'NotStarted',
+            'templateKey': map['templateKey'] ?? '',
+            'queryStats': {'completion': map['completeness_percent']},
+          });
+        })
+        .toList(growable: false);
     final page = (body['page'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
     final nextCursor = (page['nextCursor'] as num?)?.toInt();
     return (sections, nextCursor);
@@ -4091,6 +4104,15 @@ class ApiClient {
 
   Future<Map<String, dynamic>> fetchTdSectionDetail(String sectionId) async {
     final path = '/api/td/sections/$sectionId';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+    return (body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> fetchTdSectionContent(String tdId, String sectionId) async {
+    final path = '/api/td/$tdId/sections/$sectionId/content';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
     if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
