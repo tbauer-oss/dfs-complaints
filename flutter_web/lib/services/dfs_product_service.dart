@@ -1,28 +1,31 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../models/dfs_product.dart';
 
 class DfsProductService {
-  static const assetPath = 'lib/data/dfs_products.csv';
+  static const assetPath = 'assets/data/dfs_products.csv';
 
   Future<List<DfsProduct>> loadProducts() async {
-    final data = await rootBundle.load(assetPath);
-    final bytes = data.buffer.asUint8List();
-
-    // CSVs exported from Excel are often encoded in Latin-1. Try UTF-8 first and
-    // gracefully fall back to Latin-1 instead of crashing with a FormatException
-    // when the encoding is not UTF-8.
-    String content;
-    try {
-      content = utf8.decode(bytes);
-    } on FormatException {
-      content = latin1.decode(bytes);
+    final content = await rootBundle.loadString(assetPath);
+    final normalized = content.trimLeft().toLowerCase();
+    if (normalized.startsWith('<!doctype') || normalized.startsWith('<html')) {
+      final preview = _preview(content);
+      final debugSuffix = kDebugMode ? ' Inhalt-Preview: $preview' : '';
+      throw FormatException('Ungültiger CSV-Inhalt aus Asset $assetPath (HTML statt CSV erkannt).$debugSuffix');
     }
 
     return parse(content);
+  }
+
+
+  String _preview(String content) {
+    final sanitized = content.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (sanitized.length <= 120) return sanitized;
+    return '${sanitized.substring(0, 120)}...';
   }
 
   List<DfsProduct> parse(String content) {
