@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
 import '../models/td.dart';
-import '../td/td_catalog.dart';
 import 'admin_page.dart';
 
 class TdPage extends StatefulWidget {
@@ -31,7 +30,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   bool _summaryFailureLogged = false;
   String? _error;
   String? _summaryBanner;
-  String _catalogSource = 'csv';
+  String _catalogSource = 'api';
   bool _summaryOk = false;
   String? _loadingHint;
   String? _loadingDiagnostics;
@@ -257,6 +256,10 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   bool _isLoadingLinks = false;
   Map<String, dynamic> _overviewLight = const {};
   int? _sectionsNextCursor;
+  static List<TdFile>? _catalogMemoryCache;
+  static DateTime? _catalogMemoryCachedAt;
+  static const Duration _catalogMemoryTtl = Duration(minutes: 30);
+
 
   @override
   void initState() {
@@ -389,7 +392,11 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     });
 
     try {
-      final catalog = await TdCatalogBuilder.loadCatalog();
+      final now = DateTime.now();
+      final useCache = _catalogMemoryCache != null && _catalogMemoryCachedAt != null && now.difference(_catalogMemoryCachedAt!) < _catalogMemoryTtl;
+      final catalog = useCache ? TdCatalogResponse(items: _catalogMemoryCache!, meta: const <String, dynamic>{}, source: 'memory') : await widget.api.fetchTdCatalog();
+      _catalogMemoryCache = catalog.items;
+      _catalogMemoryCachedAt = now;
       if (!mounted) return;
       final selected = catalog.items.isNotEmpty
           ? (_selected == null ? catalog.items.first : catalog.items.firstWhere((e) => e.id == _selected!.id, orElse: () => catalog.items.first))
@@ -413,20 +420,18 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _readinessLoaded = false;
       });
 
-      debugPrint('[td] catalogCount=${catalog.items.length} summaryCount=0 summaryOk=false mergeHitRate=0% source=${catalog.source}');
-
       if (selected != null) {
         unawaited(_loadStartupBootstrap(selected.id));
       }
       unawaited(_fetchSummaryAndEnrich(catalog.items));
     } catch (e) {
       final details = e.toString();
-      final devDetails = kDebugMode ? '\n$details' : '';
+      final devDetails = kDebugMode ? '
+$details' : '';
       setState(() {
         _items = const [];
         _selected = null;
-        _error =
-            'TD-Katalog konnte nicht geladen werden (Asset fehlt im Web-Build). Bitte Deployment/Assets prüfen.$devDetails';
+        _error = 'TD-Katalog konnte nicht vom Server geladen werden.$devDetails';
       });
     } finally {
       if (mounted) {
@@ -445,24 +450,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   Future<void> _loadStartupBootstrap(String tdId) async {
     try {
-      final bootstrap = await _runWithApiLimit(() => widget.api.fetchTdStartupBootstrap(tdId));
+      final overview = await _runWithApiLimit(() => widget.api.fetchTdOverview(tdId));
       if (!mounted) return;
-      final overview = (bootstrap['overview'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-      final sectionPayload = (bootstrap['sections'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-      final sectionItems = (sectionPayload['items'] as List?) ?? const [];
-      final sections = sectionItems
-          .whereType<Map>()
-          .map((e) => TdSection.fromJson(e.cast<String, dynamic>()))
-          .toList(growable: false);
-      final page = (sectionPayload['page'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-      setState(() {
-        _overviewLight = overview;
-        if (sections.isNotEmpty) {
-          _sections = sections;
-          _structureLoaded = true;
-          _sectionsNextCursor = (page['nextCursor'] as num?)?.toInt();
-        }
-      });
+      setState(() => _overviewLight = overview);
     } catch (e) {
       if (!_summaryFailureLogged) {
         _summaryFailureLogged = true;
@@ -480,7 +470,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 1 && !_structureLoaded) {
       await _runHeavyOperation(
         key: 'structure',
-        onRun: () async {
+        onRun: (setStep) async {
+          setStep(1);
+          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          setStep(2);
+          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
+          setStep(3);
           final page = await _runWithApiLimit(() => widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: 0));
           if (!mounted) return;
           setState(() {
@@ -494,7 +489,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 2 && !_applicabilityLoaded) {
       await _runHeavyOperation(
         key: 'applicability',
-        onRun: () async {
+        onRun: (setStep) async {
+          setStep(1);
+          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          setStep(2);
+          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
+          setStep(4);
           final bundle = await _runWithApiLimit(() => widget.api.fetchTdApplicability(td.id));
           if (!mounted) return;
           setState(() {
@@ -507,7 +507,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 3 && !_linksLoaded) {
       await _runHeavyOperation(
         key: 'links',
-        onRun: () async {
+        onRun: (setStep) async {
+          setStep(1);
+          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          setStep(2);
+          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
+          setStep(4);
           final links = await _runWithApiLimit(() => widget.api.fetchTdLinks(td.id));
           if (!mounted) return;
           setState(() {
@@ -520,7 +525,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 4 && !_changesLoaded) {
       await _runHeavyOperation(
         key: 'changes',
-        onRun: () async {
+        onRun: (setStep) async {
+          setStep(1);
+          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          setStep(2);
+          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
+          setStep(4);
           final changes = await _runWithApiLimit(() => widget.api.fetchTdChanges(td.id));
           if (!mounted) return;
           setState(() {
@@ -614,7 +624,6 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                     _applicabilityLoaded = false;
                     _readinessLoaded = false;
                   });
-                  unawaited(_loadStartupBootstrap(td.id));
                   await _ensureTabLoaded(_tabs.index);
                 },
               ),
@@ -745,7 +754,10 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _runHeavyOperation({required String key, required Future<void> Function() onRun}) async {
+  Future<void> _runHeavyOperation({
+    required String key,
+    required Future<void> Function(void Function(int step) setStep) onRun,
+  }) async {
     final status = {
       'readiness': 'Readiness-Analyse läuft...',
       'applicability': 'Anwendbarkeit wird berechnet...',
@@ -753,14 +765,8 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       'structure': 'Struktur wird geladen (Abschnitte & Zähler)...',
       'links': 'Links werden geladen...',
     }[key] ?? 'Analyse wird durchgeführt...';
-    final stages = {
-      'readiness': const ['Übersicht', 'Struktur', 'Readiness', 'Finalisiere'],
-      'applicability': const ['Profil laden', 'Regeln anwenden', 'Ergebnisse schreiben', 'Finalisiere'],
-      'changes': const ['Daten laden', 'Klassifizieren', 'Validieren', 'Finalisiere'],
-      'structure': const ['Übersicht', 'Sektionen laden', 'Metriken berechnen', 'Finalisiere'],
-      'links': const ['Links laden', 'Validieren', 'Zuordnen', 'Finalisiere'],
-    }[key] ?? const ['Initialisiere', 'Verarbeite', 'Validiere', 'Finalisiere'];
-    final completeSignal = ValueNotifier<bool>(false);
+    final stages = const ['Loading catalog', 'Loading TD summary', 'Loading section headers (structure)', 'Loading content'];
+    final currentStep = ValueNotifier<int>(1);
 
     if (key == 'readiness' && _isLoadingReadiness) return;
     if (key == 'applicability' && _isLoadingApplicability) return;
@@ -780,13 +786,13 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => TdHeavyProgressDialog(statusText: status, stages: stages, completed: completeSignal),
+      builder: (_) => TdHeavyProgressDialog(statusText: status, stages: stages, currentStep: currentStep),
     ).whenComplete(() => progressDialogOpen = false);
 
     try {
-      await onRun();
+      await onRun((step) => currentStep.value = step.clamp(1, stages.length));
+      currentStep.value = stages.length;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Analyse abgeschlossen')));
     } catch (e) {
       if (!mounted) return;
       await showDialog<void>(
@@ -798,12 +804,11 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         ),
       );
     } finally {
-      completeSignal.value = true;
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await Future<void>.delayed(const Duration(milliseconds: 150));
       if (mounted && progressDialogOpen) {
         Navigator.of(context, rootNavigator: true).pop();
       }
-      completeSignal.dispose();
+      currentStep.dispose();
       if (mounted) {
         setState(() {
           if (key == 'readiness') _isLoadingReadiness = false;
@@ -838,7 +843,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (td == null || _readinessLoaded) return;
     await _runHeavyOperation(
       key: 'readiness',
-      onRun: () async {
+      onRun: (setStep) async {
+        setStep(1);
+        await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+        setStep(2);
+        await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
+        setStep(4);
         final readiness = await _runWithApiLimit(() => widget.api.fetchTdReadiness(td.id));
         if (!mounted) return;
         setState(() {
@@ -1166,7 +1176,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
               ? () async {
                   await _runHeavyOperation(
                     key: 'applicability',
-                    onRun: () async {
+                    onRun: (setStep) async {
+                      setStep(1);
+                      await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+                      setStep(2);
+                      await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
+                      setStep(4);
                       final regenerated = await widget.api.regenerateTdApplicability(selected.id);
                       if (!mounted) return;
                       setState(() {
@@ -1314,13 +1329,13 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 class TdHeavyProgressDialog extends StatefulWidget {
   final String statusText;
   final List<String> stages;
-  final ValueNotifier<bool> completed;
+  final ValueNotifier<int> currentStep;
 
   const TdHeavyProgressDialog({
     super.key,
     required this.statusText,
     required this.stages,
-    required this.completed,
+    required this.currentStep,
   });
 
   @override
@@ -1328,106 +1343,53 @@ class TdHeavyProgressDialog extends StatefulWidget {
 }
 
 class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
-  static const _tickDuration = Duration(milliseconds: 400);
-  Timer? _ticker;
-  double _progress = 0.0;
-  bool _indeterminate = false;
-  String _stageLabel = 'Request startet…';
-
-  @override
-  void initState() {
-    super.initState();
-    widget.completed.addListener(_onCompletedChanged);
-    _ticker = Timer.periodic(_tickDuration, (_) {
-      if (!mounted || widget.completed.value) return;
-      setState(() {
-        if (_progress < 0.2) {
-          _progress = (_progress + 0.05).clamp(0.0, 0.2);
-          _stageLabel = 'Stage A: Request startet';
-          return;
-        }
-        if (_progress < 0.7) {
-          _progress = (_progress + 0.06).clamp(0.2, 0.7);
-          _stageLabel = 'Stage B: Warte auf Antwort';
-          return;
-        }
-        _stageLabel = 'Stage C: Verarbeitung & Rendern';
-        _indeterminate = true;
-      });
-    });
-  }
-
-  void _onCompletedChanged() {
-    if (!mounted || !widget.completed.value) return;
-    setState(() {
-      _indeterminate = false;
-      _progress = 1.0;
-      _stageLabel = 'Stage D: Fertig';
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    widget.completed.removeListener(_onCompletedChanged);
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final currentStage = widget.completed.value
-        ? widget.stages.length
-        : ((_progress <= 0.2 ? 1 : _progress <= 0.7 ? 2 : 3).clamp(1, widget.stages.length));
-
-    return AlertDialog(
-      title: const Text('Analyse läuft'),
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_stageLabel),
-            const SizedBox(height: 10),
-            if (_indeterminate)
-              const LinearProgressIndicator()
-            else
-              LinearProgressIndicator(value: _progress),
-            const SizedBox(height: 8),
-            Text(_indeterminate ? 'Verarbeitung läuft…' : '${(_progress * 100).round()} %'),
-            const SizedBox(height: 8),
-            Text(widget.statusText),
-            const SizedBox(height: 10),
-            ...widget.stages.asMap().entries.map((entry) {
-              final idx = entry.key + 1;
-              final done = idx < currentStage;
-              final active = idx == currentStage;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    Icon(
-                      done
-                          ? Icons.check_circle
-                          : (active ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-                      size: 16,
-                      color: done || active ? const Color(0xFF1D4ED8) : Colors.grey,
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.currentStep,
+      builder: (context, step, _) {
+        final safeStep = step.clamp(1, widget.stages.length);
+        final progress = safeStep / widget.stages.length;
+        return AlertDialog(
+          title: const Text('Laden…'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Step $safeStep/${widget.stages.length}: ${widget.stages[safeStep - 1]}'),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(value: progress),
+                const SizedBox(height: 8),
+                Text('${(progress * 100).round()} %'),
+                const SizedBox(height: 8),
+                Text(widget.statusText),
+                const SizedBox(height: 10),
+                ...widget.stages.asMap().entries.map((entry) {
+                  final idx = entry.key + 1;
+                  final done = idx < safeStep;
+                  final active = idx == safeStep;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Icon(
+                          done ? Icons.check_circle : (active ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                          size: 16,
+                          color: done || active ? const Color(0xFF1D4ED8) : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Text('${idx}/${widget.stages.length} ${entry.value}'),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Text('${idx}/${widget.stages.length} ${entry.value}'),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Im Hintergrund fortsetzen'),
-        ),
-      ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

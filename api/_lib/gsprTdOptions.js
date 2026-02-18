@@ -1,10 +1,7 @@
-import fs from 'fs/promises';
-import path from 'path';
-
 import { fmeaAll, fmeaGet } from './store.js';
+import { loadTdCatalogFromDb } from './tdCatalog.js';
 
 const MDR_TD_PREFIX = 'MDR-TD';
-const CSV_PATH = path.join(process.cwd(), 'dfs_mobile', 'assets', 'data', 'dfs_products.csv');
 
 export function normalizeTdLabel(value) {
   let text = (value ?? '').toString().trim();
@@ -54,81 +51,17 @@ function fmeaLabel(fmea) {
   return mdrTd;
 }
 
-function detectDelimiter(line) {
-  const commaCount = (line.match(/,/g) || []).length;
-  const semiCount = (line.match(/;/g) || []).length;
-  return semiCount > commaCount ? ';' : ',';
-}
-
-function parseCsvRows(content, delimiter) {
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    if (char === '"') {
-      const next = content[i + 1];
-      if (inQuotes && next === '"') {
-        field += '"';
-        i++;
-        continue;
-      }
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (!inQuotes && char === delimiter) {
-      row.push(field);
-      field = '';
-      continue;
-    }
-
-    if (!inQuotes && (char === '\n' || char === '\r')) {
-      if (char === '\r' && content[i + 1] === '\n') i++;
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
-      continue;
-    }
-
-    field += char;
-  }
-
-  row.push(field);
-  if (row.length > 1 || row[0]?.trim()) rows.push(row);
-  return rows;
-}
-
 async function loadMdrTdValues() {
-  const buf = await fs.readFile(CSV_PATH);
-  let content;
-  try {
-    content = new TextDecoder('utf-8', { fatal: true }).decode(buf);
-  } catch (_) {
-    content = new TextDecoder('latin1').decode(buf);
-  }
-
-  const previewLines = content.split(/\r?\n/).slice(0, 3);
-  const headerLine = previewLines.find((line) => line.trim().length > 0) || '';
-  const delimiter = detectDelimiter(headerLine);
-  const rows = parseCsvRows(content, delimiter);
   const values = new Set();
-
+  const rows = await loadTdCatalogFromDb();
   for (const row of rows) {
-    if (!row || row.length === 0) continue;
-    const normalized = normalizeTdValue(row[0]);
-    if (!normalized.startsWith(MDR_TD_PREFIX)) continue;
-    values.add(normalized);
+    const code = normalizeTdValue(row?.td_key);
+    if (!code.startsWith(MDR_TD_PREFIX)) continue;
+    const label = row?.title ? `${code} – ${String(row.title).trim()}` : code;
+    values.add(label);
   }
-
   if (values.size === 0) {
-    console.error('[gspr/td-options] no MDR-TD entries parsed', {
-      path: CSV_PATH,
-      preview: previewLines,
-    });
+    console.error('[gspr/td-options] no MDR-TD entries found in DB catalog');
   }
 
   return Array.from(values);
@@ -139,17 +72,18 @@ export async function gsprTdOptions() {
   const fmeas = await fmeaAll();
   const fmeaByMdrTd = new Map();
   for (const fmea of fmeas) {
-    const mdrTd = (fmea?.mdrTd || '').toString().trim();
+    const mdrTd = parseMdrTd((fmea?.mdrTd || '').toString().trim()) || (fmea?.mdrTd || '').toString().trim();
     if (mdrTd) fmeaByMdrTd.set(mdrTd, fmea);
   }
 
   const options = tdValues
     .map((label) => {
-      const fmea = fmeaByMdrTd.get(label) || null;
+      const mdrTd = parseMdrTd(label) || label;
+      const fmea = fmeaByMdrTd.get(mdrTd) || null;
       return {
-        key: label,
+        key: mdrTd,
         label,
-        mdrTd: label,
+        mdrTd,
         hasFmea: Boolean(fmea),
       };
     })
