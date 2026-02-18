@@ -40,6 +40,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Timer? _diagnosticTimer;
   Map<String, dynamic>? _readiness;
   TdApplicabilityBundle? _applicability;
+  int _activeApiCalls = 0;
+  final List<Completer<void>> _apiQueue = <Completer<void>>[];
+  static const int _maxParallelApiCalls = 2;
 
   static const List<String> _linkTypes = ['Document', 'ExternalLink', 'GSPR', 'FMEA', 'CAPA', 'Supplier', 'Training', 'Report', 'Change'];
   static const List<String> _profileTypes = ['ROTARY_REUSABLE_NONSTERILE', 'ROTARY_REUSABLE_SURGICAL', 'DENTAL_ALLOYS', 'SOFTWARE_DEVICE'];
@@ -442,7 +445,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   Future<void> _loadStartupBootstrap(String tdId) async {
     try {
-      final bootstrap = await widget.api.fetchTdStartupBootstrap(tdId);
+      final bootstrap = await _runWithApiLimit(() => widget.api.fetchTdStartupBootstrap(tdId));
       if (!mounted) return;
       final overview = (bootstrap['overview'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
       final sectionPayload = (bootstrap['sections'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
@@ -465,7 +468,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _summaryFailureLogged = true;
         debugPrint('[td] startup bootstrap failed: $e');
       }
-      final overview = await widget.api.fetchTdOverview(tdId);
+      final overview = await _runWithApiLimit(() => widget.api.fetchTdOverview(tdId));
       if (!mounted) return;
       setState(() => _overviewLight = overview);
     }
@@ -478,7 +481,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       await _runHeavyOperation(
         key: 'structure',
         onRun: () async {
-          final page = await widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: 0);
+          final page = await _runWithApiLimit(() => widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: 0));
           if (!mounted) return;
           setState(() {
             _sections = page.$1;
@@ -492,7 +495,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       await _runHeavyOperation(
         key: 'applicability',
         onRun: () async {
-          final bundle = await widget.api.fetchTdApplicability(td.id);
+          final bundle = await _runWithApiLimit(() => widget.api.fetchTdApplicability(td.id));
           if (!mounted) return;
           setState(() {
             _applicability = bundle;
@@ -505,7 +508,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       await _runHeavyOperation(
         key: 'links',
         onRun: () async {
-          final links = await widget.api.fetchTdLinks(td.id);
+          final links = await _runWithApiLimit(() => widget.api.fetchTdLinks(td.id));
           if (!mounted) return;
           setState(() {
             _links = links;
@@ -518,7 +521,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       await _runHeavyOperation(
         key: 'changes',
         onRun: () async {
-          final changes = await widget.api.fetchTdChanges(td.id);
+          final changes = await _runWithApiLimit(() => widget.api.fetchTdChanges(td.id));
           if (!mounted) return;
           setState(() {
             _changes = changes;
@@ -554,6 +557,22 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
               title: Text(_loadingDiagnostics!),
             ),
         ],
+      );
+    } else if (_error != null && _items.isEmpty) {
+      summaryListContent = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 32),
+              const SizedBox(height: 8),
+              const Text('Katalog konnte nicht geladen werden'),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Neu laden')),
+            ],
+          ),
+        ),
       );
     } else if (_items.isEmpty) {
       summaryListContent = Center(
@@ -707,6 +726,25 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   }
 
 
+
+  Future<T> _runWithApiLimit<T>(Future<T> Function() run) async {
+    if (_activeApiCalls >= _maxParallelApiCalls) {
+      final waiter = Completer<void>();
+      _apiQueue.add(waiter);
+      await waiter.future;
+    }
+
+    _activeApiCalls += 1;
+    try {
+      return await run();
+    } finally {
+      _activeApiCalls -= 1;
+      if (_apiQueue.isNotEmpty) {
+        _apiQueue.removeAt(0).complete();
+      }
+    }
+  }
+
   Future<void> _runHeavyOperation({required String key, required Future<void> Function() onRun}) async {
     final status = {
       'readiness': 'Readiness-Analyse läuft...',
@@ -738,11 +776,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       if (key == 'links') _isLoadingLinks = true;
     });
 
+    var progressDialogOpen = true;
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => TdHeavyProgressDialog(statusText: status, stages: stages, completed: completeSignal),
-    );
+    ).whenComplete(() => progressDialogOpen = false);
 
     try {
       await onRun();
@@ -761,7 +800,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     } finally {
       completeSignal.value = true;
       await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+      if (mounted && progressDialogOpen) {
         Navigator.of(context, rootNavigator: true).pop();
       }
       completeSignal.dispose();
@@ -783,7 +822,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (td == null || next == null || _isLoadingStructure) return;
     setState(() => _isLoadingStructure = true);
     try {
-      final page = await widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: next);
+      final page = await _runWithApiLimit(() => widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: next));
       if (!mounted) return;
       setState(() {
         _sections = [..._sections, ...page.$1];
@@ -800,7 +839,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     await _runHeavyOperation(
       key: 'readiness',
       onRun: () async {
-        final readiness = await widget.api.fetchTdReadiness(td.id);
+        final readiness = await _runWithApiLimit(() => widget.api.fetchTdReadiness(td.id));
         if (!mounted) return;
         setState(() {
           _readiness = readiness;
@@ -1289,25 +1328,31 @@ class TdHeavyProgressDialog extends StatefulWidget {
 }
 
 class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
-  static const _tickDuration = Duration(milliseconds: 350);
-  late final DateTime _startedAt;
+  static const _tickDuration = Duration(milliseconds: 400);
   Timer? _ticker;
-  double _progress = 0.08;
-  bool _indeterminateFinalization = false;
+  double _progress = 0.0;
+  bool _indeterminate = false;
+  String _stageLabel = 'Request startet…';
 
   @override
   void initState() {
     super.initState();
-    _startedAt = DateTime.now();
     widget.completed.addListener(_onCompletedChanged);
     _ticker = Timer.periodic(_tickDuration, (_) {
       if (!mounted || widget.completed.value) return;
       setState(() {
-        _progress = (_progress + 0.045).clamp(0.08, 0.85);
-        final elapsed = DateTime.now().difference(_startedAt);
-        if (_progress >= 0.85 && elapsed > const Duration(seconds: 2)) {
-          _indeterminateFinalization = true;
+        if (_progress < 0.2) {
+          _progress = (_progress + 0.05).clamp(0.0, 0.2);
+          _stageLabel = 'Stage A: Request startet';
+          return;
         }
+        if (_progress < 0.7) {
+          _progress = (_progress + 0.06).clamp(0.2, 0.7);
+          _stageLabel = 'Stage B: Warte auf Antwort';
+          return;
+        }
+        _stageLabel = 'Stage C: Verarbeitung & Rendern';
+        _indeterminate = true;
       });
     });
   }
@@ -1315,8 +1360,9 @@ class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
   void _onCompletedChanged() {
     if (!mounted || !widget.completed.value) return;
     setState(() {
-      _indeterminateFinalization = false;
-      _progress = 1;
+      _indeterminate = false;
+      _progress = 1.0;
+      _stageLabel = 'Stage D: Fertig';
     });
   }
 
@@ -1331,7 +1377,7 @@ class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
   Widget build(BuildContext context) {
     final currentStage = widget.completed.value
         ? widget.stages.length
-        : (_progress * (widget.stages.length - 1)).floor() + 1;
+        : ((_progress <= 0.2 ? 1 : _progress <= 0.7 ? 2 : 3).clamp(1, widget.stages.length));
 
     return AlertDialog(
       title: const Text('Analyse läuft'),
@@ -1341,14 +1387,14 @@ class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Schritt $currentStage/${widget.stages.length}: ${widget.stages[(currentStage - 1).clamp(0, widget.stages.length - 1)]}'),
+            Text(_stageLabel),
             const SizedBox(height: 10),
-            if (_indeterminateFinalization)
+            if (_indeterminate)
               const LinearProgressIndicator()
             else
               LinearProgressIndicator(value: _progress),
             const SizedBox(height: 8),
-            Text(_indeterminateFinalization ? 'Finalisiere Daten… (bitte kurz warten)' : '${(_progress * 100).round()} %'),
+            Text(_indeterminate ? 'Verarbeitung läuft…' : '${(_progress * 100).round()} %'),
             const SizedBox(height: 8),
             Text(widget.statusText),
             const SizedBox(height: 10),
@@ -1376,6 +1422,12 @@ class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Im Hintergrund fortsetzen'),
+        ),
+      ],
     );
   }
 }
