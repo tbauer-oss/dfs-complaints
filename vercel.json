@@ -166,6 +166,10 @@
       "dest": "/api/td/readiness.js"
     },
     {
+      "src": "/api/td/summary$",
+      "dest": "/api/td/summary.js"
+    },
+    {
       "src": "/api/td/([^/]+)/readiness$",
       "dest": "/api/td/[id]/readiness.js?id=$1"
     },

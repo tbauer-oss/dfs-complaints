@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'dart:html' as html;
 
@@ -22,6 +24,8 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   List<TdChangeRequest> _changes = const [];
   List<TdArtifactLink> _links = const [];
   bool _loading = true;
+  bool _isLoadingSummary = false;
+  bool _summaryFailureLogged = false;
   String? _error;
   Map<String, dynamic>? _readiness;
   TdApplicabilityBundle? _applicability;
@@ -256,10 +260,19 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _isLoadingSummary = true;
+      _error = null;
+    });
+
     try {
-      final list = await widget.api.fetchTdSummary();
-      final selected = list.isNotEmpty ? (_selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first)) : null;
+      final list = await widget.api.fetchTdSummary(timeout: const Duration(milliseconds: 1200), optional: true);
+      final selected = list.isNotEmpty
+          ? (_selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first))
+          : null;
+
+      if (!mounted) return;
       setState(() {
         _items = list;
         _selected = selected;
@@ -275,15 +288,28 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _changesLoaded = false;
         _applicabilityLoaded = false;
         _readinessLoaded = false;
-        _error = null;
       });
+
       if (selected != null) {
-        _loadOverviewLight(selected.id);
+        unawaited(_loadStartupBootstrap(selected.id));
+      }
+
+      if (list.isEmpty) {
+        unawaited(_refreshSummaryInBackground());
       }
     } catch (e) {
-      setState(() => _error = '$e');
+      if (!_summaryFailureLogged) {
+        _summaryFailureLogged = true;
+        debugPrint('[td] summary optional fetch failed: $e');
+      }
+      unawaited(_refreshSummaryInBackground());
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _isLoadingSummary = false;
+        });
+      }
     }
   }
 
@@ -292,10 +318,50 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     _ensureTabLoaded(_tabs.index);
   }
 
-  Future<void> _loadOverviewLight(String tdId) async {
-    final overview = await widget.api.fetchTdOverview(tdId);
-    if (!mounted) return;
-    setState(() => _overviewLight = overview);
+  Future<void> _loadStartupBootstrap(String tdId) async {
+    try {
+      final bootstrap = await widget.api.fetchTdStartupBootstrap(tdId);
+      if (!mounted) return;
+      final overview = (bootstrap['overview'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      final sectionPayload = (bootstrap['sections'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      final sectionItems = (sectionPayload['items'] as List?) ?? const [];
+      final sections = sectionItems
+          .whereType<Map>()
+          .map((e) => TdSection.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+      final page = (sectionPayload['page'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      setState(() {
+        _overviewLight = overview;
+        if (sections.isNotEmpty) {
+          _sections = sections;
+          _structureLoaded = true;
+          _sectionsNextCursor = (page['nextCursor'] as num?)?.toInt();
+        }
+      });
+    } catch (e) {
+      if (!_summaryFailureLogged) {
+        _summaryFailureLogged = true;
+        debugPrint('[td] startup bootstrap failed: $e');
+      }
+      final overview = await widget.api.fetchTdOverview(tdId);
+      if (!mounted) return;
+      setState(() => _overviewLight = overview);
+    }
+  }
+
+  Future<void> _refreshSummaryInBackground() async {
+    try {
+      final list = await widget.api.fetchTdSummary();
+      if (!mounted || list.isEmpty) return;
+      final selected = _selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first);
+      setState(() {
+        _items = list;
+        _selected = selected;
+      });
+      unawaited(_loadStartupBootstrap(selected.id));
+    } catch (_) {
+      // Optional background refresh.
+    }
   }
 
   Future<void> _ensureTabLoaded(int tabIndex) async {
@@ -358,10 +424,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     return Row(children: [
-      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: ListView(children: _items.map((td) => ListTile(title: Text(td.title, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () async {
+      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: _isLoadingSummary && _items.isEmpty ? ListView.builder(itemCount: 6, itemBuilder: (_, __) => const ListTile(title: Text('TD wird geladen...'), subtitle: LinearProgressIndicator())) : ListView(children: _items.map((td) => ListTile(title: Text(td.title, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () async {
                             setState(() {
                               _selected = td;
                               _sections = const [];
@@ -377,7 +442,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                               _applicabilityLoaded = false;
                               _readinessLoaded = false;
                             });
-                            _loadOverviewLight(td.id);
+                            unawaited(_loadStartupBootstrap(td.id));
                             await _ensureTabLoaded(_tabs.index);
                           },)).toList()))]))),
       const SizedBox(width: 12),
@@ -397,6 +462,14 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       'structure': 'Struktur wird geladen (Abschnitte & Zähler)...',
       'links': 'Links werden geladen...',
     }[key] ?? 'Analyse wird durchgeführt...';
+    final stages = {
+      'readiness': const ['Übersicht', 'Struktur', 'Readiness', 'Finalisiere'],
+      'applicability': const ['Profil laden', 'Regeln anwenden', 'Ergebnisse schreiben', 'Finalisiere'],
+      'changes': const ['Daten laden', 'Klassifizieren', 'Validieren', 'Finalisiere'],
+      'structure': const ['Übersicht', 'Sektionen laden', 'Metriken berechnen', 'Finalisiere'],
+      'links': const ['Links laden', 'Validieren', 'Zuordnen', 'Finalisiere'],
+    }[key] ?? const ['Initialisiere', 'Verarbeite', 'Validiere', 'Finalisiere'];
+    final completeSignal = ValueNotifier<bool>(false);
 
     if (key == 'readiness' && _isLoadingReadiness) return;
     if (key == 'applicability' && _isLoadingApplicability) return;
@@ -415,7 +488,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => TdHeavyProgressDialog(statusText: status),
+      builder: (_) => TdHeavyProgressDialog(statusText: status, stages: stages, completed: completeSignal),
     );
 
     try {
@@ -433,9 +506,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         ),
       );
     } finally {
+      completeSignal.value = true;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
         Navigator.of(context, rootNavigator: true).pop();
       }
+      completeSignal.dispose();
       if (mounted) {
         setState(() {
           if (key == 'readiness') _isLoadingReadiness = false;
@@ -484,7 +560,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   Widget _dashboardTab() {
     final td = _selected;
-    if (td == null) return const Center(child: Text('Keine TD ausgewählt'));
+    if (td == null) return const Center(child: Text('Keine TD ausgewählt. Die Liste wird im Hintergrund geladen.'));
     final readinessStatus = (_readiness?['readinessStatus'] ?? td.summary.readinessStatus).toString();
     final progressPercent = _completionPercent(td);
     final gaps = (_readiness?['gaps'] as List?)?.map((e) => '$e').toList() ?? const [];
@@ -937,46 +1013,105 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
 class TdHeavyProgressDialog extends StatefulWidget {
   final String statusText;
-  const TdHeavyProgressDialog({super.key, required this.statusText});
+  final List<String> stages;
+  final ValueNotifier<bool> completed;
+
+  const TdHeavyProgressDialog({
+    super.key,
+    required this.statusText,
+    required this.stages,
+    required this.completed,
+  });
 
   @override
   State<TdHeavyProgressDialog> createState() => _TdHeavyProgressDialogState();
 }
 
 class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
-  double _percent = 8;
+  static const _tickDuration = Duration(milliseconds: 350);
+  late final DateTime _startedAt;
+  Timer? _ticker;
+  double _progress = 0.08;
+  bool _indeterminateFinalization = false;
 
   @override
   void initState() {
     super.initState();
-    _tick();
+    _startedAt = DateTime.now();
+    widget.completed.addListener(_onCompletedChanged);
+    _ticker = Timer.periodic(_tickDuration, (_) {
+      if (!mounted || widget.completed.value) return;
+      setState(() {
+        _progress = (_progress + 0.045).clamp(0.08, 0.85);
+        final elapsed = DateTime.now().difference(_startedAt);
+        if (_progress >= 0.85 && elapsed > const Duration(seconds: 2)) {
+          _indeterminateFinalization = true;
+        }
+      });
+    });
   }
 
-  Future<void> _tick() async {
-    while (mounted && _percent < 92) {
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-      setState(() => _percent = (_percent + 4).clamp(8, 92));
-    }
+  void _onCompletedChanged() {
+    if (!mounted || !widget.completed.value) return;
+    setState(() {
+      _indeterminateFinalization = false;
+      _progress = 1;
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    widget.completed.removeListener(_onCompletedChanged);
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentStage = widget.completed.value
+        ? widget.stages.length
+        : (_progress * (widget.stages.length - 1)).floor() + 1;
+
     return AlertDialog(
       title: const Text('Analyse läuft'),
       content: SizedBox(
-        width: 460,
+        width: 480,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            LinearProgressIndicator(value: _percent / 100),
+            Text('Schritt $currentStage/${widget.stages.length}: ${widget.stages[(currentStage - 1).clamp(0, widget.stages.length - 1)]}'),
+            const SizedBox(height: 10),
+            if (_indeterminateFinalization)
+              const LinearProgressIndicator()
+            else
+              LinearProgressIndicator(value: _progress),
             const SizedBox(height: 8),
-            Text('${_percent.toInt()} %'),
+            Text(_indeterminateFinalization ? 'Finalisiere Daten… (bitte kurz warten)' : '${(_progress * 100).round()} %'),
             const SizedBox(height: 8),
             Text(widget.statusText),
-            const SizedBox(height: 8),
-            const Text('Dies kann je nach Umfang einige Sekunden dauern.'),
+            const SizedBox(height: 10),
+            ...widget.stages.asMap().entries.map((entry) {
+              final idx = entry.key + 1;
+              final done = idx < currentStage;
+              final active = idx == currentStage;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(
+                      done
+                          ? Icons.check_circle
+                          : (active ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                      size: 16,
+                      color: done || active ? const Color(0xFF1D4ED8) : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${idx}/${widget.stages.length} ${entry.value}'),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),

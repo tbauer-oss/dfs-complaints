@@ -15,9 +15,9 @@ export default async function handler(req, res) {
 
   return withTiming('tdk.summary', async (timing) => {
     timing.stats.route = '/api/tdk/summary';
-    const items = await tdSummaryFast();
-    timing.addRows(items.length);
+    const summary = await tdSummaryFast();
+    timing.addRows(summary.items.length);
     timing.setServerTiming(res);
-    return ok(res, { ok: true, items, warnings: [] });
+    return ok(res, { ok: true, ...summary, warnings: [] });
   });
 }
