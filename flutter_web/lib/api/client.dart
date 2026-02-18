@@ -3928,10 +3928,10 @@ class ApiClient {
     return fetchTdSummary();
   }
 
-  Future<List<TdFile>> fetchTdSummary({Duration? timeout, bool optional = false}) async {
-    const primaryPath = '/api/td/summary';
+  Future<List<TdFile>> fetchTdSummary({Duration? timeout, bool optional = false, bool v2 = false}) async {
+    final primaryPath = v2 ? '/api/td/summary?v=2' : '/api/td/summary';
     try {
-      var request = http.get(_u(primaryPath), headers: _adminHeaders(auth: true, path: primaryPath));
+      var request = http.get(_u(primaryPath), headers: _adminHeaders(auth: true, path: '/api/td/summary'));
       if (timeout != null) {
         request = request.timeout(timeout);
       }
@@ -3952,6 +3952,9 @@ class ApiClient {
         items = decoded;
       } else if (decoded is Map) {
         final body = decoded.cast<String, dynamic>();
+        if (body['ok'] == false) {
+          return const <TdFile>[];
+        }
         if (body['items'] is List) {
           items = body['items'] as List;
         } else if (body['data'] is List) {

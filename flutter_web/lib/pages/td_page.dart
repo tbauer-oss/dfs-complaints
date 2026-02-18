@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'dart:html' as html;
+import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
 import '../models/td.dart';
+import '../td/td_catalog.dart';
 import 'admin_page.dart';
 
 class TdPage extends StatefulWidget {
@@ -24,10 +26,13 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   List<TdChangeRequest> _changes = const [];
   List<TdArtifactLink> _links = const [];
   bool _loading = true;
+  bool _isLoadingCatalog = false;
   bool _isLoadingSummary = false;
   bool _summaryFailureLogged = false;
   String? _error;
   String? _summaryBanner;
+  String _catalogSource = 'csv';
+  bool _summaryOk = false;
   String? _loadingHint;
   String? _loadingDiagnostics;
   DateTime? _summaryStartedAt;
@@ -292,29 +297,81 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     _loadingHint = null;
   }
 
-  Future<void> _fallbackToTdList({bool showBanner = true}) async {
-    if (showBanner && mounted) {
-      setState(() => _summaryBanner = 'Summary not available, loading list...');
-    }
+  List<TdFile> _mergeSummaryIntoCatalog(List<TdFile> catalog, List<TdFile> summary) {
+    final byKey = <String, TdFile>{
+      for (final row in summary) row.code.toUpperCase(): row,
+    };
+    var mergeHits = 0;
+    final merged = catalog
+        .map((item) {
+          final enriched = byKey[item.code.toUpperCase()];
+          if (enriched == null) return item;
+          mergeHits += 1;
+          return TdFile(
+            id: item.id,
+            code: item.code,
+            title: item.title,
+            lifecycleState: enriched.lifecycleState,
+            productGroup: item.productGroup ?? enriched.productGroup,
+            classification: enriched.classification,
+            rule: enriched.rule,
+            status: enriched.status,
+            summary: enriched.summary,
+          );
+        })
+        .toList(growable: false);
+
+    final mergeRate = merged.isEmpty ? 0 : ((mergeHits / merged.length) * 100).round();
+    debugPrint('[td] catalogCount=${catalog.length} summaryCount=${summary.length} summaryOk=${summary.isNotEmpty} mergeHitRate=${mergeRate}%');
+    return merged;
+  }
+
+  Future<void> _fetchSummaryAndEnrich(List<TdFile> catalogItems) async {
+    setState(() {
+      _isLoadingSummary = true;
+      _summaryOk = false;
+    });
+    _startLoadingWatchdog();
     try {
-      final fallbackList = await widget.api.fetchTdListFallback(timeout: const Duration(seconds: 8));
+      final summary = await widget.api.fetchTdSummary(timeout: const Duration(seconds: 8), optional: true, v2: true);
       if (!mounted) return;
-      final selected = fallbackList.isNotEmpty
-          ? (_selected == null ? fallbackList.first : fallbackList.firstWhere((e) => e.id == _selected!.id, orElse: () => fallbackList.first))
+      final merged = _mergeSummaryIntoCatalog(catalogItems, summary);
+      final selected = merged.isNotEmpty
+          ? (_selected == null ? merged.first : merged.firstWhere((e) => e.id == _selected!.id, orElse: () => merged.first))
           : null;
+
       setState(() {
-        _items = fallbackList;
+        _items = merged;
         _selected = selected;
+        _summaryOk = summary.isNotEmpty;
+        _summaryBanner = summary.isEmpty ? 'Summary nicht verfügbar. Liste stammt aus CSV.' : null;
       });
+      if (summary.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TD-Summary nicht verfügbar')),
+        );
+      }
       if (selected != null) {
         unawaited(_loadStartupBootstrap(selected.id));
       }
     } catch (e) {
-      debugPrint('[td] list fallback failed: $e');
+      if (!_summaryFailureLogged) {
+        _summaryFailureLogged = true;
+        debugPrint('[td] catalogCount=${catalogItems.length} summaryCount=0 summaryOk=false mergeHitRate=0% error=$e');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('TD-Summary konnte nicht gelesen werden. Bitte später erneut versuchen.')),
+          const SnackBar(content: Text('TD-Summary nicht verfügbar')),
         );
+      }
+      setState(() {
+        _summaryOk = false;
+        _summaryBanner = 'Summary nicht verfügbar. Liste stammt aus CSV.';
+      });
+    } finally {
+      _stopLoadingWatchdog();
+      if (mounted) {
+        setState(() => _isLoadingSummary = false);
       }
     }
   }
@@ -322,26 +379,22 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Future<void> _load() async {
     setState(() {
       _loading = true;
-      _isLoadingSummary = true;
+      _isLoadingCatalog = true;
       _error = null;
       _summaryBanner = null;
       _loadingDiagnostics = null;
     });
-    _startLoadingWatchdog();
 
     try {
-      final list = await widget.api.fetchTdSummary(timeout: const Duration(milliseconds: 1200), optional: true);
-      if (list.isEmpty) {
-        await _fallbackToTdList();
-      }
-      final effectiveList = _items.isNotEmpty ? _items : list;
-      final selected = effectiveList.isNotEmpty
-          ? (_selected == null ? effectiveList.first : effectiveList.firstWhere((e) => e.id == _selected!.id, orElse: () => effectiveList.first))
+      final catalog = await TdCatalogBuilder.loadCatalog();
+      if (!mounted) return;
+      final selected = catalog.items.isNotEmpty
+          ? (_selected == null ? catalog.items.first : catalog.items.firstWhere((e) => e.id == _selected!.id, orElse: () => catalog.items.first))
           : null;
 
-      if (!mounted) return;
       setState(() {
-        _items = effectiveList;
+        _catalogSource = catalog.source;
+        _items = catalog.items;
         _selected = selected;
         _sections = const [];
         _changes = const [];
@@ -357,27 +410,19 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _readinessLoaded = false;
       });
 
+      debugPrint('[td] catalogCount=${catalog.items.length} summaryCount=0 summaryOk=false mergeHitRate=0% source=${catalog.source}');
+
       if (selected != null) {
         unawaited(_loadStartupBootstrap(selected.id));
       }
+      unawaited(_fetchSummaryAndEnrich(catalog.items));
     } catch (e) {
-      if (!_summaryFailureLogged) {
-        _summaryFailureLogged = true;
-        debugPrint('[td] summary optional fetch failed: $e');
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('TD-Summary-Format ungültig. Wechsle auf Listen-Fallback...')),
-        );
-      }
-      await _fallbackToTdList();
-      unawaited(_refreshSummaryInBackground());
+      setState(() => _error = 'TD-Katalog konnte nicht geladen werden: $e');
     } finally {
-      _stopLoadingWatchdog();
       if (mounted) {
         setState(() {
           _loading = false;
-          _isLoadingSummary = false;
+          _isLoadingCatalog = false;
         });
       }
     }
@@ -416,26 +461,6 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       final overview = await widget.api.fetchTdOverview(tdId);
       if (!mounted) return;
       setState(() => _overviewLight = overview);
-    }
-  }
-
-  Future<void> _refreshSummaryInBackground() async {
-    try {
-      final list = await widget.api.fetchTdSummary();
-      if (!mounted) return;
-      if (list.isEmpty) {
-        await _fallbackToTdList(showBanner: false);
-        return;
-      }
-      final selected = _selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first);
-      setState(() {
-        _items = list;
-        _selected = selected;
-        _summaryBanner = null;
-      });
-      unawaited(_loadStartupBootstrap(selected.id));
-    } catch (_) {
-      // Optional background refresh.
     }
   }
 
@@ -502,7 +527,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (_error != null) return Center(child: Text(_error!));
 
     Widget summaryListContent;
-    if (_isLoadingSummary && _items.isEmpty) {
+    if ((_isLoadingCatalog || _loading) && _items.isEmpty) {
       summaryListContent = ListView(
         children: [
           ...List<Widget>.generate(
@@ -600,6 +625,18 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                         child: const Text('OK'),
                       ),
                     ],
+                  ),
+                if (kDebugMode)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Catalog source: CSV', style: TextStyle(fontSize: 12)),
+                        Text('Summary: ${_summaryOk ? 'ok' : 'failed'}', style: const TextStyle(fontSize: 12)),
+                        Text('Catalog cache: $_catalogSource', style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
                   ),
                 Expanded(child: summaryListContent),
               ],
