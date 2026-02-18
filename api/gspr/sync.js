@@ -10,6 +10,12 @@ import {
 import { gsprSourceMetaGet, gsprSourceMetaSave } from '../_lib/store.js';
 import { redis } from '../_lib/redis.js';
 import { fetchEurLexMdrText } from '../_lib/eurlexMdr.js';
+import {
+  gsprSourceCacheGet,
+  gsprSourceCacheGetRaw,
+  gsprSourceCacheSet,
+  gsprSourceCacheVersionMarker,
+} from '../_lib/gsprSourceCache.js';
 
 const GSPR_TILE = 'gspr';
 const SYNC_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
@@ -132,6 +138,8 @@ export default async function handler(req, res) {
     const force = readForceFlag(req);
     const tdKey = readTdKey(req);
     const before = await readSourceMeta(tdKey);
+    const cachedProcessed = await gsprSourceCacheGet();
+    const cachedRaw = await gsprSourceCacheGetRaw();
     const cooldownUntilTs = Date.parse(before.cooldownUntil || '');
 
     if (!force && Number.isFinite(cooldownUntilTs) && cooldownUntilTs > Date.now()) {
@@ -150,6 +158,21 @@ export default async function handler(req, res) {
         skipped: true,
         reason: 'SYNC_RATE_LIMIT_12H',
         tdKey,
+        source: mapSourceForResponse(before),
+      });
+    }
+
+    if (!force && cachedProcessed && before?.lastSyncAt) {
+      return ok(res, {
+        ok: true,
+        skipped: true,
+        reason: 'CACHE_HIT_STALE_WHILE_REVALIDATE',
+        tdKey,
+        cache: {
+          hit: true,
+          version: gsprSourceCacheVersionMarker(),
+          builtAt: cachedProcessed.builtAt || null,
+        },
         source: mapSourceForResponse(before),
       });
     }
@@ -192,13 +215,20 @@ export default async function handler(req, res) {
       }
 
       const source = await saveSourceMeta(tdKey, patch);
-      if (before?.normalizedText) {
+      if (before?.normalizedText || cachedProcessed) {
         return ok(res, {
           ok: false,
           code: 'SOURCE_UNSTABLE',
+          stale: true,
           lastGoodAt: before?.lastGoodSyncAt || before?.lastSyncAt || null,
           lastGoodHash: before?.contentHash || '',
           tdKey,
+          cache: {
+            hit: Boolean(cachedProcessed),
+            version: gsprSourceCacheVersionMarker(),
+            builtAt: cachedProcessed?.builtAt || null,
+            rawFetchedAt: cachedRaw?.fetchedAt || null,
+          },
           source: mapSourceForResponse(source),
         });
       }
@@ -215,6 +245,12 @@ export default async function handler(req, res) {
     const finishedAt = new Date().toISOString();
     const previousHash = (before?.contentHash || '').toString();
     const changed = previousHash.length > 0 && previousHash !== result.contentHash;
+
+    await gsprSourceCacheSet({
+      rawBody: result.rawBody || '',
+      normalizedText: result.text || '',
+      sourceMeta: result.sourceMeta || {},
+    });
 
     const source = await saveSourceMeta(tdKey, {
       name: GSPR_SOURCE_NAME,
@@ -244,7 +280,7 @@ export default async function handler(req, res) {
         : [],
     });
 
-    return ok(res, { ok: true, tdKey, source: mapSourceForResponse(source), changesDetected: changed });
+    return ok(res, { ok: true, tdKey, source: mapSourceForResponse(source), changesDetected: changed, cache: { hit: false, version: gsprSourceCacheVersionMarker() } });
   } catch (err) {
     console.error('[gspr/sync] unhandled error', err);
     const failedAt = new Date().toISOString();
