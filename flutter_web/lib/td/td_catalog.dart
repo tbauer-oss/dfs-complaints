@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../models/td.dart';
+import '../services/td_catalog_service.dart';
 
 class TdCatalogResult {
   final List<TdFile> items;
@@ -13,17 +13,7 @@ class TdCatalogResult {
   const TdCatalogResult({required this.items, required this.source});
 }
 
-class TdCatalogLoadException implements Exception {
-  final String message;
-
-  const TdCatalogLoadException(this.message);
-
-  @override
-  String toString() => message;
-}
-
 class TdCatalogBuilder {
-  static const String _assetPath = 'assets/data/dfs_products.csv';
   static const String _storageKey = 'tdCatalogV1';
   static const Duration _ttl = Duration(hours: 24);
 
@@ -43,64 +33,28 @@ class TdCatalogBuilder {
       return TdCatalogResult(items: storage, source: 'localStorage');
     }
 
-    final csv = await loadDfsProductsCsv();
+    final loadResult = await tdCatalogService.loadDfsProductsCsvWithDiagnostics();
     try {
-      final built = _buildFromCsv(csv);
+      final built = _buildFromRows(loadResult.rows);
       _memoryCache = built;
       _memoryLoadedAt = now;
       _saveToLocalStorage(now, built);
-      return TdCatalogResult(items: built, source: 'csv');
+      return TdCatalogResult(items: built, source: loadResult.strategy);
     } catch (e) {
-      throw TdCatalogLoadException(_catalogErrorMessage(e, csv));
-    }
-  }
-
-  static Future<String> loadDfsProductsCsv() {
-    return _loadCsvAssetWithValidation();
-  }
-
-  static Future<String> _loadCsvAssetWithValidation() async {
-    final csvText = await rootBundle.loadString(_assetPath);
-    final trimmed = csvText.trimLeft();
-    final normalized = trimmed.toLowerCase();
-    if (normalized.startsWith('<!doctype') || normalized.startsWith('<html')) {
       throw TdCatalogLoadException(
-        'Ungültiger CSV-Inhalt aus Asset "$_assetPath" (HTML statt CSV erkannt).',
+        'TD-Katalog konnte nicht geparst werden (source=${loadResult.sourcePath}, strategy=${loadResult.strategy}): $e',
       );
     }
-    return csvText;
   }
 
-
-  static String _catalogErrorMessage(Object error, String csv) {
-    final preview = _sanitizePreview(csv);
-    final suffix = kDebugMode ? ' Inhalt-Preview: $preview' : '';
-    return 'TD-Katalog-CSV konnte nicht geparst werden (Asset: $_assetPath). Fehler: $error.$suffix';
-  }
-
-  static String _sanitizePreview(String value) {
-    final compact = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (compact.length <= 120) return compact;
-    return '${compact.substring(0, 120)}...';
-  }
-
-  static List<TdFile> _buildFromCsv(String csv) {
-    final lines = const LineSplitter().convert(csv).where((e) => e.trim().isNotEmpty).toList(growable: false);
-    if (lines.length < 2) return const [];
-
-    final header = _parseCsvLine(lines.first);
-    final tdIndex = header.indexOf('td_number_and_name');
-    final productGroupIndex = header.indexOf('product_group');
-    if (tdIndex < 0 || productGroupIndex < 0) {
-      throw const FormatException('CSV-Header ist unvollständig (Spalten td_number_and_name/product_group fehlen).');
-    }
+  static List<TdFile> _buildFromRows(List<ProductRow> rows) {
+    if (rows.isEmpty) return const [];
 
     final Map<String, _TdBucket> buckets = <String, _TdBucket>{};
 
-    for (final line in lines.skip(1)) {
-      final row = _parseCsvLine(line);
-      final tdLabel = tdIndex >= 0 && tdIndex < row.length ? row[tdIndex].trim() : '';
-      final productGroup = productGroupIndex >= 0 && productGroupIndex < row.length ? row[productGroupIndex].trim() : '';
+    for (final row in rows) {
+      final tdLabel = row['td_number_and_name'].trim();
+      final productGroup = row['product_group'].trim();
       final key = _extractTdKey(tdLabel);
       if (key == null && !_mapsToTdModule(productGroup)) continue;
       if (key == null) continue;
@@ -151,31 +105,6 @@ class TdCatalogBuilder {
   static int _tdOrder(String key) {
     final match = RegExp(r'MDR-TD(\d+)').firstMatch(key);
     return int.tryParse(match?.group(1) ?? '') ?? 9999;
-  }
-
-  static List<String> _parseCsvLine(String line) {
-    final out = <String>[];
-    final buf = StringBuffer();
-    var inQuotes = false;
-
-    for (var i = 0; i < line.length; i++) {
-      final char = line[i];
-      if (char == '"') {
-        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
-          buf.write('"');
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char == ';' && !inQuotes) {
-        out.add(buf.toString());
-        buf.clear();
-      } else {
-        buf.write(char);
-      }
-    }
-    out.add(buf.toString());
-    return out;
   }
 
   static List<TdFile>? _fromLocalStorage(DateTime now) {
