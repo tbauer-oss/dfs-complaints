@@ -595,7 +595,7 @@ export async function tdList() {
   return out;
 }
 
-export async function tdSummaryFast() {
+export async function tdSummaryFromDb() {
   const items = await tdList();
   const summaries = items.map((td) => ({
     id: td.id,
@@ -617,7 +617,7 @@ export async function tdSummaryFast() {
   }));
   const lastUpdatedAt = summaries
       .map((item) => item.updated_at)
-      .where((value) => value)
+      .filter((value) => value)
       .sort()
       .pop() || null;
   return {
@@ -625,6 +625,70 @@ export async function tdSummaryFast() {
     tdCount: summaries.length,
     lastUpdatedAt,
   };
+}
+
+function summarizeCacheShape(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
+  return Object.keys(payload).slice(0, 20);
+}
+
+export async function tdSummaryFast(payload = null, options = {}) {
+  const route = options?.route || '/api/td/summary';
+  try {
+    if (payload !== null) {
+      let summaries = [];
+      let cacheInvalid = false;
+      if (Array.isArray(payload?.summaries)) {
+        summaries = payload.summaries;
+      } else if (Array.isArray(payload?.items)) {
+        summaries = payload.items;
+      } else {
+        cacheInvalid = true;
+        console.warn('[tdSummaryFast] invalid cache shape', {
+          route,
+          summariesType: typeof payload?.summaries,
+          payloadType: typeof payload,
+          payloadKeys: summarizeCacheShape(payload),
+        });
+      }
+
+      if (!cacheInvalid) {
+        const normalized = summaries.filter((item) => item && typeof item === 'object');
+        const lastUpdatedAt = normalized
+          .map((item) => item?.updated_at || null)
+          .filter((value) => value)
+          .sort()
+          .pop() || null;
+        return {
+          items: normalized,
+          tdCount: normalized.length,
+          lastUpdatedAt,
+          cacheHit: true,
+          cacheInvalid: false,
+        };
+      }
+    }
+
+    const dbSummary = await tdSummaryFromDb();
+    return {
+      ...dbSummary,
+      cacheHit: false,
+      cacheInvalid: payload !== null,
+    };
+  } catch (err) {
+    console.warn('[tdSummaryFast] cache path failed, attempting DB fallback', {
+      route,
+      message: err?.message || String(err),
+      stack: err?.stack || null,
+    });
+    const dbSummary = await tdSummaryFromDb();
+    return {
+      ...dbSummary,
+      cacheHit: false,
+      cacheInvalid: true,
+      recoveredFromError: true,
+    };
+  }
 }
 
 export async function tdGet(id) {
