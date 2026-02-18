@@ -3946,13 +3946,45 @@ class ApiClient {
       }
       if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
       final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
-      final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
-      final items = (body['items'] as List?) ?? const [];
+
+      List<dynamic> items;
+      if (decoded is List) {
+        items = decoded;
+      } else if (decoded is Map) {
+        final body = decoded.cast<String, dynamic>();
+        if (body['items'] is List) {
+          items = body['items'] as List;
+        } else if (body['data'] is List) {
+          items = body['data'] as List;
+        } else {
+          debugPrint('[td] Unsupported summary response shape: keys=${body.keys.toList()}');
+          throw ApiError(500, 'Ungültiges TD-Summary-Format');
+        }
+      } else {
+        debugPrint('[td] Unsupported summary response type: ${decoded.runtimeType}');
+        throw ApiError(500, 'Ungültiges TD-Summary-Format');
+      }
+
       return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
     } catch (_) {
       if (!optional) rethrow;
       return const <TdFile>[];
     }
+  }
+
+  Future<List<TdFile>> fetchTdListFallback({Duration? timeout}) async {
+    const path = '/api/td';
+    var request = http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (timeout != null) {
+      request = request.timeout(timeout);
+    }
+    final r = await request;
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is! Map) throw ApiError(500, 'Ungültige Antwort für TD-Liste');
+    final body = decoded.cast<String, dynamic>();
+    final items = (body['items'] as List?) ?? const [];
+    return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
   }
 
 

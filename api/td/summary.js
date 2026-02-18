@@ -1,8 +1,8 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';
+import { handlePreflight, setCors, ok } from '../_lib/http.js';
 import { requirePortalAccess } from '../admin/_guard.js';
-import { tdSummaryFast } from '../_lib/tdStore.js';
+import { tdSummaryFast, tdListFromDb } from '../_lib/tdStore.js';
 import { getCachedJson, setCachedJson } from '../_lib/tdFastCache.js';
 import { withTiming } from '../_lib/timing.js';
 
@@ -25,13 +25,39 @@ function toSummaryPayload(summary) {
   };
 }
 
+function toMinimalSummaryRow(td) {
+  return {
+    id: td?.id || null,
+    code: td?.code || null,
+    title: td?.title || td?.name || '',
+    status: td?.status || 'Draft',
+    lifecycleState: td?.lifecycleState || 'Development',
+    productGroup: td?.productGroup || null,
+    classification: td?.classification || null,
+    rule: td?.rule || null,
+    progress: 0,
+    updated_at: td?.updatedAt || td?.updated_at || td?.createdAt || null,
+  };
+}
+
+function logSummaryFormat(format, count, cacheHit) {
+  console.info(`[tdSummary] format=${format} count=${count} cacheHit=${cacheHit ? '1' : '0'}`);
+}
+
+function warnEmptySummary(reason, details = {}) {
+  console.warn('[tdSummary] empty', { reason, ...details });
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
   const actor = await requirePortalAccess(req, res, { tile: 'td', write: false });
   if (!actor) return;
-  if (req.method !== 'GET') return bad(res, 'method not allowed', 405);
+  if (req.method !== 'GET') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return ok(res, String(req.query?.v || '') === '2' ? { ok: false, data: [], meta: { tdCount: 0, lastUpdatedAt: null } } : []);
+  }
 
   return withTiming('td.summary', async (timing) => {
     const route = '/api/td/summary';
@@ -43,7 +69,24 @@ export default async function handler(req, res) {
       const summary = await tdSummaryFast(cached, { route });
       timing.setCacheHit(Boolean(summary?.cacheHit));
 
-      const payload = toSummaryPayload(summary);
+      let payload = toSummaryPayload(summary);
+
+      if (!Array.isArray(payload.items)) {
+        warnEmptySummary('parse mismatch', { itemsType: typeof payload.items });
+        const dbItems = await tdListFromDb();
+        payload = toSummaryPayload({ items: dbItems.map(toMinimalSummaryRow) });
+      }
+
+      if (payload.items.length === 0) {
+        const dbItems = await tdListFromDb();
+        if (dbItems.length > 0) {
+          warnEmptySummary('cache empty', { dbCount: dbItems.length });
+          payload = toSummaryPayload({ items: dbItems.map(toMinimalSummaryRow) });
+        } else {
+          warnEmptySummary('db empty', { dbCount: 0 });
+        }
+      }
+
       timing.addRows(payload.items.length);
 
       if (!summary?.cacheHit) {
@@ -57,9 +100,25 @@ export default async function handler(req, res) {
         kv: timing.stats.ms_kv,
         cacheHit: Boolean(summary?.cacheHit),
       });
-      return ok(res, { ok: true, ...payload, cached: Boolean(summary?.cacheHit) });
+      const format = String(req.query?.v || '') === '2' ? 'v2' : 'legacy';
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('X-TD-Summary-Format', format);
+      logSummaryFormat(format, payload.items.length, Boolean(summary?.cacheHit));
+      if (format === 'v2') {
+        return ok(res, {
+          ok: true,
+          data: payload.items,
+          meta: {
+            tdCount: payload.tdCount,
+            lastUpdatedAt: payload.lastUpdatedAt,
+            generatedAt: payload.generatedAt,
+            cached: Boolean(summary?.cacheHit),
+          },
+        });
+      }
+      return ok(res, payload.items);
     } catch (err) {
-      console.warn('[td.summary] cache+db failure', {
+      console.warn('[tdSummary] cache+db failure', {
         route,
         message: err?.message || String(err),
         stack: err?.stack || null,
@@ -70,7 +129,14 @@ export default async function handler(req, res) {
         kv: timing.stats.ms_kv,
         cacheHit: false,
       });
-      return ok(res, { ok: false, error: 'TD summary unavailable', data: [], items: [], tdCount: 0, lastUpdatedAt: null });
+      const format = String(req.query?.v || '') === '2' ? 'v2' : 'legacy';
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('X-TD-Summary-Format', format);
+      logSummaryFormat(format, 0, false);
+      if (format === 'v2') {
+        return ok(res, { ok: false, error: 'TD summary unavailable', data: [], meta: { tdCount: 0, lastUpdatedAt: null } });
+      }
+      return ok(res, []);
     }
   });
 }

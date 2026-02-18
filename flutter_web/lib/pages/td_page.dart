@@ -27,6 +27,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   bool _isLoadingSummary = false;
   bool _summaryFailureLogged = false;
   String? _error;
+  String? _summaryBanner;
+  String? _loadingHint;
+  String? _loadingDiagnostics;
+  DateTime? _summaryStartedAt;
+  Timer? _stillLoadingTimer;
+  Timer? _diagnosticTimer;
   Map<String, dynamic>? _readiness;
   TdApplicabilityBundle? _applicability;
 
@@ -254,9 +260,63 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _stillLoadingTimer?.cancel();
+    _diagnosticTimer?.cancel();
     _tabs.removeListener(_handleTabChange);
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _startLoadingWatchdog() {
+    _stillLoadingTimer?.cancel();
+    _diagnosticTimer?.cancel();
+    _summaryStartedAt = DateTime.now();
+    _loadingHint = null;
+    _loadingDiagnostics = null;
+
+    _stillLoadingTimer = Timer(const Duration(seconds: 10), () {
+      if (!mounted || !_isLoadingSummary || _items.isNotEmpty) return;
+      setState(() => _loadingHint = 'Still loading...');
+    });
+
+    _diagnosticTimer = Timer(const Duration(seconds: 30), () {
+      if (!mounted || !_isLoadingSummary || _items.isNotEmpty) return;
+      final elapsed = DateTime.now().difference(_summaryStartedAt ?? DateTime.now()).inSeconds;
+      setState(() => _loadingDiagnostics = 'Diagnose: Summary-Request läuft seit ${elapsed}s (requestId: n/a).');
+    });
+  }
+
+  void _stopLoadingWatchdog() {
+    _stillLoadingTimer?.cancel();
+    _diagnosticTimer?.cancel();
+    _loadingHint = null;
+  }
+
+  Future<void> _fallbackToTdList({bool showBanner = true}) async {
+    if (showBanner && mounted) {
+      setState(() => _summaryBanner = 'Summary not available, loading list...');
+    }
+    try {
+      final fallbackList = await widget.api.fetchTdListFallback(timeout: const Duration(seconds: 8));
+      if (!mounted) return;
+      final selected = fallbackList.isNotEmpty
+          ? (_selected == null ? fallbackList.first : fallbackList.firstWhere((e) => e.id == _selected!.id, orElse: () => fallbackList.first))
+          : null;
+      setState(() {
+        _items = fallbackList;
+        _selected = selected;
+      });
+      if (selected != null) {
+        unawaited(_loadStartupBootstrap(selected.id));
+      }
+    } catch (e) {
+      debugPrint('[td] list fallback failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TD-Summary konnte nicht gelesen werden. Bitte später erneut versuchen.')),
+        );
+      }
+    }
   }
 
   Future<void> _load() async {
@@ -264,17 +324,24 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       _loading = true;
       _isLoadingSummary = true;
       _error = null;
+      _summaryBanner = null;
+      _loadingDiagnostics = null;
     });
+    _startLoadingWatchdog();
 
     try {
       final list = await widget.api.fetchTdSummary(timeout: const Duration(milliseconds: 1200), optional: true);
-      final selected = list.isNotEmpty
-          ? (_selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first))
+      if (list.isEmpty) {
+        await _fallbackToTdList();
+      }
+      final effectiveList = _items.isNotEmpty ? _items : list;
+      final selected = effectiveList.isNotEmpty
+          ? (_selected == null ? effectiveList.first : effectiveList.firstWhere((e) => e.id == _selected!.id, orElse: () => effectiveList.first))
           : null;
 
       if (!mounted) return;
       setState(() {
-        _items = list;
+        _items = effectiveList;
         _selected = selected;
         _sections = const [];
         _changes = const [];
@@ -293,17 +360,20 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       if (selected != null) {
         unawaited(_loadStartupBootstrap(selected.id));
       }
-
-      if (list.isEmpty) {
-        unawaited(_refreshSummaryInBackground());
-      }
     } catch (e) {
       if (!_summaryFailureLogged) {
         _summaryFailureLogged = true;
         debugPrint('[td] summary optional fetch failed: $e');
       }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('TD-Summary-Format ungültig. Wechsle auf Listen-Fallback...')),
+        );
+      }
+      await _fallbackToTdList();
       unawaited(_refreshSummaryInBackground());
     } finally {
+      _stopLoadingWatchdog();
       if (mounted) {
         setState(() {
           _loading = false;
@@ -352,11 +422,16 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Future<void> _refreshSummaryInBackground() async {
     try {
       final list = await widget.api.fetchTdSummary();
-      if (!mounted || list.isEmpty) return;
+      if (!mounted) return;
+      if (list.isEmpty) {
+        await _fallbackToTdList(showBanner: false);
+        return;
+      }
       final selected = _selected == null ? list.first : list.firstWhere((e) => e.id == _selected!.id, orElse: () => list.first);
       setState(() {
         _items = list;
         _selected = selected;
+        _summaryBanner = null;
       });
       unawaited(_loadStartupBootstrap(selected.id));
     } catch (_) {
@@ -425,32 +500,153 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (_error != null) return Center(child: Text(_error!));
-    return Row(children: [
-      SizedBox(width: 340, child: Card(child: Column(children: [if (widget.canEdit) Padding(padding: const EdgeInsets.all(8), child: FilledButton.icon(onPressed: _openCreateTdWizard, icon: const Icon(Icons.add), label: const Text('TD erstellen'))), Expanded(child: _isLoadingSummary && _items.isEmpty ? ListView.builder(itemCount: 6, itemBuilder: (_, __) => const ListTile(title: Text('TD wird geladen...'), subtitle: LinearProgressIndicator())) : ListView(children: _items.map((td) => ListTile(title: Text(td.title, maxLines: 2, overflow: TextOverflow.ellipsis), subtitle: Text('Fortschritt ${_completionPercent(td)} %'), selected: _selected?.id == td.id, onTap: () async {
-                            setState(() {
-                              _selected = td;
-                              _sections = const [];
-                              _changes = const [];
-                              _links = const [];
-                              _readiness = null;
-                              _applicability = null;
-                              _overviewLight = const {};
-                              _structureLoaded = false;
-                              _sectionsNextCursor = null;
-                              _linksLoaded = false;
-                              _changesLoaded = false;
-                              _applicabilityLoaded = false;
-                              _readinessLoaded = false;
-                            });
-                            unawaited(_loadStartupBootstrap(td.id));
-                            await _ensureTabLoaded(_tabs.index);
-                          },)).toList()))]))),
-      const SizedBox(width: 12),
-      Expanded(child: Card(child: Column(children: [
-        TabBar(controller: _tabs, isScrollable: true, onTap: (index) => _ensureTabLoaded(index), tabs: const [Tab(text: 'Übersicht'), Tab(text: 'Struktur'), Tab(text: 'Anwendbarkeit'), Tab(text: 'Links'), Tab(text: 'Änderungsmanagement'), Tab(text: 'Heatmap'), Tab(text: 'Benannte-Stelle-Export'), Tab(text: 'Kalender')]),
-        Expanded(child: TabBarView(controller: _tabs, children: [_dashboardTab(), _structureTab(), _applicabilityTab(), _linksTab(), _changesTab(), _heatmapTab(), _exportTab(), _calendarTab()])),
-      ]))),
-    ]);
+
+    Widget summaryListContent;
+    if (_isLoadingSummary && _items.isEmpty) {
+      summaryListContent = ListView(
+        children: [
+          ...List<Widget>.generate(
+            6,
+            (_) => const ListTile(
+              title: Text('TD wird geladen...'),
+              subtitle: LinearProgressIndicator(),
+            ),
+          ),
+          if (_loadingHint != null)
+            ListTile(
+              leading: const Icon(Icons.hourglass_bottom),
+              title: Text(_loadingHint!),
+              trailing: OutlinedButton(onPressed: _load, child: const Text('Retry')),
+            ),
+          if (_loadingDiagnostics != null)
+            ListTile(
+              leading: const Icon(Icons.bug_report_outlined),
+              title: Text(_loadingDiagnostics!),
+            ),
+        ],
+      );
+    } else if (_items.isEmpty) {
+      summaryListContent = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.inbox_outlined, size: 32),
+              const SizedBox(height: 8),
+              const Text('No TDs found'),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Neu laden')),
+            ],
+          ),
+        ),
+      );
+    } else {
+      summaryListContent = ListView(
+        children: _items
+            .map(
+              (td) => ListTile(
+                title: Text(td.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text('Fortschritt ${_completionPercent(td)} %'),
+                selected: _selected?.id == td.id,
+                onTap: () async {
+                  setState(() {
+                    _selected = td;
+                    _sections = const [];
+                    _changes = const [];
+                    _links = const [];
+                    _readiness = null;
+                    _applicability = null;
+                    _overviewLight = const {};
+                    _structureLoaded = false;
+                    _sectionsNextCursor = null;
+                    _linksLoaded = false;
+                    _changesLoaded = false;
+                    _applicabilityLoaded = false;
+                    _readinessLoaded = false;
+                  });
+                  unawaited(_loadStartupBootstrap(td.id));
+                  await _ensureTabLoaded(_tabs.index);
+                },
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 340,
+          child: Card(
+            child: Column(
+              children: [
+                if (widget.canEdit)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: FilledButton.icon(
+                      onPressed: _openCreateTdWizard,
+                      icon: const Icon(Icons.add),
+                      label: const Text('TD erstellen'),
+                    ),
+                  ),
+                if (_summaryBanner != null)
+                  MaterialBanner(
+                    content: Text(_summaryBanner!),
+                    leading: const Icon(Icons.info_outline),
+                    actions: [
+                      TextButton(
+                        onPressed: () => setState(() => _summaryBanner = null),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                Expanded(child: summaryListContent),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Card(
+            child: Column(
+              children: [
+                TabBar(
+                  controller: _tabs,
+                  isScrollable: true,
+                  onTap: (index) => _ensureTabLoaded(index),
+                  tabs: const [
+                    Tab(text: 'Übersicht'),
+                    Tab(text: 'Struktur'),
+                    Tab(text: 'Anwendbarkeit'),
+                    Tab(text: 'Links'),
+                    Tab(text: 'Änderungsmanagement'),
+                    Tab(text: 'Heatmap'),
+                    Tab(text: 'Benannte-Stelle-Export'),
+                    Tab(text: 'Kalender'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabs,
+                    children: [
+                      _dashboardTab(),
+                      _structureTab(),
+                      _applicabilityTab(),
+                      _linksTab(),
+                      _changesTab(),
+                      _heatmapTab(),
+                      _exportTab(),
+                      _calendarTab(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
 
@@ -560,7 +756,15 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   Widget _dashboardTab() {
     final td = _selected;
-    if (td == null) return const Center(child: Text('Keine TD ausgewählt. Die Liste wird im Hintergrund geladen.'));
+    if (td == null) {
+      if (_isLoadingSummary) {
+        return const Center(child: Text('TD-Liste lädt...'));
+      }
+      if (_items.isEmpty) {
+        return const Center(child: Text('Keine TDs gefunden.'));
+      }
+      return const Center(child: Text('Keine TD ausgewählt.'));
+    }
     final readinessStatus = (_readiness?['readinessStatus'] ?? td.summary.readinessStatus).toString();
     final progressPercent = _completionPercent(td);
     final gaps = (_readiness?['gaps'] as List?)?.map((e) => '$e').toList() ?? const [];

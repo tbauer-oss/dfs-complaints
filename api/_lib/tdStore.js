@@ -595,6 +595,10 @@ export async function tdList() {
   return out;
 }
 
+export async function tdListFromDb() {
+  return tdList();
+}
+
 export async function tdSummaryFromDb() {
   const items = await tdList();
   const summaries = items.map((td) => ({
@@ -654,6 +658,18 @@ export async function tdSummaryFast(payload = null, options = {}) {
 
       if (!cacheInvalid) {
         const normalized = summaries.filter((item) => item && typeof item === 'object');
+        if (!Array.isArray(normalized)) {
+          console.warn('[tdSummaryFast] normalized summaries is not an array, falling back to DB', {
+            route,
+            normalizedType: typeof normalized,
+          });
+          const dbSummary = await tdSummaryFromDb();
+          return {
+            ...dbSummary,
+            cacheHit: false,
+            cacheInvalid: true,
+          };
+        }
         const lastUpdatedAt = normalized
           .map((item) => item?.updated_at || null)
           .filter((value) => value)
@@ -670,6 +686,16 @@ export async function tdSummaryFast(payload = null, options = {}) {
     }
 
     const dbSummary = await tdSummaryFromDb();
+    if (!Array.isArray(dbSummary?.items)) {
+      const dbList = await tdListFromDb();
+      return {
+        items: dbList,
+        tdCount: dbList.length,
+        lastUpdatedAt: dbList.map((item) => item?.updatedAt || null).filter(Boolean).sort().pop() || null,
+        cacheHit: false,
+        cacheInvalid: true,
+      };
+    }
     return {
       ...dbSummary,
       cacheHit: false,
