@@ -428,6 +428,42 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  void _handleTabChange() {
+    if (_tabs.indexIsChanging) return;
+    _ensureTabLoaded(_tabs.index);
+  }
+
+  Future<void> _loadStartupBootstrap(String tdId) async {
+    try {
+      final bootstrap = await widget.api.fetchTdStartupBootstrap(tdId);
+      if (!mounted) return;
+      final overview = (bootstrap['overview'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      final sectionPayload = (bootstrap['sections'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      final sectionItems = (sectionPayload['items'] as List?) ?? const [];
+      final sections = sectionItems
+          .whereType<Map>()
+          .map((e) => TdSection.fromJson(e.cast<String, dynamic>()))
+          .toList(growable: false);
+      final page = (sectionPayload['page'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      setState(() {
+        _overviewLight = overview;
+        if (sections.isNotEmpty) {
+          _sections = sections;
+          _structureLoaded = true;
+          _sectionsNextCursor = (page['nextCursor'] as num?)?.toInt();
+        }
+      });
+    } catch (e) {
+      if (!_summaryFailureLogged) {
+        _summaryFailureLogged = true;
+        debugPrint('[td] startup bootstrap failed: $e');
+      }
+      final overview = await widget.api.fetchTdOverview(tdId);
+      if (!mounted) return;
+      setState(() => _overviewLight = overview);
+    }
+  }
+
   Future<void> _ensureTabLoaded(int tabIndex) async {
     final td = _selected;
     if (td == null) return;
