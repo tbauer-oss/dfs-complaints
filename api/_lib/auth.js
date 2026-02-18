@@ -4,7 +4,7 @@ import { normalizeRole, normalizeStatus } from './portalAuth.js';
 
 // Verwende denselben Fallback wie bei der Token-Erstellung, damit Portal-Logins
 // auch ohne gesetzte Umgebungsevariable überprüft werden können.
-const JWT_SECRET = process.env.JWT_SECRET || 'devsecret';
+const JWT_SECRET = process.env.ACCESS_JWT_SECRET || process.env.JWT_SECRET || 'devsecret';
 
 export function getAuthUser(req) {
   // Erwartet "Authorization: Bearer <token>"

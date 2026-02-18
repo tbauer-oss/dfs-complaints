@@ -1,16 +1,15 @@
 export const config = { runtime: 'nodejs' };
 
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { logStoreError, methodNotAllowed, readJson, storeUnavailablePayload } from '../_lib/http.js';
+import { handlePreflight, logStoreError, methodNotAllowed, readJson, storeUnavailablePayload } from '../_lib/http.js';
 import { queryWithFallback } from '../_lib/db.js';
 import { normalizeRole } from '../_lib/portalAuth.js';
 import { forbiddenEmailReason, logSecurityEvent } from '../_lib/forbiddenEmails.js';
 import { normalizeEmail } from '../_lib/identity.js';
 import { invalidatePortalUserCaches, writePortalUserSafeCache } from '../_lib/portalUserCache.js';
+import { authTokenConfig, setRefreshCookie, signAccessToken, signRefreshToken } from '../_lib/authTokens.js';
 
-const JWT_SECRET = String(process.env.JWT_SECRET || '').trim() || 'devsecret';
-const EXPIRES_IN = '12h';
+const EXPIRES_IN = authTokenConfig.accessExpiresIn;
 const AUTH_DEBUG = String(process.env.AUTH_DEBUG || '').toLowerCase() === 'true';
 const AUTH_DEBUG_KEY = String(process.env.AUTH_DEBUG_KEY || '').trim();
 const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
@@ -134,7 +133,7 @@ function respond(req, res, statusCode, payload, outcome = null) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (handlePreflight(req, res)) return;
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   let body;
@@ -230,11 +229,10 @@ export default async function handler(req, res) {
   }
 
   const role = normalizeRole(user.role);
-  const token = jwt.sign(
-    { sub: user.id || user.email, email: user.email, role, portalStatus: 'active' },
-    JWT_SECRET,
-    { expiresIn: EXPIRES_IN },
-  );
+  const claims = { sub: user.id || user.email, email: user.email, role, portalStatus: 'active' };
+  const accessToken = signAccessToken(claims);
+  const refreshToken = signRefreshToken(claims);
+  setRefreshCookie(res, refreshToken);
 
   const cacheInfo = await invalidatePortalUserCaches(emailNorm, { logPrefix: 'portal/login' });
   const safeCacheWritten = await writePortalUserSafeCache(emailNorm, { ...user, role, portalStatus: 'active' });
@@ -247,7 +245,8 @@ export default async function handler(req, res) {
   });
 
   return respond(req, res, 200, {
-    token,
+    token: accessToken,
+    accessToken,
     user: { id: user.id, email: user.email, role },
     profile: { id: user.id, email: user.email, role, portalStatus: 'active', tourSeen: user.tourSeen === true },
     tourSeen: user.tourSeen === true,
