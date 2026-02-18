@@ -56,7 +56,7 @@ export default async function handler(req, res) {
   if (!actor) return;
   if (req.method !== 'GET') {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    return ok(res, String(req.query?.v || '') === '2' ? { ok: false, data: [], meta: { tdCount: 0, lastUpdatedAt: null } } : []);
+    return ok(res, String(req.query?.v || '') === '2' ? { ok: false, data: [], error: { code: 'METHOD_NOT_ALLOWED', message: 'Only GET is supported.' }, meta: { tdCount: 0, lastUpdatedAt: null } } : []);
   }
 
   return withTiming('td.summary', async (timing) => {
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
       res.setHeader('X-TD-Summary-Format', format);
       logSummaryFormat(format, 0, false);
       if (format === 'v2') {
-        return ok(res, { ok: false, error: 'TD summary unavailable', data: [], meta: { tdCount: 0, lastUpdatedAt: null } });
+        return ok(res, { ok: false, data: [], error: { code: 'TD_SUMMARY_UNAVAILABLE', message: 'TD summary unavailable' }, meta: { tdCount: 0, lastUpdatedAt: null } });
       }
       return ok(res, []);
     }
