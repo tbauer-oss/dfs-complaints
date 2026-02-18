@@ -597,25 +597,34 @@ export async function tdList() {
 
 export async function tdSummaryFast() {
   const items = await tdList();
-  const summaries = await Promise.all(items.map(async (td) => {
-    const sections = await tdSections(td.id);
-    const links = await tdLinks(td.id);
-    const completedSections = sections.filter((s) => s.status === 'Complete' || s.status === 'NotApplicable').length;
-    return {
-      id: td.id,
-      title: td.title,
-      version: td.version || null,
-      status: td.status,
-      created_at: td.createdAt || null,
-      updated_at: td.updatedAt || td.createdAt || null,
-      counters: {
-        section_count: sections.length,
-        completed_section_count: completedSections,
-        link_count: links.length,
-      },
-    };
+  const summaries = items.map((td) => ({
+    id: td.id,
+    code: td.code,
+    title: td.title,
+    version: td.version || null,
+    status: td.status,
+    lifecycleState: td.lifecycleState || 'Development',
+    productGroup: td.productGroup || null,
+    classification: td.classification || null,
+    rule: td.rule || null,
+    created_at: td.createdAt || null,
+    updated_at: td.updatedAt || td.createdAt || null,
+    counters: {
+      section_count: 0,
+      completed_section_count: 0,
+      link_count: 0,
+    },
   }));
-  return summaries;
+  const lastUpdatedAt = summaries
+      .map((item) => item.updated_at)
+      .where((value) => value)
+      .sort()
+      .pop() || null;
+  return {
+    items: summaries,
+    tdCount: summaries.length,
+    lastUpdatedAt,
+  };
 }
 
 export async function tdGet(id) {

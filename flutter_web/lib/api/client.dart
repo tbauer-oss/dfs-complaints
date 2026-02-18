@@ -3928,18 +3928,31 @@ class ApiClient {
     return fetchTdSummary();
   }
 
-  Future<List<TdFile>> fetchTdSummary() async {
+  Future<List<TdFile>> fetchTdSummary({Duration? timeout, bool optional = false}) async {
     const primaryPath = '/api/td/summary';
-    var r = await http.get(_u(primaryPath), headers: _adminHeaders(auth: true, path: primaryPath));
-    if (!_ok2xx(r.statusCode) && r.statusCode == 404) {
-      const fallbackPath = '/api/tdk/summary';
-      r = await http.get(_u(fallbackPath), headers: _adminHeaders(auth: true, path: fallbackPath));
+    try {
+      var request = http.get(_u(primaryPath), headers: _adminHeaders(auth: true, path: primaryPath));
+      if (timeout != null) {
+        request = request.timeout(timeout);
+      }
+      var r = await request;
+      if (!_ok2xx(r.statusCode) && r.statusCode == 404) {
+        const fallbackPath = '/api/tdk/summary';
+        request = http.get(_u(fallbackPath), headers: _adminHeaders(auth: true, path: fallbackPath));
+        if (timeout != null) {
+          request = request.timeout(timeout);
+        }
+        r = await request;
+      }
+      if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+      final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+      final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
+      final items = (body['items'] as List?) ?? const [];
+      return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
+    } catch (_) {
+      if (!optional) rethrow;
+      return const <TdFile>[];
     }
-    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
-    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
-    final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
-    final items = (body['items'] as List?) ?? const [];
-    return items.whereType<Map>().map((e) => TdFile.fromJson(e.cast<String, dynamic>())).toList(growable: false);
   }
 
 
@@ -4155,6 +4168,14 @@ class ApiClient {
     final path = '/api/td/$tdId/queries/bootstrap';
     final r = await http.post(_u(path), headers: _adminHeaders(auth: true, path: path), body: jsonEncode(const {}));
     if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+  }
+
+  Future<Map<String, dynamic>> fetchTdStartupBootstrap(String tdId) async {
+    final path = '/api/td/$tdId/queries/bootstrap';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    return decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
   }
 
   Future<void> updateTdQuery(String answerId, Map<String, dynamic> payload) async {
