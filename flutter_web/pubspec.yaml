@@ -47,7 +47,6 @@ flutter:
     - assets/DFS_Dunkel.svg
     - assets/DFS_Connect_Rep.svg
     - assets/DFS_Connect+.svg
-    - assets/data/dfs_products.csv
     - assets/help/
     - assets/emojis/
   generate: true

@@ -5,9 +5,11 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { TextDecoder } from 'util';
+import { getTdCatalogEntries } from './tdCatalog.js';
 
 const CSV_CANDIDATES = [
   process.env.DFS_PRODUCTS_CSV,
+  path.join(process.cwd(), 'api', '_data', 'dfs_products.csv'),
   path.join(process.cwd(), 'dfs_mobile', 'assets', 'data', 'dfs_products.csv'),
   path.join(process.cwd(), 'flutter_web', 'lib', 'data', 'dfs_products.csv'),
 ].filter(Boolean);
@@ -172,6 +174,15 @@ export function parseMdrTdCode(value) {
 }
 
 export async function getUniqueMdrTdEntries() {
+  try {
+    const dbEntries = await getTdCatalogEntries();
+    if (Array.isArray(dbEntries) && dbEntries.length > 0) {
+      return dbEntries;
+    }
+  } catch (err) {
+    console.warn('[products] td catalog db fallback to csv', { message: err?.message || String(err) });
+  }
+
   const products = await _getProducts();
   const byCode = new Map();
   for (const product of products) {
