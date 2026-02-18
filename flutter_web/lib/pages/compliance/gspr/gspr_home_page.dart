@@ -39,7 +39,6 @@ class _GsprHomePageState extends State<GsprHomePage> {
   String? _initialRequirementId;
   bool _exportingPdf = false;
   bool _syncingSource = false;
-  String? _lastAutoSyncedTdId;
 
   @override
   void initState() {
@@ -122,6 +121,39 @@ class _GsprHomePageState extends State<GsprHomePage> {
       _syncingSource = true;
       _error = null;
     });
+
+    var syncDialogOpen = false;
+    if (mounted) {
+      syncDialogOpen = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('GSPR-Synchronisierung läuft'),
+          content: const SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Stage A: Request startet'),
+                SizedBox(height: 8),
+                LinearProgressIndicator(),
+                SizedBox(height: 10),
+                Text('Die EU-Lex Daten werden geladen und im Cache aktualisiert. Das kann einige Sekunden dauern.'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Im Hintergrund fortsetzen'),
+            ),
+          ],
+        ),
+      ).whenComplete(() => syncDialogOpen = false);
+    }
+
     try {
       final syncResult = await widget.api.gsprSyncSource();
       final selected = GsprTdState.selectedTd.value;
@@ -142,6 +174,9 @@ class _GsprHomePageState extends State<GsprHomePage> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Synchronisierung fehlgeschlagen: $e')));
       }
     } finally {
+      if (mounted && syncDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       if (mounted) setState(() => _syncingSource = false);
     }
   }
@@ -261,10 +296,6 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
   Future<void> _handleTdSelection(GsprTdOption td) async {
     await _loadSummary(td.id);
-    if (widget.access.canEdit && _lastAutoSyncedTdId != td.id) {
-      _lastAutoSyncedTdId = td.id;
-      await _syncSourceNow();
-    }
   }
 
   Future<void> _loadSummary(String tdId) async {

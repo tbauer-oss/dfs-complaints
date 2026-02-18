@@ -56,6 +56,10 @@ jobs:
         run: |
           echo "Using API_BASE=${API_BASE}"
           flutter build web --release --web-renderer canvaskit --dart-define=API_BASE=${API_BASE}
+
+      - name: Guard dfs_products.csv in web build
+        working-directory: .
+        run: node scripts/check_flutter_asset_manifest.mjs flutter_web/build/web
           
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v4
