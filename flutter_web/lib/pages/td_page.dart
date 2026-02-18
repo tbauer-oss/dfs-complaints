@@ -417,7 +417,14 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       }
       unawaited(_fetchSummaryAndEnrich(catalog.items));
     } catch (e) {
-      setState(() => _error = 'TD-Katalog konnte nicht geladen werden: $e');
+      final details = e.toString();
+      final devDetails = kDebugMode ? '\n$details' : '';
+      setState(() {
+        _items = const [];
+        _selected = null;
+        _error =
+            'TD-Katalog konnte nicht geladen werden (Asset fehlt im Web-Build). Bitte Deployment/Assets prüfen.$devDetails';
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -524,8 +531,6 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) return Center(child: Text(_error!));
-
     Widget summaryListContent;
     if ((_isLoadingCatalog || _loading) && _items.isEmpty) {
       summaryListContent = ListView(
@@ -623,6 +628,21 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                       TextButton(
                         onPressed: () => setState(() => _summaryBanner = null),
                         child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                if (_error != null)
+                  MaterialBanner(
+                    content: Text(_error!),
+                    leading: const Icon(Icons.error_outline),
+                    actions: [
+                      TextButton(
+                        onPressed: _load,
+                        child: const Text('Neu laden'),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _error = null),
+                        child: const Text('Schließen'),
                       ),
                     ],
                   ),

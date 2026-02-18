@@ -13,6 +13,15 @@ class TdCatalogResult {
   const TdCatalogResult({required this.items, required this.source});
 }
 
+class TdCatalogLoadException implements Exception {
+  final String message;
+
+  const TdCatalogLoadException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class TdCatalogBuilder {
   static const String _assetPath = 'assets/data/dfs_products.csv';
   static const String _storageKey = 'tdCatalogV1';
@@ -35,15 +44,44 @@ class TdCatalogBuilder {
     }
 
     final csv = await loadDfsProductsCsv();
-    final built = _buildFromCsv(csv);
-    _memoryCache = built;
-    _memoryLoadedAt = now;
-    _saveToLocalStorage(now, built);
-    return TdCatalogResult(items: built, source: 'csv');
+    try {
+      final built = _buildFromCsv(csv);
+      _memoryCache = built;
+      _memoryLoadedAt = now;
+      _saveToLocalStorage(now, built);
+      return TdCatalogResult(items: built, source: 'csv');
+    } catch (e) {
+      throw TdCatalogLoadException(_catalogErrorMessage(e, csv));
+    }
   }
 
   static Future<String> loadDfsProductsCsv() {
-    return rootBundle.loadString(_assetPath);
+    return _loadCsvAssetWithValidation();
+  }
+
+  static Future<String> _loadCsvAssetWithValidation() async {
+    final csvText = await rootBundle.loadString(_assetPath);
+    final trimmed = csvText.trimLeft();
+    final normalized = trimmed.toLowerCase();
+    if (normalized.startsWith('<!doctype') || normalized.startsWith('<html')) {
+      throw TdCatalogLoadException(
+        'Ungültiger CSV-Inhalt aus Asset "$_assetPath" (HTML statt CSV erkannt).',
+      );
+    }
+    return csvText;
+  }
+
+
+  static String _catalogErrorMessage(Object error, String csv) {
+    final preview = _sanitizePreview(csv);
+    final suffix = kDebugMode ? ' Inhalt-Preview: $preview' : '';
+    return 'TD-Katalog-CSV konnte nicht geparst werden (Asset: $_assetPath). Fehler: $error.$suffix';
+  }
+
+  static String _sanitizePreview(String value) {
+    final compact = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.length <= 120) return compact;
+    return '${compact.substring(0, 120)}...';
   }
 
   static List<TdFile> _buildFromCsv(String csv) {
@@ -53,6 +91,9 @@ class TdCatalogBuilder {
     final header = _parseCsvLine(lines.first);
     final tdIndex = header.indexOf('td_number_and_name');
     final productGroupIndex = header.indexOf('product_group');
+    if (tdIndex < 0 || productGroupIndex < 0) {
+      throw const FormatException('CSV-Header ist unvollständig (Spalten td_number_and_name/product_group fehlen).');
+    }
 
     final Map<String, _TdBucket> buckets = <String, _TdBucket>{};
 
