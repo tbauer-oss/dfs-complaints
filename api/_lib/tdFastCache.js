@@ -29,13 +29,13 @@ export async function getCachedJson(key, timing = null) {
   }
 }
 
-export async function setCachedJson(key, value, timing = null) {
+export async function setCachedJson(key, value, timing = null, ttlSeconds = TTL_SECONDS) {
   try {
     const payload = JSON.stringify(value || null);
     if (timing) {
-      await timing.kv(() => redis.set(key, payload, { ex: TTL_SECONDS }));
+      await timing.kv(() => redis.set(key, payload, { ex: ttlSeconds }));
     } else {
-      await redis.set(key, payload, { ex: TTL_SECONDS });
+      await redis.set(key, payload, { ex: ttlSeconds });
     }
   } catch {
     // cache is optional

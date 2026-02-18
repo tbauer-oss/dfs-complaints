@@ -9,8 +9,9 @@ import { withTiming } from '../_lib/timing.js';
 const SUMMARY_CACHE_KEY = 'dfs:td:summary:v1';
 
 function setSummaryServerTiming(res, { total, db, kv, cacheHit }) {
-  const cacheDuration = cacheHit ? 1 : 0;
-  res.setHeader('Server-Timing', `total;dur=${Math.max(0, total)}, db;dur=${Math.max(0, db)}, kv;dur=${Math.max(0, kv)}, cache;dur=${cacheDuration}`);
+  void kv;
+  void cacheHit;
+  res.setHeader('Server-Timing', `db;dur=${Math.max(0, db)}, total;dur=${Math.max(0, total)}`);
 }
 
 export default async function handler(req, res) {
@@ -47,7 +48,7 @@ export default async function handler(req, res) {
       generatedAt: new Date().toISOString(),
     };
     timing.addRows(payload.items.length);
-    await setCachedJson(SUMMARY_CACHE_KEY, payload, timing);
+    await setCachedJson(SUMMARY_CACHE_KEY, payload, timing, 60);
 
     setSummaryServerTiming(res, {
       total: Date.now() - startedAt,
