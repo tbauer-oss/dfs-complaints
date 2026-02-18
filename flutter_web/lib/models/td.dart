@@ -154,6 +154,15 @@ class TdFile {
   }
 }
 
+
+class TdCatalogResponse {
+  final List<TdFile> items;
+  final Map<String, dynamic> meta;
+  final String source;
+
+  const TdCatalogResponse({required this.items, required this.meta, required this.source});
+}
+
 class TdSectionContent {
   final String summaryMarkdown;
   final Map<String, dynamic>? contentJson;

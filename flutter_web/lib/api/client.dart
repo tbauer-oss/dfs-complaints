@@ -3924,6 +3924,42 @@ class ApiClient {
   }
 
 
+  Future<TdCatalogResponse> fetchTdCatalog() async {
+    const path = '/api/td/catalog';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    if (decoded is! Map) throw ApiError(500, 'Ungültige Antwort für TD-Katalog');
+    final body = decoded.cast<String, dynamic>();
+    final items = (body['items'] as List?) ?? const [];
+    final meta = (body['meta'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final source = meta['cacheHit'] == true ? 'api-cache' : 'api-db';
+    return TdCatalogResponse(
+      items: items.whereType<Map>().map((e) {
+        final row = e.cast<String, dynamic>();
+        return TdFile(
+          id: (row['td_key'] ?? row['id'] ?? '').toString(),
+          code: (row['td_key'] ?? row['code'] ?? '').toString(),
+          title: (row['title'] ?? row['td_key'] ?? '').toString(),
+          lifecycleState: 'Development',
+          productGroup: row['product_group']?.toString(),
+          classification: row['mdr_classification']?.toString(),
+          rule: null,
+          status: 'Draft',
+          summary: const TdSummary(
+            complianceScore: 0,
+            readinessStatus: 'Yellow',
+            overdueReviews: 0,
+            openCapaCount: 0,
+            reasons: <String>[],
+          ),
+        );
+      }).toList(growable: false),
+      meta: meta,
+      source: source,
+    );
+  }
+
   Future<List<TdFile>> fetchTdFiles() async {
     return fetchTdSummary();
   }
