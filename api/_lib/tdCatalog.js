@@ -86,6 +86,32 @@ function firstValue(row, keys = []) {
   return '';
 }
 
+function isMissingRelationError(err, relationName = '') {
+  const sqlState = String(err?.sqlState || err?.code || '').toUpperCase();
+  if (sqlState === '42P01') return true;
+  const relation = String(relationName || '').trim();
+  const message = String(err?.message || '').toLowerCase();
+  if (!message) return false;
+  if (relation) {
+    return message.includes(`relation \"${relation.toLowerCase()}\" does not exist`);
+  }
+  return message.includes('relation') && message.includes('does not exist');
+}
+
+async function loadTdCatalogFromCsvFallback() {
+  const csvText = await readProductsCsvFromDisk();
+  const rows = parseProductsCsv(csvText);
+  return buildTdCatalog(rows).map((row) => ({
+    td_key: row.td_key,
+    product_group: row.product_group,
+    title: row.title,
+    mdr_classification: row.mdr_classification,
+    active: true,
+    source_row: row.source_row || null,
+    updated_at: null,
+  }));
+}
+
 export async function readProductsCsvFromDisk() {
   return fs.readFile(CSV_PATH, 'utf8');
 }
@@ -218,20 +244,28 @@ export async function upsertTdCatalog(catalog = [], meta = {}) {
 }
 
 export async function loadTdCatalogFromDb() {
-  const result = await queryWithFallback({
-    tableHint: 'td_catalog',
-    route: '/api/td/catalog',
-    sqlTag: 'td_catalog_load',
-    primarySql: `SELECT td_key, product_group, title, mdr_classification, active, source_row, updated_at
-                 FROM public.td_catalog
-                 WHERE active = true
-                 ORDER BY td_key`,
-    fallbackSql: `SELECT td_key, product_group, title, NULL::text AS mdr_classification, true AS active, NULL::jsonb AS source_row, now() AS updated_at
-                  FROM public.td_catalog
-                  ORDER BY td_key`,
-  });
+  let rows = [];
+  try {
+    const result = await queryWithFallback({
+      tableHint: 'td_catalog',
+      route: '/api/td/catalog',
+      sqlTag: 'td_catalog_load',
+      primarySql: `SELECT td_key, product_group, title, mdr_classification, active, source_row, updated_at
+                   FROM public.td_catalog
+                   WHERE active = true
+                   ORDER BY td_key`,
+      fallbackSql: `SELECT td_key, product_group, title, NULL::text AS mdr_classification, true AS active, NULL::jsonb AS source_row, now() AS updated_at
+                    FROM public.td_catalog
+                    ORDER BY td_key`,
+    });
+    rows = result.rows || [];
+  } catch (err) {
+    if (!isMissingRelationError(err, 'public.td_catalog')) throw err;
+    console.warn('[tdCatalog] missing td_catalog relation, serving CSV fallback');
+    return loadTdCatalogFromCsvFallback();
+  }
 
-  return (result.rows || []).map((row) => ({
+  return rows.map((row) => ({
     td_key: String(row.td_key || '').trim().toUpperCase(),
     product_group: normText(row.product_group),
     title: normText(row.title),
@@ -243,17 +277,23 @@ export async function loadTdCatalogFromDb() {
 }
 
 export async function loadTdCatalogMeta() {
-  const result = await queryWithFallback({
-    tableHint: 'td_catalog_meta',
-    route: '/api/td/catalog',
-    sqlTag: 'td_catalog_meta_load',
-    primarySql: `SELECT source_hash, source_updated_at, row_count, last_build_ms, last_error
-                 FROM public.td_catalog_meta
-                 ORDER BY source_updated_at DESC
-                 LIMIT 1`,
-    fallbackSql: `SELECT ''::text AS source_hash, NULL::timestamptz AS source_updated_at, 0::int AS row_count, NULL::int AS last_build_ms, NULL::text AS last_error`,
-  });
-  return result.rows?.[0] || null;
+  try {
+    const result = await queryWithFallback({
+      tableHint: 'td_catalog_meta',
+      route: '/api/td/catalog',
+      sqlTag: 'td_catalog_meta_load',
+      primarySql: `SELECT source_hash, source_updated_at, row_count, last_build_ms, last_error
+                   FROM public.td_catalog_meta
+                   ORDER BY source_updated_at DESC
+                   LIMIT 1`,
+      fallbackSql: `SELECT ''::text AS source_hash, NULL::timestamptz AS source_updated_at, 0::int AS row_count, NULL::int AS last_build_ms, NULL::text AS last_error`,
+    });
+    return result.rows?.[0] || null;
+  } catch (err) {
+    if (!isMissingRelationError(err, 'public.td_catalog_meta')) throw err;
+    console.warn('[tdCatalog] missing td_catalog_meta relation, serving default meta');
+    return null;
+  }
 }
 
 export async function rebuildTdCatalog() {
