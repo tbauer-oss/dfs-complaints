@@ -426,8 +426,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       unawaited(_fetchSummaryAndEnrich(catalog.items));
     } catch (e) {
       final details = e.toString();
-      final devDetails = kDebugMode ? '
-$details' : '';
+      final devDetails = kDebugMode ? '\n$details' : '';
       setState(() {
         _items = const [];
         _selected = null;
