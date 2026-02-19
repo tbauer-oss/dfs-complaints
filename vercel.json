@@ -214,6 +214,10 @@
       "dest": "/api/td/[id]/applicability.js?id=$1"
     },
     {
+      "src": "^/api/td/catalog$",
+      "dest": "/api/td/catalog.js"
+    },
+    {
       "src": "/api/td/([^/]+)$",
       "dest": "/api/td/[id].js?id=$1"
     },

@@ -3,12 +3,12 @@ import 'td_catalog_service.dart';
 
 class DfsProductService {
   Future<List<DfsProduct>> loadProducts({bool forceRefresh = false}) async {
-    final rows = await tdCatalogService.loadDfsProductsCsv(forceRefresh: forceRefresh);
+    final rows = await tdCatalogService.loadProducts(forceRefresh: forceRefresh);
     return rows.map((row) => DfsProduct.fromHeaderMap(row.values)).toList(growable: false);
   }
 
   List<DfsProduct> parse(String content) {
-    throw UnsupportedError('DfsProductService.parse is deprecated. Use TdCatalogService for CSV loading.');
+    throw UnsupportedError('DfsProductService.parse is deprecated. Use TdCatalogService API loading.');
   }
 
   String exportCsv(List<DfsProduct> products, List<String> columns) {
