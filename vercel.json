@@ -174,6 +174,10 @@
       "dest": "/api/td/[id]/readiness.js?id=$1"
     },
     {
+      "src": "/api/td/catalog$",
+      "dest": "/api/td/catalog.js"
+    },
+    {
       "src": "/api/td/sections/([^/]+)/content$",
       "dest": "/api/td/sections/[sectionId]/content.js?sectionId=$1"
     },
@@ -212,10 +216,6 @@
     {
       "src": "/api/td/([^/]+)/applicability$",
       "dest": "/api/td/[id]/applicability.js?id=$1"
-    },
-    {
-      "src": "^/api/td/catalog$",
-      "dest": "/api/td/catalog.js"
     },
     {
       "src": "/api/td/([^/]+)$",
