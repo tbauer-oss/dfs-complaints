@@ -3924,6 +3924,10 @@ class ApiClient {
   }
 
 
+  Future<TdCatalogResponse> getTdCatalog() async {
+    return fetchTdCatalog();
+  }
+
   Future<TdCatalogResponse> fetchTdCatalog() async {
     const path = '/api/td/catalog';
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
@@ -3938,13 +3942,13 @@ class ApiClient {
       items: items.whereType<Map>().map((e) {
         final row = e.cast<String, dynamic>();
         return TdFile(
-          id: (row['td_key'] ?? row['id'] ?? '').toString(),
-          code: (row['td_key'] ?? row['code'] ?? '').toString(),
-          title: (row['title'] ?? row['td_key'] ?? '').toString(),
+          id: (row['tdKey'] ?? row['td_key'] ?? row['id'] ?? '').toString(),
+          code: (row['tdKey'] ?? row['td_key'] ?? row['code'] ?? '').toString(),
+          title: (row['title'] ?? row['tdKey'] ?? row['td_key'] ?? '').toString(),
           lifecycleState: 'Development',
-          productGroup: row['product_group']?.toString(),
-          classification: row['mdr_classification']?.toString(),
-          rule: null,
+          productGroup: (row['productFamily'] ?? row['product_group'])?.toString(),
+          classification: (row['riskClass'] ?? row['mdr_classification'])?.toString(),
+          rule: row['rule']?.toString(),
           status: 'Draft',
           summary: const TdSummary(
             complianceScore: 0,

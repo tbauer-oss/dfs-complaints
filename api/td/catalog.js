@@ -1,32 +1,55 @@
-import { query } from '../_lib/db.js';
-
 export const config = { runtime: 'nodejs' };
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'method not allowed' });
-  }
+import { handlePreflight, setCors, bad, ok } from '../_lib/http.js';
+import { requirePortalAccess } from '../admin/_guard.js';
+import { loadOrRebuildCatalog } from '../_lib/tdCatalog.js';
 
-  const t0 = Date.now();
+export default async function handler(req, res) {
+  if (handlePreflight(req, res)) return;
+  setCors(req, res);
+
+  const actor = await requirePortalAccess(req, res, { tile: 'td', write: false });
+  if (!actor) return;
+
+  if (req.method !== 'GET') return bad(res, 'method not allowed', 405, { code: 'METHOD_NOT_ALLOWED' });
 
   try {
-    const { rows } = await query(`
-      SELECT td_key, title, product_group, risk_class
-      FROM td_catalog
-      ORDER BY td_key ASC
-    `);
+    const result = await loadOrRebuildCatalog();
+    const items = Array.isArray(result.items) ? result.items : [];
 
-    console.log('[perf][td/catalog]', Date.now() - t0);
-    return res.status(200).json({
+    console.info('[td/catalog] outcome:', result.outcome, {
+      itemCount: items.length,
+      ms_total: result.timings.ms_total,
+      ms_db: result.timings.ms_db,
+      ms_fs: result.timings.ms_fs,
+      ms_parse: result.timings.ms_parse,
+    });
+
+    if (items.length === 0) {
+      console.warn('[td/catalog] CSV parsed but contains no MDR-TD rows');
+    }
+
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return ok(res, {
       ok: true,
-      items: rows || [],
+      items,
+      meta: {
+        outcome: result.outcome,
+        sourceHash: result.sourceHash,
+        generatedAt: result.generatedAt,
+      },
     });
-  } catch (e) {
-    console.error('[td/catalog]', e);
-    console.log('[perf][td/catalog]', Date.now() - t0);
-    return res.status(200).json({
-      ok: false,
-      items: [],
-    });
+  } catch (err) {
+    const message = String(err?.message || err || '');
+    if (String(err?.code || '').toUpperCase() === 'DB_UNAVAILABLE') {
+      return bad(res, 'Database unavailable', 503, { code: 'DB_UNAVAILABLE' });
+    }
+    if (err?.code === 'ENOENT' || message.includes('no such file')) {
+      return bad(res, 'CSV source file unavailable at api/_data/dfs_products.csv', 503, {
+        code: 'TD_CATALOG_SOURCE_UNAVAILABLE',
+      });
+    }
+    console.error('[td/catalog] failed', { message });
+    return bad(res, 'td catalog unavailable', 503, { code: 'TD_CATALOG_UNAVAILABLE' });
   }
 }
