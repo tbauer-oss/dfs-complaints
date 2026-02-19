@@ -124,7 +124,7 @@ export function __setDbForTests(mock = null) {
   dbOverride = mock;
 }
 
-async function getPool() {
+export async function getPool() {
   if (pool) return pool;
   const connectionString = getDatabaseConnectionString();
   if (!connectionString) return null;

@@ -33,16 +33,16 @@ class TdCatalogBuilder {
       return TdCatalogResult(items: storage, source: 'localStorage');
     }
 
-    final loadResult = await tdCatalogService.loadDfsProductsCsvWithDiagnostics();
+    final rows = await tdCatalogService.loadProducts();
     try {
-      final built = _buildFromRows(loadResult.rows);
+      final built = _buildFromRows(rows);
       _memoryCache = built;
       _memoryLoadedAt = now;
       _saveToLocalStorage(now, built);
-      return TdCatalogResult(items: built, source: loadResult.strategy);
+      return TdCatalogResult(items: built, source: 'api');
     } catch (e) {
       throw TdCatalogLoadException(
-        'TD-Katalog konnte nicht geparst werden (source=${loadResult.sourcePath}, strategy=${loadResult.strategy}): $e',
+        'TD-Katalog konnte nicht geparst werden (source=api): $e',
       );
     }
   }

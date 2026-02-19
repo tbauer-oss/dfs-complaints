@@ -332,56 +332,6 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     return merged;
   }
 
-  Future<void> _fetchSummaryAndEnrich(List<TdFile> catalogItems) async {
-    setState(() {
-      _isLoadingSummary = true;
-      _summaryOk = false;
-    });
-    _startLoadingWatchdog();
-    try {
-      final summary = await widget.api.fetchTdSummary(timeout: const Duration(seconds: 8), optional: true, v2: true);
-      if (!mounted) return;
-      final merged = _mergeSummaryIntoCatalog(catalogItems, summary);
-      final selected = merged.isNotEmpty
-          ? (_selected == null ? merged.first : merged.firstWhere((e) => e.id == _selected!.id, orElse: () => merged.first))
-          : null;
-
-      setState(() {
-        _items = merged;
-        _selected = selected;
-        _summaryOk = summary.isNotEmpty;
-        _summaryBanner = summary.isEmpty ? 'Summary nicht verfügbar. Liste stammt aus CSV.' : null;
-      });
-      if (summary.isEmpty && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('TD-Summary nicht verfügbar')),
-        );
-      }
-      if (selected != null) {
-        unawaited(_loadStartupBootstrap(selected.id));
-      }
-    } catch (e) {
-      if (!_summaryFailureLogged) {
-        _summaryFailureLogged = true;
-        debugPrint('[td] catalogCount=${catalogItems.length} summaryCount=0 summaryOk=false mergeHitRate=0% error=$e');
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('TD-Summary nicht verfügbar')),
-        );
-      }
-      setState(() {
-        _summaryOk = false;
-        _summaryBanner = 'Summary nicht verfügbar. Liste stammt aus CSV.';
-      });
-    } finally {
-      _stopLoadingWatchdog();
-      if (mounted) {
-        setState(() => _isLoadingSummary = false);
-      }
-    }
-  }
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -420,10 +370,6 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _readinessLoaded = false;
       });
 
-      if (selected != null) {
-        unawaited(_loadStartupBootstrap(selected.id));
-      }
-      unawaited(_fetchSummaryAndEnrich(catalog.items));
     } catch (e) {
       final details = e.toString();
       final devDetails = kDebugMode ? '\n$details' : '';
@@ -445,22 +391,6 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   void _handleTabChange() {
     if (_tabs.indexIsChanging) return;
     _ensureTabLoaded(_tabs.index);
-  }
-
-  Future<void> _loadStartupBootstrap(String tdId) async {
-    try {
-      final overview = await _runWithApiLimit(() => widget.api.fetchTdOverview(tdId));
-      if (!mounted) return;
-      setState(() => _overviewLight = overview);
-    } catch (e) {
-      if (!_summaryFailureLogged) {
-        _summaryFailureLogged = true;
-        debugPrint('[td] startup bootstrap failed: $e');
-      }
-      final overview = await _runWithApiLimit(() => widget.api.fetchTdOverview(tdId));
-      if (!mounted) return;
-      setState(() => _overviewLight = overview);
-    }
   }
 
   Future<void> _ensureTabLoaded(int tabIndex) async {
@@ -679,7 +609,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Catalog source: CSV', style: TextStyle(fontSize: 12)),
+                        const Text('Catalog source: API', style: TextStyle(fontSize: 12)),
                         Text('Summary: ${_summaryOk ? 'ok' : 'failed'}', style: const TextStyle(fontSize: 12)),
                         Text('Catalog cache: $_catalogSource', style: const TextStyle(fontSize: 12)),
                       ],
