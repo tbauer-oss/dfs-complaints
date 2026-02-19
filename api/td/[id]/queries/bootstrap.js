@@ -4,6 +4,9 @@ import { requirePortalAccess } from '../../../admin/_guard.js';
 import { tdBootstrapQueries, tdOverviewFast, tdSections } from '../../../_lib/tdStore.js';
 import { withTiming } from '../../../_lib/timing.js';
 
+const BOOTSTRAP_TTL_MS = 30 * 1000;
+const bootstrapCache = new Map();
+
 function sectionToMeta(section) {
   return {
     id: section.id,
@@ -38,6 +41,15 @@ export default async function handler(req, res) {
       timing.stats.route = '/api/td/:id/queries/bootstrap';
       timing.stats.tdId = id;
       try {
+        const now = Date.now();
+        const cached = bootstrapCache.get(id);
+        if (cached && now - cached.ts <= BOOTSTRAP_TTL_MS) {
+          timing.setCacheHit(true);
+          timing.addRows(cached.payload?.sections?.items?.length || 0);
+          timing.setServerTiming(res);
+          return ok(res, { ...cached.payload, cacheHit: true });
+        }
+
         const overview = (await tdOverviewFast(id)) || {
           section_count: 0,
           answered_count: 0,
@@ -45,9 +57,7 @@ export default async function handler(req, res) {
         };
         const sections = await tdSections(id);
         const sectionMeta = sections.map(sectionToMeta);
-        timing.addRows(sectionMeta.length);
-        timing.setServerTiming(res);
-        return ok(res, {
+        const payload = {
           ok: true,
           overview,
           sections: {
@@ -64,7 +74,12 @@ export default async function handler(req, res) {
             sectionCount: overview.section_count || sectionMeta.length,
             linkCount: overview.link_count || 0,
           },
-        });
+          cacheHit: false,
+        };
+        bootstrapCache.set(id, { ts: now, payload });
+        timing.addRows(sectionMeta.length);
+        timing.setServerTiming(res);
+        return ok(res, payload);
       } catch (err) {
         return bad(res, err?.message || 'server error', 500);
       }

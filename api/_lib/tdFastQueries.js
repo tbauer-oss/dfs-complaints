@@ -1,5 +1,5 @@
 import { queryWithStatementTimeout, safeQuery } from './db.js';
-import { tdOverviewFast, tdSections, tdQueries, tdLinks } from './tdStore.js';
+import { tdOverviewFast, tdSections, tdLinks } from './tdStore.js';
 
 const TD_TABLES = [
   { td: 'td', sections: 'td_sections', answers: 'td_query_answers', links: 'td_links' },

@@ -985,13 +985,12 @@ export async function tdSectionGetDetailed(sectionId) {
 export async function tdOverviewFast(tdId) {
   const td = await tdGet(tdId);
   if (!td || td.deletedAt) return null;
-  const sections = await tdSections(tdId);
-  const links = await tdLinks(tdId);
-  const answers = await tdQueryAnswersRaw(tdId);
-  const answeredCount = answers.filter((item) => ['Complete', 'NotApplicable'].includes(item.status)).length;
+  const resolvedTdId = td.id;
+  const sections = await tdSections(resolvedTdId);
+  const links = await tdLinks(resolvedTdId);
   return {
     section_count: sections.length,
-    answered_count: answeredCount,
+    answered_count: 0,
     link_count: links.length,
   };
 }
@@ -1099,12 +1098,12 @@ export async function tdQueries(tdId, sectionId = null) {
   if (!td || td.deletedAt) throw new Error('TD not found');
   const resolvedTdId = td.id;
   await tdBootstrapQueries(resolvedTdId);
-  const answers = await tdQueryAnswersRaw(resolvedTdId);
+  const allAnswers = await tdQueryAnswersRaw(resolvedTdId);
+  const answers = sectionId ? allAnswers.filter((item) => item.sectionId === sectionId) : allAnswers;
   const queryLinks = await tdQueryLinksByTd(resolvedTdId);
   const applicability = await tdApplicabilityGet(resolvedTdId);
   const resultMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
   return answers
-    .filter((item) => (sectionId ? item.sectionId === sectionId : true))
     .map((answer) => {
       const template = TD_QUERY_TEMPLATES.find((tpl) => tpl.templateKey === answer.templateKey) || null;
       const nodeTemplate = queryNodeTemplate(answer.templateKey);
@@ -1499,12 +1498,13 @@ export async function tdComputedSummary(td, { includeGsprAssessments = true } = 
 }
 
 export async function tdReadiness(tdId) {
-  const td = await getEntity(KEY, tdId, mem.files);
+  const td = await tdGet(tdId);
   if (!td || td.deletedAt) throw new Error('TD not found');
-  const sections = await tdSections(tdId);
-  const links = await tdLinks(tdId);
-  const queries = await tdQueries(tdId);
-  const applicability = await tdApplicabilityGet(tdId);
+  const resolvedTdId = td.id;
+  const sections = await tdSections(resolvedTdId);
+  const links = await tdLinks(resolvedTdId);
+  const queries = await tdQueries(resolvedTdId);
+  const applicability = await tdApplicabilityGet(resolvedTdId);
   const applicabilityMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
 
   const gaps = [];
@@ -1523,7 +1523,7 @@ export async function tdReadiness(tdId) {
     const total = sectionQueries.length;
     const completion = total ? Math.round((complete / total) * 100) : 0;
     const isApplicableQuery = (q) => {
-      const rule = applicabilityMap.get(`${tdId}:${q.sectionId}:${q.templateKey}`) || q.applicability;
+      const rule = applicabilityMap.get(`${resolvedTdId}:${q.sectionId}:${q.templateKey}`) || q.applicability;
       if (!rule) return q.template?.mandatory !== false;
       if (rule.state === 'NOT_APPLICABLE') return false;
       if (rule.state === 'OPTIONAL') return false;
@@ -1532,7 +1532,7 @@ export async function tdReadiness(tdId) {
     };
     const mandatoryOpen = sectionQueries.filter((q) => isApplicableQuery(q) && !['Complete', 'NotApplicable'].includes(q.status));
     const overdue = sectionQueries.filter((q) => isApplicableQuery(q) && q.dueAt && Date.parse(q.dueAt) < now && !['Complete', 'NotApplicable'].includes(q.status));
-    const sectionApplicability = applicabilityMap.get(`${tdId}:${section.id}:`);
+    const sectionApplicability = applicabilityMap.get(`${resolvedTdId}:${section.id}:`);
     const requiredTypes = sectionApplicability?.state === 'NOT_APPLICABLE' ? [] : (mandatoryBySection[section.templateKey] || []);
     const missingLinkTypes = requiredTypes.filter((type) => !links.some((l) => l.sectionId === section.id && (type === 'Document' ? ['Document', 'Report'].includes(l.type) : l.type === type)));
     if (mandatoryOpen.length) gaps.push(`${section.templateKey}: mandatory queries open (${mandatoryOpen.length})`);
