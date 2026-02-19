@@ -233,9 +233,12 @@ export default async function handler(req, res) {
           source: mapSourceForResponse(source),
         });
       }
-      const statusCode = shouldApplyCooldown(failureReason) ? 503 : 502;
-      return bad(res, patch.lastSyncError, statusCode, {
+      return ok(res, {
+        ok: false,
         code: shouldApplyCooldown(failureReason) ? 'EUR_LEX_ANTI_BOT_SUSPECTED' : 'EUR_LEX_SYNC_FAILED',
+        stale: false,
+        degraded: true,
+        message: `MDR sync currently unavailable (${failureReason}). Existing GSPR catalog data remains available.`,
         detectedFailureReason: failureReason,
         debugSnippet,
         tdKey,
@@ -294,6 +297,13 @@ export default async function handler(req, res) {
       lastSyncError: err?.message || 'sync failed',
       updatedBy: actor?.email || '',
     });
-    return bad(res, source.lastSyncError || 'sync failed', 502, { tdKey, source: mapSourceForResponse(source) });
+    return ok(res, {
+      ok: false,
+      code: 'SYNC_UNHANDLED_ERROR',
+      degraded: true,
+      message: source.lastSyncError || 'sync failed',
+      tdKey,
+      source: mapSourceForResponse(source),
+    });
   }
 }
