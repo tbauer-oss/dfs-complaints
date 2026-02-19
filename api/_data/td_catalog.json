@@ -1,0 +1,37 @@
+[
+  {
+    "td_key": "MDR-TD1",
+    "title": "MDR-TD1 – Rotierende Diamant- und Hartmetallinstrumente",
+    "mdr_rule": "5.4",
+    "risk_class": "IIa",
+    "active": true
+  },
+  {
+    "td_key": "MDR-TD2",
+    "title": "MDR-TD2 – Polierer und Bürsten",
+    "mdr_rule": "5.4",
+    "risk_class": "IIa",
+    "active": true
+  },
+  {
+    "td_key": "MDR-TD3",
+    "title": "MDR-TD3 – Stahlinstrumente",
+    "mdr_rule": "6.1",
+    "risk_class": "I",
+    "active": true
+  },
+  {
+    "td_key": "MDR-TD4",
+    "title": "MDR-TD4 – Endodontieinstrumente",
+    "mdr_rule": "6.1",
+    "risk_class": "IIa",
+    "active": true
+  },
+  {
+    "td_key": "MDR-TD5",
+    "title": "MDR-TD5 – Dentallegierungen",
+    "mdr_rule": "8.2",
+    "risk_class": "IIa",
+    "active": true
+  }
+]

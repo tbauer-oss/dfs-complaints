@@ -1,4 +1,4 @@
-// /api/gspr/td-options.js – GSPR TD options from Artikelliste
+// /api/gspr/td-options.js – GSPR TD options from static TD catalog file
 export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad } from '../_lib/http.js';

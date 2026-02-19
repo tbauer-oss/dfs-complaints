@@ -32,6 +32,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   String? _summaryBanner;
   String _catalogSource = 'api';
   bool _summaryOk = false;
+  bool _catalogUnavailable = false;
   String? _loadingHint;
   String? _loadingDiagnostics;
   DateTime? _summaryStartedAt;
@@ -360,6 +361,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
 
       setState(() {
         _catalogSource = catalog.source;
+        _catalogUnavailable = catalog.source == 'api-unavailable';
         _items = catalog.items;
         _selected = selected;
         _sections = const [];
@@ -382,6 +384,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       setState(() {
         _items = const [];
         _selected = null;
+        _catalogUnavailable = true;
         _error = 'TD-Katalog konnte nicht vom Server geladen werden.$devDetails';
       });
     } finally {
@@ -569,9 +572,9 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
             children: [
               const Icon(Icons.inbox_outlined, size: 32),
               const SizedBox(height: 8),
-              const Text('No TDs found'),
+              Text(_catalogUnavailable ? 'Der TD-Katalog ist aktuell nicht verfügbar.' : 'Keine TD-Einträge verfügbar.'),
               const SizedBox(height: 8),
-              OutlinedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Neu laden')),
+              OutlinedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Retry')),
             ],
           ),
         ),
@@ -582,7 +585,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
             .map(
               (td) => ListTile(
                 title: Text(td.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text('Fortschritt ${_completionPercent(td)} %'),
+                subtitle: Text('Regel: ${td.rule ?? '-'} • Fortschritt ${_completionPercent(td)} %'),
                 selected: _selected?.id == td.id,
                 onTap: () async {
                   setState(() {

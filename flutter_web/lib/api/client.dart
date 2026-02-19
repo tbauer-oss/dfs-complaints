@@ -3935,20 +3935,22 @@ class ApiClient {
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
     if (decoded is! Map) throw ApiError(500, 'Ungültige Antwort für TD-Katalog');
     final body = decoded.cast<String, dynamic>();
+    if (body['ok'] == false) {
+      return const TdCatalogResponse(items: <TdFile>[], meta: <String, dynamic>{}, source: 'api-unavailable');
+    }
     final items = (body['items'] as List?) ?? const [];
     final meta = (body['meta'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
-    final source = meta['cacheHit'] == true ? 'api-cache' : 'api-db';
     return TdCatalogResponse(
       items: items.whereType<Map>().map((e) {
         final row = e.cast<String, dynamic>();
         return TdFile(
-          id: (row['tdKey'] ?? row['td_key'] ?? row['id'] ?? '').toString(),
-          code: (row['tdKey'] ?? row['td_key'] ?? row['code'] ?? '').toString(),
-          title: (row['title'] ?? row['tdKey'] ?? row['td_key'] ?? '').toString(),
+          id: (row['td_key'] ?? row['tdKey'] ?? row['id'] ?? '').toString(),
+          code: (row['td_key'] ?? row['tdKey'] ?? row['code'] ?? '').toString(),
+          title: (row['title'] ?? row['td_key'] ?? row['tdKey'] ?? '').toString(),
           lifecycleState: 'Development',
           productGroup: (row['productFamily'] ?? row['product_group'])?.toString(),
-          classification: (row['riskClass'] ?? row['mdr_classification'])?.toString(),
-          rule: row['rule']?.toString(),
+          classification: (row['risk_class'] ?? row['riskClass'] ?? row['mdr_classification'])?.toString(),
+          rule: (row['mdr_rule'] ?? row['rule'])?.toString(),
           status: 'Draft',
           summary: const TdSummary(
             complianceScore: 0,
@@ -3960,7 +3962,7 @@ class ApiClient {
         );
       }).toList(growable: false),
       meta: meta,
-      source: source,
+      source: 'api',
     );
   }
 

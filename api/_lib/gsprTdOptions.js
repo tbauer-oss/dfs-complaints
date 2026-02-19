@@ -1,5 +1,5 @@
 import { fmeaAll, fmeaGet } from './store.js';
-import { loadTdCatalogFromDb } from './tdCatalog.js';
+import { loadActiveTdCatalogItemsFromFile } from './tdCatalogFile.js';
 
 const MDR_TD_PREFIX = 'MDR-TD';
 
@@ -7,7 +7,7 @@ export function normalizeTdLabel(value) {
   let text = (value ?? '').toString().trim();
   if (!text) return '';
   text = text.replace(/\s+/g, ' ');
-  text = text.replace(/\s*[-–—]\s*/g, ' – ');
+  text = text.replace(/\s+[–—-]\s+/g, ' – ');
   text = text.replace(/\s+/g, ' ').trim();
   return text;
 }
@@ -53,15 +53,16 @@ function fmeaLabel(fmea) {
 
 async function loadMdrTdValues() {
   const values = new Set();
-  const rows = await loadTdCatalogFromDb();
+  const rows = await loadActiveTdCatalogItemsFromFile();
   for (const row of rows) {
     const code = normalizeTdValue(row?.td_key);
     if (!code.startsWith(MDR_TD_PREFIX)) continue;
-    const label = row?.title ? `${code} – ${String(row.title).trim()}` : code;
+    const title = String(row?.title || '').replace(/^\s*MDR-TD\d+\s*[-–—:]?\s*/i, '').trim();
+    const label = title ? `${code} – ${title}` : code;
     values.add(label);
   }
   if (values.size === 0) {
-    console.error('[gspr/td-options] no MDR-TD entries found in DB catalog');
+    console.error('[gspr/td-options] no MDR-TD entries found in file catalog');
   }
 
   return Array.from(values);
