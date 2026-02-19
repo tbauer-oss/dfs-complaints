@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:html' as html;
 
 import 'package:http/http.dart' as http;
+
+import '../api/config.dart';
 
 class ProductRow {
   final Map<String, String> values;
@@ -23,12 +26,23 @@ class TdCatalogService {
   static const String endpoint = '/api/td/catalog';
   List<ProductRow>? _memoryCache;
 
+  String _resolveApiBase() {
+    const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+    if (defined.isNotEmpty) return defined;
+    try {
+      final stored = html.window.localStorage['API_BASE'] ?? '';
+      if (stored.trim().isNotEmpty) return stored.trim();
+    } catch (_) {}
+    return CFG.apiBase;
+  }
+
   Future<List<ProductRow>> loadProducts({bool forceRefresh = false}) async {
     if (!forceRefresh && _memoryCache != null) {
       return _memoryCache!;
     }
 
-    final response = await http.get(Uri.parse(endpoint));
+    final base = _resolveApiBase().replaceAll(RegExp(r'/+$'), '');
+    final response = await http.get(Uri.parse('$base$endpoint'));
     if (response.statusCode != 200) {
       throw TdCatalogLoadException('TD catalog request failed: ${response.statusCode}');
     }
