@@ -49,7 +49,6 @@ flutter:
     - assets/DFS_Connect+.svg
     - assets/help/
     - assets/emojis/
-    - assets/data/dfs_products.csv
   generate: true
 
 flutter_intl:

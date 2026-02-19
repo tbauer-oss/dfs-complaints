@@ -259,6 +259,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   static List<TdFile>? _catalogMemoryCache;
   static DateTime? _catalogMemoryCachedAt;
   static const Duration _catalogMemoryTtl = Duration(minutes: 30);
+  final Map<String, Map<String, dynamic>> _overviewCache = <String, Map<String, dynamic>>{};
+  final Map<String, List<TdSection>> _structureCache = <String, List<TdSection>>{};
+  final Map<String, TdApplicabilityBundle> _applicabilityCache = <String, TdApplicabilityBundle>{};
+  final Map<String, List<TdChangeRequest>> _changesCache = <String, List<TdChangeRequest>>{};
+  final Map<String, List<TdArtifactLink>> _linksCache = <String, List<TdArtifactLink>>{};
+  final Map<String, Map<String, dynamic>> _readinessCache = <String, Map<String, dynamic>>{};
 
 
   @override
@@ -344,7 +350,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     try {
       final now = DateTime.now();
       final useCache = _catalogMemoryCache != null && _catalogMemoryCachedAt != null && now.difference(_catalogMemoryCachedAt!) < _catalogMemoryTtl;
-      final catalog = useCache ? TdCatalogResponse(items: _catalogMemoryCache!, meta: const <String, dynamic>{}, source: 'memory') : await widget.api.fetchTdCatalog();
+      final catalog = useCache ? TdCatalogResponse(items: _catalogMemoryCache!, meta: const <String, dynamic>{}, source: 'memory') : await widget.api.getTdCatalog();
       _catalogMemoryCache = catalog.items;
       _catalogMemoryCachedAt = now;
       if (!mounted) return;
@@ -388,6 +394,18 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  Future<void> _refreshAllCaches() async {
+    _catalogMemoryCache = null;
+    _catalogMemoryCachedAt = null;
+    _overviewCache.clear();
+    _structureCache.clear();
+    _applicabilityCache.clear();
+    _changesCache.clear();
+    _linksCache.clear();
+    _readinessCache.clear();
+    await _load();
+  }
+
   void _handleTabChange() {
     if (_tabs.indexIsChanging) return;
     _ensureTabLoaded(_tabs.index);
@@ -399,18 +417,26 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 1 && !_structureLoaded) {
       await _runHeavyOperation(
         key: 'structure',
+        phases: const ['Struktur laden …'],
         onRun: (setStep) async {
           setStep(1);
-          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
-          setStep(2);
-          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
-          setStep(3);
+          final cached = _structureCache[td.id];
+          if (cached != null) {
+            if (!mounted) return;
+            setState(() {
+              _sections = cached;
+              _sectionsNextCursor = null;
+              _structureLoaded = true;
+            });
+            return;
+          }
           final page = await _runWithApiLimit(() => widget.api.fetchTdSectionsPaged(td.id, limit: 50, cursor: 0));
           if (!mounted) return;
           setState(() {
             _sections = page.$1;
             _sectionsNextCursor = page.$2;
             _structureLoaded = true;
+            _structureCache[td.id] = page.$1;
           });
         },
       );
@@ -418,17 +444,24 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 2 && !_applicabilityLoaded) {
       await _runHeavyOperation(
         key: 'applicability',
+        phases: const ['Übersichten laden …', 'Inhalte laden …'],
         onRun: (setStep) async {
-          setStep(1);
-          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          final cached = _applicabilityCache[td.id];
+          if (cached != null) {
+            if (!mounted) return;
+            setState(() {
+              _applicability = cached;
+              _applicabilityLoaded = true;
+            });
+            return;
+          }
           setStep(2);
-          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
-          setStep(4);
           final bundle = await _runWithApiLimit(() => widget.api.fetchTdApplicability(td.id));
           if (!mounted) return;
           setState(() {
             _applicability = bundle;
             _applicabilityLoaded = true;
+            _applicabilityCache[td.id] = bundle;
           });
         },
       );
@@ -436,17 +469,24 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 3 && !_linksLoaded) {
       await _runHeavyOperation(
         key: 'links',
+        phases: const ['Übersichten laden …', 'Inhalte laden …'],
         onRun: (setStep) async {
-          setStep(1);
-          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          final cached = _linksCache[td.id];
+          if (cached != null) {
+            if (!mounted) return;
+            setState(() {
+              _links = cached;
+              _linksLoaded = true;
+            });
+            return;
+          }
           setStep(2);
-          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
-          setStep(4);
           final links = await _runWithApiLimit(() => widget.api.fetchTdLinks(td.id));
           if (!mounted) return;
           setState(() {
             _links = links;
             _linksLoaded = true;
+            _linksCache[td.id] = links;
           });
         },
       );
@@ -454,17 +494,24 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 4 && !_changesLoaded) {
       await _runHeavyOperation(
         key: 'changes',
+        phases: const ['Übersichten laden …', 'Inhalte laden …'],
         onRun: (setStep) async {
-          setStep(1);
-          await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+          final cached = _changesCache[td.id];
+          if (cached != null) {
+            if (!mounted) return;
+            setState(() {
+              _changes = cached;
+              _changesLoaded = true;
+            });
+            return;
+          }
           setStep(2);
-          await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
-          setStep(4);
           final changes = await _runWithApiLimit(() => widget.api.fetchTdChanges(td.id));
           if (!mounted) return;
           setState(() {
             _changes = changes;
             _changesLoaded = true;
+            _changesCache[td.id] = changes;
           });
         },
       );
@@ -568,15 +615,25 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
           child: Card(
             child: Column(
               children: [
-                if (widget.canEdit)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: FilledButton.icon(
-                      onPressed: _openCreateTdWizard,
-                      icon: const Icon(Icons.add),
-                      label: const Text('TD erstellen'),
-                    ),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      if (widget.canEdit)
+                        FilledButton.icon(
+                          onPressed: _openCreateTdWizard,
+                          icon: const Icon(Icons.add),
+                          label: const Text('TD erstellen'),
+                        ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: _refreshAllCaches,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Aktualisieren'),
+                      ),
+                    ],
                   ),
+                ),
                 if (_summaryBanner != null)
                   MaterialBanner(
                     content: Text(_summaryBanner!),
@@ -686,15 +743,20 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Future<void> _runHeavyOperation({
     required String key,
     required Future<void> Function(void Function(int step) setStep) onRun,
+    List<String> phases = const <String>[
+      'Katalog laden …',
+      'Übersichten laden …',
+      'Struktur laden …',
+      'Inhalte laden …',
+    ],
   }) async {
     final status = {
-      'readiness': 'Readiness-Analyse läuft...',
-      'applicability': 'Anwendbarkeit wird berechnet...',
-      'changes': 'Change-Analyse läuft...',
-      'structure': 'Struktur wird geladen (Abschnitte & Zähler)...',
-      'links': 'Links werden geladen...',
+      'readiness': 'Übersichtsdaten werden geladen …',
+      'applicability': 'Anwendbarkeit wird berechnet …',
+      'changes': 'Änderungen werden geladen …',
+      'structure': 'Strukturdaten werden geladen …',
+      'links': 'Links werden geladen …',
     }[key] ?? 'Analyse wird durchgeführt...';
-    final stages = const ['Loading catalog', 'Loading TD summary', 'Loading section headers (structure)', 'Loading content'];
     final currentStep = ValueNotifier<int>(1);
 
     if (key == 'readiness' && _isLoadingReadiness) return;
@@ -715,12 +777,12 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => TdHeavyProgressDialog(statusText: status, stages: stages, currentStep: currentStep),
+      builder: (_) => TdHeavyProgressDialog(statusText: status, stages: phases, currentStep: currentStep),
     ).whenComplete(() => progressDialogOpen = false);
 
     try {
-      await onRun((step) => currentStep.value = step.clamp(1, stages.length));
-      currentStep.value = stages.length;
+      await onRun((step) => currentStep.value = step.clamp(1, phases.length));
+      currentStep.value = phases.length;
       if (!mounted) return;
     } catch (e) {
       if (!mounted) return;
@@ -772,17 +834,24 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (td == null || _readinessLoaded) return;
     await _runHeavyOperation(
       key: 'readiness',
+      phases: const ['Übersichten laden …', 'Inhalte laden …'],
       onRun: (setStep) async {
-        setStep(1);
-        await _runWithApiLimit(() => widget.api.fetchTdCatalog());
+        final cached = _readinessCache[td.id];
+        if (cached != null) {
+          if (!mounted) return;
+          setState(() {
+            _readiness = cached;
+            _readinessLoaded = true;
+          });
+          return;
+        }
         setStep(2);
-        await _runWithApiLimit(() => widget.api.fetchTdSummary(optional: true, v2: true));
-        setStep(4);
         final readiness = await _runWithApiLimit(() => widget.api.fetchTdReadiness(td.id));
         if (!mounted) return;
         setState(() {
           _readiness = readiness;
           _readinessLoaded = true;
+          _readinessCache[td.id] = readiness;
         });
       },
     );
@@ -1287,13 +1356,15 @@ class _TdHeavyProgressDialogState extends State<TdHeavyProgressDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Step $safeStep/${widget.stages.length}: ${widget.stages[safeStep - 1]}'),
+                Text('Phase $safeStep/${widget.stages.length}: ${widget.stages[safeStep - 1]}'),
                 const SizedBox(height: 10),
                 LinearProgressIndicator(value: progress),
                 const SizedBox(height: 8),
                 Text('${(progress * 100).round()} %'),
                 const SizedBox(height: 8),
                 Text(widget.statusText),
+                const SizedBox(height: 4),
+                const Text('Das kann beim ersten Laden etwas dauern.', style: TextStyle(fontSize: 12, color: Colors.black54)),
                 const SizedBox(height: 10),
                 ...widget.stages.asMap().entries.map((entry) {
                   final idx = entry.key + 1;
@@ -1335,6 +1406,8 @@ class TdSectionDetailPage extends StatefulWidget {
 }
 
 class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerProviderStateMixin {
+  static final Map<String, TdSection> _sectionCache = <String, TdSection>{};
+  static final Map<String, List<TdQueryAnswer>> _queryCache = <String, List<TdQueryAnswer>>{};
   TdSection? _section;
   List<TdQueryAnswer> _queries = const [];
   bool _loading = true;
@@ -1549,10 +1622,20 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    final cacheKey = '${widget.td.id}:${widget.sectionId}';
+    final cachedSection = _sectionCache[cacheKey];
+    final cachedQueries = _queryCache[cacheKey];
+    if (cachedSection != null && cachedQueries != null) {
+      setState(() { _section = cachedSection; _queries = cachedQueries; _loading = false; });
+      return;
+    }
+
     final map = await widget.api.fetchTdSectionDetail(widget.sectionId);
     final section = TdSection.fromJson(map);
     await widget.api.bootstrapTdQueries(widget.td.id);
     final queries = await widget.api.fetchTdQueries(widget.td.id, sectionId: widget.sectionId);
+    _sectionCache[cacheKey] = section;
+    _queryCache[cacheKey] = queries;
     setState(() { _section = section; _queries = queries; _loading = false; });
   }
 
