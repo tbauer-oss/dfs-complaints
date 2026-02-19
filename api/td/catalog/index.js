@@ -1,7 +1,7 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors } from '../_lib/http.js';
-import { loadActiveTdCatalogItemsFromFile } from '../_lib/tdCatalogFile.js';
+import { handlePreflight, setCors } from '../../_lib/http.js';
+import { loadActiveTdCatalogItemsFromFile } from '../../_lib/tdCatalogFile.js';
 
 function softFail(res) {
   return res.status(200).json({ ok: false, items: [], error: 'CATALOG_UNAVAILABLE' });
