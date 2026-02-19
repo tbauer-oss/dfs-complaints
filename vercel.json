@@ -175,7 +175,7 @@
     },
     {
       "src": "/api/td/catalog$",
-      "dest": "/api/td/catalog.js"
+      "dest": "/api/td/catalog/index.js"
     },
     {
       "src": "/api/td/sections/([^/]+)/content$",
