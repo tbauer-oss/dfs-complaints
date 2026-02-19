@@ -199,13 +199,14 @@ export default async function handler(req, res) {
         debugSnippet,
       });
 
+      const hasUsableStale = Boolean(before?.normalizedText || cachedProcessed);
       const patch = {
         name: GSPR_SOURCE_NAME,
         permalink: before?.permalink || GSPR_SOURCE_PERMALINK,
         lastAttemptAt: startedAt,
         lastSyncAttemptAt: startedAt,
-        lastError: `MDR sync failed: ${failureReason}`,
-        lastSyncError: `MDR sync failed: ${failureReason}`,
+        lastError: hasUsableStale ? '' : `MDR sync failed: ${failureReason}`,
+        lastSyncError: hasUsableStale ? '' : `MDR sync failed: ${failureReason}`,
         lastFailureReason: failureReason,
         updatedBy: actor?.email || '',
       };
@@ -215,7 +216,7 @@ export default async function handler(req, res) {
       }
 
       const source = await saveSourceMeta(tdKey, patch);
-      if (before?.normalizedText || cachedProcessed) {
+      if (hasUsableStale) {
         return ok(res, {
           ok: false,
           code: 'SOURCE_UNSTABLE',

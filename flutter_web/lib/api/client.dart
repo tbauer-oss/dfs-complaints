@@ -2666,8 +2666,14 @@ class ApiClient {
   }
 
 
-  Future<GsprSourceSyncResult> gsprSyncSource() async {
-    final r = await http.post(_u('/api/gspr/sync'), headers: _adminHeaders(auth: true));
+  Future<GsprSourceSyncResult> gsprSyncSource({String? tdKey}) async {
+    final body = <String, dynamic>{};
+    if ((tdKey ?? '').trim().isNotEmpty) body['tdKey'] = tdKey!.trim();
+    final r = await http.post(
+      _u('/api/gspr/sync'),
+      headers: _adminHeaders(auth: true),
+      body: body.isEmpty ? null : jsonEncode(body),
+    );
     if (!_ok2xx(r.statusCode)) {
       throw ApiError(r.statusCode, _extractMessage(r.body));
     }

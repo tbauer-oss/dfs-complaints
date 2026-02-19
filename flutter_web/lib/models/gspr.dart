@@ -692,6 +692,8 @@ class GsprSourceSyncResult {
   final String lastError;
   final String lastSyncError;
   final String updatedBy;
+  final bool skipped;
+  final String skipReason;
   final bool changesDetected;
   final List<GsprSourceChangeDetail> changeDetails;
 
@@ -705,6 +707,8 @@ class GsprSourceSyncResult {
     required this.lastError,
     required this.lastSyncError,
     required this.updatedBy,
+    required this.skipped,
+    required this.skipReason,
     required this.changesDetected,
     required this.changeDetails,
   });
@@ -725,6 +729,8 @@ class GsprSourceSyncResult {
       lastError: (source['lastError'] ?? '').toString(),
       lastSyncError: (source['lastSyncError'] ?? source['lastError'] ?? '').toString(),
       updatedBy: (source['updatedBy'] ?? '').toString(),
+      skipped: json['skipped'] == true,
+      skipReason: (json['reason'] ?? '').toString(),
       changesDetected: json['changesDetected'] == true,
       changeDetails: details,
     );
