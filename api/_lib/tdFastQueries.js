@@ -1,5 +1,5 @@
 import { queryWithStatementTimeout, safeQuery } from './db.js';
-import { tdOverviewFast, tdSections, tdQueries, tdLinks } from './tdStore.js';
+import { tdOverviewFast, tdSections, tdLinks } from './tdStore.js';
 
 const TD_TABLES = [
   { td: 'td', sections: 'td_sections', answers: 'td_query_answers', links: 'td_links' },
@@ -101,10 +101,9 @@ export async function loadSectionsMetaFromDb(tdId, limit, offset, timeoutMs = 40
 }
 
 export async function loadSectionsMetaFallback(tdId, limit, offset) {
-  const [sections, queries, links] = await Promise.all([tdSections(tdId), tdQueries(tdId), tdLinks(tdId)]);
+  const sections = await tdSections(tdId);
+  const links = await tdLinks(tdId);
   const paged = sections.slice(offset, offset + limit).map((section) => {
-    const sectionQueries = queries.filter((q) => q.sectionId === section.id);
-    const completed = sectionQueries.filter((q) => q.status === 'Complete' || q.status === 'NotApplicable').length;
     return {
       section_id: section.id,
       title: section.name,
@@ -112,8 +111,6 @@ export async function loadSectionsMetaFallback(tdId, limit, offset) {
       updated_at: section.lastUpdatedAt || null,
       template_key: section.templateKey,
       status: section.status,
-      query_total: sectionQueries.length,
-      completed_queries: completed,
       link_count: links.filter((l) => l.sectionId === section.id).length,
     };
   });
