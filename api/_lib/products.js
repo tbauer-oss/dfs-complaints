@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { TextDecoder } from 'util';
 import { getTdCatalogEntries } from './tdCatalog.js';
+import { loadActiveTdCatalogItemsFromFile } from './tdCatalogFile.js';
 
 const CSV_CANDIDATES = [
   process.env.DFS_PRODUCTS_CSV,
@@ -181,6 +182,24 @@ export async function getUniqueMdrTdEntries() {
     }
   } catch (err) {
     console.warn('[products] td catalog db fallback to csv', { message: err?.message || String(err) });
+  }
+
+  try {
+    const fileItems = await loadActiveTdCatalogItemsFromFile();
+    if (Array.isArray(fileItems) && fileItems.length > 0) {
+      return fileItems
+        .map((item) => ({
+          code: String(item?.td_key || '').trim().toUpperCase(),
+          label: String(item?.title || item?.td_key || '').trim(),
+          title: String(item?.title || item?.td_key || '').trim(),
+          classification: item?.risk_class || null,
+          rule: item?.mdr_rule || null,
+          productGroup: null,
+        }))
+        .filter((entry) => entry.code);
+    }
+  } catch (err) {
+    console.warn('[products] td catalog file fallback to csv', { message: err?.message || String(err) });
   }
 
   const products = await _getProducts();
