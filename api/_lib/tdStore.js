@@ -524,6 +524,9 @@ function deterministicTdId(code) {
 }
 
 async function ensureSeedTdFiles() {
+  if (ensureSeedTdFiles._inProgress) return false;
+  ensureSeedTdFiles._inProgress = true;
+  try {
   const existing = await tdListRaw();
   const byCode = new Map(existing.map((entry) => [String(entry?.code || '').toUpperCase(), entry]));
   let createdAny = false;
@@ -571,11 +574,21 @@ async function ensureSeedTdFiles() {
       await tdSectionContentBackfill(section.id);
     }
     await tdApplicabilityProfileUpsert(seeded.id, { classificationRule: seeded.rule || null }, seeded.rule || null);
-    await generateApplicability(seeded.id);
+    try {
+      await generateApplicability(seeded.id);
+    } catch (err) {
+      console.warn('[tdStore] generateApplicability failed during seed', {
+        tdId: seeded.id,
+        message: err?.message || String(err),
+      });
+    }
     byCode.set(code, seeded);
     createdAny = true;
   }
   return createdAny;
+  } finally {
+    ensureSeedTdFiles._inProgress = false;
+  }
 }
 
 async function tdListRaw() {
@@ -719,7 +732,14 @@ export async function tdSummaryFast(payload = null, options = {}) {
 
 export async function tdGet(id) {
   await ensureSeedTdFiles();
-  return getEntity(KEY, id, mem.files);
+  const raw = String(id || '').trim();
+  if (!raw) return null;
+
+  const direct = await getEntity(KEY, raw, mem.files);
+  if (direct && !direct.deletedAt) return direct;
+
+  const byCode = (await tdListRaw()).find((item) => String(item?.code || '').trim().toUpperCase() === raw.toUpperCase());
+  return byCode || null;
 }
 
 
@@ -788,21 +808,22 @@ function evalConditionMet(profile, conditionKey) {
 }
 
 export async function generateApplicability(tdId) {
-  const td = await getEntity(KEY, tdId, mem.files);
+  const td = await getEntity(KEY, tdId, mem.files) || await tdGet(tdId);
   if (!td || td.deletedAt) throw new Error('TD not found');
-  const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
-  const sections = await tdSections(tdId);
-  await tdBootstrapQueries(tdId);
-  const queries = await tdQueryAnswersRaw(tdId);
-  const overrides = await tdApplicabilityOverrides(tdId);
+  const resolvedTdId = td.id;
+  const profile = await tdApplicabilityProfileUpsert(resolvedTdId, {}, td.rule || null);
+  const sections = await tdSections(resolvedTdId);
+  await tdBootstrapQueries(resolvedTdId);
+  const queries = await tdQueryAnswersRaw(resolvedTdId);
+  const overrides = await tdApplicabilityOverrides(resolvedTdId);
   const overrideMap = new Map(overrides.map((item) => [overrideKey(item), item]));
-  const existing = await tdApplicabilityResults(tdId);
+  const existing = await tdApplicabilityResults(resolvedTdId);
   const existingMap = new Map(existing.map((item) => [overrideKey(item), item]));
 
   const nextItems = [];
   for (const section of sections) {
-    const key = `${tdId}:${section.id}:`;
-    const base = { tdId, sectionId: section.id, queryKey: null, state: 'MANDATORY', isConditionMet: null, conditionSummary: null, generatedBy: APPLICABILITY_GENERATOR };
+    const key = `${resolvedTdId}:${section.id}:`;
+    const base = { tdId: resolvedTdId, sectionId: section.id, queryKey: null, state: 'MANDATORY', isConditionMet: null, conditionSummary: null, generatedBy: APPLICABILITY_GENERATOR };
     const override = overrideMap.get(key);
     const computed = { ...base };
     if (override) {
@@ -818,8 +839,8 @@ export async function generateApplicability(tdId) {
 
   for (const query of queries) {
     const c = queryConditionState(profile, query.templateKey);
-    const key = `${tdId}:${query.sectionId}:${query.templateKey}`;
-    const base = { tdId, sectionId: query.sectionId, queryKey: query.templateKey, state: c.state, isConditionMet: c.isConditionMet, conditionSummary: c.conditionSummary, generatedBy: APPLICABILITY_GENERATOR };
+    const key = `${resolvedTdId}:${query.sectionId}:${query.templateKey}`;
+    const base = { tdId: resolvedTdId, sectionId: query.sectionId, queryKey: query.templateKey, state: c.state, isConditionMet: c.isConditionMet, conditionSummary: c.conditionSummary, generatedBy: APPLICABILITY_GENERATOR };
     const override = overrideMap.get(key);
     const computed = { ...base };
     if (override) {
@@ -851,11 +872,12 @@ export async function generateApplicability(tdId) {
 }
 
 export async function tdApplicabilityGet(tdId) {
-  const td = await getEntity(KEY, tdId, mem.files);
+  const td = await tdGet(tdId);
   if (!td || td.deletedAt) throw new Error('TD not found');
-  const profile = await tdApplicabilityProfileUpsert(tdId, {}, td.rule || null);
-  const results = await tdApplicabilityResults(tdId);
-  const overrides = await tdApplicabilityOverrides(tdId);
+  const resolvedTdId = td.id;
+  const profile = await tdApplicabilityProfileUpsert(resolvedTdId, {}, td.rule || null);
+  const results = await tdApplicabilityResults(resolvedTdId);
+  const overrides = await tdApplicabilityOverrides(resolvedTdId);
   return { profile, results, overrides };
 }
 
@@ -891,14 +913,17 @@ export async function tdDelete(id) {
 }
 
 export async function tdSections(tdId) {
+  const td = await tdGet(tdId);
+  if (!td || td.deletedAt) throw new Error('TD not found');
+  const resolvedTdId = td.id;
   const ids = await withStore((r)=>r.smembers(KEY_SECTIONS), ()=>Array.from(mem.sectionIds));
   const sectionList = [];
   for (const id of ids) {
     const section = await getEntity(KEY_SECTION, id, mem.sections);
-    if (section?.tdId === tdId) sectionList.push(section);
+    if (section?.tdId === resolvedTdId) sectionList.push(section);
   }
   if (!sectionList.length) {
-    const sections = defaultSections(tdId, null);
+    const sections = defaultSections(resolvedTdId, null);
     for (const section of sections) {
       await putEntity(KEY_SECTION, section.id, section, mem.sections, KEY_SECTIONS, mem.sectionIds);
       await tdSectionContentBackfill(section.id);
@@ -1037,8 +1062,11 @@ function buildQueryAnswer(section, template, actorUserId = null) {
 }
 
 export async function tdBootstrapQueries(tdId, actorUserId = null) {
-  const sections = await tdSections(tdId);
-  const existing = await tdQueryAnswersRaw(tdId);
+  const td = await tdGet(tdId);
+  if (!td || td.deletedAt) throw new Error('TD not found');
+  const resolvedTdId = td.id;
+  const sections = await tdSections(resolvedTdId);
+  const existing = await tdQueryAnswersRaw(resolvedTdId);
   const byKey = new Set(existing.map((item) => `${item.sectionId}:${item.templateKey}`));
   const created = [];
   for (const section of sections) {
@@ -1067,10 +1095,13 @@ export function tdNodeTemplates(sectionTemplateKey = null) {
 }
 
 export async function tdQueries(tdId, sectionId = null) {
-  await tdBootstrapQueries(tdId);
-  const answers = await tdQueryAnswersRaw(tdId);
-  const queryLinks = await tdQueryLinksByTd(tdId);
-  const applicability = await tdApplicabilityGet(tdId);
+  const td = await tdGet(tdId);
+  if (!td || td.deletedAt) throw new Error('TD not found');
+  const resolvedTdId = td.id;
+  await tdBootstrapQueries(resolvedTdId);
+  const answers = await tdQueryAnswersRaw(resolvedTdId);
+  const queryLinks = await tdQueryLinksByTd(resolvedTdId);
+  const applicability = await tdApplicabilityGet(resolvedTdId);
   const resultMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
   return answers
     .filter((item) => (sectionId ? item.sectionId === sectionId : true))
@@ -1084,7 +1115,7 @@ export async function tdQueries(tdId, sectionId = null) {
         template: template ? { ...template, nodeTemplate } : null,
         links,
         validation: queryValidation(answer, nodeTemplate, links),
-        applicability: resultMap.get(`${tdId}:${answer.sectionId}:${answer.templateKey}`) || null,
+        applicability: resultMap.get(`${resolvedTdId}:${answer.sectionId}:${answer.templateKey}`) || null,
       };
     })
     .sort((a, b) => {
@@ -1194,11 +1225,14 @@ export async function tdQueryLinkDelete(linkId) {
   );
 }
 export async function tdLinks(tdId) {
+  const td = await tdGet(tdId);
+  if (!td || td.deletedAt) throw new Error('TD not found');
+  const resolvedTdId = td.id;
   const ids = await withStore((r)=>r.smembers(KEY_LINKS), ()=>Array.from(mem.linkIds));
   const links = [];
   for (const id of ids) {
     const link = await getEntity(KEY_LINK, id, mem.links);
-    if (link?.tdId === tdId) links.push(link);
+    if (link?.tdId === resolvedTdId) links.push(link);
   }
   return links;
 }
