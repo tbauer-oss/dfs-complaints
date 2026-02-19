@@ -1,55 +1,43 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, bad, ok } from '../_lib/http.js';
-import { requirePortalAccess } from '../admin/_guard.js';
-import { loadOrRebuildCatalog } from '../_lib/tdCatalog.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { handlePreflight, setCors } from '../_lib/http.js';
+
+const CATALOG_PATH = path.join(process.cwd(), 'api', '_data', 'td_catalog.json');
+
+function softFail(res) {
+  return res.status(200).json({ ok: false, items: [], error: 'CATALOG_UNAVAILABLE' });
+}
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
 
-  const actor = await requirePortalAccess(req, res, { tile: 'td', write: false });
-  if (!actor) return;
-
-  if (req.method !== 'GET') return bad(res, 'method not allowed', 405, { code: 'METHOD_NOT_ALLOWED' });
+  if (req.method !== 'GET') {
+    return res.status(405).json({ ok: false, items: [], error: 'METHOD_NOT_ALLOWED' });
+  }
 
   try {
-    const result = await loadOrRebuildCatalog();
-    const items = Array.isArray(result.items) ? result.items : [];
+    const raw = await fs.readFile(CATALOG_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    const items = Array.isArray(parsed)
+      ? parsed
+          .filter((item) => item && item.active === true)
+          .map((item) => ({
+            td_key: String(item.td_key || '').trim(),
+            title: String(item.title || '').trim(),
+            mdr_rule: String(item.mdr_rule || '').trim(),
+            ...(item.risk_class == null || String(item.risk_class).trim() === ''
+              ? {}
+              : { risk_class: String(item.risk_class).trim() }),
+            active: true,
+          }))
+      : [];
 
-    console.info('[td/catalog] outcome:', result.outcome, {
-      itemCount: items.length,
-      ms_total: result.timings.ms_total,
-      ms_db: result.timings.ms_db,
-      ms_fs: result.timings.ms_fs,
-      ms_parse: result.timings.ms_parse,
-    });
-
-    if (items.length === 0) {
-      console.warn('[td/catalog] CSV parsed but contains no MDR-TD rows');
-    }
-
-    res.setHeader('Cache-Control', 'private, max-age=60');
-    return ok(res, {
-      ok: true,
-      items,
-      meta: {
-        outcome: result.outcome,
-        sourceHash: result.sourceHash,
-        generatedAt: result.generatedAt,
-      },
-    });
-  } catch (err) {
-    const message = String(err?.message || err || '');
-    if (String(err?.code || '').toUpperCase() === 'DB_UNAVAILABLE') {
-      return bad(res, 'Database unavailable', 503, { code: 'DB_UNAVAILABLE' });
-    }
-    if (err?.code === 'ENOENT' || message.includes('no such file')) {
-      return bad(res, 'CSV source file unavailable at api/_data/dfs_products.csv', 503, {
-        code: 'TD_CATALOG_SOURCE_UNAVAILABLE',
-      });
-    }
-    console.error('[td/catalog] failed', { message });
-    return bad(res, 'td catalog unavailable', 503, { code: 'TD_CATALOG_UNAVAILABLE' });
+    return res.status(200).json({ ok: true, items });
+  } catch (error) {
+    console.warn('[td/catalog] catalog unavailable', { message: error?.message || String(error) });
+    return softFail(res);
   }
 }
