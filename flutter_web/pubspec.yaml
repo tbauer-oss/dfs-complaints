@@ -36,6 +36,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/data/dfs_products.csv
     - assets/dfs_logo.png
     - web/pdfjs/web/standard_fonts/LiberationSans-Regular.ttf
     - web/pdfjs/web/standard_fonts/LiberationSans-Bold.ttf
