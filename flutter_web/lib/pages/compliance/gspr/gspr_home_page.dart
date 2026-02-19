@@ -115,7 +115,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
     );
   }
 
-  Future<void> _syncSourceNow({bool userInitiated = false}) async {
+  Future<void> _syncSourceNow({bool userInitiated = false, String? tdKey}) async {
     if (_syncingSource) return;
     setState(() {
       _syncingSource = true;
@@ -155,7 +155,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
     }
 
     try {
-      final syncResult = await widget.api.gsprSyncSource();
+      final syncResult = await widget.api.gsprSyncSource(tdKey: tdKey);
       final selected = GsprTdState.selectedTd.value;
       if (selected != null) {
         await _loadSummary(selected.id);
@@ -164,9 +164,10 @@ class _GsprHomePageState extends State<GsprHomePage> {
       if (syncResult.changesDetected && syncResult.changeDetails.isNotEmpty) {
         await _showChangeDialog(syncResult.changeDetails);
       } else if (userInitiated) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('GSPR-Synchronisierung erfolgreich aktualisiert. Keine inhaltlichen Änderungen erkannt.')),
-        );
+        final info = syncResult.skipped
+            ? 'GSPR-Synchronisierung übersprungen (${syncResult.skipReason}).'
+            : 'GSPR-Synchronisierung erfolgreich aktualisiert. Keine inhaltlichen Änderungen erkannt.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(info)));
       }
     } catch (e) {
       if (!mounted) return;
@@ -296,6 +297,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
   Future<void> _handleTdSelection(GsprTdOption td) async {
     await _loadSummary(td.id);
+    await _syncSourceNow(tdKey: td.id);
   }
 
   Future<void> _loadSummary(String tdId) async {
@@ -557,7 +559,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
               ),
               if (widget.access.canEdit)
                 FilledButton.icon(
-                  onPressed: _syncingSource ? null : () => _syncSourceNow(userInitiated: true),
+                  onPressed: _syncingSource ? null : () => _syncSourceNow(userInitiated: true, tdKey: GsprTdState.selectedTd.value?.id),
                   icon: _syncingSource
                       ? const SizedBox(
                           width: 14,
