@@ -21,6 +21,27 @@ function uuidOrNull(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v) ? v : null;
 }
 
+function dedupeSectionsByKey(sections) {
+  const byKey = new Map();
+
+  for (const section of sections) {
+    const key = String(section.section_key || '');
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, section);
+      continue;
+    }
+
+    const existingLen = String(existing.content_text || existing.content_html || '').length;
+    const incomingLen = String(section.content_text || section.content_html || '').length;
+    if (incomingLen > existingLen) {
+      byKey.set(key, section);
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
   setCors(req, res);
@@ -69,6 +90,12 @@ export default async function handler(req, res) {
     const contentHash = sha256(fullNormalizedText);
     if (payload.content_hash && payload.content_hash !== contentHash) return bad(res, 'content hash mismatch', 409);
 
+    const uniqueSections = dedupeSectionsByKey(parsedSections);
+    if (uniqueSections.length !== parsedSections.length) {
+      console.warn(`[regulatory/apply] Deduped sections: original=${parsedSections.length}, unique=${uniqueSections.length}`);
+    }
+    console.info(`[regulatory/apply] Inserting sections: uniqueCount=${uniqueSections.length}`);
+
     await client.query('BEGIN');
 
     const docQ = await client.query('select * from legal_documents where slug = $1 limit 1', [slug]);
@@ -89,10 +116,17 @@ export default async function handler(req, res) {
 
     await client.query('delete from legal_sections where version_id = $1', [versionId]);
 
-    for (const section of parsedSections) {
+    for (const section of uniqueSections) {
       await client.query(
         `insert into legal_sections (version_id, section_type, section_key, heading, content_html, content_text, content_hash, sort_order)
-         values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         values ($1,$2,$3,$4,$5,$6,$7,$8)
+         on conflict (version_id, section_key) do update set
+           heading = excluded.heading,
+           content_text = excluded.content_text,
+           content_html = excluded.content_html,
+           content_hash = excluded.content_hash,
+           sort_order = excluded.sort_order,
+           section_type = excluded.section_type`,
         [
           versionId,
           section.section_type,
@@ -114,7 +148,7 @@ export default async function handler(req, res) {
     }
 
     const oldSections = await getSectionsForCurrentVersion(slug).catch(() => []);
-    const diff = computeSectionDiff(oldSections, parsedSections);
+    const diff = computeSectionDiff(oldSections, uniqueSections);
 
     const changeResult = await client.query(
       `insert into legal_changes (document_id, from_version_id, to_version_id, synced_by, status, meta)
