@@ -31,9 +31,38 @@ async function withRetry(url, attempts = 2) {
   throw last || new Error('fetch failed');
 }
 
+async function withRetryResponse(url, attempts = 2) {
+  let last;
+  for (let i = 0; i < attempts; i += 1) {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const response = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { 'user-agent': 'ConnectPlus-RegulatorySync/1.0' },
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      return { html: await response.text(), finalUrl: response.url || url };
+    } catch (err) {
+      clearTimeout(timeout);
+      last = err;
+    }
+  }
+  throw last || new Error('fetch failed');
+}
+
 function extractLatestConsolidatedCelex(html = '') {
-  const matches = String(html || '').match(CONSOLIDATED_CELEX_RE) || [];
-  const unique = [...new Set(matches)];
+  const raw = String(html || '');
+  const direct = raw.match(CONSOLIDATED_CELEX_RE) || [];
+  const encodedDash = raw.match(/02017R0745(?:%2D|%2d)(\d{8})/g) || [];
+  const normalizedEncoded = encodedDash.map((m) => m.replace(/%2D/i, '-'));
+  const unique = [...new Set([...direct, ...normalizedEncoded])]
+    .map((m) => {
+      const found = String(m).match(/02017R0745-(\d{8})/);
+      return found ? `02017R0745-${found[1]}` : null;
+    })
+    .filter(Boolean);
   if (!unique.length) return null;
   unique.sort((a, b) => a.localeCompare(b));
   return unique[unique.length - 1] || null;
@@ -84,6 +113,31 @@ export async function getLatestMdrVersionMeta() {
         view: 'TXT',
         message: err?.message || String(err),
       });
+    }
+  }
+
+  if (!consolidatedCelex) {
+    const redirectAttempts = [
+      { locale: 'DE', url: buildConsolidatedHtmlUrl('02017R0745', 'DE') },
+      { locale: 'EN', url: buildConsolidatedHtmlUrl('02017R0745', 'EN') },
+    ];
+
+    for (const attempt of redirectAttempts) {
+      try {
+        const { html: latestHtml, finalUrl } = await withRetryResponse(attempt.url, 2);
+        consolidatedCelex = extractLatestConsolidatedCelex(`${finalUrl}
+${latestHtml}`);
+        if (consolidatedCelex) {
+          consolidatedLocale = attempt.locale;
+          break;
+        }
+      } catch (err) {
+        console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
+          locale: attempt.locale,
+          view: 'TXT_REDIRECT',
+          message: err?.message || String(err),
+        });
+      }
     }
   }
 
