@@ -173,35 +173,8 @@ export default async function handler(req, res) {
     await client.query('COMMIT');
     transactionOpen = false;
 
-    let impactedGspr = [];
-    if (process.env.ENABLE_GSPR_SYNC === 'true' && slug.startsWith('gspr-')) {
-      try {
-        const changedKeys = diff.changes.map((c) => c.section_key);
-        const impactRows = changedKeys.length
-          ? await client.query(
-              `select distinct g.id, g.code
-               from gspr_requirements g
-               join gspr_links l on l.gspr_id = g.id
-               where l.document_slug = $1 and l.section_key = any($2::text[])`,
-              [slug, changedKeys],
-            )
-          : { rows: [] };
-
-        for (const row of impactRows.rows) {
-          await client.query(
-            `insert into gspr_impacts (change_id, gspr_id, section_key, impact_type)
-             values ($1,$2,$3,'referenced_section_changed')`,
-            [changeId, row.id, 'multiple'],
-          );
-        }
-
-        impactedGspr = impactRows.rows;
-      } catch (gsprError) {
-        console.warn('[regulatory/apply] Optional GSPR sync failed', gsprError);
-      }
-    } else {
-      console.info(`[regulatory/apply] Skipping GSPR update for slug=${slug}`);
-    }
+    const impactedGspr = [];
+    console.info(`[regulatory/apply] Skipping GSPR update for slug=${slug}`);
 
     return ok(res, { ok: true, change_id: changeId, impacted_gspr: impactedGspr, sections_written: sectionCount });
   } catch (err) {
