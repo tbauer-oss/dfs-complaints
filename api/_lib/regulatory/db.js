@@ -32,3 +32,25 @@ export async function getSectionsForCurrentVersion(slug) {
   `, [slug]);
   return rows;
 }
+
+export async function getOutlineForCurrentVersion(slug) {
+  const { rows } = await query(`
+    select s.section_key, s.section_type, s.heading, s.sort_order
+    from legal_documents d
+    join legal_sections s on s.version_id = d.current_version_id
+    where d.slug = $1
+    order by s.sort_order asc nulls last, s.section_key asc
+  `, [slug]);
+  return rows;
+}
+
+export async function getSectionForCurrentVersion(slug, key) {
+  const { rows } = await query(`
+    select s.section_key, s.section_type, s.heading, s.sort_order, s.content_html, s.content_text, s.content_hash
+    from legal_documents d
+    join legal_sections s on s.version_id = d.current_version_id
+    where d.slug = $1 and s.section_key = $2
+    limit 1
+  `, [slug, key]);
+  return rows[0] || null;
+}

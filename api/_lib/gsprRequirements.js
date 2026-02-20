@@ -2,7 +2,7 @@ import { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprChildren } from '
 
 export { GSPR_ITEMS, GSPR_ITEMS_BY_ID, gsprItemsByChapter, gsprChildren };
 
-export const GSPR_SOURCE_PERMALINK = '/api/regulatory/mdr-2017-745/sections';
+export const GSPR_SOURCE_PERMALINK = '/api/regulatory/mdr-2017-745/outline';
 export const GSPR_SOURCE_NAME = 'Regulatory Cache (Supabase)';
 export const GSPR_LAST_SYNC_AT = null;
 
