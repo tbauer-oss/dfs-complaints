@@ -18,6 +18,7 @@ import 'pages/register_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/compliance/gspr/gspr_chapter_page.dart';
 import 'pages/compliance/gspr/gspr_state.dart';
+import 'pages/compliance/regulatory_sync_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/help_center_page.dart';
 import 'pages/training_admin_section.dart';
@@ -695,6 +696,7 @@ class _MyAppState extends State<MyApp> {
                     portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
+              '/compliance/regulatory-sync': (_) => RegulatorySyncPage(api: api),
               '/compliance/gspr': (_) => AdminPage(
                     api: api,
                     portalProfile: api.portalProfile,

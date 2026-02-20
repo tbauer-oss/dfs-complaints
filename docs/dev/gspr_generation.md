@@ -3,7 +3,7 @@
 ## Source
 The generator fetches the consolidated German MDR Annex I text from:
 
-- https://eur-lex.europa.eu/legal-content/de/ALL/?uri=CELEX:32017R0745
+- Supabase regulatory cache snapshot (mdr-2017-745)
 
 Only the content between the following markers is extracted (inclusive start, exclusive end):
 
