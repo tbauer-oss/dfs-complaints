@@ -50,18 +50,19 @@ export default async function handler(req, res) {
     const candidateHash = sha256(parsed.map((s) => `${s.section_key}:${s.content_hash}`).join('|'));
     const oldSections = await getSectionsForCurrentVersion(slug).catch(() => []);
     const diff = computeSectionDiff(oldSections, parsed);
-    const exp = Date.now() + 30 * 60 * 1000;
+    const issuedAt = Date.now();
+    const exp = issuedAt + 30 * 60 * 1000;
 
     const syncToken = signSyncToken({
       slug,
+      consolidated_celex: latest.consolidated_celex,
       version_label: latest.versionLabel,
       consolidation_date: latest.consolidation_date,
       candidate_hash: candidateHash,
       source_url: latest.source_url,
       content_hash: contentHash,
+      issued_at: issuedAt,
       exp,
-      sections: parsed,
-      changes: diff.changes,
     });
 
     return ok(res, {
