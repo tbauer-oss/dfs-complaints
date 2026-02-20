@@ -1,10 +1,15 @@
 export const config = { runtime: 'nodejs' };
 
-import { handlePreflight, setCors, ok, bad, readJson } from '../../_lib/http.js';
+import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { query } from '../../_lib/db.js';
 import { verifySyncToken } from '../../_lib/regulatory/token.js';
 import { sha256 } from '../../_lib/regulatory/hash.js';
+
+function parseBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  try { return JSON.parse(req.body || '{}'); } catch { return {}; }
+}
 
 function uuidOrNull(value) {
   const v = String(value || '').trim();
@@ -17,21 +22,22 @@ export default async function handler(req, res) {
   const actor = await requirePortalAccess(req, res, { write: true, allowPrrc: true });
   if (!actor) return;
   if (req.method !== 'POST') return bad(res, 'method not allowed', 405);
-  const body = readJson(req) || {};
-  const slug = String(req.query?.slug || '').trim();
-  const expected = String(body.expected_version_label || '').trim();
-
-  const payload = verifySyncToken(body.sync_token);
-  if (payload.slug !== slug) return bad(res, 'sync token slug mismatch', 409);
-  if (expected && expected !== payload.version_label) return bad(res, 'version mismatch', 409);
-  const tokenHash = sha256((payload.sections || []).map((s) => `${s.section_key}:${s.content_hash}`).join('|'));
-  if (tokenHash !== payload.candidate_hash) return bad(res, 'candidate hash mismatch', 409);
-
-  const docQ = await query('select * from legal_documents where slug = $1 limit 1', [slug]);
-  const doc = docQ.rows[0];
-  if (!doc) return bad(res, 'document not found', 404);
 
   try {
+    const body = parseBody(req);
+    const slug = String(req.query?.slug || '').trim();
+    const expected = String(body.expected_version_label || '').trim();
+
+    const payload = verifySyncToken(body.sync_token);
+    if (payload.slug !== slug) return bad(res, 'sync token slug mismatch', 409);
+    if (expected && expected !== payload.version_label) return bad(res, 'version mismatch', 409);
+    const tokenHash = sha256((payload.sections || []).map((s) => `${s.section_key}:${s.content_hash}`).join('|'));
+    if (tokenHash !== payload.candidate_hash) return bad(res, 'candidate hash mismatch', 409);
+
+    const docQ = await query('select * from legal_documents where slug = $1 limit 1', [slug]);
+    const doc = docQ.rows[0];
+    if (!doc) return bad(res, 'document not found', 404);
+
     const versionResult = await query(
       `insert into legal_versions (document_id, version_label, source_url, content_hash)
        values ($1,$2,$3,$4)
@@ -68,13 +74,16 @@ export default async function handler(req, res) {
 
     await query('update legal_documents set current_version_id = $1 where id = $2', [versionId, doc.id]);
 
-    const impactRows = await query(
-      `select distinct g.id, g.code
-       from gspr_requirements g
-       join gspr_links l on l.gspr_id = g.id
-       where l.document_slug = $1 and l.section_key = any($2::text[])`,
-      [slug, (payload.changes || []).map((c) => c.section_key)],
-    );
+    const changedKeys = (payload.changes || []).map((c) => c.section_key);
+    const impactRows = changedKeys.length
+      ? await query(
+          `select distinct g.id, g.code
+           from gspr_requirements g
+           join gspr_links l on l.gspr_id = g.id
+           where l.document_slug = $1 and l.section_key = any($2::text[])`,
+          [slug, changedKeys],
+        )
+      : { rows: [] };
 
     for (const row of impactRows.rows) {
       await query(
@@ -86,6 +95,7 @@ export default async function handler(req, res) {
 
     return ok(res, { ok: true, change_id: changeId, impacted_gspr: impactRows.rows });
   } catch (err) {
-    throw err;
+    console.error('[regulatory/apply] failed', err);
+    return bad(res, err?.message || 'apply failed', 500, { code: 'REGULATORY_APPLY_FAILED' });
   }
 }
