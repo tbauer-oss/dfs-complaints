@@ -378,6 +378,11 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
         _readinessLoaded = false;
       });
 
+      if (selected != null) {
+        unawaited(_ensureTabLoaded(_tabs.index));
+        unawaited(_ensureTabLoaded(1));
+      }
+
     } catch (e) {
       final details = e.toString();
       final devDetails = kDebugMode ? '\n$details' : '';
@@ -420,6 +425,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 1 && !_structureLoaded) {
       await _runHeavyOperation(
         key: 'structure',
+        showProgressDialog: false,
         phases: const ['Struktur laden …'],
         onRun: (setStep) async {
           setStep(1);
@@ -447,6 +453,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 2 && !_applicabilityLoaded) {
       await _runHeavyOperation(
         key: 'applicability',
+        showProgressDialog: false,
         phases: const ['Übersichten laden …', 'Inhalte laden …'],
         onRun: (setStep) async {
           final cached = _applicabilityCache[td.id];
@@ -472,6 +479,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 3 && !_linksLoaded) {
       await _runHeavyOperation(
         key: 'links',
+        showProgressDialog: false,
         phases: const ['Übersichten laden …', 'Inhalte laden …'],
         onRun: (setStep) async {
           final cached = _linksCache[td.id];
@@ -497,6 +505,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (tabIndex == 4 && !_changesLoaded) {
       await _runHeavyOperation(
         key: 'changes',
+        showProgressDialog: false,
         phases: const ['Übersichten laden …', 'Inhalte laden …'],
         onRun: (setStep) async {
           final cached = _changesCache[td.id];
@@ -746,6 +755,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
   Future<void> _runHeavyOperation({
     required String key,
     required Future<void> Function(void Function(int step) setStep) onRun,
+    bool showProgressDialog = true,
     List<String> phases = const <String>[
       'Katalog laden …',
       'Übersichten laden …',
@@ -776,12 +786,15 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       if (key == 'links') _isLoadingLinks = true;
     });
 
-    var progressDialogOpen = true;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => TdHeavyProgressDialog(statusText: status, stages: phases, currentStep: currentStep),
-    ).whenComplete(() => progressDialogOpen = false);
+    var progressDialogOpen = false;
+    if (showProgressDialog) {
+      progressDialogOpen = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => TdHeavyProgressDialog(statusText: status, stages: phases, currentStep: currentStep),
+      ).whenComplete(() => progressDialogOpen = false);
+    }
 
     try {
       await onRun((step) => currentStep.value = step.clamp(1, phases.length));
@@ -799,7 +812,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
       );
     } finally {
       await Future<void>.delayed(const Duration(milliseconds: 150));
-      if (mounted && progressDialogOpen) {
+      if (showProgressDialog && mounted && progressDialogOpen) {
         Navigator.of(context, rootNavigator: true).pop();
       }
       currentStep.dispose();
@@ -837,6 +850,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     if (td == null || _readinessLoaded) return;
     await _runHeavyOperation(
       key: 'readiness',
+      showProgressDialog: false,
       phases: const ['Übersichten laden …', 'Inhalte laden …'],
       onRun: (setStep) async {
         final cached = _readinessCache[td.id];
