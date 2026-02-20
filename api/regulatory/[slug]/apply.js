@@ -50,6 +50,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return bad(res, 'method not allowed', 405);
 
   const client = await getDbClient();
+  let transactionOpen = false;
 
   try {
     const body = parseBody(req);
@@ -97,6 +98,7 @@ export default async function handler(req, res) {
     console.info(`[regulatory/apply] Inserting sections: uniqueCount=${uniqueSections.length}`);
 
     await client.query('BEGIN');
+    transactionOpen = true;
 
     const docQ = await client.query('select * from legal_documents where slug = $1 limit 1', [slug]);
     const doc = docQ.rows[0];
@@ -168,29 +170,46 @@ export default async function handler(req, res) {
 
     await client.query('update legal_documents set current_version_id = $1 where id = $2', [versionId, doc.id]);
 
-    const changedKeys = diff.changes.map((c) => c.section_key);
-    const impactRows = changedKeys.length
-      ? await client.query(
-          `select distinct g.id, g.code
-           from gspr_requirements g
-           join gspr_links l on l.gspr_id = g.id
-           where l.document_slug = $1 and l.section_key = any($2::text[])`,
-          [slug, changedKeys],
-        )
-      : { rows: [] };
+    await client.query('COMMIT');
+    transactionOpen = false;
 
-    for (const row of impactRows.rows) {
-      await client.query(
-        `insert into gspr_impacts (change_id, gspr_id, section_key, impact_type)
-         values ($1,$2,$3,'referenced_section_changed')`,
-        [changeId, row.id, 'multiple'],
-      );
+    let impactedGspr = [];
+    if (process.env.ENABLE_GSPR_SYNC === 'true' && slug.startsWith('gspr-')) {
+      try {
+        const changedKeys = diff.changes.map((c) => c.section_key);
+        const impactRows = changedKeys.length
+          ? await client.query(
+              `select distinct g.id, g.code
+               from gspr_requirements g
+               join gspr_links l on l.gspr_id = g.id
+               where l.document_slug = $1 and l.section_key = any($2::text[])`,
+              [slug, changedKeys],
+            )
+          : { rows: [] };
+
+        for (const row of impactRows.rows) {
+          await client.query(
+            `insert into gspr_impacts (change_id, gspr_id, section_key, impact_type)
+             values ($1,$2,$3,'referenced_section_changed')`,
+            [changeId, row.id, 'multiple'],
+          );
+        }
+
+        impactedGspr = impactRows.rows;
+      } catch (gsprError) {
+        console.warn('[regulatory/apply] Optional GSPR sync failed', gsprError);
+      }
+    } else {
+      console.info(`[regulatory/apply] Skipping GSPR update for slug=${slug}`);
     }
 
-    await client.query('COMMIT');
-    return ok(res, { ok: true, change_id: changeId, impacted_gspr: impactRows.rows, sections_written: sectionCount });
+    return ok(res, { ok: true, change_id: changeId, impacted_gspr: impactedGspr, sections_written: sectionCount });
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch {}
+    if (transactionOpen) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+    }
     console.error('[regulatory/apply] failed', err);
     return bad(res, err?.message || 'apply failed', 500, { code: 'REGULATORY_APPLY_FAILED' });
   } finally {
