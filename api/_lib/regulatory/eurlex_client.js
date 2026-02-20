@@ -6,8 +6,8 @@ function buildAllUrl(locale = 'DE') {
   return `${BASE_URL}/legal-content/${locale}/ALL/?uri=CELEX:${MDR_BASE_CELEX}`;
 }
 
-function buildConsolidatedHtmlUrl(consolidatedCelex) {
-  return `${BASE_URL}/legal-content/DE/TXT/HTML/?uri=CELEX:${consolidatedCelex}`;
+function buildConsolidatedHtmlUrl(consolidatedCelex, locale = 'DE') {
+  return `${BASE_URL}/legal-content/${locale}/TXT/HTML/?uri=CELEX:${consolidatedCelex}`;
 }
 
 async function withRetry(url, attempts = 2) {
@@ -31,9 +31,38 @@ async function withRetry(url, attempts = 2) {
   throw last || new Error('fetch failed');
 }
 
+async function withRetryResponse(url, attempts = 2) {
+  let last;
+  for (let i = 0; i < attempts; i += 1) {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const response = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { 'user-agent': 'ConnectPlus-RegulatorySync/1.0' },
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      return { html: await response.text(), finalUrl: response.url || url };
+    } catch (err) {
+      clearTimeout(timeout);
+      last = err;
+    }
+  }
+  throw last || new Error('fetch failed');
+}
+
 function extractLatestConsolidatedCelex(html = '') {
-  const matches = String(html || '').match(CONSOLIDATED_CELEX_RE) || [];
-  const unique = [...new Set(matches)];
+  const raw = String(html || '');
+  const direct = raw.match(CONSOLIDATED_CELEX_RE) || [];
+  const encodedDash = raw.match(/02017R0745(?:%2D|%2d)(\d{8})/g) || [];
+  const normalizedEncoded = encodedDash.map((m) => m.replace(/%2D/i, '-'));
+  const unique = [...new Set([...direct, ...normalizedEncoded])]
+    .map((m) => {
+      const found = String(m).match(/02017R0745-(\d{8})/);
+      return found ? `02017R0745-${found[1]}` : null;
+    })
+    .filter(Boolean);
   if (!unique.length) return null;
   unique.sort((a, b) => a.localeCompare(b));
   return unique[unique.length - 1] || null;
@@ -46,30 +75,78 @@ function toConsolidationDate(celex = '') {
 }
 
 export async function getLatestMdrVersionMeta() {
-  const attempts = [
-    { locale: 'DE', url: buildAllUrl('DE') },
-    { locale: 'EN', url: buildAllUrl('EN') },
-  ];
-
   let consolidatedCelex = null;
-  for (const attempt of attempts) {
+  let consolidatedLocale = 'DE';
+
+  try {
+    const deAllHtml = await withRetry(buildAllUrl('DE'), 2);
+    consolidatedCelex = extractLatestConsolidatedCelex(deAllHtml);
+  } catch (err) {
+    console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
+      locale: 'DE',
+      message: err?.message || String(err),
+    });
+  }
+
+  if (!consolidatedCelex) {
     try {
-      const allHtml = await withRetry(attempt.url, 2);
-      consolidatedCelex = extractLatestConsolidatedCelex(allHtml);
-      if (consolidatedCelex) break;
+      const deTxtHtml = await withRetry(buildConsolidatedHtmlUrl(MDR_BASE_CELEX, 'DE'), 2);
+      consolidatedCelex = extractLatestConsolidatedCelex(deTxtHtml);
+      consolidatedLocale = 'DE';
     } catch (err) {
       console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
-        locale: attempt.locale,
+        locale: 'DE',
+        view: 'TXT',
         message: err?.message || String(err),
       });
     }
   }
 
   if (!consolidatedCelex) {
+    try {
+      const enTxtHtml = await withRetry(buildConsolidatedHtmlUrl(MDR_BASE_CELEX, 'EN'), 2);
+      consolidatedCelex = extractLatestConsolidatedCelex(enTxtHtml);
+      consolidatedLocale = 'EN';
+    } catch (err) {
+      console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
+        locale: 'EN',
+        view: 'TXT',
+        message: err?.message || String(err),
+      });
+    }
+  }
+
+  if (!consolidatedCelex) {
+    const redirectAttempts = [
+      { locale: 'DE', url: buildConsolidatedHtmlUrl('02017R0745', 'DE') },
+      { locale: 'EN', url: buildConsolidatedHtmlUrl('02017R0745', 'EN') },
+    ];
+
+    for (const attempt of redirectAttempts) {
+      try {
+        const { html: latestHtml, finalUrl } = await withRetryResponse(attempt.url, 2);
+        consolidatedCelex = extractLatestConsolidatedCelex(`${finalUrl}
+${latestHtml}`);
+        if (consolidatedCelex) {
+          consolidatedLocale = attempt.locale;
+          break;
+        }
+      } catch (err) {
+        console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
+          locale: attempt.locale,
+          view: 'TXT_REDIRECT',
+          message: err?.message || String(err),
+        });
+      }
+    }
+  }
+
+  if (!consolidatedCelex) {
+    console.error('[eurlex_client] consolidated CELEX not found in DE/ALL, DE/TXT, EN/TXT');
     throw new Error('NO_CONSOLIDATED_CELEX_FOUND');
   }
 
-  const sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex);
+  const sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex, consolidatedLocale);
   const html = await withRetry(sourceUrl, 2);
 
   return {
