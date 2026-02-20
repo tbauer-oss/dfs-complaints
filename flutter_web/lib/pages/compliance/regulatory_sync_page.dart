@@ -65,7 +65,6 @@ class _RegulatorySyncPageState extends State<RegulatorySyncPage> {
       await _regulatory.apply(
         _slug!,
         _diff!['sync_token']?.toString() ?? '',
-        _diff!['to_version_preview']?['version_label']?.toString() ?? '',
       );
       _status = await _regulatory.getStatus(_slug!);
     });

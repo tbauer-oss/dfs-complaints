@@ -2783,11 +2783,11 @@ class ApiClient {
     return (decoded as Map).cast<String, dynamic>();
   }
 
-  Future<Map<String, dynamic>> regulatoryApply(String slug, {required String syncToken, required String expectedVersionLabel}) async {
+  Future<Map<String, dynamic>> regulatoryApply(String slug, {required String syncToken}) async {
     final r = await http.post(
       _u('/api/regulatory/$slug/apply'),
       headers: _adminHeaders(auth: true),
-      body: jsonEncode({'sync_token': syncToken, 'expected_version_label': expectedVersionLabel}),
+      body: jsonEncode({'sync_token': syncToken}),
     );
     if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
     final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
