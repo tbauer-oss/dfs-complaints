@@ -30,8 +30,8 @@ class GsprHomePage extends StatefulWidget {
 }
 
 class _GsprHomePageState extends State<GsprHomePage> {
-  static const String _fallbackSourceName = 'EUR-Lex / Access to European Union law';
-  static const String _fallbackSourcePermalink = 'https://eur-lex.europa.eu/legal-content/de/ALL/?uri=CELEX:32017R0745';
+  static const String _fallbackSourceName = 'Regulatory Cache (Supabase)';
+  static const String _fallbackSourcePermalink = '/api/regulatory/mdr-2017-745/sections';
 
   bool _loading = false;
   String? _error;
@@ -67,7 +67,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
         final theme = Theme.of(ctx);
         return AlertDialog(
           icon: const Icon(Icons.notifications_active_outlined),
-          title: const Text('Inhaltliche EU-Änderung erkannt'),
+          title: const Text('Regulatorische Änderung erkannt'),
           content: SizedBox(
             width: 680,
             child: SingleChildScrollView(
@@ -76,7 +76,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Bei der Synchronisierung wurden Änderungen an der offiziellen EUR-Lex-Fassung erkannt.',
+                    'Bei der Synchronisierung wurden Änderungen an der gecachten MDR-Version erkannt.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 12),
@@ -142,7 +142,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 SizedBox(height: 8),
                 LinearProgressIndicator(),
                 SizedBox(height: 10),
-                Text('Die EU-Lex Daten werden geladen und im Cache aktualisiert. Das kann einige Sekunden dauern.'),
+                Text('Es wird eine serverseitige Synchronisations-Prüfung ausgeführt.'),
               ],
             ),
           ),
@@ -157,19 +157,16 @@ class _GsprHomePageState extends State<GsprHomePage> {
     }
 
     try {
-      final syncResult = await widget.api.gsprSyncSource(tdKey: tdKey);
+      final diff = await widget.api.regulatoryDiff('mdr-2017-745');
       final selected = GsprTdState.selectedTd.value;
-      if (selected != null) {
-        await _loadSummary(selected.id);
-      }
+      if (selected != null) await _loadSummary(selected.id);
       if (!mounted) return;
-      if (syncResult.changesDetected && syncResult.changeDetails.isNotEmpty) {
-        await _showChangeDialog(syncResult.changeDetails);
-      } else if (userInitiated) {
-        final info = syncResult.skipped
-            ? 'GSPR-Synchronisierung übersprungen (${syncResult.skipReason}).'
-            : 'GSPR-Synchronisierung erfolgreich aktualisiert. Keine inhaltlichen Änderungen erkannt.';
+      if (diff['has_update'] == true) {
+        final counts = (diff['counts'] as Map?)?.cast<String, dynamic>() ?? const {};
+        final info = 'MDR-Update erkannt (A:${counts['added'] ?? 0}, R:${counts['removed'] ?? 0}, M:${counts['modified'] ?? 0}). Öffnen Sie Regulatory Sync zum Übernehmen.';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(info)));
+      } else if (userInitiated) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Keine Änderungen gefunden')));
       }
     } catch (e) {
       if (!mounted) return;
@@ -535,7 +532,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
         childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         leading: Icon(Icons.verified_user_outlined, color: theme.colorScheme.primary, size: 18),
         title: Text(
-          'EU-Rechtsquelle: $sourceName',
+          'Regulatorische Quelle: $sourceName',
           style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -546,7 +543,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
         ),
         children: [
           Text(
-            'Die Daten stammen aus EUR-Lex (offizielle Homepage der EU-Kommission) und werden aus der konsolidierten Fassung geprüft.',
+            'Die Daten stammen aus dem Supabase Regulatory Cache und werden serverseitig versioniert synchronisiert.',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -569,7 +566,12 @@ class _GsprHomePageState extends State<GsprHomePage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.sync),
-                  label: const Text('Jetzt synchronisieren'),
+                  label: const Text('Synchronisieren'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/compliance/regulatory-sync'),
+                  icon: const Icon(Icons.library_books_outlined, size: 16),
+                  label: const Text('Regulatory Sync'),
                 ),
             ],
           ),
