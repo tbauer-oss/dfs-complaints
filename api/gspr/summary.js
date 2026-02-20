@@ -17,23 +17,8 @@ import {
   gsprAssessableItemsByChapter,
 } from '../_lib/gsprRequirements.js';
 import { resolveGsprTdInfo } from '../_lib/gsprTdOptions.js';
-import { redis } from '../_lib/redis.js';
 
 const GSPR_TILE = 'gspr';
-const TD_META_KEY = (tdKey) => `dfs:gspr:source-meta:${tdKey}`;
-
-async function readTdScopedSourceMeta(tdKey) {
-  const global = await gsprSourceMetaGet();
-  if (!tdKey || !redis || typeof redis.get !== 'function') return global;
-  try {
-    const raw = await redis.get(TD_META_KEY(tdKey));
-    if (!raw) return global;
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return { ...global, ...parsed };
-  } catch {
-    return global;
-  }
-}
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -72,7 +57,7 @@ export default async function handler(req, res) {
     });
 
     const readOnly = td.active === false || Boolean(td.archivedAt);
-    const sourceMeta = await readTdScopedSourceMeta(tdId);
+    const sourceMeta = await gsprSourceMetaGet();
 
     return ok(res, {
       ok: true,

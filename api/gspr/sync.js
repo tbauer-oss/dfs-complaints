@@ -22,7 +22,6 @@ const SYNC_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const ANTI_BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const RAW_CACHE_TTL_SECONDS = 15 * 60;
 const RAW_CACHE_KEY = 'dfs:gspr:eurlex:raw:last';
-const TD_META_KEY = (tdKey) => `dfs:gspr:source-meta:${tdKey}`;
 
 function isTruthy(value) {
   return ['1', 'true', 'yes', 'on'].includes((value ?? '').toString().trim().toLowerCase());
@@ -95,28 +94,13 @@ function readTdKey(req) {
 }
 
 async function readSourceMeta(tdKey) {
-  const global = await gsprSourceMetaGet();
-  if (!tdKey || !redis || typeof redis.get !== 'function') return global;
-  try {
-    const raw = await redis.get(TD_META_KEY(tdKey));
-    if (!raw) return global;
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return { ...global, ...parsed };
-  } catch {
-    return global;
-  }
+  void tdKey;
+  return await gsprSourceMetaGet();
 }
 
 async function saveSourceMeta(tdKey, patch = {}) {
-  const saved = await gsprSourceMetaSave(patch);
-  if (tdKey && redis && typeof redis.set === 'function') {
-    try {
-      await redis.set(TD_META_KEY(tdKey), JSON.stringify(saved), { ex: 60 * 60 * 24 * 14 });
-    } catch (err) {
-      console.warn('[gspr/sync] td scoped source meta cache failed', err?.message || err);
-    }
-  }
-  return saved;
+  void tdKey;
+  return await gsprSourceMetaSave(patch);
 }
 
 export default async function handler(req, res) {

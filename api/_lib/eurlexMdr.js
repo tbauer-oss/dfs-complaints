@@ -1,15 +1,31 @@
 import { createHash } from 'node:crypto';
 
 const MDR_CELEX = '32017R0745';
-const PARSER_VERSION = 'eurlex-xml-v1';
+const PARSER_VERSION = 'eurlex-xml-v2';
 const EUR_LEX_XML_URL = `https://eur-lex.europa.eu/legal-content/EN/TXT/XML/?uri=CELEX:${MDR_CELEX}`;
 const FETCH_TIMEOUT_MS = 10_000;
 
 const MIN_STABLE_TEXT_LENGTH = 20_000;
 
 const REQUIRED_ANCHORS = [
-  /annex\s+i\b/i,
-  /general safety and performance requirements/i,
+  {
+    key: 'annex_i',
+    patterns: [
+      /annex\s+i\b/i,
+      /anhang\s+i\b/i,
+      /annexe\s+i\b/i,
+      /allegato\s+i\b/i,
+    ],
+  },
+  {
+    key: 'gspr_heading',
+    patterns: [
+      /general safety and performance requirements/i,
+      /allgemeine sicherheits- und leistungsanforderungen/i,
+      /exigences générales en matière de sécurité et de performances/i,
+      /requisiti generali di sicurezza e prestazione/i,
+    ],
+  },
 ];
 
 const ANTI_BOT_OR_NAV_PATTERNS = [
@@ -67,7 +83,7 @@ export function stabilityCheck(rawText = '') {
     return { ok: false, reason: `TEXT_TOO_SHORT_${text.length}` };
   }
 
-  const missingAnchors = REQUIRED_ANCHORS.filter((pattern) => !pattern.test(text));
+  const missingAnchors = REQUIRED_ANCHORS.filter((group) => !group.patterns.some((pattern) => pattern.test(text)));
   if (missingAnchors.length > 0) {
     return { ok: false, reason: 'EXPECTED_ANCHORS_MISSING' };
   }
