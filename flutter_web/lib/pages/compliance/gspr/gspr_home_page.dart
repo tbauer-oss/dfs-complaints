@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -115,7 +117,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
     );
   }
 
-  Future<void> _syncSourceNow({bool userInitiated = false, String? tdKey}) async {
+  Future<void> _syncSourceNow({bool userInitiated = false, bool showProgressDialog = true, String? tdKey}) async {
     if (_syncingSource) return;
     setState(() {
       _syncingSource = true;
@@ -123,7 +125,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
     });
 
     var syncDialogOpen = false;
-    if (mounted) {
+    if (mounted && showProgressDialog) {
       syncDialogOpen = true;
       showDialog<void>(
         context: context,
@@ -297,7 +299,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
   Future<void> _handleTdSelection(GsprTdOption td) async {
     await _loadSummary(td.id);
-    await _syncSourceNow(tdKey: td.id);
+    unawaited(_syncSourceNow(tdKey: td.id, showProgressDialog: false));
   }
 
   Future<void> _loadSummary(String tdId) async {
@@ -586,7 +588,15 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 ),
               ),
             ),
-          if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
+          if (_syncingSource)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Synchronisierung läuft … der letzte Fehlerstatus wird nach Abschluss aktualisiert.',
+                style: theme.textTheme.bodySmall,
+              ),
+            )
+          else if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
