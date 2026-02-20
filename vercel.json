@@ -66,6 +66,30 @@
       "dest": "/api/gspr/td/[tdId]/approve.js?tdId=$1"
     },
     {
+      "src": "/api/regulatory/docs$",
+      "dest": "/api/regulatory/docs.js"
+    },
+    {
+      "src": "/api/regulatory/([^/]+)/status$",
+      "dest": "/api/regulatory/[slug]/status.js?slug=$1"
+    },
+    {
+      "src": "/api/regulatory/([^/]+)/diff$",
+      "dest": "/api/regulatory/[slug]/diff.js?slug=$1"
+    },
+    {
+      "src": "/api/regulatory/([^/]+)/apply$",
+      "dest": "/api/regulatory/[slug]/apply.js?slug=$1"
+    },
+    {
+      "src": "/api/regulatory/([^/]+)/sections$",
+      "dest": "/api/regulatory/[slug]/sections.js?slug=$1"
+    },
+    {
+      "src": "/api/regulatory/([^/]+)/section$",
+      "dest": "/api/regulatory/[slug]/section.js?slug=$1"
+    },
+    {
       "src": "/api/training/(.*)",
       "has": [
         {

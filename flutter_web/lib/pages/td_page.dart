@@ -1713,6 +1713,42 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
     );
   }
 
+  Future<void> _showLegalReference(TdQueryLink link) async {
+    final slug = link.legalDocumentSlug;
+    final sectionKey = link.legalSectionKey;
+    if (slug == null || sectionKey == null) return;
+
+    try {
+      final response = await widget.api.regulatorySection(slug, key: sectionKey, side: 'current');
+      final section = (response['section'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      final heading = (section['heading'] ?? sectionKey).toString();
+      final contentText = (section['content_text'] ?? '').toString();
+      final contentHtml = (section['content_html'] ?? '').toString();
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(heading),
+          content: SizedBox(
+            width: 760,
+            child: SingleChildScrollView(
+              child: SelectableText(contentText.isNotEmpty ? contentText : (contentHtml.isNotEmpty ? contentHtml : 'Kein Text im Regulatory Cache verfügbar.')),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Schließen')),
+          ],
+        ),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rechtstext konnte nicht geladen werden: $err')),
+      );
+    }
+  }
+
   Widget _queryTab(TdQueryAnswer query) {
     final ownerCtl = TextEditingController(text: query.ownerUserId ?? '');
     final dueCtl = TextEditingController(text: query.dueAt ?? '');
@@ -1821,7 +1857,12 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
           ],
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
-            ...query.links.map((l) => InputChip(label: Text('${_linkTypeDe(l.type)}: ${l.label}${l.metaJson['auto'] == true ? ' (auto)' : ''}'), onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null)),
+            ...query.links.map((l) => InputChip(
+                  label: Text('${_linkTypeDe(l.type)}: ${l.label}${l.metaJson['auto'] == true ? ' (auto)' : ''}'),
+                  onPressed: l.hasLegalReference ? () => _showLegalReference(l) : null,
+                  avatar: l.hasLegalReference ? const Icon(Icons.gavel, size: 16) : null,
+                  onDeleted: widget.canEdit ? () async { await widget.api.deleteTdQueryLink(l.id); _load(); } : null,
+                )),
             if (widget.canEdit)
               FilledButton.icon(onPressed: () async {
                 await widget.api.createTdQueryLink(query.id, {'type': 'Document', 'label': _queryTitleDe(query.template), 'refId': query.template.templateKey});

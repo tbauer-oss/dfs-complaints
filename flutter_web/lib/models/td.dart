@@ -264,6 +264,22 @@ class TdQueryLink {
 
   const TdQueryLink({required this.id, required this.type, required this.label, this.refId, this.url, this.metaJson = const {}});
 
+  String? get legalDocumentSlug {
+    final direct = metaJson['documentSlug']?.toString().trim();
+    if (direct != null && direct.isNotEmpty) return direct;
+    final fallback = metaJson['legal_document_slug']?.toString().trim();
+    return (fallback != null && fallback.isNotEmpty) ? fallback : null;
+  }
+
+  String? get legalSectionKey {
+    final direct = metaJson['sectionKey']?.toString().trim();
+    if (direct != null && direct.isNotEmpty) return direct;
+    final fallback = metaJson['section_key']?.toString().trim();
+    return (fallback != null && fallback.isNotEmpty) ? fallback : null;
+  }
+
+  bool get hasLegalReference => legalDocumentSlug != null && legalSectionKey != null;
+
   factory TdQueryLink.fromJson(Map<String, dynamic> json) => TdQueryLink(
         id: '${json['id'] ?? ''}',
         type: '${json['type'] ?? 'Document'}',

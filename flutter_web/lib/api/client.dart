@@ -2756,6 +2756,53 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige GSPR-Analyse-Antwort');
   }
 
+
+  Future<List<Map<String, dynamic>>> regulatoryDocs() async {
+    final r = await http.get(_u('/api/regulatory/docs'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    final docs = decoded is Map && decoded['docs'] is List ? decoded['docs'] as List : const [];
+    return docs.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+  }
+
+  Future<Map<String, dynamic>> regulatoryStatus(String slug) async {
+    final r = await http.get(_u('/api/regulatory/$slug/status'), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    return (decoded as Map).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> regulatoryDiff(String slug, {bool force = false}) async {
+    final r = await http.post(
+      _u('/api/regulatory/$slug/diff'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'force': force}),
+    );
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    return (decoded as Map).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> regulatoryApply(String slug, {required String syncToken, required String expectedVersionLabel}) async {
+    final r = await http.post(
+      _u('/api/regulatory/$slug/apply'),
+      headers: _adminHeaders(auth: true),
+      body: jsonEncode({'sync_token': syncToken, 'expected_version_label': expectedVersionLabel}),
+    );
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    return (decoded as Map).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> regulatorySection(String slug, {required String key, String side = 'current', String? token}) async {
+    final params = {'key': key, 'side': side, if (token != null && token.isNotEmpty) 'token': token};
+    final path = Uri(path: '/api/regulatory/$slug/section', queryParameters: params).toString();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? <String, dynamic>{} : jsonDecode(r.body);
+    return (decoded as Map).cast<String, dynamic>();
+  }
+
   Future<GsprAssessment> updateGsprAssessment(GsprAssessment assessment) async {
     final r = await http.put(
       _u('/api/gspr/assessment/${assessment.id}'),

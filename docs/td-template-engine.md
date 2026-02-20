@@ -32,7 +32,7 @@
 - `GET /api/td/:id/queries` → liefert Responses inkl. `nodeTemplate`, `fieldResponses`, `validation`.
 - `PUT /api/td/queries/:answerId` → speichert Feldantworten + Legacy-Felder; setzt Auto-Text/Auto-Referenzen.
 - `POST /api/td/queries/:answerId/links` → manuelle Referenzen.
-- `GET /api/reference-resolver/legal?type=MDR_CLASSIFICATION_RULE&value=11` → zentrale EU-Lex/MDR-Auflösung.
+- `GET /api/reference-resolver/legal?type=MDR_CLASSIFICATION_RULE&value=11` → zentrale Regulatory-Cache-Auflösung.
 
 ## 4) Flutter Form-Renderer Architektur
 
@@ -54,7 +54,7 @@
   - `resolveMdrClassificationRule(ruleNo)`
   - `buildMdrRuleReference(ruleNo)` für Auto-Link in TD (Meta `auto: true`)
 - Reuse:
-  - GSPR nutzt denselben zentralen MDR-EU-Lex-Permalink über `legalRefService`.
+  - GSPR nutzt denselben zentralen MDR-Regulatory-Cache-Referenz über `legalRefService`.
 
 ## 6) Umsetzungsreihenfolge (ToDos)
 
