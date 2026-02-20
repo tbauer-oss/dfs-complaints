@@ -1,4 +1,5 @@
 const BASE_URL = 'https://eur-lex.europa.eu';
+const SPARQL_URL = 'https://publications.europa.eu/webapi/rdf/sparql';
 const MDR_BASE_CELEX = '32017R0745';
 const CONSOLIDATED_CELEX_RE = /02017R0745-\d{8}/g;
 
@@ -44,6 +45,27 @@ async function withRetryResponse(url, attempts = 2) {
       clearTimeout(timeout);
       if (!response.ok) throw new Error(`HTTP_${response.status}`);
       return { html: await response.text(), finalUrl: response.url || url };
+    } catch (err) {
+      clearTimeout(timeout);
+      last = err;
+    }
+  }
+  throw last || new Error('fetch failed');
+}
+
+async function withRetryJson(url, attempts = 2) {
+  let last;
+  for (let i = 0; i < attempts; i += 1) {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const response = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { 'user-agent': 'ConnectPlus-RegulatorySync/1.0' },
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      return await response.json();
     } catch (err) {
       clearTimeout(timeout);
       last = err;
@@ -125,8 +147,7 @@ export async function getLatestMdrVersionMeta() {
     for (const attempt of redirectAttempts) {
       try {
         const { html: latestHtml, finalUrl } = await withRetryResponse(attempt.url, 2);
-        consolidatedCelex = extractLatestConsolidatedCelex(`${finalUrl}
-${latestHtml}`);
+        consolidatedCelex = extractLatestConsolidatedCelex(`${finalUrl}\n${latestHtml}`);
         if (consolidatedCelex) {
           consolidatedLocale = attempt.locale;
           break;
@@ -142,12 +163,49 @@ ${latestHtml}`);
   }
 
   if (!consolidatedCelex) {
-    console.error('[eurlex_client] consolidated CELEX not found in DE/ALL, DE/TXT, EN/TXT');
+    const sparqlQuery = `PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?celex WHERE {
+  ?work cdm:resource_legal_id_celex ?celex .
+  FILTER(STRSTARTS(STR(?celex), "02017R0745-"))
+}
+ORDER BY DESC(STR(?celex))
+LIMIT 1`;
+
+    try {
+      const sparqlUrl = `${SPARQL_URL}?query=${encodeURIComponent(sparqlQuery)}&format=${encodeURIComponent('application/sparql-results+json')}`;
+      const json = await withRetryJson(sparqlUrl, 2);
+      const sparqlCelex = json?.results?.bindings?.[0]?.celex?.value;
+      if (typeof sparqlCelex === 'string' && /^02017R0745-\d{8}$/.test(sparqlCelex)) {
+        consolidatedCelex = sparqlCelex;
+        consolidatedLocale = 'DE';
+        console.info('[eurlex_client] resolved consolidated CELEX via SPARQL:', consolidatedCelex);
+      }
+    } catch (err) {
+      console.warn('[regulatory/eurlex] SPARQL consolidated celex lookup failed', {
+        message: err?.message || String(err),
+      });
+    }
+  }
+
+  if (!consolidatedCelex) {
+    console.error('[eurlex_client] SPARQL fallback failed; cannot resolve consolidated CELEX');
     throw new Error('NO_CONSOLIDATED_CELEX_FOUND');
   }
 
-  const sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex, consolidatedLocale);
-  const html = await withRetry(sourceUrl, 2);
+  let sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex, consolidatedLocale);
+  let html;
+
+  try {
+    html = await withRetry(sourceUrl, 2);
+  } catch (err) {
+    if (consolidatedLocale === 'DE') {
+      sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex, 'EN');
+      html = await withRetry(sourceUrl, 2);
+      consolidatedLocale = 'EN';
+    } else {
+      throw err;
+    }
+  }
 
   return {
     base_celex: MDR_BASE_CELEX,
