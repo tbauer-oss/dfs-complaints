@@ -2,7 +2,7 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
-import { getSectionsForCurrentVersion } from '../../_lib/regulatory/db.js';
+import { getSectionForCurrentVersion } from '../../_lib/regulatory/db.js';
 import { verifySyncToken } from '../../_lib/regulatory/token.js';
 
 export default async function handler(req, res) {
@@ -24,8 +24,7 @@ export default async function handler(req, res) {
       return ok(res, { ok: true, section: row || null });
     }
 
-    const sections = await getSectionsForCurrentVersion(slug);
-    const row = sections.find((entry) => entry.section_key === key) || null;
+    const row = await getSectionForCurrentVersion(slug, key);
     return ok(res, { ok: true, section: row });
   } catch (err) {
     console.error('[regulatory/section] failed', err?.message || err);

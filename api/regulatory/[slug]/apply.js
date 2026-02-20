@@ -2,9 +2,10 @@ export const config = { runtime: 'nodejs' };
 
 import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
-import { query } from '../../_lib/db.js';
+import { getDbClient } from '../../_lib/db.js';
 import { verifySyncToken } from '../../_lib/regulatory/token.js';
 import { sha256 } from '../../_lib/regulatory/hash.js';
+import { getLatestMdrVersionMeta } from '../../_lib/regulatory/eurlex_client.js';
 
 function parseBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -23,6 +24,8 @@ export default async function handler(req, res) {
   if (!actor) return;
   if (req.method !== 'POST') return bad(res, 'method not allowed', 405);
 
+  const client = await getDbClient();
+
   try {
     const body = parseBody(req);
     const slug = String(req.query?.slug || '').trim();
@@ -30,53 +33,83 @@ export default async function handler(req, res) {
 
     const payload = verifySyncToken(body.sync_token);
     if (payload.slug !== slug) return bad(res, 'sync token slug mismatch', 409);
-    if (expected && expected !== payload.version_label) return bad(res, 'version mismatch', 409);
+
+    const latest = await getLatestMdrVersionMeta();
+    console.info(`[regulatory/apply] Resolved consolidated celex: ${latest.consolidated_celex}`);
+    console.info(`[regulatory/apply] Fetched HTML size: ${Buffer.byteLength(latest.html || '', 'utf8')}`);
+
+    if (expected && expected !== latest.versionLabel) return bad(res, 'version mismatch', 409);
+    if (payload.version_label !== latest.versionLabel) return bad(res, 'sync token version mismatch', 409);
+
     const tokenHash = sha256((payload.sections || []).map((s) => `${s.section_key}:${s.content_hash}`).join('|'));
     if (tokenHash !== payload.candidate_hash) return bad(res, 'candidate hash mismatch', 409);
 
-    const docQ = await query('select * from legal_documents where slug = $1 limit 1', [slug]);
-    const doc = docQ.rows[0];
-    if (!doc) return bad(res, 'document not found', 404);
+    const parsedSections = Array.isArray(payload.sections) ? payload.sections : [];
+    console.info(`[regulatory/apply] Parsed sections count: ${parsedSections.length}`);
+    if (!parsedSections.length) throw new Error('PARSER_RETURNED_ZERO_SECTIONS');
 
-    const versionResult = await query(
-      `insert into legal_versions (document_id, version_label, source_url, content_hash)
-       values ($1,$2,$3,$4)
-       on conflict (document_id, version_label) do update set source_url = excluded.source_url, content_hash = excluded.content_hash
+    await client.query('BEGIN');
+
+    const docQ = await client.query('select * from legal_documents where slug = $1 limit 1', [slug]);
+    const doc = docQ.rows[0];
+    if (!doc) throw new Error('document not found');
+
+    const versionResult = await client.query(
+      `insert into legal_versions (document_id, version_label, consolidation_date, source_url, content_hash)
+       values ($1,$2,$3,$4,$5)
+       on conflict (document_id, version_label) do update set
+         consolidation_date = excluded.consolidation_date,
+         source_url = excluded.source_url,
+         content_hash = excluded.content_hash
        returning id`,
-      [doc.id, payload.version_label, payload.source_url, payload.candidate_hash],
+      [doc.id, latest.versionLabel, latest.consolidation_date, latest.source_url, payload.content_hash || payload.candidate_hash],
     );
     const versionId = versionResult.rows[0].id;
 
-    await query('delete from legal_sections where version_id = $1', [versionId]);
-    for (const section of payload.sections || []) {
-      await query(
+    await client.query('delete from legal_sections where version_id = $1', [versionId]);
+
+    for (const section of parsedSections) {
+      await client.query(
         `insert into legal_sections (version_id, section_type, section_key, heading, content_html, content_text, content_hash, sort_order)
          values ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [versionId, section.section_type, section.section_key, section.heading || '', section.content_html || '', section.content_text || '', section.content_hash, section.sort_order || null],
+        [
+          versionId,
+          section.section_type,
+          section.section_key,
+          section.heading || '',
+          section.content_html || '',
+          section.content_text || '',
+          section.content_hash,
+          section.sort_order || null,
+        ],
       );
     }
 
-    const changeResult = await query(
+    const sectionCountQ = await client.query('select count(*)::int as count from legal_sections where version_id = $1', [versionId]);
+    const sectionCount = Number(sectionCountQ.rows?.[0]?.count || 0);
+    if (!sectionCount) throw new Error('PARSER_RETURNED_ZERO_SECTIONS');
+
+    const changeResult = await client.query(
       `insert into legal_changes (document_id, from_version_id, to_version_id, synced_by, status, meta)
        values ($1,$2,$3,$4,$5,$6)
        returning id`,
-      [doc.id, doc.current_version_id, versionId, uuidOrNull(actor.id), (payload.changes || []).length ? 'changes_applied' : 'no_change', { version_label: payload.version_label }],
+      [doc.id, doc.current_version_id, versionId, uuidOrNull(actor.id), (payload.changes || []).length ? 'changes_applied' : 'no_change', { version_label: latest.versionLabel }],
     );
     const changeId = changeResult.rows[0].id;
 
     for (const change of payload.changes || []) {
-      await query(
+      await client.query(
         `insert into legal_section_changes (change_id, section_key, section_type, change_type, old_hash, new_hash, diff_summary, diff_detail)
          values ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [changeId, change.section_key, change.section_type || 'other', change.change_type, change.old_hash || null, change.new_hash || null, change.diff_summary || '', {}],
       );
     }
 
-    await query('update legal_documents set current_version_id = $1 where id = $2', [versionId, doc.id]);
+    await client.query('update legal_documents set current_version_id = $1 where id = $2', [versionId, doc.id]);
 
     const changedKeys = (payload.changes || []).map((c) => c.section_key);
     const impactRows = changedKeys.length
-      ? await query(
+      ? await client.query(
           `select distinct g.id, g.code
            from gspr_requirements g
            join gspr_links l on l.gspr_id = g.id
@@ -86,16 +119,20 @@ export default async function handler(req, res) {
       : { rows: [] };
 
     for (const row of impactRows.rows) {
-      await query(
+      await client.query(
         `insert into gspr_impacts (change_id, gspr_id, section_key, impact_type)
          values ($1,$2,$3,'referenced_section_changed')`,
         [changeId, row.id, 'multiple'],
       );
     }
 
-    return ok(res, { ok: true, change_id: changeId, impacted_gspr: impactRows.rows });
+    await client.query('COMMIT');
+    return ok(res, { ok: true, change_id: changeId, impacted_gspr: impactRows.rows, sections_written: sectionCount });
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
     console.error('[regulatory/apply] failed', err);
     return bad(res, err?.message || 'apply failed', 500, { code: 'REGULATORY_APPLY_FAILED' });
+  } finally {
+    client.release();
   }
 }

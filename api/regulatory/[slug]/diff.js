@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { getLegalDocument, getSectionsForCurrentVersion } from '../../_lib/regulatory/db.js';
-import { getLatestMdrVersionMeta, fetchMdrConsolidatedHtml } from '../../_lib/regulatory/eurlex_client.js';
+import { getLatestMdrVersionMeta } from '../../_lib/regulatory/eurlex_client.js';
 import { parseMdrSections } from '../../_lib/regulatory/parser_mdr.js';
 import { normalizeText } from '../../_lib/regulatory/normalize.js';
 import { sha256 } from '../../_lib/regulatory/hash.js';
@@ -31,15 +31,22 @@ export default async function handler(req, res) {
     const currentId = doc?.current_version_id || null;
 
     const latest = await getLatestMdrVersionMeta();
+    console.info(`[regulatory/diff] Resolved consolidated celex: ${latest.consolidated_celex}`);
+    console.info(`[regulatory/diff] Fetched HTML size: ${Buffer.byteLength(latest.html || '', 'utf8')}`);
+
     const hasUpdate = force || latest.versionLabel !== currentLabel;
     if (!hasUpdate) return ok(res, { ok: true, has_update: false });
 
-    const fetched = await fetchMdrConsolidatedHtml(latest);
-    const parsed = parseMdrSections(fetched.html).map((section) => {
+    const parsed = parseMdrSections(latest.html).map((section) => {
       const contentText = normalizeText(section.content_text || '');
-      return { ...section, content_text: contentText, content_hash: sha256(contentText) };
+      return { ...section, content_text: contentText, content_hash: section.content_hash || sha256(contentText) };
     });
 
+    console.info(`[regulatory/diff] Parsed sections count: ${parsed.length}`);
+    if (!parsed.length) throw new Error('PARSER_RETURNED_ZERO_SECTIONS');
+
+    const fullNormalizedText = normalizeText(parsed.map((s) => s.content_text).join('\n'));
+    const contentHash = sha256(fullNormalizedText);
     const candidateHash = sha256(parsed.map((s) => `${s.section_key}:${s.content_hash}`).join('|'));
     const oldSections = await getSectionsForCurrentVersion(slug).catch(() => []);
     const diff = computeSectionDiff(oldSections, parsed);
@@ -48,8 +55,10 @@ export default async function handler(req, res) {
     const syncToken = signSyncToken({
       slug,
       version_label: latest.versionLabel,
+      consolidation_date: latest.consolidation_date,
       candidate_hash: candidateHash,
-      source_url: fetched.sourceUrl,
+      source_url: latest.source_url,
+      content_hash: contentHash,
       exp,
       sections: parsed,
       changes: diff.changes,
@@ -62,8 +71,9 @@ export default async function handler(req, res) {
       from_version: currentLabel ? { id: currentId, version_label: currentLabel } : null,
       to_version_preview: {
         version_label: latest.versionLabel,
-        source_url: fetched.sourceUrl,
-        consolidation_date: latest.consolidationDate,
+        source_url: latest.source_url,
+        consolidation_date: latest.consolidation_date,
+        content_hash: contentHash,
       },
       counts: diff.counts,
       changes: diff.changes,

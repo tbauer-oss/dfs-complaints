@@ -1,5 +1,7 @@
 export const MDR_DOCUMENT_SLUG = 'mdr-2017-745';
-export const MDR_REFERENCE_ENDPOINT = `/api/regulatory/${MDR_DOCUMENT_SLUG}/sections`;
+export const MDR_REFERENCE_OUTLINE_ENDPOINT = `/api/regulatory/${MDR_DOCUMENT_SLUG}/outline`;
+export const MDR_REFERENCE_SECTION_ENDPOINT = `/api/regulatory/${MDR_DOCUMENT_SLUG}/section`;
+export const MDR_REFERENCE_ENDPOINT = MDR_REFERENCE_OUTLINE_ENDPOINT;
 
 export const MDR_CLASSIFICATION_RULES = [
   { rule_no: 1, title_short: 'Nicht invasive Produkte', mdr_ref: 'MDR Anhang VIII, Regel 1', section_key: 'Annex_VIII_Rule_1' },
@@ -23,7 +25,7 @@ export function buildMdrRuleReference(value) {
     label: `MDR Regel ${rule.rule_no}`,
     refId: `MDR_RULE_${rule.rule_no}`,
     legal_document_slug: MDR_DOCUMENT_SLUG,
-    legal_reference_endpoint: MDR_REFERENCE_ENDPOINT,
+    legal_reference_endpoint: MDR_REFERENCE_SECTION_ENDPOINT,
     section_key: rule.section_key,
     note: rule.mdr_ref,
     metaJson: {
@@ -46,7 +48,7 @@ export function legalReferenceResolver(type, value) {
     mdr_ref: rule.mdr_ref,
     document_slug: MDR_DOCUMENT_SLUG,
     section_key: rule.section_key,
-    legal_reference_endpoint: MDR_REFERENCE_ENDPOINT,
+    legal_reference_endpoint: MDR_REFERENCE_SECTION_ENDPOINT,
   };
 }
 
@@ -54,6 +56,6 @@ export function withLegalReference(entry = {}) {
   return {
     ...entry,
     legal_document_slug: MDR_DOCUMENT_SLUG,
-    legal_reference_endpoint: MDR_REFERENCE_ENDPOINT,
+    legal_reference_endpoint: MDR_REFERENCE_SECTION_ENDPOINT,
   };
 }
