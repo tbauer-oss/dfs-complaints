@@ -1411,6 +1411,7 @@ class TdSectionDetailPage extends StatefulWidget {
 class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerProviderStateMixin {
   static final Map<String, TdSection> _sectionCache = <String, TdSection>{};
   static final Map<String, List<TdQueryAnswer>> _queryCache = <String, List<TdQueryAnswer>>{};
+  static final Set<String> _bootstrappedTdIds = <String>{};
   TdSection? _section;
   List<TdQueryAnswer> _queries = const [];
   bool _loading = true;
@@ -1635,11 +1636,31 @@ class _TdSectionDetailPageState extends State<TdSectionDetailPage> with TickerPr
 
     final map = await widget.api.fetchTdSectionDetail(widget.sectionId);
     final section = TdSection.fromJson(map);
-    await widget.api.bootstrapTdQueries(widget.td.id);
-    final queries = await widget.api.fetchTdQueries(widget.td.id, sectionId: widget.sectionId);
+    var queries = await widget.api.fetchTdQueries(widget.td.id, sectionId: widget.sectionId);
+
+    if (queries.isEmpty && !_bootstrappedTdIds.contains(widget.td.id)) {
+      await widget.api.bootstrapTdQueries(widget.td.id);
+      _bootstrappedTdIds.add(widget.td.id);
+      queries = await widget.api.fetchTdQueries(widget.td.id, sectionId: widget.sectionId);
+    }
+
+    queries = _deduplicateQueries(queries);
     _sectionCache[cacheKey] = section;
     _queryCache[cacheKey] = queries;
     setState(() { _section = section; _queries = queries; _loading = false; });
+  }
+
+  List<TdQueryAnswer> _deduplicateQueries(List<TdQueryAnswer> queries) {
+    if (queries.length < 2) return queries;
+    final uniqueByTemplate = <String, TdQueryAnswer>{};
+    for (final query in queries) {
+      uniqueByTemplate.putIfAbsent(query.template.templateKey, () => query);
+    }
+    final deduplicated = uniqueByTemplate.values.toList(growable: false);
+    if (deduplicated.length != queries.length) {
+      debugPrint('[td] duplicate queries removed for section ${widget.sectionId}: ${queries.length - deduplicated.length}');
+    }
+    return deduplicated;
   }
 
   void _openAdminView(AdminView view) {
