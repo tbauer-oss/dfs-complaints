@@ -6,8 +6,8 @@ function buildAllUrl(locale = 'DE') {
   return `${BASE_URL}/legal-content/${locale}/ALL/?uri=CELEX:${MDR_BASE_CELEX}`;
 }
 
-function buildConsolidatedHtmlUrl(consolidatedCelex) {
-  return `${BASE_URL}/legal-content/DE/TXT/HTML/?uri=CELEX:${consolidatedCelex}`;
+function buildConsolidatedHtmlUrl(consolidatedCelex, locale = 'DE') {
+  return `${BASE_URL}/legal-content/${locale}/TXT/HTML/?uri=CELEX:${consolidatedCelex}`;
 }
 
 async function withRetry(url, attempts = 2) {
@@ -46,30 +46,53 @@ function toConsolidationDate(celex = '') {
 }
 
 export async function getLatestMdrVersionMeta() {
-  const attempts = [
-    { locale: 'DE', url: buildAllUrl('DE') },
-    { locale: 'EN', url: buildAllUrl('EN') },
-  ];
-
   let consolidatedCelex = null;
-  for (const attempt of attempts) {
+  let consolidatedLocale = 'DE';
+
+  try {
+    const deAllHtml = await withRetry(buildAllUrl('DE'), 2);
+    consolidatedCelex = extractLatestConsolidatedCelex(deAllHtml);
+  } catch (err) {
+    console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
+      locale: 'DE',
+      message: err?.message || String(err),
+    });
+  }
+
+  if (!consolidatedCelex) {
     try {
-      const allHtml = await withRetry(attempt.url, 2);
-      consolidatedCelex = extractLatestConsolidatedCelex(allHtml);
-      if (consolidatedCelex) break;
+      const deTxtHtml = await withRetry(buildConsolidatedHtmlUrl(MDR_BASE_CELEX, 'DE'), 2);
+      consolidatedCelex = extractLatestConsolidatedCelex(deTxtHtml);
+      consolidatedLocale = 'DE';
     } catch (err) {
       console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
-        locale: attempt.locale,
+        locale: 'DE',
+        view: 'TXT',
         message: err?.message || String(err),
       });
     }
   }
 
   if (!consolidatedCelex) {
+    try {
+      const enTxtHtml = await withRetry(buildConsolidatedHtmlUrl(MDR_BASE_CELEX, 'EN'), 2);
+      consolidatedCelex = extractLatestConsolidatedCelex(enTxtHtml);
+      consolidatedLocale = 'EN';
+    } catch (err) {
+      console.warn('[regulatory/eurlex] failed to resolve consolidated celex', {
+        locale: 'EN',
+        view: 'TXT',
+        message: err?.message || String(err),
+      });
+    }
+  }
+
+  if (!consolidatedCelex) {
+    console.error('[eurlex_client] consolidated CELEX not found in DE/ALL, DE/TXT, EN/TXT');
     throw new Error('NO_CONSOLIDATED_CELEX_FOUND');
   }
 
-  const sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex);
+  const sourceUrl = buildConsolidatedHtmlUrl(consolidatedCelex, consolidatedLocale);
   const html = await withRetry(sourceUrl, 2);
 
   return {
