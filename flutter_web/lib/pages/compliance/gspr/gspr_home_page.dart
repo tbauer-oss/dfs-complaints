@@ -588,7 +588,15 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 ),
               ),
             ),
-          if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
+          if (_syncingSource)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Synchronisierung läuft … der letzte Fehlerstatus wird nach Abschluss aktualisiert.',
+                style: theme.textTheme.bodySmall,
+              ),
+            )
+          else if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(

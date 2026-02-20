@@ -18,7 +18,8 @@ import {
 } from '../_lib/gsprSourceCache.js';
 
 const GSPR_TILE = 'gspr';
-const SYNC_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const SUCCESS_SYNC_MIN_INTERVAL_MS = 60 * 60 * 1000;
+const FAILURE_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 const ANTI_BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const RAW_CACHE_TTL_SECONDS = 15 * 60;
 const RAW_CACHE_KEY = 'dfs:gspr:eurlex:raw:last';
@@ -71,6 +72,21 @@ function shouldApplyCooldown(reason = '') {
   return isAntiBotReason(reason) || reason.startsWith('HTTP_403');
 }
 
+function isExpectedAnchorFailure(reason = '') {
+  return (reason || '').toString().trim().toUpperCase() === 'EXPECTED_ANCHORS_MISSING';
+}
+
+async function healLegacyAnchorFailure(before, tdKey) {
+  if (!before?.lastGoodSyncAt) return before;
+  if (!isExpectedAnchorFailure(before?.lastFailureReason)) return before;
+
+  return await saveSourceMeta(tdKey, {
+    lastError: '',
+    lastSyncError: '',
+    lastFailureReason: '',
+  });
+}
+
 async function cacheRawResponse(result) {
   if (!result?.rawBody) return;
   if (!redis || typeof redis.set !== 'function') return;
@@ -121,7 +137,8 @@ export default async function handler(req, res) {
 
     const force = readForceFlag(req);
     const tdKey = readTdKey(req);
-    const before = await readSourceMeta(tdKey);
+    const rawBefore = await readSourceMeta(tdKey);
+    const before = await healLegacyAnchorFailure(rawBefore, tdKey);
     const cachedProcessed = await gsprSourceCacheGet();
     const cachedRaw = await gsprSourceCacheGetRaw();
     const cooldownUntilTs = Date.parse(before.cooldownUntil || '');
@@ -136,11 +153,15 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!force && withinWindow(before.lastSyncAttemptAt || before.lastAttemptAt, SYNC_MIN_INTERVAL_MS)) {
+    const hasRecentSuccessfulSync = withinWindow(before.lastGoodSyncAt || before.lastSyncAt, SUCCESS_SYNC_MIN_INTERVAL_MS);
+    const hasRecentFailureAttempt = Boolean(before.lastFailureReason)
+      && withinWindow(before.lastSyncAttemptAt || before.lastAttemptAt, FAILURE_RETRY_INTERVAL_MS);
+
+    if (!force && (hasRecentSuccessfulSync || hasRecentFailureAttempt)) {
       return ok(res, {
         ok: true,
         skipped: true,
-        reason: 'SYNC_RATE_LIMIT_12H',
+        reason: hasRecentSuccessfulSync ? 'SYNC_RATE_LIMIT_1H' : 'SYNC_RETRY_BACKOFF_5M',
         tdKey,
         source: mapSourceForResponse(before),
       });
