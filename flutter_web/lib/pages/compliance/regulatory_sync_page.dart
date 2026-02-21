@@ -74,6 +74,10 @@ class _RegulatorySyncPageState extends State<RegulatorySyncPage> {
   Widget build(BuildContext context) {
     final changes = (_diff?['changes'] as List<dynamic>? ?? const []);
     final counts = (_diff?['counts'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final total = (counts['total'] as num?)?.toInt() ??
+        ((counts['added'] as num?)?.toInt() ?? 0) +
+            ((counts['removed'] as num?)?.toInt() ?? 0) +
+            ((counts['modified'] as num?)?.toInt() ?? 0);
     return Scaffold(
       appBar: AppBar(title: const Text('Regulatory Sync')),
       body: Padding(
@@ -108,7 +112,7 @@ class _RegulatorySyncPageState extends State<RegulatorySyncPage> {
             ),
             if (_diff != null) ...[
               const SizedBox(height: 12),
-              Text(_diff?['has_update'] == true ? 'Änderungen gefunden' : 'Keine Änderungen gefunden'),
+              Text(total > 0 ? 'Änderungsprotokoll' : 'Keine inhaltlichen Änderungen erkannt.'),
               Text('Added: ${counts['added'] ?? 0}, Removed: ${counts['removed'] ?? 0}, Modified: ${counts['modified'] ?? 0}'),
             ],
             const SizedBox(height: 8),

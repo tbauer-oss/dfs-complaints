@@ -35,11 +35,18 @@ export default async function handler(req, res) {
     console.info(`[regulatory/diff] Fetched HTML size: ${Buffer.byteLength(latest.html || '', 'utf8')}`);
 
     const hasUpdate = force || latest.versionLabel !== currentLabel;
-    if (!hasUpdate) return ok(res, { ok: true, has_update: false });
+    if (!hasUpdate) {
+      return ok(res, {
+        ok: true,
+        has_update: false,
+        counts: { added: 0, removed: 0, modified: 0, total: 0 },
+        changes: [],
+      });
+    }
 
     const parsed = parseMdrSections(latest.html).map((section) => {
       const contentText = normalizeText(section.content_text || '');
-      return { ...section, content_text: contentText, content_hash: section.content_hash || sha256(contentText) };
+      return { ...section, content_text: contentText, content_hash: sha256(contentText) };
     });
 
     console.info(`[regulatory/diff] Parsed sections count: ${parsed.length}`);

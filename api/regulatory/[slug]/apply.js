@@ -78,7 +78,7 @@ export default async function handler(req, res) {
 
     const parsedSections = parseMdrSections(latest.html).map((section) => {
       const contentText = normalizeText(section.content_text || '');
-      return { ...section, content_text: contentText, content_hash: section.content_hash || sha256(contentText) };
+      return { ...section, content_text: contentText, content_hash: sha256(contentText) };
     });
 
     console.info(`[regulatory/apply] Parsed sections count: ${parsedSections.length}`);
