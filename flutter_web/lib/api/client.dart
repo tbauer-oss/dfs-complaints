@@ -25,6 +25,7 @@ import '../models/training_signature.dart';
 import '../models/gspr.dart';
 import '../models/td.dart';
 import 'config.dart';
+import '../services/regulatory/persistent_snapshot_cache.dart';
 
 class ApiError implements Exception {
   final int status;
@@ -2684,6 +2685,16 @@ class ApiClient {
     throw ApiError(r.statusCode, 'Ungültige GSPR-Sync-Antwort');
   }
 
+  String _currentLocaleTag() {
+    final raw = html.window.localStorage['dfs_locale'] ?? html.window.navigator.language ?? 'de';
+    return raw.toLowerCase().replaceAll('_', '-');
+  }
+
+  String _cacheVersion(Map<String, dynamic> body) {
+    final version = body['versionHash']?.toString() ?? body['versionLabel']?.toString() ?? '';
+    return version.isEmpty ? 'v0' : version;
+  }
+
   Future<GsprSummary> gsprSummary({required String tdId}) async {
     final path = Uri(path: '/api/gspr/summary', queryParameters: {'tdId': tdId}).toString();
     final r = await http.get(_u(path), headers: _adminHeaders(auth: true));
@@ -2695,6 +2706,41 @@ class ApiClient {
       return GsprSummary.fromJson(decoded.cast<String, dynamic>());
     }
     throw ApiError(r.statusCode, 'Ungültige GSPR-Zusammenfassung');
+  }
+
+  Future<Map<String, dynamic>> fetchTdStructureSnapshot(String tdId) async {
+    final locale = _currentLocaleTag();
+    final swNet = Stopwatch()..start();
+    final path = '/api/td/$tdId/structure';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+    final version = _cacheVersion(body);
+    final cacheKey = 'td:structure:$tdId:$version:$locale';
+    PersistentSnapshotCache.writeJson(cacheKey, body);
+    if (kDebugMode) debugPrint('[snapshot] network td-structure $tdId ${swNet.elapsedMilliseconds}ms');
+    return body;
+  }
+
+  Map<String, dynamic>? readTdStructureSnapshotCache(String tdId, {required String regVersionHash}) {
+    final locale = _currentLocaleTag();
+    final cacheKey = 'td:structure:$tdId:$regVersionHash:$locale';
+    return PersistentSnapshotCache.readJson(cacheKey);
+  }
+
+  Future<Map<String, dynamic>> fetchTdSectionSnapshot({required String tdId, required String sectionKey, String regVersionHash = 'v0'}) async {
+    final locale = _currentLocaleTag();
+    final path = '/api/td/$tdId/section/$sectionKey';
+    final swNet = Stopwatch()..start();
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: path));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+    final version = _cacheVersion(body);
+    PersistentSnapshotCache.writeJson('td:section:$tdId:$sectionKey:$version:$locale', body);
+    if (kDebugMode) debugPrint('[snapshot] network td-section $sectionKey ${swNet.elapsedMilliseconds}ms');
+    return body;
   }
 
   Future<GsprChapterResponse> gsprChapter({required String tdId, required String chapter}) async {
@@ -4206,6 +4252,23 @@ class ApiClient {
   }
 
   Future<(List<TdSection>, int?)> fetchTdSectionsPaged(String tdId, {int limit = 50, int cursor = 0}) async {
+    if (cursor == 0) {
+      final snapshot = await fetchTdStructureSnapshot(tdId);
+      final items = (snapshot['items'] as List?) ?? const [];
+      final sections = items.whereType<Map>().map((entry) {
+        final map = entry.cast<String, dynamic>();
+        return TdSection.fromJson({
+          'id': map['sectionId'] ?? map['sectionKey'],
+          'templateKey': map['sectionKey'] ?? '',
+          'name': map['title'] ?? '',
+          'status': map['status'] ?? 'NotStarted',
+          'linkCount': map['linksCount'] ?? 0,
+          'queryStats': {'completion': map['completeness'] ?? 0, 'total': 0},
+        });
+      }).toList(growable: false);
+      return (sections.take(limit).toList(growable: false), sections.length > limit ? limit : null);
+    }
+
     final path = '/api/td/$tdId/sections';
     final qp = '?limit=$limit&cursor=$cursor';
     final r = await http.get(_u('$path$qp'), headers: _adminHeaders(auth: true, path: path));
@@ -4226,6 +4289,30 @@ class ApiClient {
     final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
     final body = decoded is Map ? decoded.cast<String, dynamic>() : const <String, dynamic>{};
     return (body['item'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> fetchGsprOverviewSnapshot(String tdId) async {
+    final locale = _currentLocaleTag();
+    final path = '/api/gspr/$tdId/overview?tdId=$tdId';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: '/api/gspr/$tdId/overview'));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+    final version = _cacheVersion(body);
+    PersistentSnapshotCache.writeJson('gspr:overview:$tdId:$version:$locale', body);
+    return body;
+  }
+
+  Future<Map<String, dynamic>> fetchGsprRequirementSnapshot({required String tdId, required String gsprNo, String regVersionHash = 'v0'}) async {
+    final locale = _currentLocaleTag();
+    final path = '/api/gspr/$tdId/requirement/$gsprNo?tdId=$tdId';
+    final r = await http.get(_u(path), headers: _adminHeaders(auth: true, path: '/api/gspr/$tdId/requirement/$gsprNo'));
+    if (!_ok2xx(r.statusCode)) throw ApiError(r.statusCode, _extractMessage(r.body));
+    final decoded = r.body.trim().isEmpty ? const <String, dynamic>{} : jsonDecode(r.body);
+    final body = decoded is Map ? decoded.cast<String, dynamic>() : <String, dynamic>{};
+    final version = _cacheVersion(body);
+    PersistentSnapshotCache.writeJson('gspr:req:$tdId:$gsprNo:$version:$locale', body);
+    return body;
   }
 
   Future<void> patchTdSection(String sectionId, Map<String, dynamic> patch) async {
