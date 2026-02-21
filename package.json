@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate:gspr": "tsx scripts/generate_gspr_from_johner.ts"
+    "generate:gspr": "tsx scripts/generate_gspr_from_johner.ts",
+    "check:vercel-safety": "node scripts/check_vercel_safety.mjs"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12"
