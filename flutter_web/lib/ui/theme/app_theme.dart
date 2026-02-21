@@ -23,5 +23,12 @@ class AppSemanticColors {
 class AppButtons {
   static ButtonStyle primary(BuildContext context) => FilledButton.styleFrom(minimumSize: const Size(0, 44));
   static ButtonStyle secondary(BuildContext context) => OutlinedButton.styleFrom(minimumSize: const Size(0, 44));
-  static ButtonStyle tonal(BuildContext context) => FilledButton.tonalStyleFrom(minimumSize: const Size(0, 44));
+  static ButtonStyle tonal(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return FilledButton.styleFrom(
+      minimumSize: const Size(0, 44),
+      backgroundColor: colorScheme.secondaryContainer,
+      foregroundColor: colorScheme.onSecondaryContainer,
+    );
+  }
 }
