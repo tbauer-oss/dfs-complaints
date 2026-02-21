@@ -15,6 +15,8 @@ import '../../../web_compat/html_stub.dart' if (dart.library.html) '../../../web
 import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
+import '../../../ui/widgets/sync_callout.dart';
+import '../../../ui/theme/app_theme.dart';
 
 class GsprHomePage extends StatefulWidget {
   final ApiClient api;
@@ -377,6 +379,13 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
 
   Future<void> _handleTdSelection(GsprTdOption td) async {
+    setState(() {
+      _hasLocalDiffState = false;
+      _lastChangeSummary = null;
+      _lastDiffCounts = const {'added': 0, 'removed': 0, 'modified': 0, 'total': 0};
+      _lastDiffItems = const [];
+      _syncTriggeredByUser = false;
+    });
     await _loadSummary(td.id);
   }
 
@@ -534,7 +543,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            FilledButton.icon(
+                            FilledButton.icon(style: AppButtons.primary(context),
                               onPressed: _exportingPdf || !canExport ? null : _exportPdf,
                               icon: _exportingPdf
                                   ? const SizedBox(
@@ -646,7 +655,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 label: const Text('Permalink öffnen'),
               ),
               if (widget.access.canEdit)
-                FilledButton.icon(
+                FilledButton.icon(style: AppButtons.primary(context),
                   onPressed: _syncingSource
                       ? null
                       : () {
@@ -662,7 +671,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                       : const Icon(Icons.sync),
                   label: const Text('Synchronisieren'),
                 ),
-                OutlinedButton.icon(
+                OutlinedButton.icon(style: AppButtons.secondary(context),
                   onPressed: () => Navigator.of(context).pushNamed('/compliance/regulatory-sync'),
                   icon: const Icon(Icons.library_books_outlined, size: 16),
                   label: const Text('Regulatory Sync'),
@@ -672,32 +681,25 @@ class _GsprHomePageState extends State<GsprHomePage> {
           if ((_lastDiffCounts['total'] ?? 0) > 0 && (_lastChangeSummary ?? '').trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Material(
-                color: theme.colorScheme.tertiaryContainer.withOpacity(0.55),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Text(
-                    'Änderungsprotokoll: ${_lastChangeSummary!}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onTertiaryContainer),
-                  ),
-                ),
+              child: SyncCallout(
+                kind: SyncCalloutKind.warning,
+                message: 'Änderungsprotokoll: ${_lastChangeSummary!}',
               ),
             ),
           if (_syncingSource)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Synchronisierung läuft … der letzte Fehlerstatus wird nach Abschluss aktualisiert.',
-                style: theme.textTheme.bodySmall,
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: SyncCallout(
+                kind: SyncCalloutKind.info,
+                message: 'Synchronisierung läuft … der letzte Fehlerstatus wird nach Abschluss aktualisiert.',
               ),
             )
           else if (_syncTriggeredByUser && (_summary?.sourceLastError ?? '').trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Letzter Sync-Fehler: ${_summary!.sourceLastError}',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+              child: SyncCallout(
+                kind: SyncCalloutKind.error,
+                message: 'Letzter Sync-Fehler: ${_summary!.sourceLastError}',
               ),
             ),
         ],

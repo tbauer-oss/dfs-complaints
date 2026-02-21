@@ -246,6 +246,14 @@
       "dest": "/api/td/[id].js?id=$1"
     },
     {
+      "src": "/api/gspr/([^/]+)/overview$",
+      "dest": "/api/gspr/snapshot-overview.js?tdId=$1"
+    },
+    {
+      "src": "/api/gspr/([^/]+)/requirement/([^/]+)$",
+      "dest": "/api/gspr/snapshot-requirement.js?tdId=$1&gsprNo=$2"
+    },
+    {
       "handle": "filesystem"
     },
     {
