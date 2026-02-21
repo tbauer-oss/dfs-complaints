@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +11,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../models/gspr.dart';
 import '../../../services/gspr_pdf_export.dart';
 import '../../../utils/pdf_download.dart';
+import '../../../web_compat/html_stub.dart' if (dart.library.html) '../../../web_compat/html_web.dart' as html;
 import 'gspr_analysis_page.dart';
 import 'gspr_chapter_page.dart';
 import 'gspr_state.dart';
@@ -30,6 +33,7 @@ class GsprHomePage extends StatefulWidget {
 class _GsprHomePageState extends State<GsprHomePage> {
   static const String _fallbackSourceName = 'Regulatory Cache (Supabase)';
   static const String _fallbackSourcePermalink = '/api/regulatory/mdr-2017-745/sections';
+  static const String _diffBannerStorageKey = 'gspr_diff_banner_mdr_2017_745';
 
   bool _loading = false;
   String? _error;
@@ -40,11 +44,88 @@ class _GsprHomePageState extends State<GsprHomePage> {
   bool _exportingPdf = false;
   bool _syncingSource = false;
   bool _syncTriggeredByUser = false;
+  String? _lastChangeSummary;
+  Map<String, int> _lastDiffCounts = const {'added': 0, 'removed': 0, 'modified': 0, 'total': 0};
+  List<GsprSourceChangeDetail> _lastDiffItems = const [];
+  bool _hasLocalDiffState = false;
 
   @override
   void initState() {
     super.initState();
+    _loadPersistedDiffBannerState();
     _loadTds();
+  }
+
+  void _loadPersistedDiffBannerState() {
+    try {
+      final raw = html.window.localStorage[_diffBannerStorageKey];
+      if (raw == null || raw.isEmpty) return;
+      final data = jsonDecode(raw);
+      if (data is! Map) return;
+      _lastChangeSummary = data['lastChangeSummary']?.toString();
+      final counts = (data['lastDiffCounts'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+      _lastDiffCounts = _normalizeCounts(counts);
+      final items = (data['lastDiffItems'] as List<dynamic>? ?? const []);
+      _lastDiffItems = items
+          .whereType<Map>()
+          .map((entry) => GsprSourceChangeDetail.fromJson(entry.cast<String, dynamic>()))
+          .toList(growable: false);
+      _hasLocalDiffState = true;
+    } catch (_) {}
+  }
+
+  void _persistDiffBannerState() {
+    try {
+      final payload = <String, dynamic>{
+        'lastChangeSummary': _lastChangeSummary,
+        'lastDiffCounts': _lastDiffCounts,
+        'lastDiffItems': _lastDiffItems
+            .map((entry) => {'location': entry.location, 'before': entry.before, 'after': entry.after})
+            .toList(growable: false),
+      };
+      html.window.localStorage[_diffBannerStorageKey] = jsonEncode(payload);
+    } catch (_) {}
+  }
+
+  Map<String, int> _normalizeCounts(Map<String, dynamic> counts) {
+    final added = (counts['added'] as num?)?.toInt() ?? 0;
+    final removed = (counts['removed'] as num?)?.toInt() ?? 0;
+    final modified = (counts['modified'] as num?)?.toInt() ?? 0;
+    final total = (counts['total'] as num?)?.toInt() ?? (added + removed + modified);
+    return <String, int>{'added': added, 'removed': removed, 'modified': modified, 'total': total};
+  }
+
+  int _extractTotalFromSummary(String summary) {
+    final match = RegExp(r'(\d+)').firstMatch(summary);
+    return int.tryParse(match?.group(1) ?? '') ?? 0;
+  }
+
+  void _applyDiffResult(Map<String, dynamic> diff) {
+    final counts = _normalizeCounts((diff['counts'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
+    final total = counts['total'] ?? 0;
+    final changes = (diff['changes'] as List<dynamic>? ?? const []);
+    final changeItems = changes
+        .whereType<Map>()
+        .map(
+          (entry) => GsprSourceChangeDetail(
+            location: (entry['section_key'] ?? entry['location'] ?? '').toString(),
+            before: (entry['before'] ?? '').toString(),
+            after: (entry['after'] ?? '').toString(),
+          ),
+        )
+        .toList(growable: false);
+
+    _hasLocalDiffState = true;
+    if (total == 0) {
+      _lastChangeSummary = null;
+      _lastDiffCounts = const {'added': 0, 'removed': 0, 'modified': 0, 'total': 0};
+      _lastDiffItems = const [];
+    } else {
+      _lastChangeSummary = 'Inhaltliche Änderungen erkannt ($total Textstellen)';
+      _lastDiffCounts = counts;
+      _lastDiffItems = changeItems;
+    }
+    _persistDiffBannerState();
   }
 
   Future<void> _openSourcePermalink(String permalink) async {
@@ -157,6 +238,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
     try {
       final diff = await widget.api.regulatoryDiff('mdr-2017-745');
+      setState(() => _applyDiffResult(diff));
       final selected = GsprTdState.selectedTd.value;
       if (selected != null) await _loadSummary(selected.id);
       if (!mounted) return;
@@ -302,7 +384,15 @@ class _GsprHomePageState extends State<GsprHomePage> {
     try {
       final summary = await widget.api.gsprSummary(tdId: tdId);
       if (!mounted) return;
-      setState(() => _summary = summary);
+      setState(() {
+        _summary = summary;
+        if (!_hasLocalDiffState) {
+          final fallbackTotal = _extractTotalFromSummary(summary.sourceLastChangeSummary);
+          _lastChangeSummary = fallbackTotal > 0 ? summary.sourceLastChangeSummary : null;
+          _lastDiffCounts = <String, int>{'added': 0, 'removed': 0, 'modified': 0, 'total': fallbackTotal};
+          _lastDiffItems = summary.sourceLastChangeDetails;
+        }
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -579,7 +669,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 ),
             ],
           ),
-          if ((_summary?.sourceLastChangeSummary ?? '').trim().isNotEmpty)
+          if ((_lastDiffCounts['total'] ?? 0) > 0 && (_lastChangeSummary ?? '').trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Material(
@@ -588,7 +678,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Text(
-                    'Änderungsprotokoll: ${_summary!.sourceLastChangeSummary}',
+                    'Änderungsprotokoll: ${_lastChangeSummary!}',
                     style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onTertiaryContainer),
                   ),
                 ),
