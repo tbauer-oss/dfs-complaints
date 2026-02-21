@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
@@ -41,6 +39,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
   String? _initialRequirementId;
   bool _exportingPdf = false;
   bool _syncingSource = false;
+  bool _syncTriggeredByUser = false;
 
   @override
   void initState() {
@@ -166,6 +165,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
         final info = 'MDR-Update erkannt (A:${counts['added'] ?? 0}, R:${counts['removed'] ?? 0}, M:${counts['modified'] ?? 0}). Öffnen Sie Regulatory Sync zum Übernehmen.';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(info)));
       } else if (userInitiated) {
+        setState(() => _syncTriggeredByUser = false);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Keine Änderungen gefunden')));
       }
     } catch (e) {
@@ -296,7 +296,6 @@ class _GsprHomePageState extends State<GsprHomePage> {
 
   Future<void> _handleTdSelection(GsprTdOption td) async {
     await _loadSummary(td.id);
-    unawaited(_syncSourceNow(tdKey: td.id, showProgressDialog: false));
   }
 
   Future<void> _loadSummary(String tdId) async {
@@ -558,7 +557,12 @@ class _GsprHomePageState extends State<GsprHomePage> {
               ),
               if (widget.access.canEdit)
                 FilledButton.icon(
-                  onPressed: _syncingSource ? null : () => _syncSourceNow(userInitiated: true, tdKey: GsprTdState.selectedTd.value?.id),
+                  onPressed: _syncingSource
+                      ? null
+                      : () {
+                          setState(() => _syncTriggeredByUser = true);
+                          _syncSourceNow(userInitiated: true, tdKey: GsprTdState.selectedTd.value?.id);
+                        },
                   icon: _syncingSource
                       ? const SizedBox(
                           width: 14,
@@ -598,7 +602,7 @@ class _GsprHomePageState extends State<GsprHomePage> {
                 style: theme.textTheme.bodySmall,
               ),
             )
-          else if ((_summary?.sourceLastError ?? '').trim().isNotEmpty)
+          else if (_syncTriggeredByUser && (_summary?.sourceLastError ?? '').trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
