@@ -90,6 +90,47 @@ function extractLatestConsolidatedCelex(html = '') {
   return unique[unique.length - 1] || null;
 }
 
+
+function createExpectedAnchorsMissingError(html = '') {
+  const raw = String(html || '');
+  const lower = raw.toLowerCase();
+  const anchors = ['annex i', 'anhang i', 'general safety and performance requirements'];
+  const counts = Object.fromEntries(anchors.map((anchor) => [anchor, (lower.match(new RegExp(anchor.replace(/[-/\^$*+?.()|[\]{}]/g, '\\$&'), 'g')) || []).length]));
+
+  const snippets = [];
+  const htmlWithoutNewLines = raw.replace(/\s+/g, ' ');
+  for (const anchor of anchors) {
+    const idx = lower.indexOf(anchor);
+    if (idx >= 0) {
+      const start = Math.max(0, idx - 120);
+      const end = Math.min(raw.length, idx + anchor.length + 120);
+      snippets.push(`${anchor}: ${htmlWithoutNewLines.slice(start, end).trim()}`);
+      if (snippets.length >= 2) break;
+    }
+  }
+
+  const err = new Error('EXPECTED_ANCHORS_MISSING: Unable to locate Annex/GSPR anchors in EUR-Lex HTML. Retry later or switch locale.');
+  err.code = 'EXPECTED_ANCHORS_MISSING';
+  err.details = {
+    counts,
+    excerpts: snippets,
+  };
+  return err;
+}
+
+function validateExpectedAnchors(html = '') {
+  const lower = String(html || '').toLowerCase();
+  const hasAnnexAnchor = lower.includes('annex i') || lower.includes('anhang i');
+  const hasGsprAnchor = lower.includes('general safety and performance requirements') || lower.includes('grundlegende sicherheits- und leistungsanforderungen');
+  if (!hasAnnexAnchor && !hasGsprAnchor) {
+    throw createExpectedAnchorsMissingError(html);
+  }
+}
+
+export function isExpectedAnchorsMissingError(err) {
+  return err?.code === 'EXPECTED_ANCHORS_MISSING' || String(err?.message || '').includes('EXPECTED_ANCHORS_MISSING');
+}
+
 function toConsolidationDate(celex = '') {
   const raw = String(celex || '').split('-')[1] || '';
   if (!/^\d{8}$/.test(raw)) return null;
@@ -206,6 +247,8 @@ LIMIT 1`;
       throw err;
     }
   }
+
+  validateExpectedAnchors(html);
 
   return {
     base_celex: MDR_BASE_CELEX,

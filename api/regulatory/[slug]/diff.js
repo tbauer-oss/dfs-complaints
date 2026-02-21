@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { getLegalDocument, getSectionsForCurrentVersion } from '../../_lib/regulatory/db.js';
-import { getLatestMdrVersionMeta } from '../../_lib/regulatory/eurlex_client.js';
+import { getLatestMdrVersionMeta, isExpectedAnchorsMissingError } from '../../_lib/regulatory/eurlex_client.js';
 import { parseMdrSections } from '../../_lib/regulatory/parser_mdr.js';
 import { normalizeText } from '../../_lib/regulatory/normalize.js';
 import { sha256 } from '../../_lib/regulatory/hash.js';
@@ -80,6 +80,19 @@ export default async function handler(req, res) {
       changes: diff.changes,
     });
   } catch (err) {
+    if (isExpectedAnchorsMissingError(err)) {
+      console.error('[regulatory/diff] EXPECTED_ANCHORS_MISSING', {
+        message: err?.message || String(err),
+        counts: err?.details?.counts || null,
+        excerpts: err?.details?.excerpts || [],
+      });
+      return bad(
+        res,
+        'EXPECTED_ANCHORS_MISSING: EUR-Lex page structure changed. Please retry later or switch source locale before syncing.',
+        500,
+        { code: 'EXPECTED_ANCHORS_MISSING', details: err?.details || null },
+      );
+    }
     console.error('[regulatory/diff] failed', err);
     return bad(res, err?.message || 'diff failed', 500, { code: 'REGULATORY_DIFF_FAILED' });
   }

@@ -3,7 +3,7 @@ export const config = { runtime: 'nodejs' };
 import { handlePreflight, setCors, ok, bad } from '../../_lib/http.js';
 import { requirePortalAccess } from '../../admin/_guard.js';
 import { getLegalDocument } from '../../_lib/regulatory/db.js';
-import { getLatestMdrVersionMeta } from '../../_lib/regulatory/eurlex_client.js';
+import { getLatestMdrVersionMeta, isExpectedAnchorsMissingError } from '../../_lib/regulatory/eurlex_client.js';
 
 const FALLBACK_DOC = {
   slug: 'mdr-2017-745',
@@ -32,10 +32,40 @@ export default async function handler(req, res) {
   if (!doc) return bad(res, 'document not found', 404);
 
   let latest = null;
+  let statusError = null;
   try {
     latest = slug === 'mdr-2017-745' ? await getLatestMdrVersionMeta() : null;
   } catch (err) {
-    console.warn('[regulatory/status] latest meta unavailable', err?.message || err);
+    if (isExpectedAnchorsMissingError(err)) {
+      statusError = {
+        ok: false,
+        code: 'EXPECTED_ANCHORS_MISSING',
+        message: err?.message || 'EXPECTED_ANCHORS_MISSING',
+        latestMeta: null,
+      };
+      console.warn('[regulatory/status] EXPECTED_ANCHORS_MISSING', {
+        counts: err?.details?.counts || null,
+        excerpts: err?.details?.excerpts || [],
+      });
+    } else {
+      console.warn('[regulatory/status] latest meta unavailable', err?.message || err);
+    }
+  }
+
+  if (statusError) {
+    return ok(res, {
+      slug,
+      current_version: doc.current_version_label
+        ? {
+            id: doc.current_version_id,
+            version_label: doc.current_version_label,
+            consolidation_date: doc.current_consolidation_date,
+          }
+        : null,
+      latest_available: null,
+      has_update: false,
+      ...statusError,
+    });
   }
 
   return ok(res, {
