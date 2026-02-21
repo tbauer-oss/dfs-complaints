@@ -5,6 +5,7 @@ import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
+import '../services/regulatory/persistent_snapshot_cache.dart';
 import '../models/td.dart';
 import 'admin_page.dart';
 
@@ -414,6 +415,18 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
     await _load();
   }
 
+
+  Future<void> _prefetchSections(String tdId, List<TdSection> sections) async {
+    if (sections.isEmpty) return;
+    final lastOpened = PersistentSnapshotCache.readString('td:last-opened:$tdId');
+    final firstSection = sections.first.id;
+    final targets = <String>{firstSection};
+    if (lastOpened != null && lastOpened.isNotEmpty) targets.add(lastOpened);
+    for (final key in targets) {
+      unawaited(widget.api.fetchTdSectionSnapshot(tdId: tdId, sectionKey: key));
+    }
+  }
+
   void _handleTabChange() {
     if (_tabs.indexIsChanging) return;
     _ensureTabLoaded(_tabs.index);
@@ -447,6 +460,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
             _structureLoaded = true;
             _structureCache[td.id] = page.$1;
           });
+          unawaited(_prefetchSections(td.id, page.$1));
         },
       );
     }
@@ -1008,6 +1022,7 @@ class _TdPageState extends State<TdPage> with SingleTickerProviderStateMixin {
                     trailing: Wrap(spacing: 8, children: [if (s.applicability != null) _applicabilityChip(s.applicability!.state), Chip(label: Text(_statusDe(s.status)))]),
                     onTap: () async {
                       if (_selected == null) return;
+                      PersistentSnapshotCache.writeString('td:last-opened:${_selected!.id}', s.id);
                       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TdSectionDetailPage(api: widget.api, td: _selected!, sectionId: s.id, canEdit: widget.canEdit)));
                       _load();
                     },
