@@ -28,6 +28,9 @@ const KEY_IMPACT = (id) => `${PREFIX}impact:${id}`;
 const KEY_EXPORT = (id) => `${PREFIX}export:${id}`;
 const KEY_QUERY_ANSWER = (id) => `${PREFIX}query-answer:${id}`;
 const KEY_QUERY_LINK = (id) => `${PREFIX}query-link:${id}`;
+const KEY_QUERY_ANSWERS_BY_TD = (tdId) => `${PREFIX}query-answers:td:${tdId}`;
+const KEY_QUERY_LINKS_BY_TD = (tdId) => `${PREFIX}query-links:td:${tdId}`;
+const KEY_LINKS_BY_TD = (tdId) => `${PREFIX}links:td:${tdId}`;
 const KEY_CONTENT = `${PREFIX}section-content`;
 const KEY_SECTION_CONTENT = (id) => `${PREFIX}section-content:${id}`;
 
@@ -56,11 +59,14 @@ const mem = {
   ids: new Set(),
   sectionIds: new Set(),
   linkIds: new Set(),
+  linkIdsByTd: new Map(),
   changeIds: new Set(),
   impactIds: new Set(),
   exportIds: new Set(),
   queryAnswerIds: new Set(),
+  queryAnswerIdsByTd: new Map(),
   queryLinkIds: new Set(),
+  queryLinkIdsByTd: new Map(),
   sectionContentIds: new Set(),
   applicabilityProfiles: new Map(),
   applicabilityOverrides: new Map(),
@@ -515,6 +521,19 @@ async function putEntity(keyBuilder, id, value, map, trackSet = null, trackMemSe
 
 async function getEntity(keyBuilder, id, map) {
   return withStore((r) => r.get(keyBuilder(id)), () => map.get(id) || null);
+}
+
+function addToMemSetMap(map, key, id) {
+  const current = map.get(key) || new Set();
+  current.add(id);
+  map.set(key, current);
+}
+
+function removeFromMemSetMap(map, key, id) {
+  const current = map.get(key);
+  if (!current) return;
+  current.delete(id);
+  if (!current.size) map.delete(key);
 }
 
 
@@ -978,7 +997,7 @@ export async function tdSectionGetDetailed(sectionId) {
   const section = await getEntity(KEY_SECTION, sectionId, mem.sections);
   if (!section) return null;
   const content = await tdSectionContentBackfill(sectionId);
-  const links = (await tdLinks(section.tdId)).filter((l) => l.sectionId === sectionId);
+  const links = await tdLinksBySection(section.tdId, sectionId);
   return { ...section, content, links };
 }
 
@@ -1029,11 +1048,30 @@ function queryTemplatesBySection(templateKey) {
 }
 
 async function tdQueryAnswersRaw(tdId) {
+  const indexedIds = await withStore(
+    (r) => r.smembers(KEY_QUERY_ANSWERS_BY_TD(tdId)),
+    () => Array.from(mem.queryAnswerIdsByTd.get(tdId) || []),
+  );
+  if (indexedIds.length) {
+    const items = [];
+    for (const id of indexedIds) {
+      const answer = await getEntity(KEY_QUERY_ANSWER, id, mem.queryAnswers);
+      if (answer?.tdId === tdId) items.push(answer);
+    }
+    return items;
+  }
+
   const ids = await withStore((r)=>r.smembers(KEY_QUERY_ANSWERS), ()=>Array.from(mem.queryAnswerIds));
   const items = [];
   for (const id of ids) {
     const answer = await getEntity(KEY_QUERY_ANSWER, id, mem.queryAnswers);
-    if (answer?.tdId === tdId) items.push(answer);
+    if (answer?.tdId === tdId) {
+      items.push(answer);
+      await withStore(
+        (r) => r.sadd(KEY_QUERY_ANSWERS_BY_TD(tdId), id),
+        () => addToMemSetMap(mem.queryAnswerIdsByTd, tdId, id),
+      );
+    }
   }
   return items;
 }
@@ -1074,6 +1112,10 @@ export async function tdBootstrapQueries(tdId, actorUserId = null) {
       if (byKey.has(k)) continue;
       const answer = buildQueryAnswer(section, template, actorUserId);
       await putEntity(KEY_QUERY_ANSWER, answer.id, answer, mem.queryAnswers, KEY_QUERY_ANSWERS, mem.queryAnswerIds);
+      await withStore(
+        (r) => r.sadd(KEY_QUERY_ANSWERS_BY_TD(resolvedTdId), answer.id),
+        () => addToMemSetMap(mem.queryAnswerIdsByTd, resolvedTdId, answer.id),
+      );
       created.push(answer);
     }
   }
@@ -1100,7 +1142,7 @@ export async function tdQueries(tdId, sectionId = null) {
   const allAnswers = await tdQueryAnswersRaw(resolvedTdId);
   const answers = sectionId ? allAnswers.filter((item) => item.sectionId === sectionId) : allAnswers;
   const answerIds = new Set(answers.map((answer) => answer.id));
-  const queryLinks = await tdQueryLinksByAnswerIds(answerIds);
+  const queryLinks = await tdQueryLinksByAnswerIds(answerIds, resolvedTdId);
   const applicability = await tdApplicabilityGet(resolvedTdId);
   const resultMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
   return answers
@@ -1123,9 +1165,11 @@ export async function tdQueries(tdId, sectionId = null) {
     });
 }
 
-async function tdQueryLinksByAnswerIds(answerIds) {
+async function tdQueryLinksByAnswerIds(answerIds, tdId = null) {
   if (!answerIds.size) return [];
-  const ids = await withStore((r)=>r.smembers(KEY_QUERY_LINKS), ()=>Array.from(mem.queryLinkIds));
+  const ids = tdId
+    ? await withStore((r) => r.smembers(KEY_QUERY_LINKS_BY_TD(tdId)), () => Array.from(mem.queryLinkIdsByTd.get(tdId) || []))
+    : await withStore((r)=>r.smembers(KEY_QUERY_LINKS), ()=>Array.from(mem.queryLinkIds));
   const items = [];
   for (const id of ids) {
     const link = await getEntity(KEY_QUERY_LINK, id, mem.queryLinks);
@@ -1209,21 +1253,29 @@ export async function tdQueryLinkCreate(answerId, payload) {
   };
   if (!item.label) throw new Error('label is required');
   await putEntity(KEY_QUERY_LINK, item.id, item, mem.queryLinks, KEY_QUERY_LINKS, mem.queryLinkIds);
+  await withStore(
+    (r) => r.sadd(KEY_QUERY_LINKS_BY_TD(answer.tdId), item.id),
+    () => addToMemSetMap(mem.queryLinkIdsByTd, answer.tdId, item.id),
+  );
   return item;
 }
 
 export async function tdQueryLinkDelete(linkId) {
   const current = await getEntity(KEY_QUERY_LINK, linkId, mem.queryLinks);
   if (!current) throw new Error('query link not found');
+  const answer = await getEntity(KEY_QUERY_ANSWER, current.answerId, mem.queryAnswers);
+  const tdId = answer?.tdId || null;
   return withStore(
     async (r) => {
       await r.del(KEY_QUERY_LINK(linkId));
       await r.srem(KEY_QUERY_LINKS, linkId);
+      if (tdId) await r.srem(KEY_QUERY_LINKS_BY_TD(tdId), linkId);
       return current;
     },
     () => {
       mem.queryLinks.delete(linkId);
       mem.queryLinkIds.delete(linkId);
+      if (tdId) removeFromMemSetMap(mem.queryLinkIdsByTd, tdId, linkId);
       return current;
     },
   );
@@ -1232,11 +1284,31 @@ export async function tdLinks(tdId) {
   const td = await tdGet(tdId);
   if (!td || td.deletedAt) throw new Error('TD not found');
   const resolvedTdId = td.id;
+
+  const indexedIds = await withStore(
+    (r) => r.smembers(KEY_LINKS_BY_TD(resolvedTdId)),
+    () => Array.from(mem.linkIdsByTd.get(resolvedTdId) || []),
+  );
+  if (indexedIds.length) {
+    const links = [];
+    for (const id of indexedIds) {
+      const link = await getEntity(KEY_LINK, id, mem.links);
+      if (link?.tdId === resolvedTdId) links.push(link);
+    }
+    return links;
+  }
+
   const ids = await withStore((r)=>r.smembers(KEY_LINKS), ()=>Array.from(mem.linkIds));
   const links = [];
   for (const id of ids) {
     const link = await getEntity(KEY_LINK, id, mem.links);
-    if (link?.tdId === resolvedTdId) links.push(link);
+    if (link?.tdId === resolvedTdId) {
+      links.push(link);
+      await withStore(
+        (r) => r.sadd(KEY_LINKS_BY_TD(resolvedTdId), id),
+        () => addToMemSetMap(mem.linkIdsByTd, resolvedTdId, id),
+      );
+    }
   }
   return links;
 }
@@ -1263,14 +1335,26 @@ export async function tdLinkCreate(tdId, payload) {
     createdAt: nowIso(),
   };
   await putEntity(KEY_LINK, link.id, link, mem.links, KEY_LINKS, mem.linkIds);
+  await withStore(
+    (r) => r.sadd(KEY_LINKS_BY_TD(tdId), link.id),
+    () => addToMemSetMap(mem.linkIdsByTd, tdId, link.id),
+  );
   return link;
 }
 
 export async function tdLinkDelete(linkId) {
+  const current = await getEntity(KEY_LINK, linkId, mem.links);
   return withStore(
-    (r) => r.del(KEY_LINK(linkId)),
+    async (r) => {
+      await r.del(KEY_LINK(linkId));
+      await r.srem(KEY_LINKS, linkId);
+      if (current?.tdId) await r.srem(KEY_LINKS_BY_TD(current.tdId), linkId);
+      return 1;
+    },
     () => {
       mem.links.delete(linkId);
+      mem.linkIds.delete(linkId);
+      if (current?.tdId) removeFromMemSetMap(mem.linkIdsByTd, current.tdId, linkId);
       return 1;
     },
   );
