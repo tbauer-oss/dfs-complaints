@@ -1097,10 +1097,10 @@ export async function tdQueries(tdId, sectionId = null) {
   const td = await tdGet(tdId);
   if (!td || td.deletedAt) throw new Error('TD not found');
   const resolvedTdId = td.id;
-  await tdBootstrapQueries(resolvedTdId);
   const allAnswers = await tdQueryAnswersRaw(resolvedTdId);
   const answers = sectionId ? allAnswers.filter((item) => item.sectionId === sectionId) : allAnswers;
-  const queryLinks = await tdQueryLinksByTd(resolvedTdId);
+  const answerIds = new Set(answers.map((answer) => answer.id));
+  const queryLinks = await tdQueryLinksByAnswerIds(answerIds);
   const applicability = await tdApplicabilityGet(resolvedTdId);
   const resultMap = new Map(applicability.results.map((item) => [overrideKey(item), item]));
   return answers
@@ -1121,6 +1121,17 @@ export async function tdQueries(tdId, sectionId = null) {
       if (a.template?.order && b.template?.order) return a.template.order - b.template.order;
       return a.templateKey.localeCompare(b.templateKey);
     });
+}
+
+async function tdQueryLinksByAnswerIds(answerIds) {
+  if (!answerIds.size) return [];
+  const ids = await withStore((r)=>r.smembers(KEY_QUERY_LINKS), ()=>Array.from(mem.queryLinkIds));
+  const items = [];
+  for (const id of ids) {
+    const link = await getEntity(KEY_QUERY_LINK, id, mem.queryLinks);
+    if (link && answerIds.has(link.answerId)) items.push(link);
+  }
+  return items;
 }
 
 export async function tdQueryUpdate(answerId, payload, actorUserId = null) {
@@ -1178,15 +1189,9 @@ export async function tdQueryUpdate(answerId, payload, actorUserId = null) {
 }
 
 export async function tdQueryLinksByTd(tdId) {
-  const ids = await withStore((r)=>r.smembers(KEY_QUERY_LINKS), ()=>Array.from(mem.queryLinkIds));
-  const items = [];
   const answers = await tdQueryAnswersRaw(tdId);
-  const answerIds = new Set(answers.map((a) => a.id));
-  for (const id of ids) {
-    const link = await getEntity(KEY_QUERY_LINK, id, mem.queryLinks);
-    if (link && answerIds.has(link.answerId)) items.push(link);
-  }
-  return items;
+  const answerIds = new Set(answers.map((answer) => answer.id));
+  return tdQueryLinksByAnswerIds(answerIds);
 }
 
 export async function tdQueryLinkCreate(answerId, payload) {
@@ -1501,6 +1506,7 @@ export async function tdReadiness(tdId) {
   const td = await tdGet(tdId);
   if (!td || td.deletedAt) throw new Error('TD not found');
   const resolvedTdId = td.id;
+  await tdBootstrapQueries(resolvedTdId);
   const sections = await tdSections(resolvedTdId);
   const links = await tdLinks(resolvedTdId);
   const queries = await tdQueries(resolvedTdId);
