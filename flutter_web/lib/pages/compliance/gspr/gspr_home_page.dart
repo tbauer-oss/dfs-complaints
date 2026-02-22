@@ -102,6 +102,19 @@ class _GsprHomePageState extends State<GsprHomePage> {
     return int.tryParse(match?.group(1) ?? '') ?? 0;
   }
 
+  bool _shouldUseSummaryChangeFallback(GsprSummary summary) {
+    final fallbackTotal = _extractTotalFromSummary(summary.sourceLastChangeSummary);
+    if (fallbackTotal <= 0) return false;
+
+    final lastChangeAt = summary.sourceLastChangeAt;
+    final lastSyncAt = summary.sourceLastSyncAt;
+    if (lastChangeAt != null && lastSyncAt != null && lastSyncAt.isAfter(lastChangeAt)) {
+      return false;
+    }
+
+    return true;
+  }
+
   void _applyDiffResult(Map<String, dynamic> diff) {
     final counts = _normalizeCounts((diff['counts'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
     final total = counts['total'] ?? 0;
@@ -396,10 +409,11 @@ class _GsprHomePageState extends State<GsprHomePage> {
       setState(() {
         _summary = summary;
         if (!_hasLocalDiffState) {
-          final fallbackTotal = _extractTotalFromSummary(summary.sourceLastChangeSummary);
-          _lastChangeSummary = fallbackTotal > 0 ? summary.sourceLastChangeSummary : null;
+          final shouldUseFallback = _shouldUseSummaryChangeFallback(summary);
+          final fallbackTotal = shouldUseFallback ? _extractTotalFromSummary(summary.sourceLastChangeSummary) : 0;
+          _lastChangeSummary = shouldUseFallback ? summary.sourceLastChangeSummary : null;
           _lastDiffCounts = <String, int>{'added': 0, 'removed': 0, 'modified': 0, 'total': fallbackTotal};
-          _lastDiffItems = summary.sourceLastChangeDetails;
+          _lastDiffItems = shouldUseFallback ? summary.sourceLastChangeDetails : const [];
         }
       });
     } catch (e) {
