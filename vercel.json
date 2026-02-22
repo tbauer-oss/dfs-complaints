@@ -158,6 +158,10 @@
       "dest": "/api/td/[id]/export/nb-package.js?id=$1"
     },
     {
+      "src": "/api/td/([^/]+)/structure$",
+      "dest": "/api/td/[id]/structure.js?id=$1"
+    },
+    {
       "src": "/api/td/([^/]+)/changes$",
       "dest": "/api/td/[id]/changes.js?id=$1"
     },
