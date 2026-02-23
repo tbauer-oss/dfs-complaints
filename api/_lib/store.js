@@ -1915,49 +1915,48 @@ export async function userDelete(email) {
 }
 
 export async function usersList() {
-  const { rows } = await queryWithFallback({
-    primarySql:
-      `SELECT id, email, email_norm, role, is_active, department, tile_permissions, updated_at
-         FROM public.portal_users
-        ORDER BY email ASC`,
-    fallbackSql:
-      `SELECT id, email, email_norm, role, is_active, updated_at
-         FROM public.portal_users
-        ORDER BY email ASC`,
-    fallbackMapper: (row) => ({ ...row, department: '', tile_permissions: {} }),
-    tableHint: 'portal_users',
-    route: '/api/portal/users',
-  });
+  const r = redisClient();
+  if (r) {
+    const keys = await rkeys(`${P}user:*`, r);
+    const records = await rgetMany(keys);
+    const customers = records
+      .filter(isCustomerUser)
+      .map((raw) => {
+        const user = { ...raw };
+        user.email = String(user.email || '').toLowerCase();
+        if (!user.email) return null;
+        if (!user.type) user.type = 'customer';
+        if (!user.kind) user.kind = 'customer';
+        user.lang = normLang(user.lang || '');
+        if (Array.isArray(user.pushTokens)) {
+          const normalized = normalizePushTokens(user.pushTokens);
+          if (normalized.length > 0) user.pushTokens = normalized;
+          else delete user.pushTokens;
+        }
+        return user;
+      })
+      .filter(Boolean)
+      .sort((a, b) => String(a.email || '').localeCompare(String(b.email || ''), 'de', { sensitivity: 'base' }));
 
-  const users = (Array.isArray(rows) ? rows : [])
-    .map((row) => {
-      if (!row || typeof row !== 'object') return null;
-      const email = String(row.email || '').trim().toLowerCase();
-      if (!email) return null;
+    console.info(`[usersList] source: 'kv', count: ${customers.length}`);
+    return customers;
+  }
 
-      const tilePermissions = sanitizeTilePermissions(row.tile_permissions || {});
-
-      return {
-        id: row.id,
-        email,
-        emailNorm: row.email_norm || normalizeEmail(email),
-        role: row.role || null,
-        portalStatus: row.is_active ? 'active' : 'inactive',
-        isActive: row.is_active === true,
-        department: row.department || '',
-        tilePermissions,
-        updatedAt: row.updated_at || null,
-        // legacy-compatible defaults expected by existing callers
-        lang: 'de',
-        type: 'portal',
-        kind: 'staff',
-        pushTokens: [],
-      };
+  const customers = Array.from(mem.users.values())
+    .filter(isCustomerUser)
+    .map((raw) => {
+      const user = { ...raw };
+      user.email = String(user.email || '').toLowerCase();
+      if (!user.type) user.type = 'customer';
+      if (!user.kind) user.kind = 'customer';
+      user.lang = normLang(user.lang || '');
+      return user;
     })
-    .filter(Boolean);
+    .filter((user) => Boolean(user.email))
+    .sort((a, b) => String(a.email || '').localeCompare(String(b.email || ''), 'de', { sensitivity: 'base' }));
 
-  console.info(`[usersList] source: 'db', count: ${users.length}`);
-  return users;
+  console.info(`[usersList] source: 'memory', count: ${customers.length}`);
+  return customers;
 }
 
 /* ============== Portal Users (Mitarbeiter) ============== */
