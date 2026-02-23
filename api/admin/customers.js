@@ -8,12 +8,20 @@ import { userSave } from '../_lib/store.js';
 import { generateStrongPassword, isStrongPassword } from '../_lib/passwords.js';
 import { send, tpl } from '../_lib/mail.js';
 import { isRepEmail } from '../_lib/repEmailGuard.js';
+import { canWriteTile, portalUserFromRequest } from '../_lib/portalAuth.js';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
 
 function adminAuthorized(req) {
   const hdr = req.headers?.['x-admin-secret'] || req.headers?.['X-Admin-Secret'];
   return !!(ADMIN_SECRET && hdr && hdr === ADMIN_SECRET);
+}
+
+async function canCreateCustomer(req) {
+  if (adminAuthorized(req)) return true;
+  const actor = await portalUserFromRequest(req, { allowSecretFallback: true });
+  if (!actor) return false;
+  return canWriteTile(actor, 'users');
 }
 
 export default async function handler(req, res) {
@@ -29,7 +37,7 @@ export default async function handler(req, res) {
   }
 
   // Admin-Auth (Header X-Admin-Secret muss mit ENV übereinstimmen)
-  if (!adminAuthorized(req)) {
+  if (!(await canCreateCustomer(req))) {
     return res
       .status(401)
       .end(JSON.stringify({ error: 'admin unauthorized' }));
