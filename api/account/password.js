@@ -113,7 +113,7 @@ async function resolvePortalUser({ authSubject, authEmail, isProd }) {
       userResult = await query(
         `SELECT id, email_norm, password_hash
          FROM portal_users
-         WHERE id = $1::uuid
+         WHERE id::text = $1
          LIMIT 1`,
         [strategy.value],
       );
@@ -122,12 +122,13 @@ async function resolvePortalUser({ authSubject, authEmail, isProd }) {
         `SELECT id, email_norm, password_hash
          FROM portal_users
          WHERE email_norm = $1
+            OR LOWER(TRIM(COALESCE(email, ''))) = $1
          LIMIT 1`,
         [strategy.value],
       );
     }
 
-    const rows = Number(userResult?.rowCount || 0);
+    const rows = Number(userResult?.rowCount ?? userResult?.rows?.length ?? 0);
     if (!isProd) {
       console.debug('[account/password] lookup attempt', {
         strategy: strategy.type,

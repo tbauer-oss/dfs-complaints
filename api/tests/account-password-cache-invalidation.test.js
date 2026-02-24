@@ -48,7 +48,7 @@ test('password change invalidates legacy and safe portal user cache keys', async
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
       seen.push({ sql: normalized, params });
 
-      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
         return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: currentHash }] };
       }
       if (normalized.startsWith('UPDATE portal_users')) {
@@ -89,7 +89,7 @@ test('password change accepts legacy $2y$ hashes without returning 500', async (
   __setDbForTests({
     async query(sql) {
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
-      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
         return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: legacyHash }] };
       }
       if (normalized.startsWith('UPDATE portal_users')) {
@@ -123,9 +123,8 @@ test('password change resolves user by email claim when token subject is not a U
   __setDbForTests({
     async query(sql, params = []) {
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
-      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
         assert.equal(params[0], 'cache@dfs-diamon.de');
-        assert.equal(params[1], 'cache@dfs-diamon.de');
         return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: currentHash }] };
       }
       if (normalized.startsWith('UPDATE portal_users')) {
