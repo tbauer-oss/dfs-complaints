@@ -8,6 +8,7 @@ import { methodNotAllowed, setCors } from '../_lib/http.js';
 import { invalidatePortalUserCaches } from '../_lib/portalUserCache.js';
 
 const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -67,7 +68,10 @@ export default async function handler(req, res) {
     return sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Missing or invalid authorization token.' });
   }
 
-  if (!auth.sub) {
+  const authSubject = String(auth.sub || '').trim();
+  const authEmail = String(auth.email || '').trim().toLowerCase();
+
+  if (!authSubject && !authEmail) {
     return sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Token subject is missing.' });
   }
 
@@ -94,6 +98,11 @@ export default async function handler(req, res) {
     ?? body?.newPass
     ?? body?.new_pass;
 
+  const confirmPassword = body?.confirmPassword
+    ?? body?.confirm_password
+    ?? body?.newPasswordRepeat
+    ?? body?.new_password_repeat;
+
   if (!currentPassword || !newPassword) {
     return sendJson(res, 400, {
       code: 'VALIDATION_ERROR',
@@ -108,18 +117,36 @@ export default async function handler(req, res) {
     });
   }
 
+  if (confirmPassword != null && String(confirmPassword) !== String(newPassword)) {
+    return sendJson(res, 400, {
+      code: 'PASSWORD_CONFIRM_MISMATCH',
+      message: 'confirmPassword must match newPassword.',
+    });
+  }
+
   try {
+    const subjectLooksLikeUuid = UUID_V4_PATTERN.test(authSubject);
+    const userLookupKey = authEmail || authSubject;
+
     const userResult = await query(
       `SELECT id, email_norm, password_hash
        FROM portal_users
-       WHERE id = $1
+       WHERE id::text = $1
+          OR email_norm = $2
        LIMIT 1`,
-      [auth.sub],
+      [authSubject || userLookupKey, userLookupKey],
     );
 
     const user = userResult?.rows?.[0] || null;
     if (!user) {
       return sendJson(res, 404, { code: 'USER_NOT_FOUND', message: 'User account not found.' });
+    }
+
+    if (subjectLooksLikeUuid && authSubject && String(user.id) !== authSubject && process.env.NODE_ENV !== 'production') {
+      console.warn('[account/password] auth subject does not match resolved user id', {
+        authSubject,
+        resolvedUserId: user.id,
+      });
     }
 
     const currentHash = normalizeBcryptHash(user.password_hash || '');
@@ -160,6 +187,10 @@ export default async function handler(req, res) {
   } catch (err) {
     if (isDbConnectivityError(err)) {
       return sendJson(res, 503, { code: 'DB_UNAVAILABLE', message: 'Database unavailable.' });
+    }
+
+    if (String(err?.code || '').toUpperCase() === '22P02') {
+      return sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid authorization subject.' });
     }
 
     console.error('[account/password] unexpected error', err);
