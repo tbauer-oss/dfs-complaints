@@ -7,6 +7,8 @@ import { query } from '../_lib/db.js';
 import { methodNotAllowed, setCors } from '../_lib/http.js';
 import { invalidatePortalUserCaches } from '../_lib/portalUserCache.js';
 
+const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
+
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -45,6 +47,14 @@ async function readJsonBody(req) {
 
 function isDbConnectivityError(err) {
   return String(err?.code || '').toUpperCase() === 'DB_UNAVAILABLE';
+}
+
+function normalizeBcryptHash(passwordHash) {
+  const hash = String(passwordHash || '').trim();
+  if (!hash) return '';
+  if (hash.startsWith('$2y$')) return `$2b$${hash.slice(4)}`;
+  if (!BCRYPT_PREFIX_PATTERN.test(hash)) return '';
+  return hash;
 }
 
 export default async function handler(req, res) {
@@ -112,7 +122,21 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { code: 'USER_NOT_FOUND', message: 'User account not found.' });
     }
 
-    const ok = await bcrypt.compare(currentPassword, String(user.password_hash || ''));
+    const currentHash = normalizeBcryptHash(user.password_hash || '');
+    if (!currentHash) {
+      return sendJson(res, 400, {
+        code: 'INVALID_CURRENT_PASSWORD',
+        message: 'The current password is incorrect.',
+      });
+    }
+
+    let ok = false;
+    try {
+      ok = await bcrypt.compare(currentPassword, currentHash);
+    } catch {
+      ok = false;
+    }
+
     if (!ok) {
       return sendJson(res, 400, {
         code: 'INVALID_CURRENT_PASSWORD',

@@ -80,3 +80,37 @@ test('password change invalidates legacy and safe portal user cache keys', async
   assert.ok(deletedKeys.includes('dfs:userDirectory'));
   assert.ok(deletedKeys.includes('dfs:roles'));
 });
+
+test('password change accepts legacy $2y$ hashes without returning 500', async () => {
+  const currentPassword = 'Current#123';
+  const bcryptHash = await bcrypt.hash(currentPassword, 8);
+  const legacyHash = `$2y$${bcryptHash.slice(4)}`;
+
+  __setDbForTests({
+    async query(sql) {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+        return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: legacyHash }] };
+      }
+      if (normalized.startsWith('UPDATE portal_users')) {
+        return { rowCount: 1, rows: [] };
+      }
+      if (normalized.startsWith('DELETE FROM kv_store')) {
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`unexpected query: ${normalized}`);
+    },
+  });
+
+  const req = makeReq({
+    body: {
+      currentPassword,
+      newPassword: 'NewPassword#123',
+    },
+  });
+  const res = makeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+});
