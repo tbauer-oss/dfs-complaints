@@ -1282,12 +1282,19 @@ class ApiClient {
     try {
       final r = await _post(
         '/api/account/password',
-        {'oldPassword': oldPw, 'newPassword': newPw},
+        {
+          'oldPassword': oldPw,
+          'newPassword': newPw,
+          'confirmPassword': newPw,
+        },
         auth: true,
       );
 
       if (!_ok2xx(r.statusCode)) {
         final msg = _extractMessage(r.body);
+        if (kDebugMode) {
+          debugPrint('[accountChangePassword] failed: ${r.statusCode} ${r.body}');
+        }
         throw ApiError(r.statusCode, msg);
       }
     } catch (e) {

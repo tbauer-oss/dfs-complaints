@@ -114,3 +114,43 @@ test('password change accepts legacy $2y$ hashes without returning 500', async (
 
   assert.equal(res.__out.statusCode, 200);
 });
+
+
+test('password change resolves user by email claim when token subject is not a UUID', async () => {
+  const currentPassword = 'Current#123';
+  const currentHash = await bcrypt.hash(currentPassword, 8);
+
+  __setDbForTests({
+    async query(sql, params = []) {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+        assert.equal(params[0], 'cache@dfs-diamon.de');
+        assert.equal(params[1], 'cache@dfs-diamon.de');
+        return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: currentHash }] };
+      }
+      if (normalized.startsWith('UPDATE portal_users')) {
+        return { rowCount: 1, rows: [] };
+      }
+      if (normalized.startsWith('DELETE FROM kv_store')) {
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`unexpected query: ${normalized}`);
+    },
+  });
+
+  const req = makeReq({
+    headers: {
+      authorization: `Bearer ${jwt.sign({ sub: 'cache@dfs-diamon.de', email: 'cache@dfs-diamon.de' }, process.env.JWT_SECRET || 'devsecret')}`,
+    },
+    body: {
+      currentPassword,
+      newPassword: 'NewPassword#123',
+      confirmPassword: 'NewPassword#123',
+    },
+  });
+  const res = makeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+});
