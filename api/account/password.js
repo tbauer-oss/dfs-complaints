@@ -83,13 +83,36 @@ function extractUuidFromSubject(subject) {
   return UUID_V4_PATTERN.test(candidate) ? candidate : '';
 }
 
+function getSubjectIdCandidates(subject) {
+  const raw = String(subject || '').trim();
+  if (!raw) return [];
+
+  const candidates = [];
+  const add = (value) => {
+    const next = String(value || '').trim();
+    if (!next) return;
+    if (!candidates.includes(next)) candidates.push(next);
+  };
+
+  const extractedUuid = extractUuidFromSubject(raw);
+  if (extractedUuid) add(extractedUuid);
+
+  const prefixed = raw.match(/^(?:user|portal):(.+)$/i);
+  if (prefixed?.[1]) add(prefixed[1]);
+
+  add(raw);
+  return candidates;
+}
+
+
 async function resolvePortalUser({ authSubject, authEmail, isProd }) {
   const subjectFormat = classifySubjectFormat(authSubject);
   const normalizedEmail = normalizeEmail(authEmail);
   const extractedSubjectUuid = extractUuidFromSubject(authSubject);
+  const subjectIdCandidates = getSubjectIdCandidates(authSubject);
 
   const strategies = [];
-  if (extractedSubjectUuid) strategies.push({ type: 'by_id', value: extractedSubjectUuid });
+  for (const candidate of subjectIdCandidates) strategies.push({ type: 'by_id', value: candidate });
   if (normalizedEmail) strategies.push({ type: 'by_email', value: normalizedEmail });
 
   if (!isProd) {
@@ -97,6 +120,7 @@ async function resolvePortalUser({ authSubject, authEmail, isProd }) {
       subjectFormat,
       hasAuthEmail: Boolean(normalizedEmail),
       hasExtractedSubjectUuid: Boolean(extractedSubjectUuid),
+      subjectIdCandidatesCount: subjectIdCandidates.length,
       strategies: strategies.map((entry) => entry.type),
     });
   } else {
@@ -151,6 +175,7 @@ async function resolvePortalUser({ authSubject, authEmail, isProd }) {
           rows,
           hasAuthEmail: Boolean(normalizedEmail),
           hasExtractedSubjectUuid: Boolean(extractedSubjectUuid),
+          subjectIdCandidatesCount: subjectIdCandidates.length,
         },
       };
     }
@@ -164,6 +189,7 @@ async function resolvePortalUser({ authSubject, authEmail, isProd }) {
       rows: 0,
       hasAuthEmail: Boolean(normalizedEmail),
       hasExtractedSubjectUuid: Boolean(extractedSubjectUuid),
+      subjectIdCandidatesCount: subjectIdCandidates.length,
     },
   };
 }
