@@ -9,6 +9,7 @@ import { invalidatePortalUserCaches } from '../_lib/portalUserCache.js';
 
 const BCRYPT_PREFIX_PATTERN = /^\$(2[aby])\$/;
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_ANYWHERE_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -58,7 +59,143 @@ function normalizeBcryptHash(passwordHash) {
   return hash;
 }
 
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function classifySubjectFormat(subject) {
+  if (!subject) return 'empty';
+  if (UUID_V4_PATTERN.test(subject)) return 'uuid';
+  if (/^(user|portal):/i.test(subject)) return 'prefixed_uuid_or_id';
+  if (/^[^\s|]+\|[^\s|]+$/.test(subject)) return 'provider_pipe';
+  if (subject.includes('@')) return 'email_like';
+  return 'opaque';
+}
+
+function extractUuidFromSubject(subject) {
+  const raw = String(subject || '').trim();
+  if (!raw) return '';
+  if (UUID_V4_PATTERN.test(raw)) return raw.toLowerCase();
+
+  const match = raw.match(UUID_ANYWHERE_PATTERN);
+  if (!match) return '';
+  const candidate = String(match[0] || '').toLowerCase();
+  return UUID_V4_PATTERN.test(candidate) ? candidate : '';
+}
+
+function getSubjectIdCandidates(subject) {
+  const raw = String(subject || '').trim();
+  if (!raw) return [];
+
+  const candidates = [];
+  const add = (value) => {
+    const next = String(value || '').trim();
+    if (!next) return;
+    if (!candidates.includes(next)) candidates.push(next);
+  };
+
+  const extractedUuid = extractUuidFromSubject(raw);
+  if (extractedUuid) add(extractedUuid);
+
+  const prefixed = raw.match(/^(?:user|portal):(.+)$/i);
+  if (prefixed?.[1]) add(prefixed[1]);
+
+  add(raw);
+  return candidates;
+}
+
+
+async function resolvePortalUser({ authSubject, authEmail, isProd }) {
+  const subjectFormat = classifySubjectFormat(authSubject);
+  const normalizedEmail = normalizeEmail(authEmail);
+  const extractedSubjectUuid = extractUuidFromSubject(authSubject);
+  const subjectIdCandidates = getSubjectIdCandidates(authSubject);
+
+  const strategies = [];
+  for (const candidate of subjectIdCandidates) strategies.push({ type: 'by_id', value: candidate });
+  if (normalizedEmail) strategies.push({ type: 'by_email', value: normalizedEmail });
+
+  if (!isProd) {
+    console.debug('[account/password] lookup candidates', {
+      subjectFormat,
+      hasAuthEmail: Boolean(normalizedEmail),
+      hasExtractedSubjectUuid: Boolean(extractedSubjectUuid),
+      subjectIdCandidatesCount: subjectIdCandidates.length,
+      strategies: strategies.map((entry) => entry.type),
+    });
+  } else {
+    console.info('[account/password] lookup_start', {
+      code: 'LOOKUP_START',
+      subjectFormat,
+      strategyCount: strategies.length,
+    });
+  }
+
+  for (const strategy of strategies) {
+    let userResult;
+    if (strategy.type === 'by_id') {
+      userResult = await query(
+        `SELECT id, email_norm, password_hash
+         FROM portal_users
+         WHERE id::text = $1
+         LIMIT 1`,
+        [strategy.value],
+      );
+    } else {
+      userResult = await query(
+        `SELECT id, email_norm, password_hash
+         FROM portal_users
+         WHERE email_norm = $1
+            OR LOWER(TRIM(COALESCE(email, ''))) = $1
+         LIMIT 1`,
+        [strategy.value],
+      );
+    }
+
+    const rows = Number(userResult?.rowCount ?? userResult?.rows?.length ?? 0);
+    if (!isProd) {
+      console.debug('[account/password] lookup attempt', {
+        strategy: strategy.type,
+        subjectFormat,
+        rows,
+      });
+    } else {
+      console.info('[account/password] lookup_attempt', {
+        code: rows > 0 ? 'LOOKUP_HIT' : 'LOOKUP_MISS',
+        strategy: strategy.type,
+      });
+    }
+
+    if (rows > 0) {
+      return {
+        user: userResult.rows[0],
+        debug: {
+          strategyUsed: strategy.type,
+          subjectFormat,
+          rows,
+          hasAuthEmail: Boolean(normalizedEmail),
+          hasExtractedSubjectUuid: Boolean(extractedSubjectUuid),
+          subjectIdCandidatesCount: subjectIdCandidates.length,
+        },
+      };
+    }
+  }
+
+  return {
+    user: null,
+    debug: {
+      strategyUsed: 'none',
+      subjectFormat,
+      rows: 0,
+      hasAuthEmail: Boolean(normalizedEmail),
+      hasExtractedSubjectUuid: Boolean(extractedSubjectUuid),
+      subjectIdCandidatesCount: subjectIdCandidates.length,
+    },
+  };
+}
+
 export default async function handler(req, res) {
+  const isProd = process.env.NODE_ENV === 'production';
   setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return methodNotAllowed(res);
@@ -69,7 +206,7 @@ export default async function handler(req, res) {
   }
 
   const authSubject = String(auth.sub || '').trim();
-  const authEmail = String(auth.email || '').trim().toLowerCase();
+  const authEmail = normalizeEmail(auth.email);
 
   if (!authSubject && !authEmail) {
     return sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Token subject is missing.' });
@@ -83,7 +220,7 @@ export default async function handler(req, res) {
   }
 
   const presentKeys = body && typeof body === 'object' ? Object.keys(body).sort() : [];
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProd) {
     console.debug('[account/password] payload keys', presentKeys);
   }
 
@@ -125,27 +262,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    const subjectLooksLikeUuid = UUID_V4_PATTERN.test(authSubject);
-    const userLookupKey = authEmail || authSubject;
-
-    const userResult = await query(
-      `SELECT id, email_norm, password_hash
-       FROM portal_users
-       WHERE id::text = $1
-          OR email_norm = $2
-       LIMIT 1`,
-      [authSubject || userLookupKey, userLookupKey],
-    );
-
-    const user = userResult?.rows?.[0] || null;
+    const resolution = await resolvePortalUser({ authSubject, authEmail, isProd });
+    const user = resolution.user;
     if (!user) {
+      if (!isProd) {
+        console.debug('[account/password] user not found', resolution.debug);
+      } else {
+        console.info('[account/password] user_resolution_failed', {
+          code: 'USER_NOT_FOUND',
+          subjectFormat: resolution.debug.subjectFormat,
+        });
+      }
       return sendJson(res, 404, { code: 'USER_NOT_FOUND', message: 'User account not found.' });
     }
 
-    if (subjectLooksLikeUuid && authSubject && String(user.id) !== authSubject && process.env.NODE_ENV !== 'production') {
+    if (resolution.debug.hasExtractedSubjectUuid
+      && String(user.id) !== extractUuidFromSubject(authSubject)
+      && !isProd) {
       console.warn('[account/password] auth subject does not match resolved user id', {
-        authSubject,
+        subjectFormat: resolution.debug.subjectFormat,
         resolvedUserId: user.id,
+        strategyUsed: resolution.debug.strategyUsed,
       });
     }
 

@@ -48,7 +48,7 @@ test('password change invalidates legacy and safe portal user cache keys', async
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
       seen.push({ sql: normalized, params });
 
-      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
         return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: currentHash }] };
       }
       if (normalized.startsWith('UPDATE portal_users')) {
@@ -89,7 +89,7 @@ test('password change accepts legacy $2y$ hashes without returning 500', async (
   __setDbForTests({
     async query(sql) {
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
-      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
         return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: legacyHash }] };
       }
       if (normalized.startsWith('UPDATE portal_users')) {
@@ -123,9 +123,8 @@ test('password change resolves user by email claim when token subject is not a U
   __setDbForTests({
     async query(sql, params = []) {
       const normalized = String(sql).replace(/\s+/g, ' ').trim();
-      if (normalized.includes('SELECT id, email_norm, password_hash')) {
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
         assert.equal(params[0], 'cache@dfs-diamon.de');
-        assert.equal(params[1], 'cache@dfs-diamon.de');
         return { rows: [{ id: 'u-1', email_norm: 'cache@dfs-diamon.de', password_hash: currentHash }] };
       }
       if (normalized.startsWith('UPDATE portal_users')) {
@@ -146,6 +145,91 @@ test('password change resolves user by email claim when token subject is not a U
       currentPassword,
       newPassword: 'NewPassword#123',
       confirmPassword: 'NewPassword#123',
+    },
+  });
+  const res = makeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+});
+
+
+test('password change resolves user by raw subject id when email claim is stale', async () => {
+  const currentPassword = 'Current#123';
+  const currentHash = await bcrypt.hash(currentPassword, 8);
+
+  __setDbForTests({
+    async query(sql, params = []) {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (normalized.includes('FROM portal_users') && normalized.includes('WHERE id::text = $1')) {
+        if (params[0] === 'u-legacy-id') {
+          return { rows: [{ id: 'u-legacy-id', email_norm: 'fresh@dfs-diamon.de', password_hash: currentHash }] };
+        }
+        return { rows: [] };
+      }
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
+        return { rows: [] };
+      }
+      if (normalized.startsWith('UPDATE portal_users')) {
+        return { rowCount: 1, rows: [] };
+      }
+      if (normalized.startsWith('DELETE FROM kv_store')) {
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`unexpected query: ${normalized}`);
+    },
+  });
+
+  const req = makeReq({
+    headers: {
+      authorization: `Bearer ${jwt.sign({ sub: 'u-legacy-id', email: 'old@dfs-diamon.de' }, process.env.JWT_SECRET || 'devsecret')}`,
+    },
+    body: {
+      currentPassword,
+      newPassword: 'NewPassword#123',
+    },
+  });
+  const res = makeRes();
+
+  await handler(req, res);
+
+  assert.equal(res.__out.statusCode, 200);
+});
+
+test('password change resolves user by prefixed subject id when email lookup misses', async () => {
+  const currentPassword = 'Current#123';
+  const currentHash = await bcrypt.hash(currentPassword, 8);
+
+  __setDbForTests({
+    async query(sql, params = []) {
+      const normalized = String(sql).replace(/\s+/g, ' ').trim();
+      if (normalized.includes('FROM portal_users') && normalized.includes('WHERE id::text = $1')) {
+        if (params[0] === 'u-prefixed-id') {
+          return { rows: [{ id: 'u-prefixed-id', email_norm: 'prefixed@dfs-diamon.de', password_hash: currentHash }] };
+        }
+        return { rows: [] };
+      }
+      if (normalized.includes('SELECT id, email_norm, password_hash') && normalized.includes('FROM portal_users')) {
+        return { rows: [] };
+      }
+      if (normalized.startsWith('UPDATE portal_users')) {
+        return { rowCount: 1, rows: [] };
+      }
+      if (normalized.startsWith('DELETE FROM kv_store')) {
+        return { rowCount: 1, rows: [] };
+      }
+      throw new Error(`unexpected query: ${normalized}`);
+    },
+  });
+
+  const req = makeReq({
+    headers: {
+      authorization: `Bearer ${jwt.sign({ sub: 'user:u-prefixed-id', email: 'missing@dfs-diamon.de' }, process.env.JWT_SECRET || 'devsecret')}`,
+    },
+    body: {
+      currentPassword,
+      newPassword: 'NewPassword#123',
     },
   });
   const res = makeRes();
