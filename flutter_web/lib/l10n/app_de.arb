@@ -493,6 +493,12 @@
 
   "customer_area": "Kundenbereich",
   "customer_login": "DFS Connect (Kundenlogin)",
+  "loginHeroTitle": "Qualität verbindet.",
+  "loginHeroSubtitle": "Reklamationen, Service und Produktwissen in einem sicheren Arbeitsbereich.",
+  "loginSecurityCaption": "Sichere Übertragung · Datenschutzkonform · Persönlicher Service",
+  "dashboardQuickAccess": "Schnellzugriff",
+  "dashboardRecentAction": "Zuletzt verwendet",
+  "dashboardNoSearchResults": "Keine passende Funktion gefunden.",
   "customer_label": "Kunde",
   "quick_access_title": "DFS-interne Zugänge",
   "quick_access_subtitle": "Direkt zum DFS Connect Rep Login oder DFS Connect+ wechseln.",
