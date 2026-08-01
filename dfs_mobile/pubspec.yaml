@@ -1,7 +1,7 @@
 name: dfs_mobile
 description: "DFS Connect App"
 publish_to: 'none'
-version: 1.1.0+3
+version: 1.1.0+4
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -40,13 +40,13 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icons/dfs_complaint_icon.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icons/dfs_complaint_icon.png"
+  adaptive_icon_background: "#071B3B"
+  adaptive_icon_foreground: "assets/icons/dfs_connect_icon_foreground.png"
   min_sdk_android: 24
   web:
     generate: true
     image_path: "assets/icons/dfs_complaint_icon.png"
-    background_color: "#FFFFFF"
+    background_color: "#071B3B"
     theme_color: "#0A4FA3"
   windows:
     generate: false
