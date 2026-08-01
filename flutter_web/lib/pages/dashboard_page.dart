@@ -1,13 +1,14 @@
 // lib/pages/dashboard_page.dart
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../web_compat/html_stub.dart'
-  if (dart.library.html) '../web_compat/html_web.dart' as html;
+    if (dart.library.html) '../web_compat/html_web.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/client.dart';
 import '../l10n/app_localizations.dart';
+import '../ui/theme/app_theme.dart';
 
 import 'complaint_form_page.dart';
 import 'my_complaints_page.dart';
@@ -16,7 +17,7 @@ import 'support_page.dart';
 import 'customer_news_page.dart';
 import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
-  if (dart.library.html) '../widgets/pdf_view_web.dart';
+    if (dart.library.html) '../widgets/pdf_view_web.dart';
 
 const _labCatalogLinks = [
   _CatalogLink(
@@ -44,7 +45,10 @@ const _dentCatalogLinks = [
   ),
 ];
 
-_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+_CatalogLink _catalogLinkForLocale(
+  List<_CatalogLink> links,
+  String localeCode,
+) {
   final normalized = localeCode.toLowerCase();
   return links.firstWhere(
     (link) => link.matches(normalized),
@@ -66,8 +70,10 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
+class _DashboardPageState extends State<DashboardPage>
+    with WidgetsBindingObserver {
   static const _newsLastSeenKey = 'customer_news_last_seen';
+  static const _recentActionKey = 'customer_dashboard_recent_action';
 
   static const _fallbackRep = MyRep(
     firstName: 'DFS-Diamon',
@@ -82,6 +88,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   bool _repLoading = false;
   bool _repRequested = false;
   int _hoverIndex = -1;
+  final TextEditingController _searchController = TextEditingController();
+  String _dashboardQuery = '';
+  String? _recentActionId;
   bool _hasUnreadNews = false;
   bool _newsIndicatorRefreshing = false;
   DateTime? _latestNewsTimestamp;
@@ -95,6 +104,13 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     });
     _initRep();
     _refreshNewsIndicator();
+    _loadDashboardPreferences();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -192,7 +208,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     if (mounted) {
       setState(() {
-        _customerName  = company;
+        _customerName = company;
         _customerEmail = email;
       });
     }
@@ -205,13 +221,29 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
+  Future<void> _loadDashboardPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final recent = prefs.getString(_recentActionKey);
+    if (!mounted) return;
+    setState(() => _recentActionId = recent);
+  }
+
+  void _activateEntry(_Entry entry) {
+    setState(() => _recentActionId = entry.id);
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setString(_recentActionKey, entry.id),
+    );
+    entry.onTap();
+  }
+
   Future<void> _refreshNewsIndicator({bool forceRefresh = false}) async {
     if (_newsIndicatorRefreshing) return;
     _newsIndicatorRefreshing = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastSeenRaw = prefs.getString(_newsLastSeenKey);
-      final lastSeen = lastSeenRaw != null ? DateTime.tryParse(lastSeenRaw) : null;
+      final lastSeen =
+          lastSeenRaw != null ? DateTime.tryParse(lastSeenRaw) : null;
 
       final news = await widget.api.fetchCustomerNews(refresh: forceRefresh);
       DateTime? latest;
@@ -221,7 +253,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         }
       }
 
-      final hasUnread = latest != null && (lastSeen == null || latest.isAfter(lastSeen));
+      final hasUnread =
+          latest != null && (lastSeen == null || latest.isAfter(lastSeen));
       if (mounted) {
         setState(() {
           _hasUnreadNews = hasUnread;
@@ -266,9 +299,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   Future<void> _openCustomerNews(BuildContext context) async {
     await _markCustomerNewsSeen();
     if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CustomerNewsPage(api: widget.api),
-    ));
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CustomerNewsPage(api: widget.api)),
+    );
     if (mounted) {
       await _refreshNewsIndicator(forceRefresh: true);
     }
@@ -311,8 +344,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   // --- KOMPAKTE Variante (handy-optimiert, Name immer sichtbar) ---
   Widget _buildRepCardCompact(BuildContext context) {
     final theme = Theme.of(context);
-    final t     = AppLocalizations.of(context)!;
-    final r     = _myRep;
+    final t = AppLocalizations.of(context)!;
+    final r = _myRep;
 
     // Kein Vertreter hinterlegt → Hinweis + Kontakt & Refresh
     if (r == null) {
@@ -325,12 +358,13 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       return const SizedBox.shrink();
     }
 
-    final first  = r.firstName.trim();
-    final last   = r.lastName.trim();
-    final email  = r.email.trim();
-    final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final title  = name.isNotEmpty ? t.rep_banner_title(name)
-                                   : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final first = r.firstName.trim();
+    final last = r.lastName.trim();
+    final email = r.email.trim();
+    final name = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final title = name.isNotEmpty
+        ? t.rep_banner_title(name)
+        : t.rep_banner_title(email.isNotEmpty ? email : '—');
     final hasContact = _repForContact().email.trim().isNotEmpty;
 
     // Handy-optimiertes Layout: 1) Avatar + Textblock, 2) Aktionszeile darunter
@@ -380,8 +414,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 if (hasContact)
                   TextButton.icon(
                     style: TextButton.styleFrom(
-                      visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: const VisualDensity(
+                        horizontal: -2,
+                        vertical: -3,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                     ),
                     onPressed: () => _openRepContactForm(context),
                     icon: const Icon(Icons.mail_outline, size: 18),
@@ -393,9 +433,15 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 const SizedBox(width: 6),
                 IconButton(
                   tooltip: t.refresh,
-                  visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+                  visualDensity: const VisualDensity(
+                    horizontal: -2,
+                    vertical: -3,
+                  ),
                   padding: const EdgeInsets.all(6),
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
                   onPressed: _initRep,
                   icon: const Icon(Icons.refresh, size: 20),
                 ),
@@ -409,10 +455,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
   // --- GROSSE Variante (wie früher, optisch präsenter) ---
   Widget _buildRepCardLarge(BuildContext context) {
-    final theme  = Theme.of(context);
-    final t      = AppLocalizations.of(context)!;
-    final r      = _myRep;
-    final cs     = theme.colorScheme;
+    final theme = Theme.of(context);
+    final t = AppLocalizations.of(context)!;
+    final r = _myRep;
+    final cs = theme.colorScheme;
 
     if (r == null) {
       if (_repLoading) {
@@ -423,13 +469,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       }
       return const SizedBox.shrink();
     }
-    
-    final first  = r.firstName.trim();
-    final last   = r.lastName.trim();
-    final email  = r.email.trim();
-    final name   = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = name.isNotEmpty ? t.rep_banner_title(name)
-                                        : t.rep_banner_title(email.isNotEmpty ? email : '—');
+
+    final first = r.firstName.trim();
+    final last = r.lastName.trim();
+    final email = r.email.trim();
+    final name = [first, last].where((s) => s.isNotEmpty).join(' ');
+    final bannerTitle = name.isNotEmpty
+        ? t.rep_banner_title(name)
+        : t.rep_banner_title(email.isNotEmpty ? email : '—');
     final hasContact = _repForContact().email.trim().isNotEmpty;
 
     return Card(
@@ -453,7 +500,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     shape: BoxShape.circle,
                     color: cs.primary.withOpacity(0.15),
                   ),
-                  child: Icon(Icons.handshake_outlined, color: cs.primary, size: 20),
+                  child: Icon(
+                    Icons.handshake_outlined,
+                    color: cs.primary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -464,14 +515,18 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                         bannerTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (email.isNotEmpty)
                         Text(
                           email,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                     ],
                   ),
@@ -490,7 +545,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: () => _openRepContactForm(context),
@@ -514,8 +572,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     // Breakpoint beliebig – 900px ist ein guter Desktop-Schwellenwert
     final isWide = MediaQuery.of(context).size.width >= 900;
-    return isWide ? _buildRepCardLarge(context)
-                  : _buildRepCardCompact(context);
+    return isWide ? _buildRepCardLarge(context) : _buildRepCardCompact(context);
   }
 
   @override
@@ -524,50 +581,59 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     final tiles = <_Entry>[
       _Entry(
+        id: 'report-complaint',
         label: t.reportComplaint,
         icon: Icons.add_circle,
         colorA: const Color(0xFF1976D2),
         colorB: const Color(0xFF42A5F5),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ComplaintFormPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ComplaintFormPage(api: widget.api),
+            ),
+          );
         },
       ),
       _Entry(
+        id: 'my-complaints',
         label: t.myComplaints,
         icon: Icons.list_alt,
         colorA: const Color(0xFF2E7D32),
         colorB: const Color(0xFF66BB6A),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => MyComplaintsPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MyComplaintsPage(api: widget.api),
+            ),
+          );
         },
       ),
       _Entry(
+        id: 'my-account',
         label: t.myAccount,
         icon: Icons.person,
         colorA: const Color(0xFF6A1B9A),
         colorB: const Color(0xFFAB47BC),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => AccountPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => AccountPage(api: widget.api)),
+          );
         },
       ),
       _Entry(
+        id: 'support',
         label: t.supportTitle,
         icon: Icons.support_agent,
         colorA: const Color(0xFFAD1457),
         colorB: const Color(0xFFEC407A),
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SupportPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => SupportPage(api: widget.api)),
+          );
         },
       ),
       _Entry(
+        id: 'knowledge-base',
         label: t.knowledgeBaseTile ?? 'Knowledge base (FAQ)',
         icon: Icons.menu_book_outlined,
         colorA: const Color(0xFF1E3A8A),
@@ -582,6 +648,22 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       ),
     ];
 
+    final normalizedQuery = _dashboardQuery.trim().toLowerCase();
+    final visibleTiles = normalizedQuery.isEmpty
+        ? tiles
+        : tiles
+            .where(
+              (entry) => entry.label.toLowerCase().contains(normalizedQuery),
+            )
+            .toList(growable: false);
+    _Entry? recentEntry;
+    for (final entry in tiles) {
+      if (entry.id == _recentActionId) {
+        recentEntry = entry;
+        break;
+      }
+    }
+
     return SafeArea(
       child: LayoutBuilder(
         builder: (ctx, constraints) {
@@ -589,7 +671,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           final orientation = MediaQuery.of(ctx).orientation;
           final isPortrait = orientation == Orientation.portrait;
           final isPhone = size.width < 600;
-          final bool compressedHeight = constraints.maxHeight < (isPhone ? 620 : 540);
+          final bool compressedHeight =
+              constraints.maxHeight < (isPhone ? 620 : 540);
 
           final double maxExtent = isPhone
               ? (isPortrait ? 160 : 200)
@@ -614,9 +697,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   if (repHeader != null)
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                      sliver: SliverToBoxAdapter(
-                        child: repHeader,
-                      ),
+                      sliver: SliverToBoxAdapter(child: repHeader),
                     ),
                   SliverToBoxAdapter(
                     child: Padding(
@@ -634,35 +715,74 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       ),
                     ),
                   ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: _QuickAccessHeader(
+                        title: t.dashboardQuickAccess,
+                        searchHint: t.search,
+                        recentLabel: t.dashboardRecentAction,
+                        controller: _searchController,
+                        query: _dashboardQuery,
+                        recentEntry: recentEntry,
+                        onQueryChanged: (value) {
+                          setState(() {
+                            _dashboardQuery = value;
+                            _hoverIndex = -1;
+                          });
+                        },
+                        onClear: () {
+                          _searchController.clear();
+                          setState(() {
+                            _dashboardQuery = '';
+                            _hoverIndex = -1;
+                          });
+                        },
+                        onRecentTap: recentEntry == null
+                            ? null
+                            : () => _activateEntry(recentEntry!),
+                      ),
+                    ),
+                  ),
+                  if (visibleTiles.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                        child: _DashboardSearchEmpty(
+                          message: t.dashboardNoSearchResults,
+                          onClear: () {
+                            _searchController.clear();
+                            setState(() => _dashboardQuery = '');
+                          },
+                        ),
+                      ),
+                    ),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     sliver: SliverGrid(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) {
-                          final e = tiles[i];
-                          final hovered = _hoverIndex == i;
-                          return MouseRegion(
-                            onEnter: (_) => setState(() => _hoverIndex = i),
-                            onExit: (_) => setState(() => _hoverIndex = -1),
-                            child: AnimatedScale(
-                              duration: const Duration(milliseconds: 140),
-                              scale: hovered ? 1.02 : 1.0,
-                              child: _FancyTile(
-                                label: e.label,
-                                icon: e.icon,
-                                colorA: e.colorA,
-                                colorB: e.colorB,
-                                iconSize: iconSize,
-                                fontSize: fontSize,
-                                onTap: e.onTap,
-                                showIndicator: e.showIndicator,
-                                hovered: hovered,
-                              ),
+                      delegate: SliverChildBuilderDelegate((context, i) {
+                        final e = visibleTiles[i];
+                        final hovered = _hoverIndex == i;
+                        return MouseRegion(
+                          onEnter: (_) => setState(() => _hoverIndex = i),
+                          onExit: (_) => setState(() => _hoverIndex = -1),
+                          child: AnimatedScale(
+                            duration: const Duration(milliseconds: 140),
+                            scale: hovered ? 1.02 : 1.0,
+                            child: _DashboardActionTile(
+                              label: e.label,
+                              icon: e.icon,
+                              colorA: e.colorA,
+                              colorB: e.colorB,
+                              iconSize: iconSize,
+                              fontSize: fontSize,
+                              onTap: () => _activateEntry(e),
+                              showIndicator: e.showIndicator,
+                              hovered: hovered,
                             ),
-                          );
-                        },
-                        childCount: tiles.length,
-                      ),
+                          ),
+                        );
+                      }, childCount: visibleTiles.length),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxExtent,
                         mainAxisSpacing: 16,
@@ -678,9 +798,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                       16,
                       16 + MediaQuery.of(ctx).padding.bottom,
                     ),
-                    sliver: SliverToBoxAdapter(
-                      child: const _CatalogButtons(),
-                    ),
+                    sliver: SliverToBoxAdapter(child: const _CatalogButtons()),
                   ),
                 ],
               ),
@@ -724,7 +842,11 @@ class _RepBanner extends StatelessWidget {
         ),
         child: Row(
           children: const [
-            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             SizedBox(width: 10),
             Text('…'),
           ],
@@ -758,13 +880,14 @@ class _RepBanner extends StatelessWidget {
     }
 
     final first = (rep!.firstName).trim();
-    final last  = (rep!.lastName).trim();
+    final last = (rep!.lastName).trim();
     final email = (rep!.email).trim();
     final region = (rep!.region).trim();
 
     final name = [first, last].where((s) => s.isNotEmpty).join(' ');
-    final bannerTitle = (name.isNotEmpty) ? t.rep_banner_title(name)
-                                          : t.rep_banner_title(email.isNotEmpty ? email : '—');
+    final bannerTitle = (name.isNotEmpty)
+        ? t.rep_banner_title(name)
+        : t.rep_banner_title(email.isNotEmpty ? email : '—');
 
     return Container(
       width: double.infinity,
@@ -776,7 +899,10 @@ class _RepBanner extends StatelessWidget {
             const Color(0xFF42A5F5).withOpacity(0.10),
           ],
         ),
-        border: Border.all(color: const Color(0xFF1976D2).withOpacity(0.5), width: 1),
+        border: Border.all(
+          color: const Color(0xFF1976D2).withOpacity(0.5),
+          width: 1,
+        ),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -789,20 +915,37 @@ class _RepBanner extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 34, height: 34,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF1976D2)),
-            child: const Icon(Icons.handshake_outlined, color: Colors.white, size: 20),
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFF1976D2),
+            ),
+            child: const Icon(
+              Icons.handshake_outlined,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(bannerTitle, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+                Text(
+                  bannerTitle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15.5,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 if (email.isNotEmpty || region.isNotEmpty)
                   Text(
-                    [if (email.isNotEmpty) email, if (region.isNotEmpty) region].join(' • '),
+                    [
+                      if (email.isNotEmpty) email,
+                      if (region.isNotEmpty) region,
+                    ].join(' • '),
                     style: TextStyle(color: Colors.grey[800], fontSize: 13),
                   ),
               ],
@@ -814,11 +957,11 @@ class _RepBanner extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: () {
                   final subject = Uri.encodeComponent(t.mail_subject_rep);
-                  final body    = Uri.encodeComponent(t.mail_body_rep(name));
-                  final mailto  = 'mailto:$email?subject=$subject&body=$body';
+                  final body = Uri.encodeComponent(t.mail_body_rep(name));
+                  final mailto = 'mailto:$email?subject=$subject&body=$body';
                   if (kIsWeb) {
                     html.window.open(mailto, '_self');
-                   } else {
+                  } else {
                     // Vorläufig: nichts tun oder Snackbar anzeigen
                     // Besser: url_launcher benutzen (siehe unten)
                   }
@@ -831,6 +974,168 @@ class _RepBanner extends StatelessWidget {
             tooltip: t.refresh,
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAccessHeader extends StatelessWidget {
+  final String title;
+  final String searchHint;
+  final String recentLabel;
+  final TextEditingController controller;
+  final String query;
+  final _Entry? recentEntry;
+  final ValueChanged<String> onQueryChanged;
+  final VoidCallback onClear;
+  final VoidCallback? onRecentTap;
+
+  const _QuickAccessHeader({
+    required this.title,
+    required this.searchHint,
+    required this.recentLabel,
+    required this.controller,
+    required this.query,
+    required this.recentEntry,
+    required this.onQueryChanged,
+    required this.onClear,
+    required this.onRecentTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    Widget buildTitle() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer.withOpacity(.7),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              Icons.dashboard_customize_outlined,
+              color: scheme.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(child: Text(title, style: theme.textTheme.titleLarge)),
+        ],
+      );
+    }
+
+    Widget buildSearch() {
+      return SizedBox(
+        width: 310,
+        child: TextField(
+          controller: controller,
+          onChanged: onQueryChanged,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: searchHint,
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: query.isEmpty
+                ? null
+                : IconButton(
+                    onPressed: onClear,
+                    tooltip: searchHint,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+            isDense: true,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: AppRadius.card,
+        border: Border.all(color: scheme.outlineVariant.withOpacity(.65)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 680;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (wide)
+                Row(
+                  children: [
+                    Expanded(child: buildTitle()),
+                    const SizedBox(width: 20),
+                    buildSearch(),
+                  ],
+                )
+              else ...[
+                buildTitle(),
+                const SizedBox(height: 14),
+                SizedBox(width: double.infinity, child: buildSearch()),
+              ],
+              if (recentEntry != null) ...[
+                const SizedBox(height: 14),
+                ActionChip(
+                  avatar: Icon(
+                    recentEntry!.icon,
+                    size: 18,
+                    color: scheme.primary,
+                  ),
+                  label: Text('$recentLabel: ${recentEntry!.label}'),
+                  onPressed: onRecentTap,
+                  side: BorderSide(color: scheme.primary.withOpacity(.2)),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DashboardSearchEmpty extends StatelessWidget {
+  final String message;
+  final VoidCallback onClear;
+
+  const _DashboardSearchEmpty({required this.message, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: AppRadius.card,
+        border: Border.all(color: scheme.outlineVariant.withOpacity(.65)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off_rounded, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: onClear,
+            tooltip: message,
+            icon: const Icon(Icons.close_rounded),
           ),
         ],
       ),
@@ -872,7 +1177,7 @@ class _CustomerNewsSpotlight extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF4A148C), Color(0xFF7E57C2), Color(0xFFFF8F00)],
+              colors: [AppColors.brandDeep, AppColors.brand, Color(0xFF0C8796)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -964,8 +1269,11 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.fiber_new,
-                                  size: 16, color: Colors.white),
+                              const Icon(
+                                Icons.fiber_new,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 freshLabel,
@@ -1012,8 +1320,7 @@ class _CustomerNewsSpotlight extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        icon:
-                            const Icon(Icons.arrow_outward_rounded, size: 18),
+                        icon: const Icon(Icons.arrow_outward_rounded, size: 18),
                         label: Text(
                           ctaLabel,
                           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -1042,7 +1349,9 @@ class _CatalogButtons extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isPhone = MediaQuery.of(context).size.width < 600;
-    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
+    final localeCode = Localizations.localeOf(
+      context,
+    ).languageCode.toLowerCase();
 
     Widget buildCard({
       required String title,
@@ -1087,7 +1396,11 @@ class _CatalogButtons extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, size: isPhone ? 18 : 20, color: cs.onSurface.withOpacity(0.70)),
+            Icon(
+              icon,
+              size: isPhone ? 18 : 20,
+              color: cs.onSurface.withOpacity(0.70),
+            ),
             const SizedBox(width: 10), // war 12
             Expanded(
               child: Column(
@@ -1114,7 +1427,10 @@ class _CatalogButtons extends StatelessWidget {
                   vertical: 6, // war 8
                 ),
                 textStyle: theme.textTheme.labelMedium,
-                visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+                visualDensity: const VisualDensity(
+                  horizontal: -1,
+                  vertical: -2,
+                ),
               ),
               icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
               label: Text(t.catalog_open),
@@ -1157,6 +1473,7 @@ class _CatalogLink {
 }
 
 class _Entry {
+  final String id;
   final String label;
   final IconData icon;
   final Color colorA;
@@ -1164,6 +1481,7 @@ class _Entry {
   final VoidCallback onTap;
   final bool showIndicator;
   _Entry({
+    required this.id,
     required this.label,
     required this.icon,
     required this.colorA,
@@ -1173,7 +1491,7 @@ class _Entry {
   });
 }
 
-class _FancyTile extends StatelessWidget {
+class _DashboardActionTile extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color colorA;
@@ -1184,7 +1502,7 @@ class _FancyTile extends StatelessWidget {
   final bool showIndicator;
   final bool hovered;
 
-  const _FancyTile({
+  const _DashboardActionTile({
     required this.label,
     required this.icon,
     required this.colorA,
@@ -1194,272 +1512,136 @@ class _FancyTile extends StatelessWidget {
     required this.fontSize,
     this.showIndicator = false,
     this.hovered = false,
-    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(22);
-    final baseGradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Color.lerp(colorA, Colors.white, hovered ? 0.14 : 0.08)!.withOpacity(.97),
-        Color.lerp(colorB, Colors.black, hovered ? 0.08 : 0.03)!.withOpacity(.93),
-      ],
-    );
-
-    final haloGradient = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        colorA.withOpacity(.45),
-        colorB.withOpacity(.38),
-      ],
-    );
-
-    final List<BoxShadow> shadow = [
-      BoxShadow(
-        color: Colors.black.withOpacity(hovered ? 0.24 : 0.18),
-        blurRadius: hovered ? 28 : 20,
-        spreadRadius: -4,
-        offset: Offset(0, hovered ? 16 : 12),
-      ),
-      BoxShadow(
-        color: colorB.withOpacity(0.22),
-        blurRadius: hovered ? 32 : 26,
-        spreadRadius: -6,
-        offset: const Offset(0, 8),
-      ),
-    ];
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final radius = BorderRadius.circular(20);
+    final accent = isDark ? Color.lerp(colorA, Colors.white, .22)! : colorA;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      transform: hovered
-          ? (Matrix4.identity()..translate(0.0, -2.5))
-          : Matrix4.identity(),
+      duration: const Duration(milliseconds: 190),
+      curve: Curves.easeOutCubic,
+      transform: Matrix4.translationValues(0, hovered ? -3 : 0, 0),
       decoration: BoxDecoration(
-        borderRadius: borderRadius,
-        boxShadow: shadow,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: borderRadius,
-          gradient: haloGradient,
+        color: scheme.surface,
+        borderRadius: radius,
+        border: Border.all(
+          color: hovered
+              ? accent.withOpacity(.5)
+              : scheme.outlineVariant.withOpacity(.66),
         ),
-        padding: const EdgeInsets.all(1.6),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: borderRadius,
-          child: InkWell(
-            borderRadius: borderRadius,
-            onTap: onTap,
-            child: Ink(
-              decoration: BoxDecoration(
-                borderRadius: borderRadius,
-                gradient: baseGradient,
-                border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: hovered
+                ? accent.withOpacity(isDark ? .18 : .12)
+                : Colors.black.withOpacity(isDark ? .12 : .045),
+            blurRadius: hovered ? 28 : 16,
+            spreadRadius: -8,
+            offset: Offset(0, hovered ? 15 : 9),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned(
+                right: -36,
+                bottom: -46,
+                child: Container(
+                  width: 130,
+                  height: 130,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [accent.withOpacity(.09), Colors.transparent],
+                    ),
+                  ),
+                ),
               ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxHeight < 160;
-                  final shellSize = compact ? iconSize + 18 : iconSize + 30;
-                  final paddingV = compact ? 14.0 : 20.0;
-                  final spacing = compact ? 10.0 : 16.0;
-                  final accentWidth = compact ? 28.0 : 36.0;
-                  final resolvedFontSize = compact ? fontSize : fontSize + 1;
-
-                  return ClipRRect(
-                    borderRadius: borderRadius,
-                    child: Stack(
+              if (showIndicator)
+                const Positioned(top: 14, right: 14, child: _BlinkingDot()),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        // soft glass shine
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                stops: const [0, .36, 1],
-                                colors: [
-                                  Colors.white.withOpacity(.16),
-                                  Colors.white.withOpacity(.04),
-                                  Colors.black.withOpacity(.08),
-                                ],
-                              ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 190),
+                          width: iconSize + 22,
+                          height: iconSize + 22,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                colorA.withOpacity(isDark ? .32 : .14),
+                                colorB.withOpacity(isDark ? .22 : .08),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: accent.withOpacity(.14)),
                           ),
+                          child: Icon(icon, size: iconSize, color: accent),
                         ),
-                        // spotlight rings
-                        Positioned(
-                          top: -32,
-                          right: -14,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 200),
-                            opacity: hovered ? 1 : .7,
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(.28),
-                                    Colors.white.withOpacity(.03),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: -40,
-                          left: -24,
-                          child: Container(
-                            width: 150,
-                            height: 150,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  colorB.withOpacity(.18),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Diagonal glow stripe
-                        Positioned(
-                          top: -70,
-                          left: -10,
-                          right: -40,
-                          child: Transform.rotate(
-                            angle: -0.35,
-                            child: Container(
-                              height: 120,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(.12),
-                                    Colors.white.withOpacity(.02),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (showIndicator)
-                          const Positioned(
-                            top: 14,
-                            right: 14,
-                            child: _BlinkingDot(),
-                          ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: paddingV),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Center(
-                                  child: Container(
-                                    width: shellSize,
-                                    height: shellSize,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      gradient: RadialGradient(
-                                        colors: [
-                                          Colors.white.withOpacity(.32),
-                                          Colors.white.withOpacity(.10),
-                                        ],
-                                      ),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(hovered ? 0.65 : 0.45),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.18),
-                                          blurRadius: hovered ? 24 : 18,
-                                          offset: const Offset(0, 12),
-                                        ),
-                                        BoxShadow(
-                                          color: colorA.withOpacity(.25),
-                                          blurRadius: hovered ? 26 : 18,
-                                          spreadRadius: -4,
-                                          offset: const Offset(0, 6),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: [
-                                            Colors.white.withOpacity(.28),
-                                            Colors.white.withOpacity(.12),
-                                          ],
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Icon(
-                                          icon,
-                                          size: iconSize,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
+                        const Spacer(),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 190),
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: hovered
+                                ? accent.withOpacity(.12)
+                                : scheme.surfaceContainerHighest.withOpacity(
+                                    .58,
                                   ),
-                                ),
-                              ),
-                              SizedBox(height: spacing),
-                              Flexible(
-                                child: Text(
-                                  label,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: resolvedFontSize,
-                                    letterSpacing: .3,
-                                    height: 1.22,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                width: accentWidth,
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.white.withOpacity(.75),
-                                      Colors.white.withOpacity(.25),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(3),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.white.withOpacity(.24),
-                                      blurRadius: 8,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                            color: hovered ? accent : scheme.onSurfaceVariant,
                           ),
                         ),
                       ],
                     ),
-                  );
-                },
+                    const Spacer(),
+                    Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                        fontSize: fontSize + 1,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 190),
+                      width: hovered ? 54 : 34,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -1531,12 +1713,12 @@ class RepContactPage extends StatefulWidget {
 
 class _RepContactPageState extends State<RepContactPage> {
   final _firstName = TextEditingController();
-  final _lastName  = TextEditingController();
-  final _subject   = TextEditingController();
-  final _message   = TextEditingController();
+  final _lastName = TextEditingController();
+  final _subject = TextEditingController();
+  final _message = TextEditingController();
 
   bool _sending = false;
-  bool _dirty   = false;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -1549,9 +1731,9 @@ class _RepContactPageState extends State<RepContactPage> {
   void _onChanged() {
     if (!_dirty &&
         (_firstName.text.isNotEmpty ||
-         _lastName.text.isNotEmpty ||
-         _subject.text.isNotEmpty ||
-         _message.text.isNotEmpty)) {
+            _lastName.text.isNotEmpty ||
+            _subject.text.isNotEmpty ||
+            _message.text.isNotEmpty)) {
       setState(() => _dirty = true);
     }
   }
@@ -1597,48 +1779,48 @@ class _RepContactPageState extends State<RepContactPage> {
   Future<void> _handleSend() async {
     final t = AppLocalizations.of(context)!;
     final subject = _subject.text.trim();
-    final msg     = _message.text.trim();
+    final msg = _message.text.trim();
 
     if (subject.isEmpty || msg.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_validation)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_validation)));
       return;
     }
 
     final repEmail = widget.rep.email.trim();
     if (repEmail.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_no_rep_email)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_no_rep_email)));
       return;
     }
 
     setState(() => _sending = true);
     try {
-      final company      = (widget.customerCompany ?? '').trim();
+      final company = (widget.customerCompany ?? '').trim();
       final companyEmail = (widget.customerEmail ?? '').trim();
 
       final payload = <String, dynamic>{
-        'repEmail'        : repEmail,
-        'repFirstName'    : widget.rep.firstName,
-        'repLastName'     : widget.rep.lastName,
-        'company'         : company,
-        'companyEmail'    : companyEmail,
+        'repEmail': repEmail,
+        'repFirstName': widget.rep.firstName,
+        'repLastName': widget.rep.lastName,
+        'company': company,
+        'companyEmail': companyEmail,
         'contactFirstName': _firstName.text.trim(),
-        'contactLastName' : _lastName.text.trim(),
-        'subject'         : subject,
-        'message'         : msg,
-        'lang'            : Localizations.localeOf(context).languageCode,
+        'contactLastName': _lastName.text.trim(),
+        'subject': subject,
+        'message': msg,
+        'lang': Localizations.localeOf(context).languageCode,
       };
 
       // 🔴 Jetzt: Versand über dein Backend mit Kunden-Bearer-Token
       await widget.api.sendRepContact(payload);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_sent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_sent)));
       Navigator.of(context).pop(); // zurück zum Dashboard
     } on ApiError catch (e) {
       if (!mounted) return;
@@ -1647,9 +1829,9 @@ class _RepContactPageState extends State<RepContactPage> {
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_error)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -1657,21 +1839,19 @@ class _RepContactPageState extends State<RepContactPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t     = AppLocalizations.of(context)!;
+    final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
+    final cs = theme.colorScheme;
 
-    final company      = (widget.customerCompany ?? '').trim();
+    final company = (widget.customerCompany ?? '').trim();
     final companyEmail = (widget.customerEmail ?? '').trim();
-    final firstRep     = widget.rep.firstName.trim();
-    final lastRep      = widget.rep.lastName.trim();
+    final firstRep = widget.rep.firstName.trim();
+    final lastRep = widget.rep.lastName.trim();
 
     return WillPopScope(
       onWillPop: _confirmLeaveIfDirty,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(t.rep_contact_title),
-        ),
+        appBar: AppBar(title: Text(t.rep_contact_title)),
         body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           child: Column(
@@ -1719,9 +1899,7 @@ class _RepContactPageState extends State<RepContactPage> {
                   Expanded(
                     child: TextField(
                       controller: _lastName,
-                      decoration: InputDecoration(
-                        labelText: t.lastName,
-                      ),
+                      decoration: InputDecoration(labelText: t.lastName),
                     ),
                   ),
                 ],

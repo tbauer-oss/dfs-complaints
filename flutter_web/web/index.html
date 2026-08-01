@@ -16,13 +16,135 @@
 
     <!-- Viewport & Design -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1976d2" />
+    <meta name="theme-color" content="#0865A2" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <style>
-      body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial,
+      :root {
+        color-scheme: light dark;
+        --boot-bg: #f4f7fb;
+        --boot-panel: rgba(255, 255, 255, 0.86);
+        --boot-text: #102030;
+        --boot-muted: #5e6f7f;
+        --boot-border: rgba(8, 101, 162, 0.12);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --boot-bg: #09131f;
+          --boot-panel: rgba(16, 28, 41, 0.9);
+          --boot-text: #edf5fb;
+          --boot-muted: #aab9c7;
+          --boot-border: rgba(124, 183, 235, 0.16);
+        }
+      }
+
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--boot-bg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial,
           "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+      }
+
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(8, 101, 162, 0.14), transparent 32%),
+          radial-gradient(circle at 88% 92%, rgba(25, 167, 160, 0.10), transparent 34%),
+          var(--boot-bg);
+        opacity: 1;
+        transition: opacity 360ms ease, visibility 360ms ease;
+      }
+
+      #boot-splash.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .boot-content {
+        width: min(78vw, 360px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--boot-text);
+        text-align: center;
+        animation: boot-enter 700ms cubic-bezier(.2, .8, .2, 1) both;
+      }
+
+      .boot-icon-shell {
+        width: 108px;
+        height: 108px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--boot-border);
+        border-radius: 30px;
+        background: var(--boot-panel);
+        box-shadow: 0 24px 70px rgba(8, 57, 91, 0.16);
+        backdrop-filter: blur(18px);
+      }
+
+      .boot-icon-shell img {
+        width: 68px;
+        height: 68px;
+        object-fit: contain;
+      }
+
+      .boot-title {
+        margin-top: 26px;
+        font-size: clamp(25px, 5vw, 32px);
+        line-height: 1.1;
+        font-weight: 800;
+        letter-spacing: -0.035em;
+      }
+
+      .boot-subtitle {
+        margin-top: 8px;
+        color: var(--boot-muted);
+        font-size: 13px;
+        font-weight: 650;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .boot-progress {
+        width: 168px;
+        height: 4px;
+        margin-top: 34px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: rgba(8, 101, 162, 0.14);
+      }
+
+      .boot-progress::after {
+        content: "";
+        display: block;
+        width: 42%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #0865a2, #19a7a0);
+        animation: boot-progress 1.35s ease-in-out infinite;
+      }
+
+      @keyframes boot-enter {
+        from { opacity: 0; transform: translateY(10px) scale(.96); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      @keyframes boot-progress {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(350%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .boot-content, .boot-progress::after { animation: none; }
+        #boot-splash { transition-duration: 80ms; }
       }
     </style>
 
@@ -30,6 +152,17 @@
     <script src="flutter.js" defer></script>
   </head>
   <body>
+    <div id="boot-splash" role="status" aria-live="polite" aria-label="DFS Connect wird gestartet">
+      <div class="boot-content">
+        <div class="boot-icon-shell">
+          <img src="icons/icon_192.png" alt="" />
+        </div>
+        <div class="boot-title">DFS Connect</div>
+        <div class="boot-subtitle">Quality · Compliance · Service</div>
+        <div class="boot-progress" aria-hidden="true"></div>
+      </div>
+    </div>
+
     <noscript>
       Bitte JavaScript aktivieren, um die Anwendung zu starten.
     </noscript>

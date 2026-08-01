@@ -1,6 +1,6 @@
 // lib/widgets/pdf_view_web.dart
 import 'dart:html' as html;
-import 'dart:ui' as ui show platformViewRegistry;
+import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 
 class PdfInAppPage extends StatefulWidget {
@@ -31,8 +31,7 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
 
     _viewType = 'pdfjs-${DateTime.now().millisecondsSinceEpoch}';
 
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
+    ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final frame = html.IFrameElement()
         ..src = viewerUrl
         ..style.border = '0'
@@ -45,7 +44,8 @@ class _PdfInAppPageState extends State<PdfInAppPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
+      appBar:
+          AppBar(title: Text(widget.title, overflow: TextOverflow.ellipsis)),
       body: SizedBox.expand(
         child: HtmlElementView(viewType: _viewType),
       ),

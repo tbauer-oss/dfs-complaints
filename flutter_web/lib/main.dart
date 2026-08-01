@@ -11,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'services/app_prefs.dart';
 import 'services/app_prefs_scope.dart';
 import 'dart:html' as html; // für Web-Tab-Titel
+import 'ui/theme/app_theme.dart';
 import 'utils/lang_utils.dart';
 
 // Seiten
@@ -34,9 +35,7 @@ import 'pages/training_signature_page.dart';
 import 'widgets/lang_action.dart';
 import 'widgets/theme_action.dart' as w;
 import 'widgets/password_field.dart';
-
-// ===== THEME BRANDING ===== //
-const kBrandSeed = Color(0xFF1F4C8F); // DFS-Blau – bei Bedarf anpassen
+import 'widgets/app_splash_screen.dart';
 
 String computeInitialRoute() {
   // Web Hash-Deep-Link: https://host/#/sign?t=abc  -> fragment = "/sign?t=abc"
@@ -55,178 +54,20 @@ String computeInitialRoute() {
   return path.startsWith('/') ? path : '/$path';
 }
 
-ThemeData _lightTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: kBrandSeed,
-    brightness: Brightness.light,
-  );
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      centerTitle: false,
-    ),
-    cardTheme: CardTheme(
-      color: scheme.surfaceContainerHighest,
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: scheme.onPrimary,
-        backgroundColor: scheme.primary,
-        minimumSize: const Size(48, 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 40)),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        side: BorderSide(color: scheme.outline),
-        minimumSize: const Size(48, 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerHighest,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.primary, width: 2),
-      ),
-      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
-      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withOpacity(.8)),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: scheme.inverseSurface,
-      contentTextStyle: TextStyle(color: scheme.onInverseSurface),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ),
-    dialogTheme: DialogTheme(
-      backgroundColor: scheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    ),
-    dividerTheme: DividerThemeData(color: scheme.outlineVariant),
-    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStatePropertyAll(scheme.primary),
-      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
-    ),
-  );
-}
-
-ThemeData _darkTheme() {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: kBrandSeed,
-    brightness: Brightness.dark,
-  );
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      centerTitle: false,
-    ),
-    cardTheme: CardTheme(
-      color: scheme.surfaceContainerHighest,
-      elevation: 1,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        foregroundColor: scheme.onPrimary,
-        backgroundColor: scheme.primary,
-        minimumSize: const Size(48, 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        foregroundColor: scheme.onSecondaryContainer,
-        backgroundColor: scheme.secondaryContainer,
-        minimumSize: const Size(48, 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: scheme.onSurface,
-        side: BorderSide(color: scheme.outline),
-        minimumSize: const Size(48, 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerHigh,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.primary, width: 2),
-      ),
-      labelStyle: TextStyle(color: scheme.onSurfaceVariant),
-      hintStyle: TextStyle(color: scheme.onSurfaceVariant.withOpacity(.9)),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      backgroundColor: scheme.inverseSurface,
-      contentTextStyle: TextStyle(color: scheme.onInverseSurface),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ),
-    dialogTheme: DialogTheme(
-      backgroundColor: scheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    ),
-    dividerTheme: DividerThemeData(color: scheme.outlineVariant),
-    listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant),
-    checkboxTheme: CheckboxThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
-    radioTheme: RadioThemeData(fillColor: WidgetStatePropertyAll(scheme.primary)),
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStatePropertyAll(scheme.primary),
-      trackColor: WidgetStatePropertyAll(scheme.primary.withOpacity(.35)),
-    ),
-  );
-}
-
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   setUrlStrategy(const HashUrlStrategy());
-
-  if (html.window.navigator.userAgent.contains('Chrome')) {
-    html.window.addEventListener('beforeinstallprompt', (event) {
-      event.preventDefault(); // verhindert automatisches Anzeigen
-      final deferredPrompt = event as html.BeforeInstallPromptEvent;
-      // Beispiel-Button oder Timer:
-      Future.delayed(const Duration(seconds: 5), () {
-        deferredPrompt.prompt();
-      });
-    });
-  }
-
   runApp(const MyApp());
+
+  // Smooth hand-off from the lightweight HTML loader to the Flutter splash.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final splash = html.document.getElementById('boot-splash');
+    splash?.classes.add('is-hidden');
+    Future<void>.delayed(
+      const Duration(milliseconds: 420),
+      () => splash?.remove(),
+    );
+  });
 }
 
 class MyApp extends StatefulWidget {
@@ -253,21 +94,22 @@ class _MyAppState extends State<MyApp> {
 
   Widget _buildAppBarTitle(BuildContext context, AppLocalizations t) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final logoAsset = isDark ? 'assets/dfs_logo_dunkel.svg' : 'assets/dfs_logo_hell.svg';
+    final compact = MediaQuery.sizeOf(context).width < 620;
+    final logoAsset =
+        isDark ? 'assets/dfs_logo_dunkel.svg' : 'assets/dfs_logo_hell.svg';
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         SvgPicture.asset(
           logoAsset,
-          height: 36,
+          height: compact ? 30 : 36,
           fit: BoxFit.contain,
         ),
-        const SizedBox(width: 10),
-        Text(
-          t.appTitle,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
+        if (!compact) ...[
+          const SizedBox(width: 10),
+          Text(t.appTitle, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
       ],
     );
   }
@@ -275,17 +117,28 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _prefs.load();        // Theme & Sprache laden (triggert Rebuild)
-    _boot();              // deine Session-Logik wie gehabt
+    _prefs.load(); // Theme & Sprache laden (triggert Rebuild)
+    _boot(); // deine Session-Logik wie gehabt
   }
 
   Future<void> _boot() async {
-    await api.restoreSession();
-    await api.ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
+    final minimumSplashTime = Future<void>.delayed(
+      const Duration(milliseconds: 900),
+    );
     Map<String, dynamic>? meta;
-    try { meta = await api.getAppMeta(refresh: true); } catch (_) {}
+    try {
+      await api.restoreSession();
+      await api
+          .ensureRepSession(); // invalides repToken nach Deploys o.ä. wegräumen
+      meta = await api.getAppMeta(refresh: true);
+    } catch (_) {
+      // A network error must not prevent the local app shell from starting.
+    }
+    await minimumSplashTime;
+    if (!mounted) return;
     setState(() {
-      _loggedIn = _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
+      _loggedIn =
+          _customerLoggedIn; // Kunden-Flow bleibt unabhängig vom Vertreter-Flow
       _bootDone = true;
       _appMeta = meta;
     });
@@ -315,7 +168,9 @@ class _MyAppState extends State<MyApp> {
 
   void _openRegister(BuildContext context) {
     api.clearGate();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => RegisterPage(api: api)));
   }
 
   Future<void> _openRepArea(BuildContext ctx) async {
@@ -332,19 +187,60 @@ class _MyAppState extends State<MyApp> {
     Navigator.of(ctx).pushNamed('/reset-password');
   }
 
-  void _onLoggedIn() => setState(() => _loggedIn = true);   // Kundenlogin
+  void _onLoggedIn() => setState(() => _loggedIn = true); // Kundenlogin
   void _onLoggedOut() => setState(() => _loggedIn = false); // Kundenlogout
+
+  Future<void> _requestCustomerLogout(
+    BuildContext context,
+    AppLocalizations t,
+  ) async {
+    final confirm = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(Icons.logout_rounded),
+            title: Text(t.logoutTitle),
+            content: Text(t.logoutConfirm),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(t.cancel),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                icon: const Icon(Icons.logout_rounded),
+                label: Text(t.logout),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirm) return;
+
+    await api.logout();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(t.loggedOut)));
+    _onLoggedOut();
+  }
 
   @override
   Widget build(BuildContext context) {
     if (!_bootDone) {
       return MaterialApp(
-        builder: (_, __) => Scaffold(body: Center(child: CircularProgressIndicator())),
+        title: 'DFS Connect',
+        debugShowCheckedModeBanner: false,
+        theme: DfsTheme.light(),
+        darkTheme: DfsTheme.dark(),
+        themeMode: ThemeMode.system,
+        home: const AppSplashScreen(),
       );
     }
 
     // Web-Tab-Titel setzen (failsafe)
-    try { html.document.title = 'DFS-Connect'; } catch (_) {}
+    try {
+      html.document.title = 'DFS-Connect';
+    } catch (_) {}
 
     // prefs global verfügbar machen
     return AppPrefsScope(
@@ -385,8 +281,8 @@ class _MyAppState extends State<MyApp> {
 
             // ---- Theme ----
             themeMode: prefs.themeMode,
-            theme: _lightTheme(),
-            darkTheme: _darkTheme(),
+            theme: DfsTheme.light(),
+            darkTheme: DfsTheme.dark(),
 
             builder: (ctx, child) {
               final c = child ?? const SizedBox();
@@ -406,24 +302,39 @@ class _MyAppState extends State<MyApp> {
                     child: SafeArea(
                       bottom: false,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
-                            const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 8),
                             const Expanded(
                               child: Text(
                                 'TESTSYSTEM aktiv – keine produktiven Aussendungen.',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                             if (testMail.isNotEmpty) ...[
                               const SizedBox(width: 8),
-                              Text('Mails: $testMail', style: const TextStyle(color: Colors.white)),
+                              Text(
+                                'Mails: $testMail',
+                                style: const TextStyle(color: Colors.white),
+                              ),
                             ],
                             if (pushCount > 0) ...[
                               const SizedBox(width: 8),
-                              Text('Push-Geräte: $pushCount', style: const TextStyle(color: Colors.white)),
+                              Text(
+                                'Push-Geräte: $pushCount',
+                                style: const TextStyle(color: Colors.white),
+                              ),
                             ],
                           ],
                         ),
@@ -452,62 +363,35 @@ class _MyAppState extends State<MyApp> {
                               IconButton(
                                 tooltip: t.help_center_title,
                                 icon: const Icon(Icons.help_outline),
-                                onPressed: () => _navKey.currentState?.pushNamed('/help'),
+                                onPressed: () =>
+                                    _navKey.currentState?.pushNamed('/help'),
                               ),
-                              LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+                              LangAction(
+                                onLocaleChanged: (l) =>
+                                    prefs.setLang(l.languageCode),
+                              ),
                               w.ThemeAction(),
-                            ],
-                            bottom: PreferredSize(
-                              preferredSize: const Size.fromHeight(50),
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  child: FilledButton.icon(
-                                    icon: const Icon(Icons.logout),
-                                    label: Text(t.logout),
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                            context: ctx,
-                                            builder: (dialogCtx) => AlertDialog(
-                                              title: Text(t.logoutTitle),
-                                              content: Text(t.logoutConfirm),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.pop(dialogCtx, false),
-                                                  child: Text(t.cancel),
-                                                ),
-                                                FilledButton(
-                                                  onPressed: () => Navigator.pop(dialogCtx, true),
-                                                  child: Text(t.logout),
-                                                ),
-                                              ],
-                                            ),
-                                          ) ??
-                                          false;
-                                      if (!confirm) return;
-
-                                      await api.logout(); // Kunden-Logout
-                                      if (ctx.mounted) {
-                                        ScaffoldMessenger.of(ctx).showSnackBar(
-                                          SnackBar(content: Text(t.loggedOut)),
-                                        );
-                                      }
-                                      _onLoggedOut();
-                                    },
-                                  ),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: IconButton.filledTonal(
+                                  tooltip: t.logout,
+                                  onPressed: () =>
+                                      _requestCustomerLogout(ctx, t),
+                                  icon: const Icon(Icons.logout_rounded),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                          body: DashboardPage(api: api, onLoggedOut: _onLoggedOut),
+                          body: DashboardPage(
+                              api: api, onLoggedOut: _onLoggedOut),
                           bottomNavigationBar: LegalFooter(api: api),
                         );
                       }
 
                       // Kunde NICHT eingeloggt -> Startseite
                       final scheme = Theme.of(ctx).colorScheme;
-                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                      final isDark =
+                          Theme.of(ctx).brightness == Brightness.dark;
                       return Scaffold(
                         appBar: AppBar(
                           title: _buildAppBarTitle(ctx, t),
@@ -515,9 +399,13 @@ class _MyAppState extends State<MyApp> {
                             IconButton(
                               tooltip: t.help_center_title,
                               icon: const Icon(Icons.help_outline),
-                              onPressed: () => _navKey.currentState?.pushNamed('/help'),
+                              onPressed: () =>
+                                  _navKey.currentState?.pushNamed('/help'),
                             ),
-                            LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
+                            LangAction(
+                              onLocaleChanged: (l) =>
+                                  prefs.setLang(l.languageCode),
+                            ),
                             w.ThemeAction(),
                           ],
                         ),
@@ -527,12 +415,18 @@ class _MyAppState extends State<MyApp> {
                                 ? LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
-                                    colors: [scheme.surface, scheme.surfaceContainerHighest],
+                                    colors: [
+                                      scheme.surface,
+                                      scheme.surfaceContainerHighest,
+                                    ],
                                   )
                                 : const LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
-                                    colors: [Color(0xFFEFF3FA), Color(0xFFFFFFFF)],
+                                    colors: [
+                                      Color(0xFFEFF3FA),
+                                      Color(0xFFFFFFFF)
+                                    ],
                                   ),
                           ),
                           child: LayoutBuilder(
@@ -540,10 +434,13 @@ class _MyAppState extends State<MyApp> {
                               final minHeight = constraints.maxHeight;
                               return SingleChildScrollView(
                                 child: ConstrainedBox(
-                                  constraints: BoxConstraints(minHeight: minHeight),
+                                  constraints:
+                                      BoxConstraints(minHeight: minHeight),
                                   child: Center(
                                     child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 920),
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 920,
+                                      ),
                                       child: Padding(
                                         padding: const EdgeInsets.all(24),
                                         child: Column(
@@ -552,97 +449,216 @@ class _MyAppState extends State<MyApp> {
                                             _LoginScreen(
                                               api: api,
                                               onLoggedIn: _onLoggedIn,
-                                              onOpenRegister: () => _openRegister(ctx),
-                                              onOpenAdmin: () => _openAdmin(ctx),
-                                              onOpenRep: () => _openRepArea(ctx), // -> /repLogin
-                                              onOpenResetPassword: () => _openResetPassword(ctx),
+                                              onOpenRegister: () =>
+                                                  _openRegister(ctx),
+                                              onOpenAdmin: () =>
+                                                  _openAdmin(ctx),
+                                              onOpenRep: () => _openRepArea(
+                                                  ctx), // -> /repLogin
+                                              onOpenResetPassword: () =>
+                                                  _openResetPassword(ctx),
                                             ),
                                             const SizedBox(height: 18),
                                             AnimatedSize(
-                                              duration: const Duration(milliseconds: 220),
+                                              duration: const Duration(
+                                                milliseconds: 220,
+                                              ),
                                               curve: Curves.easeInOut,
                                               child: _showInternal
                                                   ? Container(
                                                       width: double.infinity,
-                                                      padding: const EdgeInsets.all(22),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                        22,
+                                                      ),
                                                       decoration: BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          begin: Alignment.topLeft,
-                                                          end: Alignment.bottomRight,
+                                                        gradient:
+                                                            LinearGradient(
+                                                          begin:
+                                                              Alignment.topLeft,
+                                                          end: Alignment
+                                                              .bottomRight,
                                                           colors: [
-                                                            scheme.primary.withOpacity(isDark ? 0.18 : 0.22),
-                                                            scheme.surfaceVariant.withOpacity(isDark ? 0.45 : 0.35),
+                                                            scheme.primary
+                                                                .withOpacity(
+                                                              isDark
+                                                                  ? 0.18
+                                                                  : 0.22,
+                                                            ),
+                                                            scheme
+                                                                .surfaceVariant
+                                                                .withOpacity(
+                                                              isDark
+                                                                  ? 0.45
+                                                                  : 0.35,
+                                                            ),
                                                           ],
                                                         ),
-                                                        borderRadius: BorderRadius.circular(20),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          20,
+                                                        ),
                                                         border: Border.all(
-                                                          color: scheme.outlineVariant.withOpacity(isDark ? 0.7 : 0.9),
+                                                          color: scheme
+                                                              .outlineVariant
+                                                              .withOpacity(
+                                                            isDark ? 0.7 : 0.9,
+                                                          ),
                                                         ),
                                                         boxShadow: [
                                                           BoxShadow(
-                                                            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
+                                                            color: Colors.black
+                                                                .withOpacity(
+                                                              isDark
+                                                                  ? 0.4
+                                                                  : 0.1,
+                                                            ),
                                                             blurRadius: 20,
-                                                            offset: const Offset(0, 12),
+                                                            offset:
+                                                                const Offset(
+                                                              0,
+                                                              12,
+                                                            ),
                                                           ),
                                                         ],
                                                       ),
                                                       child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .center,
                                                         children: [
                                                           Text(
                                                             t.quick_access_title,
-                                                            style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                                                                  fontWeight: FontWeight.w800,
-                                                                  color: scheme.onSurface,
+                                                            style: Theme.of(ctx)
+                                                                .textTheme
+                                                                .titleLarge
+                                                                ?.copyWith(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w800,
+                                                                  color: scheme
+                                                                      .onSurface,
                                                                 ),
-                                                            textAlign: TextAlign.center,
+                                                            textAlign: TextAlign
+                                                                .center,
                                                           ),
-                                                          const SizedBox(height: 8),
+                                                          const SizedBox(
+                                                              height: 8),
                                                           Text(
                                                             t.quick_access_subtitle,
-                                                            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                                                                  color: scheme.onSurfaceVariant,
+                                                            style: Theme.of(ctx)
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.copyWith(
+                                                                  color: scheme
+                                                                      .onSurfaceVariant,
                                                                 ),
-                                                            textAlign: TextAlign.center,
+                                                            textAlign: TextAlign
+                                                                .center,
                                                           ),
-                                                          const SizedBox(height: 18),
+                                                          const SizedBox(
+                                                            height: 18,
+                                                          ),
                                                           Wrap(
                                                             spacing: 12,
                                                             runSpacing: 12,
-                                                            alignment: WrapAlignment.center,
+                                                            alignment:
+                                                                WrapAlignment
+                                                                    .center,
                                                             children: [
                                                               FilledButton(
-                                                                onPressed: () => _openRepArea(ctx),
-                                                                style: FilledButton.styleFrom(
-                                                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                                                  shape: const StadiumBorder(),
-                                                                  backgroundColor: scheme.primary,
-                                                                  foregroundColor: scheme.onPrimary,
+                                                                onPressed: () =>
+                                                                    _openRepArea(
+                                                                  ctx,
+                                                                ),
+                                                                style: FilledButton
+                                                                    .styleFrom(
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                    horizontal:
+                                                                        20,
+                                                                  ),
+                                                                  shape:
+                                                                      const StadiumBorder(),
+                                                                  backgroundColor:
+                                                                      scheme
+                                                                          .primary,
+                                                                  foregroundColor:
+                                                                      scheme
+                                                                          .onPrimary,
                                                                   elevation: 0,
                                                                 ),
                                                                 child: Row(
-                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
                                                                   children: [
-                                                                    Text(t.rep_area ?? 'Vertreterbereich'),
-                                                                    const SizedBox(width: 8),
-                                                                    const Icon(Icons.chevron_right_rounded, size: 20),
+                                                                    Text(
+                                                                      t.rep_area ??
+                                                                          'Vertreterbereich',
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    const Icon(
+                                                                      Icons
+                                                                          .chevron_right_rounded,
+                                                                      size: 20,
+                                                                    ),
                                                                   ],
                                                                 ),
                                                               ),
                                                               OutlinedButton(
-                                                                onPressed: () => _openAdmin(ctx),
-                                                                style: OutlinedButton.styleFrom(
-                                                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                                                                  shape: const StadiumBorder(),
-                                                                  side: BorderSide(color: scheme.outlineVariant.withOpacity(0.9)),
-                                                                  foregroundColor: scheme.onSurface,
+                                                                onPressed: () =>
+                                                                    _openAdmin(
+                                                                        ctx),
+                                                                style: OutlinedButton
+                                                                    .styleFrom(
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .symmetric(
+                                                                    vertical:
+                                                                        14,
+                                                                    horizontal:
+                                                                        20,
+                                                                  ),
+                                                                  shape:
+                                                                      const StadiumBorder(),
+                                                                  side:
+                                                                      BorderSide(
+                                                                    color: scheme
+                                                                        .outlineVariant
+                                                                        .withOpacity(
+                                                                      0.9,
+                                                                    ),
+                                                                  ),
+                                                                  foregroundColor:
+                                                                      scheme
+                                                                          .onSurface,
                                                                 ),
                                                                 child: Row(
-                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
                                                                   children: [
-                                                                    Text(t.admin_area ?? 'DFS Portal'),
-                                                                    const SizedBox(width: 8),
-                                                                    Icon(Icons.arrow_outward_rounded, color: scheme.primary, size: 20),
+                                                                    Text(
+                                                                      t.admin_area ??
+                                                                          'DFS Portal',
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    Icon(
+                                                                      Icons
+                                                                          .arrow_outward_rounded,
+                                                                      color: scheme
+                                                                          .primary,
+                                                                      size: 20,
+                                                                    ),
                                                                   ],
                                                                 ),
                                                               ),
@@ -667,7 +683,8 @@ class _MyAppState extends State<MyApp> {
                           api: api,
                           trailing: _InternalFooterButton(
                             expanded: _showInternal,
-                            onPressed: () => setState(() => _showInternal = !_showInternal),
+                            onPressed: () =>
+                                setState(() => _showInternal = !_showInternal),
                           ),
                         ),
                       );
@@ -679,24 +696,25 @@ class _MyAppState extends State<MyApp> {
               // Vertreter-Dashboard
               '/rep': (_) => RepDashboardPage(api: api),
               '/help': (ctx) {
-                    final args = ModalRoute.of(ctx)?.settings.arguments;
-                    String? section;
-                    String? topic;
-                    if (args is Map<String, String>) {
-                      section = args['section'];
-                      topic = args['topic'];
-                    }
-                    return HelpCenterPage(
-                      initialSectionId: section,
-                      initialTopicId: topic,
-                    );
-                  },
+                final args = ModalRoute.of(ctx)?.settings.arguments;
+                String? section;
+                String? topic;
+                if (args is Map<String, String>) {
+                  section = args['section'];
+                  topic = args['topic'];
+                }
+                return HelpCenterPage(
+                  initialSectionId: section,
+                  initialTopicId: topic,
+                );
+              },
               '/admin/wiki': (_) => AdminPage.wiki(
                     api: api,
                     portalProfile: api.portalProfile,
                     onMetaUpdated: (meta) => setState(() => _appMeta = meta),
                   ),
-              '/compliance/regulatory-sync': (_) => RegulatorySyncPage(api: api),
+              '/compliance/regulatory-sync': (_) =>
+                  RegulatorySyncPage(api: api),
               '/compliance/gspr': (_) => AdminPage(
                     api: api,
                     portalProfile: api.portalProfile,
@@ -706,7 +724,8 @@ class _MyAppState extends State<MyApp> {
               '/admin/prrc': (ctx) => PrrcDashboardPage(
                     api: api,
                     portalProfile: api.portalProfile,
-                    initialTicket: ModalRoute.of(ctx)?.settings.arguments as String?,
+                    initialTicket:
+                        ModalRoute.of(ctx)?.settings.arguments as String?,
                   ),
               '/admin/wiki/categories': (_) => AdminPage.wikiCategories(
                     api: api,
@@ -781,7 +800,8 @@ class _MyAppState extends State<MyApp> {
                   final chapter = segments[3].toUpperCase();
                   final args = settings.arguments;
                   final gsprArgs = args is GsprChapterArgs ? args : null;
-                  final access = gsprArgs?.access ?? GsprAccess.fromProfile(api.portalProfile);
+                  final access = gsprArgs?.access ??
+                      GsprAccess.fromProfile(api.portalProfile);
                   return MaterialPageRoute(
                     builder: (_) => GsprChapterPage(
                       chapter: chapter,
@@ -799,7 +819,9 @@ class _MyAppState extends State<MyApp> {
                 final uri = Uri.tryParse(name);
                 final segments = uri?.pathSegments ?? const [];
                 final segment = segments.length > 2 ? segments[2] : null;
-                final trainingSection = trainingAdminSectionFromPathSegment(segment);
+                final trainingSection = trainingAdminSectionFromPathSegment(
+                  segment,
+                );
                 return MaterialPageRoute(
                   builder: (_) => AdminPage(
                     api: api,
@@ -838,7 +860,9 @@ class _MyAppState extends State<MyApp> {
                     if (segments.length > 3) {
                       reportYear = int.tryParse(segments[3]);
                     }
-                    reportYear ??= int.tryParse(uri?.queryParameters['year'] ?? '');
+                    reportYear ??= int.tryParse(
+                      uri?.queryParameters['year'] ?? '',
+                    );
                   }
                 }
 
@@ -862,7 +886,7 @@ class _MyAppState extends State<MyApp> {
       ),
     );
   }
-  } // <<< _MyAppState SAUBER geschlossen
+} // <<< _MyAppState SAUBER geschlossen
 
 class _AdminLoginResult {
   final bool remember;
@@ -954,7 +978,8 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
   String? _mapPortalEmailError(String? backendMessage, AppLocalizations t) {
     if (backendMessage == null || backendMessage.isEmpty) return null;
     final lower = backendMessage.toLowerCase();
-    if (lower.contains('internen dfs-account') || lower.contains('internal dfs account')) {
+    if (lower.contains('internen dfs-account') ||
+        lower.contains('internal dfs account')) {
       return t.dfs_portal_email_forbidden;
     }
     return null;
@@ -997,13 +1022,18 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
                             ? 'Bitte alle Felder ausfüllen.'
                             : (res.statusCode == 401
                                 ? t.login_failed_check_credentials
-                                : (res.message?.isNotEmpty == true ? res.message! : t.login_failed)));
+                                : (res.message?.isNotEmpty == true
+                                    ? res.message!
+                                    : t.login_failed)));
         setState(() => _err = err);
         return;
       }
 
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(_AdminLoginResult(remember: _remember));
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).pop(_AdminLoginResult(remember: _remember));
     } catch (e) {
       setState(() => _err = t.login_failed_with_error('$e'));
     } finally {
@@ -1015,7 +1045,8 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final t = AppLocalizations.of(context)!;
-    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+    final canLogin =
+        !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1023,7 +1054,11 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: scheme.outline.withOpacity(0.22)),
         boxShadow: const [
-          BoxShadow(color: Colors.black54, blurRadius: 28, offset: Offset(0, 16)),
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 28,
+            offset: Offset(0, 16),
+          ),
         ],
       ),
       child: Padding(
@@ -1042,7 +1077,9 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
                     decoration: BoxDecoration(
                       color: scheme.secondaryContainer.withOpacity(0.95),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: scheme.outlineVariant.withOpacity(0.4)),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withOpacity(0.4),
+                      ),
                     ),
                     child: SvgPicture.asset(
                       'assets/DFS_Connect+.svg',
@@ -1065,10 +1102,11 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
                         ),
                         Text(
                           t.login,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.2,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                  ),
                         ),
                       ],
                     ),
@@ -1076,23 +1114,26 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
                   IconButton(
                     icon: const Icon(Icons.close),
                     color: scheme.outlineVariant,
-                    onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                    onPressed: () =>
+                        Navigator.of(context, rootNavigator: true).pop(),
                   ),
                 ],
               ),
               const SizedBox(height: 18),
               Text(
                 t.quick_access_subtitle,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurface.withOpacity(0.7)),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurface.withOpacity(0.7),
+                    ),
               ),
               const SizedBox(height: 22),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
-                autofillHints: const [AutofillHints.username, AutofillHints.email],
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
                 decoration: InputDecoration(
                   labelText: t.email,
                   border: const OutlineInputBorder(),
@@ -1113,7 +1154,9 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
               ),
               CheckboxListTile(
                 value: _remember,
-                onChanged: _busy ? null : (v) => setState(() => _remember = v ?? false),
+                onChanged: _busy
+                    ? null
+                    : (v) => setState(() => _remember = v ?? false),
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
@@ -1129,7 +1172,11 @@ class _AdminLoginDialogState extends State<_AdminLoginDialog> {
                 child: FilledButton.icon(
                   onPressed: canLogin ? _submitPortalLogin : null,
                   icon: _busy
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.login),
                   label: Text(t.login),
                 ),
@@ -1146,7 +1193,10 @@ class _InternalFooterButton extends StatelessWidget {
   final bool expanded;
   final VoidCallback onPressed;
 
-  const _InternalFooterButton({required this.expanded, required this.onPressed});
+  const _InternalFooterButton({
+    required this.expanded,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1207,14 +1257,20 @@ class _LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<_LoginScreen> {
   final _email = TextEditingController();
-  final _pw    = TextEditingController();
+  final _pw = TextEditingController();
   bool _busy = false;
   String? _err;
 
   Future<void> _doLogin() async {
-    setState(() { _busy = true; _err = null; });
+    setState(() {
+      _busy = true;
+      _err = null;
+    });
     try {
-      final result = await widget.api.login(_email.text.trim(), _pw.text); // Kunden-Login
+      final result = await widget.api.login(
+        _email.text.trim(),
+        _pw.text,
+      ); // Kunden-Login
       if (!mounted) return;
       if (result.ok) {
         widget.onLoggedIn();
@@ -1244,140 +1300,337 @@ class _LoginScreenState extends State<_LoginScreen> {
     super.dispose();
   }
 
+  Widget _buildBrandPanel(
+    BuildContext context,
+    AppLocalizations t, {
+    required bool compact,
+  }) {
+    return Container(
+      constraints: BoxConstraints(minHeight: compact ? 210 : 520),
+      padding: EdgeInsets.all(compact ? 24 : 34),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.brandDeep, AppColors.brand, Color(0xFF1688B7)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: compact ? -42 : -74,
+            top: compact ? -60 : -92,
+            child: Container(
+              width: compact ? 170 : 250,
+              height: compact ? 170 : 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withOpacity(.12),
+                  width: 28,
+                ),
+              ),
+            ),
+          ),
+          Column(
+            mainAxisAlignment:
+                compact ? MainAxisAlignment.start : MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SvgPicture.asset(
+                'assets/dfs_logo_dunkel.svg',
+                height: compact ? 42 : 50,
+                width: compact ? 108 : 132,
+                fit: BoxFit.contain,
+                alignment: Alignment.centerLeft,
+              ),
+              SizedBox(height: compact ? 22 : 44),
+              Text(
+                t.loginHeroTitle,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      height: 1.06,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                t.loginHeroSubtitle,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.white.withOpacity(.88),
+                      height: 1.5,
+                    ),
+              ),
+              if (!compact) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.09),
+                    borderRadius: AppRadius.control,
+                    border: Border.all(color: Colors.white.withOpacity(.16)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.verified_user_outlined,
+                        color: Colors.white,
+                        size: 21,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          t.loginSecurityCaption,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.white.withOpacity(.9),
+                                    height: 1.45,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoginForm(BuildContext context, AppLocalizations t) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final canLogin =
+        !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(30, 32, 30, 30),
+      child: AutofillGroup(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer.withOpacity(.64),
+                borderRadius: AppRadius.chip,
+              ),
+              child: Text(
+                t.customer_area,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(t.customer_login, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text(
+              t.loginSecurityCaption,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 26),
+            TextField(
+              controller: _email,
+              enabled: !_busy,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: InputDecoration(
+                labelText: t.email,
+                prefixIcon: const Icon(Icons.alternate_email_rounded),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 14),
+            PasswordField(
+              controller: _pw,
+              enabled: !_busy,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              decoration: InputDecoration(
+                labelText: t.password,
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+              ),
+              onSubmitted: (_) => canLogin ? _doLogin() : null,
+              onChanged: (_) => setState(() {}),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              child: _err == null
+                  ? const SizedBox(height: 18)
+                  : Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 14),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: scheme.errorContainer.withOpacity(.7),
+                        borderRadius: AppRadius.control,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 20,
+                            color: scheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              _err!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: canLogin ? _doLogin : null,
+                icon: _busy
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: scheme.onPrimary,
+                        ),
+                      )
+                    : const Icon(Icons.login_rounded),
+                label: Text(t.login),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                onPressed: _busy ? null : widget.onOpenRegister,
+                label: Text(t.register),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Divider(color: scheme.outlineVariant.withOpacity(.7)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: scheme.secondaryContainer.withOpacity(.7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.lock_reset_rounded,
+                    color: scheme.onSecondaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t.forgot_password_button,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        t.forgot_password_instructions,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: _busy ? null : widget.onOpenResetPassword,
+                  tooltip: t.reset_password_request_action,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final loginLogo = isDarkMode ? 'assets/DFS_Dunkel.svg' : 'assets/DFS_Hell.svg';
+    final scheme = Theme.of(context).colorScheme;
 
-    return Card(
-      elevation: 8,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 700),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  SizedBox(
-                    height: 60,
-                    child: SvgPicture.asset(
-                      loginLogo,
-                      height: 60,
-                      fit: BoxFit.contain,
-                      alignment: Alignment.centerLeft,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      t.customer_login,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Divider(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.6)),
-              const SizedBox(height: 14),
-
-              TextField(
-                controller: _email,
-                decoration: InputDecoration(
-                  labelText: t.email,
-                  border: const OutlineInputBorder(),
-                ),
-                enabled: !_busy,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 12),
-              PasswordField(
-                controller: _pw,
-                decoration: InputDecoration(
-                  labelText: t.password,
-                  border: const OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => canLogin ? _doLogin() : null,
-                enabled: !_busy,
-                onChanged: (_) => setState(() {}),
-              ),
-
-              if (_err != null) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(_err!, style: const TextStyle(color: Colors.red)),
-                ),
-              ],
-
-              const SizedBox(height: 14),
-
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: canLogin ? _doLogin : null,
-                  child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(t.login),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.person_add_alt),
-                  onPressed: _busy ? null : widget.onOpenRegister,
-                  label: Text(t.register),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.35),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.6),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 760;
+        final content = wide
+            ? IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            t.forgot_password_button,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ],
+                    Expanded(
+                      flex: 9,
+                      child: _buildBrandPanel(context, t, compact: false),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      t.forgot_password_instructions,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _busy ? null : widget.onOpenResetPassword,
-                      icon: const Icon(Icons.mail_outline),
-                      label: Text(t.reset_password_request_action),
-                    ),
+                    Expanded(flex: 11, child: _buildLoginForm(context, t)),
                   ],
                 ),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildBrandPanel(context, t, compact: true),
+                  _buildLoginForm(context, t),
+                ],
+              );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: AppRadius.hero,
+            border: Border.all(color: scheme.outlineVariant.withOpacity(.7)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(
+                  Theme.of(context).brightness == Brightness.dark ? .28 : .09,
+                ),
+                blurRadius: 42,
+                spreadRadius: -12,
+                offset: const Offset(0, 24),
               ),
             ],
           ),
-        ),
-      ),
+          child: content,
+        );
+      },
     );
   }
 }
