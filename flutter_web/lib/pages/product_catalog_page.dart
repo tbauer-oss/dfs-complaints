@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../models/dfs_product.dart';
 import '../services/dfs_product_service.dart';
+import '../widgets/width_bound_dropdown_menu.dart';
 
 class ProductCatalogPage extends StatefulWidget {
   final List<DfsProduct> products;
@@ -321,6 +322,11 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   Future<void> _openEditor({DfsProduct? product}) async {
     if (!widget.canWrite) return;
     final isEdit = product != null;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final dialogContentWidth = math.min(780.0, math.max(240.0, viewportWidth - 80.0));
+    final fieldWidth = dialogContentWidth >= 720
+        ? (dialogContentWidth - 12) / 2
+        : dialogContentWidth;
     final controllers = <String, TextEditingController>{};
 
     for (final key in DfsProduct.fieldOrder) {
@@ -337,9 +343,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     final result = await showDialog<DfsProduct>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         title: Text(isEdit ? 'Artikel bearbeiten' : 'Neuen Artikel anlegen'),
         content: SizedBox(
-          width: 780,
+          width: dialogContentWidth,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -353,22 +360,19 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                     final options = _dropdownKeys.contains(key) ? _optionsFor(key) : const <String>[];
 
                     if (_dropdownKeys.contains(key)) {
-                      return SizedBox(
-                        width: 360,
-                        child: DropdownMenu<String>(
-                          controller: controller,
-                          label: Text(label),
-                          dropdownMenuEntries:
-                              options.map((v) => DropdownMenuEntry<String>(value: v, label: v)).toList(),
-                          enableFilter: true,
-                          requestFocusOnTap: true,
-                          inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-                        ),
+                      return WidthBoundDropdownMenu(
+                        width: fieldWidth,
+                        controller: controller,
+                        label: label,
+                        options: options,
+                        menuHeight: 320,
+                        inputDecorationTheme:
+                            const InputDecorationTheme(border: OutlineInputBorder()),
                       );
                     }
 
                     return SizedBox(
-                      width: 360,
+                      width: fieldWidth,
                       child: TextField(
                         controller: controller,
                         decoration: InputDecoration(
@@ -677,25 +681,21 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                   );
 
                                   if (_dropdownKeys.contains(key)) {
-                                    return SizedBox(
+                                    return WidthBoundDropdownMenu(
                                       width: fieldWidth,
-                                      child: DropdownMenu<String>(
-                                        controller: ctrl,
-                                        label: Text(label, style: Theme.of(context).textTheme.bodySmall),
-                                        enableFilter: true,
-                                        enableSearch: true,
-                                        textStyle: Theme.of(context).textTheme.bodySmall,
-                                        leadingIcon: const Icon(Icons.filter_alt_outlined, size: 18),
-                                        dropdownMenuEntries: options
-                                            .map((v) => DropdownMenuEntry<String>(value: v, label: v))
-                                            .toList(),
-                                        inputDecorationTheme: InputDecorationTheme(
-                                          isDense: true,
-                                          contentPadding: baseDecoration.contentPadding,
-                                          border: baseDecoration.border as OutlineInputBorder?,
-                                          labelStyle: baseDecoration.labelStyle,
-                                          floatingLabelStyle: baseDecoration.floatingLabelStyle,
-                                        ),
+                                      controller: ctrl,
+                                      label: label,
+                                      options: options,
+                                      labelStyle: Theme.of(context).textTheme.bodySmall,
+                                      textStyle: Theme.of(context).textTheme.bodySmall,
+                                      leadingIcon:
+                                          const Icon(Icons.filter_alt_outlined, size: 18),
+                                      inputDecorationTheme: InputDecorationTheme(
+                                        isDense: true,
+                                        contentPadding: baseDecoration.contentPadding,
+                                        border: baseDecoration.border as OutlineInputBorder?,
+                                        labelStyle: baseDecoration.labelStyle,
+                                        floatingLabelStyle: baseDecoration.floatingLabelStyle,
                                       ),
                                     );
                                   }
