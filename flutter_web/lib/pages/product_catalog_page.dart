@@ -138,8 +138,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 
         void showMustKeepOneMessage() {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Mindestens eine Spalte muss sichtbar bleiben.')),
+            const SnackBar(content: Text('Mindestens eine Spalte muss sichtbar bleiben.')),
           );
         }
 
@@ -173,16 +172,17 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Spalten auswählen oder per Drag & Drop in die gewünschte Reihenfolge bringen.',
-                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                       ),
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         TextButton.icon(
-                          onPressed: () =>
-                              setStateDialog(() => tempHidden.clear()),
+                          onPressed: () => setStateDialog(() => tempHidden.clear()),
                           icon: const Icon(Icons.select_all),
                           label: const Text('Alle anzeigen'),
                         ),
@@ -198,8 +198,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                 ..addAll(tempOrder.skip(1));
                             });
                           },
-                          icon: const Icon(
-                              Icons.indeterminate_check_box_outlined),
+                          icon: const Icon(Icons.indeterminate_check_box_outlined),
                           label: const Text('Alle außer erster ausblenden'),
                         ),
                       ],
@@ -285,23 +284,20 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   }
 
   List<DfsProduct> _applyFilters() {
-    final filters = _filterCtrls
-        .map((key, ctrl) => MapEntry(key, ctrl.text.trim().toLowerCase()));
+    final filters = _filterCtrls.map((key, ctrl) => MapEntry(key, ctrl.text.trim().toLowerCase()));
     final search = _globalSearch.trim().toLowerCase();
 
     return _items.where((p) {
       final map = p.toHeaderMap();
 
-      if (search.isNotEmpty &&
-          !map.values.any((v) => v.toLowerCase().contains(search))) {
+      if (search.isNotEmpty && !map.values.any((v) => v.toLowerCase().contains(search))) {
         return false;
       }
 
       for (final entry in filters.entries) {
         final filter = entry.value;
         if (filter.isEmpty) continue;
-        if (!(map[entry.key]?.toLowerCase().contains(filter) ?? false))
-          return false;
+        if (!(map[entry.key]?.toLowerCase().contains(filter) ?? false)) return false;
       }
 
       return true;
@@ -314,11 +310,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     }
 
     final values = _items
-        .map((p) => p
-            .fieldValue(key)
-            .replaceAll('\n', ' ')
-            .replaceAll(RegExp(' +'), ' ')
-            .trim())
+        .map((p) =>
+            p.fieldValue(key).replaceAll('\n', ' ').replaceAll(RegExp(' +'), ' ').trim())
         .where((v) => v.isNotEmpty)
         .toSet()
         .toList();
@@ -330,13 +323,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     if (!widget.canWrite) return;
     final isEdit = product != null;
     final viewportWidth = MediaQuery.sizeOf(context).width;
-    final dialogContentWidth = math.min(
-      780.0,
-      math.max(240.0, viewportWidth - 80.0),
-    );
-    final useTwoColumns = dialogContentWidth >= 720;
-    final fieldWidth =
-        useTwoColumns ? (dialogContentWidth - 12) / 2 : dialogContentWidth;
+    final dialogContentWidth = math.min(780.0, math.max(240.0, viewportWidth - 80.0));
+    final fieldWidth = dialogContentWidth >= 720
+        ? (dialogContentWidth - 12) / 2
+        : dialogContentWidth;
     final controllers = <String, TextEditingController>{};
 
     for (final key in DfsProduct.fieldOrder) {
@@ -358,52 +348,51 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
         content: SizedBox(
           width: dialogContentWidth,
           child: SingleChildScrollView(
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: DfsProduct.fieldOrder.map((key) {
-                final label = DfsProduct.fieldLabels[key] ?? key;
-                final controller = controllers[key]!;
-                final options = _dropdownKeys.contains(key)
-                    ? _optionsFor(key)
-                    : const <String>[];
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: DfsProduct.fieldOrder.map((key) {
+                    final label = DfsProduct.fieldLabels[key] ?? key;
+                    final controller = controllers[key]!;
+                    final options = _dropdownKeys.contains(key) ? _optionsFor(key) : const <String>[];
 
-                if (_dropdownKeys.contains(key)) {
-                  return WidthBoundDropdownMenu(
-                    width: fieldWidth,
-                    controller: controller,
-                    label: label,
-                    options: options,
-                    menuHeight: 320,
-                    inputDecorationTheme: const InputDecorationTheme(
-                      border: OutlineInputBorder(),
-                    ),
-                  );
-                }
+                    if (_dropdownKeys.contains(key)) {
+                      return WidthBoundDropdownMenu(
+                        width: fieldWidth,
+                        controller: controller,
+                        label: label,
+                        options: options,
+                        menuHeight: 320,
+                        inputDecorationTheme:
+                            const InputDecorationTheme(border: OutlineInputBorder()),
+                      );
+                    }
 
-                return SizedBox(
-                  width: fieldWidth,
-                  child: TextField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      labelText: label,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                );
-              }).toList(),
+                    return SizedBox(
+                      width: fieldWidth,
+                      child: TextField(
+                        controller: controller,
+                        decoration: InputDecoration(
+                          labelText: label,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
           ),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
           FilledButton(
             onPressed: widget.canWrite
                 ? () {
-                    final map = controllers
-                        .map((key, ctrl) => MapEntry(key, ctrl.text.trim()));
+                    final map = controllers.map((key, ctrl) => MapEntry(key, ctrl.text.trim()));
                     final updated = DfsProduct.fromHeaderMap(map);
                     Navigator.pop(ctx, updated);
                   }
@@ -420,8 +409,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 
     setState(() {
       if (isEdit) {
-        final idx =
-            _items.indexWhere((p) => p.articleNumber == product!.articleNumber);
+        final idx = _items.indexWhere((p) => p.articleNumber == product!.articleNumber);
         if (idx >= 0) {
           _items[idx] = result;
         }
@@ -433,9 +421,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     widget.onProductsChanged(_items);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                isEdit ? 'Artikel aktualisiert.' : 'Artikel hinzugefügt.')),
+        SnackBar(content: Text(isEdit ? 'Artikel aktualisiert.' : 'Artikel hinzugefügt.')),
       );
     }
   }
@@ -446,22 +432,16 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Artikel löschen'),
-        content:
-            Text('Soll ${product.articleNumber} wirklich entfernt werden?'),
+        content: Text('Soll ${product.articleNumber} wirklich entfernt werden?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Löschen')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
         ],
       ),
     );
     if (ok != true) return;
 
-    setState(() =>
-        _items.removeWhere((p) => p.articleNumber == product.articleNumber));
+    setState(() => _items.removeWhere((p) => p.articleNumber == product.articleNumber));
     widget.onProductsChanged(_items);
   }
 
@@ -496,8 +476,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Spalten auswählen oder alle übernehmen.',
-                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                       ),
                     ),
                   ],
@@ -505,13 +487,9 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
               ),
             ),
             actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Abbrechen')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
               FilledButton(
-                onPressed: selected.isEmpty
-                    ? null
-                    : () => Navigator.pop(ctx, selected),
+                onPressed: selected.isEmpty ? null : () => Navigator.pop(ctx, selected),
                 child: const Text('Export starten'),
               ),
             ],
@@ -522,8 +500,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 
     if (confirmed == null || confirmed.isEmpty) return;
 
-    final columns =
-        DfsProduct.fieldOrder.where((c) => confirmed.contains(c)).toList();
+    final columns = DfsProduct.fieldOrder.where((c) => confirmed.contains(c)).toList();
     final csv = _service.exportCsv(source, columns);
     final bytes = utf8.encode(csv);
     final blob = html.Blob([bytes]);
@@ -540,18 +517,15 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     final filtered = _applyFilters();
 
     final filteredLength = filtered.length;
-    final totalPages =
-        filteredLength == 0 ? 1 : (filteredLength / _rowsPerPage).ceil();
+    final totalPages = filteredLength == 0 ? 1 : (filteredLength / _rowsPerPage).ceil();
     final currentPage = filteredLength == 0
         ? 0
         : _currentPage.clamp(0, math.max(0, totalPages - 1)).toInt();
-    final pageItems =
-        filtered.skip(currentPage * _rowsPerPage).take(_rowsPerPage).toList();
+    final pageItems = filtered.skip(currentPage * _rowsPerPage).take(_rowsPerPage).toList();
     final startIndex = filteredLength == 0 ? 0 : currentPage * _rowsPerPage + 1;
     final endIndex = filteredLength == 0
         ? 0
-        : math.min(
-            filteredLength, currentPage * _rowsPerPage + pageItems.length);
+        : math.min(filteredLength, currentPage * _rowsPerPage + pageItems.length);
     final visibleFields =
         _columnOrder.where((key) => !_hiddenColumns.contains(key)).toList();
 
@@ -588,10 +562,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
             IconButton(
               tooltip: 'Neu laden',
               icon: widget.loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.refresh),
               onPressed: widget.onReload,
             ),
@@ -620,15 +591,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline,
-                        color: Theme.of(context).colorScheme.onErrorContainer),
+                    Icon(Icons.error_outline, color: Theme.of(context).colorScheme.onErrorContainer),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         widget.error!,
-                        style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onErrorContainer),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
                       ),
                     ),
                   ],
@@ -648,19 +616,14 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                     child: Row(
                       children: [
                         Icon(Icons.lock_outline,
-                            size: 18,
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
+                            size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 8),
                         Text(
                           'Nur Lesezugriff – Änderungen sind deaktiviert.',
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
-                              ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant),
+                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -669,8 +632,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   children: [
                     const Icon(Icons.filter_alt_outlined),
                     const SizedBox(width: 8),
-                    Text('Filter',
-                        style: Theme.of(context).textTheme.titleSmall),
+                    Text('Filter', style: Theme.of(context).textTheme.titleSmall),
                     const Spacer(),
                     TextButton.icon(
                       onPressed: _resetFilters,
@@ -679,10 +641,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                     ),
                     const SizedBox(width: 6),
                     TextButton.icon(
-                      onPressed: () =>
-                          setState(() => _showFilters = !_showFilters),
-                      icon: Icon(
-                          _showFilters ? Icons.expand_less : Icons.expand_more),
+                      onPressed: () => setState(() => _showFilters = !_showFilters),
+                      icon: Icon(_showFilters ? Icons.expand_less : Icons.expand_more),
                       label: Text(_showFilters ? 'Einklappen' : 'Ausklappen'),
                     ),
                   ],
@@ -697,33 +657,26 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                             builder: (context, constraints) {
                               final isCompact = constraints.maxWidth < 760;
                               final fieldWidth = isCompact
-                                  ? math.max(
-                                      160.0, constraints.maxWidth / 2 - 12)
+                                  ? math.max(160.0, constraints.maxWidth / 2 - 12)
                                   : 200.0;
 
                               return Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: DfsProduct.fieldOrder.map((key) {
-                                  final label =
-                                      DfsProduct.fieldLabels[key] ?? key;
+                                  final label = DfsProduct.fieldLabels[key] ?? key;
                                   final ctrl = _filterCtrls[key]!;
-                                  final options = _dropdownKeys.contains(key)
-                                      ? _optionsFor(key)
-                                      : const <String>[];
+                                  final options =
+                                      _dropdownKeys.contains(key) ? _optionsFor(key) : const <String>[];
 
                                   final baseDecoration = InputDecoration(
                                     labelText: label,
-                                    labelStyle:
-                                        Theme.of(context).textTheme.bodySmall,
-                                    floatingLabelStyle:
-                                        Theme.of(context).textTheme.bodySmall,
-                                    prefixIcon: const Icon(
-                                        Icons.filter_alt_outlined,
-                                        size: 18),
+                                    labelStyle: Theme.of(context).textTheme.bodySmall,
+                                    floatingLabelStyle: Theme.of(context).textTheme.bodySmall,
+                                    prefixIcon: const Icon(Icons.filter_alt_outlined, size: 18),
                                     isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 8),
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                     border: const OutlineInputBorder(),
                                   );
 
@@ -733,24 +686,16 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                       controller: ctrl,
                                       label: label,
                                       options: options,
-                                      labelStyle:
-                                          Theme.of(context).textTheme.bodySmall,
-                                      textStyle:
-                                          Theme.of(context).textTheme.bodySmall,
-                                      leadingIcon: const Icon(
-                                        Icons.filter_alt_outlined,
-                                        size: 18,
-                                      ),
-                                      inputDecorationTheme:
-                                          InputDecorationTheme(
+                                      labelStyle: Theme.of(context).textTheme.bodySmall,
+                                      textStyle: Theme.of(context).textTheme.bodySmall,
+                                      leadingIcon:
+                                          const Icon(Icons.filter_alt_outlined, size: 18),
+                                      inputDecorationTheme: InputDecorationTheme(
                                         isDense: true,
-                                        contentPadding:
-                                            baseDecoration.contentPadding,
-                                        border: baseDecoration.border
-                                            as OutlineInputBorder?,
+                                        contentPadding: baseDecoration.contentPadding,
+                                        border: baseDecoration.border as OutlineInputBorder?,
                                         labelStyle: baseDecoration.labelStyle,
-                                        floatingLabelStyle:
-                                            baseDecoration.floatingLabelStyle,
+                                        floatingLabelStyle: baseDecoration.floatingLabelStyle,
                                       ),
                                     );
                                   }
@@ -759,8 +704,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                     width: fieldWidth,
                                     child: TextField(
                                       controller: ctrl,
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(context).textTheme.bodySmall,
                                       decoration: baseDecoration,
                                     ),
                                   );
@@ -784,8 +728,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                   child: Row(
                     children: [
-                      Text(
-                          '$startIndex–$endIndex von ${filtered.length} Artikeln',
+                      Text('$startIndex–$endIndex von ${filtered.length} Artikeln',
                           style: Theme.of(context).textTheme.titleMedium),
                       const Spacer(),
                       if (widget.loading)
@@ -804,10 +747,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final estimatedWidth =
-                          visibleFields.length * 180.0 + 170.0;
-                      final minWidth =
-                          math.max(constraints.maxWidth, estimatedWidth);
+                      final estimatedWidth = visibleFields.length * 180.0 + 170.0;
+                      final minWidth = math.max(constraints.maxWidth, estimatedWidth);
 
                       return Scrollbar(
                         controller: _tableScrollController,
@@ -815,8 +756,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                         trackVisibility: true,
                         interactive: true,
                         child: ScrollConfiguration(
-                          behavior: const MaterialScrollBehavior()
-                              .copyWith(dragDevices: _scrollDragDevices),
+                          behavior:
+                              const MaterialScrollBehavior().copyWith(dragDevices: _scrollDragDevices),
                           child: SingleChildScrollView(
                             controller: _tableScrollController,
                             scrollDirection: Axis.horizontal,
@@ -828,8 +769,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                   const Divider(height: 1),
                                   Expanded(
                                     child: Scrollbar(
-                                      controller:
-                                          _verticalTableScrollController,
+                                      controller: _verticalTableScrollController,
                                       thumbVisibility: true,
                                       trackVisibility: true,
                                       interactive: true,
@@ -837,16 +777,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                           notif.metrics.axis == Axis.vertical,
                                       child: ScrollConfiguration(
                                         behavior: const MaterialScrollBehavior()
-                                            .copyWith(
-                                                dragDevices:
-                                                    _scrollDragDevices),
+                                            .copyWith(dragDevices: _scrollDragDevices),
                                         child: SingleChildScrollView(
-                                          controller:
-                                              _verticalTableScrollController,
+                                          controller: _verticalTableScrollController,
                                           scrollDirection: Axis.vertical,
                                           child: ConstrainedBox(
-                                            constraints: BoxConstraints(
-                                                minWidth: minWidth),
+                                            constraints: BoxConstraints(minWidth: minWidth),
                                             child: _buildDataTableBody(
                                               pageItems,
                                               visibleFields,
@@ -867,8 +803,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surfaceVariant,
                     border: Border(
@@ -889,11 +824,9 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     );
   }
 
-  Map<int, TableColumnWidth> _columnWidths(
-      int visibleFieldCount, double tableWidth) {
+  Map<int, TableColumnWidth> _columnWidths(int visibleFieldCount, double tableWidth) {
     const actionWidth = 170.0;
-    final available =
-        math.max(tableWidth - actionWidth, visibleFieldCount * 120.0);
+    final available = math.max(tableWidth - actionWidth, visibleFieldCount * 120.0);
     final cellWidth = available / visibleFieldCount;
 
     final widths = <int, TableColumnWidth>{};
@@ -928,8 +861,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text('Aktionen',
-                    style: Theme.of(context).textTheme.titleSmall),
+                child: Text('Aktionen', style: Theme.of(context).textTheme.titleSmall),
               ),
             ],
           ),
@@ -950,8 +882,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
       return TableRow(
         decoration: BoxDecoration(
           border: Border(
-            bottom: BorderSide(
-                color: Theme.of(context).dividerColor.withOpacity(0.5)),
+            bottom: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.5)),
           ),
         ),
         children: [
@@ -1019,9 +950,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
         final isActive = page == currentPage;
         buttons.add(OutlinedButton(
           style: isActive
-              ? OutlinedButton.styleFrom(
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer)
+              ? OutlinedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primaryContainer)
               : null,
           onPressed: isActive
               ? null
