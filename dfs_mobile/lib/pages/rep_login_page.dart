@@ -24,7 +24,7 @@ class RepLoginPage extends StatefulWidget {
 class _RepLoginPageState extends State<RepLoginPage> {
   // --- Login (E-Mail + Passwort) ---
   final _email = TextEditingController();
-  final _pw    = TextEditingController();
+  final _pw = TextEditingController();
   bool _busy = false;
   String? _err;
   bool _staySignedIn = true;
@@ -44,14 +44,18 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final locale = Localizations.localeOf(context);
 
     try {
-      await PushMessagingService.instance
-          .setup(widget.api, languageCode: locale.languageCode);
+      await PushMessagingService.instance.setup(
+        widget.api,
+        languageCode: locale.languageCode,
+      );
     } catch (e) {
       debugPrint('[push] rep setup failed: $e');
     }
     try {
-      await PushMessagingService.instance
-          .replayLatestToken(widget.api, languageCode: locale.languageCode);
+      await PushMessagingService.instance.replayLatestToken(
+        widget.api,
+        languageCode: locale.languageCode,
+      );
     } catch (e) {
       debugPrint('[push] rep token replay failed: $e');
     }
@@ -71,7 +75,7 @@ class _RepLoginPageState extends State<RepLoginPage> {
     final t = context.t;
     _setErr(null);
     final email = _email.text.trim().toLowerCase();
-    final pw    = _pw.text;
+    final pw = _pw.text;
 
     if (email.isEmpty || !email.contains('@')) {
       _setErr(t.email_invalid); // NEU
@@ -158,7 +162,14 @@ class _RepLoginPageState extends State<RepLoginPage> {
                   ),
                   onSubmitted: (_) async {
                     if (!saving) {
-                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
+                      await _submitChangePw(
+                        ctx,
+                        setS,
+                        aCtrl,
+                        bCtrl,
+                        (s) => locErr = s,
+                        () => saving = true,
+                      );
                     }
                   },
                 ),
@@ -178,10 +189,21 @@ class _RepLoginPageState extends State<RepLoginPage> {
               onPressed: saving
                   ? null
                   : () async {
-                      await _submitChangePw(ctx, setS, aCtrl, bCtrl, (s) => locErr = s, () => saving = true);
+                      await _submitChangePw(
+                        ctx,
+                        setS,
+                        aCtrl,
+                        bCtrl,
+                        (s) => locErr = s,
+                        () => saving = true,
+                      );
                     },
               icon: saving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.check),
               label: Text(t.save ?? 'Speichern'),
             ),
@@ -214,7 +236,11 @@ class _RepLoginPageState extends State<RepLoginPage> {
       return;
     }
     if (a != b) {
-      setS(() => setLocErr(t.passwordsDontMatch ?? 'Passwörter stimmen nicht überein.'));
+      setS(
+        () => setLocErr(
+          t.passwordsDontMatch ?? 'Passwörter stimmen nicht überein.',
+        ),
+      );
       return;
     }
     if (a.length < 8) {
@@ -222,12 +248,17 @@ class _RepLoginPageState extends State<RepLoginPage> {
       return;
     }
 
-    setS(() { markSaving(); setLocErr(null); });
+    setS(() {
+      markSaving();
+      setLocErr(null);
+    });
     try {
       await widget.api.repChangePassword(a);
       if (ctx.mounted) Navigator.pop(ctx, true);
     } catch (e) {
-      setS(() => setLocErr(t.password_set_failed('$e'))); // NEU (parametrisiert)
+      setS(
+        () => setLocErr(t.password_set_failed('$e')),
+      ); // NEU (parametrisiert)
     }
   }
 
@@ -241,93 +272,213 @@ class _RepLoginPageState extends State<RepLoginPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.t;
-    final canLogin = !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final canLogin =
+        !_busy && _email.text.trim().isNotEmpty && _pw.text.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: Text(t.rep_login_title)), // NEU
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: AutofillGroup(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ---- Login-Formular ----
-                  TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    decoration: InputDecoration(
-                      labelText: t.email,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  PasswordField(
-                    controller: _pw,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: InputDecoration(
-                      labelText: t.password,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                    onSubmitted: (_) => canLogin ? _submitPasswordLogin() : null,
-                  ),
-                  CheckboxListTile(
-                    value: _staySignedIn,
-                    onChanged: (v) => setState(() => _staySignedIn = v ?? false),
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: Text(t.stay_signed_in),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_err != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(_err!, style: const TextStyle(color: Colors.red)),
-                    ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: canLogin ? _submitPasswordLogin : null,
-                      icon: _busy
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.login),
-                      label: Text(t.login), // NEU
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(t.or), // NEU
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ---- Registrierung via temporärem Passwort ----
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _busy ? null : _openSecretDialog,
-                      icon: const Icon(Icons.key),
-                      label: Text(t.i_have_temp_password), // NEU
-                    ),
-                  ),
-                ],
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(title: Text(t.rep_login_title)),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? const [Color(0xFF09131F), Color(0xFF0C2234)]
+                    : const [Color(0xFFF4F7FB), Color(0xFFEAF3FA)],
               ),
             ),
           ),
-        ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(18, 20, 18, 24 + bottomInset),
+                physics: const BouncingScrollPhysics(),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 540),
+                    child: Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 26),
+                        child: AutofillGroup(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 58,
+                                    height: 58,
+                                    decoration: BoxDecoration(
+                                      color: scheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Icon(
+                                      Icons.badge_outlined,
+                                      color: scheme.onPrimaryContainer,
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t.rep_login_title,
+                                          style: theme.textTheme.titleLarge,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          t.mobile_rep_login_subtitle,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: scheme.onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+                              TextField(
+                                controller: _email,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [
+                                  AutofillHints.username,
+                                  AutofillHints.email,
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: t.email,
+                                  prefixIcon: const Icon(
+                                    Icons.alternate_email_rounded,
+                                  ),
+                                ),
+                                enabled: !_busy,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                              const SizedBox(height: 12),
+                              PasswordField(
+                                controller: _pw,
+                                autofillHints: const [AutofillHints.password],
+                                decoration: InputDecoration(
+                                  labelText: t.password,
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                  ),
+                                ),
+                                enabled: !_busy,
+                                onChanged: (_) => setState(() {}),
+                                onSubmitted: (_) =>
+                                    canLogin ? _submitPasswordLogin() : null,
+                              ),
+                              CheckboxListTile(
+                                value: _staySignedIn,
+                                onChanged: _busy
+                                    ? null
+                                    : (v) => setState(
+                                        () => _staySignedIn = v ?? false,
+                                      ),
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                title: Text(t.stay_signed_in),
+                              ),
+                              if (_err != null) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: scheme.errorContainer,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline_rounded,
+                                        size: 20,
+                                        color: scheme.onErrorContainer,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          _err!,
+                                          style: TextStyle(
+                                            color: scheme.onErrorContainer,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 18),
+                              FilledButton.icon(
+                                onPressed: canLogin
+                                    ? _submitPasswordLogin
+                                    : null,
+                                icon: _busy
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.login_rounded),
+                                label: Text(t.login),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    child: Text(
+                                      t.or,
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                onPressed: _busy ? null : _openSecretDialog,
+                                icon: const Icon(Icons.key_rounded),
+                                label: Text(t.i_have_temp_password),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       bottomNavigationBar: LegalFooter(api: widget.api),
     );
@@ -345,10 +496,7 @@ class _TempPasswordDialog extends StatefulWidget {
   final ApiClient api;
   final String initialEmail;
 
-  const _TempPasswordDialog({
-    required this.api,
-    required this.initialEmail,
-  });
+  const _TempPasswordDialog({required this.api, required this.initialEmail});
 
   @override
   State<_TempPasswordDialog> createState() => _TempPasswordDialogState();
@@ -377,7 +525,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
   Future<void> _submit() async {
     final t = context.t;
     final email = _mailCtrl.text.trim().toLowerCase();
-    final sec   = _secCtrl.text.trim();
+    final sec = _secCtrl.text.trim();
 
     if (email.isEmpty || !email.contains('@')) {
       setState(() => _error = t.email_invalid);
@@ -390,7 +538,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
 
     setState(() {
       _saving = true;
-      _error  = null;
+      _error = null;
     });
 
     try {
@@ -400,7 +548,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
       if (!ok) {
         setState(() {
           _saving = false;
-          _error  = t.temp_password_invalid;
+          _error = t.temp_password_invalid;
         });
         return;
       }
@@ -410,7 +558,7 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
       final errMsg = '${t.error ?? 'Fehler'}: $e';
       setState(() {
         _saving = false;
-        _error  = errMsg;
+        _error = errMsg;
       });
     }
   }
@@ -463,7 +611,11 @@ class _TempPasswordDialogState extends State<_TempPasswordDialog> {
         FilledButton.icon(
           onPressed: _saving ? null : _submit,
           icon: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Icon(Icons.login),
           label: Text(t.continueLabel),
         ),

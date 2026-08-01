@@ -15,7 +15,7 @@ import 'support_page.dart';
 import 'customer_news_page.dart';
 import 'knowledge_base_page.dart';
 import '../widgets/pdf_view_stub.dart'
-  if (dart.library.html) '../widgets/pdf_view_web.dart';
+    if (dart.library.html) '../widgets/pdf_view_web.dart';
 
 // Variante A styling: use theme tokens so dark mode updates the entire UI.
 Color _chipFill(ColorScheme scheme) {
@@ -33,12 +33,14 @@ Color _shadowColor(ThemeData theme) {
 const _labCatalogLinks = [
   _CatalogLink(
     label: 'DE / EN',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
+    url:
+        'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Labor-DE-US-2025-26_1.pdf',
     locales: {'de', 'en', 'it'},
   ),
   _CatalogLink(
     label: 'ES / FR',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR-2025-26_0.pdf',
+    url:
+        'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-LaborES-FR-2025-26_0.pdf',
     locales: {'es', 'fr'},
   ),
 ];
@@ -46,17 +48,22 @@ const _labCatalogLinks = [
 const _dentCatalogLinks = [
   _CatalogLink(
     label: 'DE / EN',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
+    url:
+        'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-DE-US-2025-2026_1.pdf',
     locales: {'de', 'en', 'it'},
   ),
   _CatalogLink(
     label: 'ES / FR',
-    url: 'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
+    url:
+        'https://dfs-diamon.de/sites/default/public/instructions/pdfs/DFS-Praxis-ES-FR-2025-2026_1.pdf',
     locales: {'es', 'fr'},
   ),
 ];
 
-_CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) {
+_CatalogLink _catalogLinkForLocale(
+  List<_CatalogLink> links,
+  String localeCode,
+) {
   final normalized = localeCode.toLowerCase();
   return links.firstWhere(
     (link) => link.matches(normalized),
@@ -67,16 +74,14 @@ _CatalogLink _catalogLinkForLocale(List<_CatalogLink> links, String localeCode) 
 class DashboardPage extends StatefulWidget {
   final ApiClient api;
 
-  const DashboardPage({
-    super.key,
-    required this.api,
-  });
+  const DashboardPage({super.key, required this.api});
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
+class _DashboardPageState extends State<DashboardPage>
+    with WidgetsBindingObserver {
   static const _fallbackRep = MyRep(
     firstName: 'DFS-Diamon',
     lastName: 'GmbH',
@@ -91,6 +96,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   bool _repRequested = false;
   bool _hasUnreadNews = false;
   bool _newsIndicatorRefreshing = false;
+  String _quickActionQuery = '';
   DateTime? _latestNewsTimestamp;
   late Future<List<CustomerNewsEntry>> _newsPreviewFuture;
   late final CustomerNewsService _newsService;
@@ -215,7 +221,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
     if (mounted) {
       setState(() {
-        _customerName  = company;
+        _customerName = company;
         _customerEmail = email;
       });
     }
@@ -232,9 +238,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     if (_newsIndicatorRefreshing) return;
     _newsIndicatorRefreshing = true;
     try {
-      final latest = await _fetchLatestNewsTimestamp(forceRefresh: forceRefresh);
+      final latest = await _fetchLatestNewsTimestamp(
+        forceRefresh: forceRefresh,
+      );
       final lastSeen = await _newsBadgeStore.loadLastSeen();
-      final hasUnread = latest != null && (lastSeen == null || latest.isAfter(lastSeen));
+      final hasUnread =
+          latest != null && (lastSeen == null || latest.isAfter(lastSeen));
       if (mounted) {
         setState(() {
           _hasUnreadNews = hasUnread;
@@ -254,7 +263,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     }
   }
 
-  Future<DateTime?> _fetchLatestNewsTimestamp({required bool forceRefresh}) async {
+  Future<DateTime?> _fetchLatestNewsTimestamp({
+    required bool forceRefresh,
+  }) async {
     final news = await _newsService.list(refresh: forceRefresh);
     DateTime? latest;
     for (final entry in news) {
@@ -290,9 +301,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   Future<void> _openCustomerNews(BuildContext context) async {
     await _markCustomerNewsSeen();
     if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CustomerNewsPage(api: widget.api),
-    ));
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CustomerNewsPage(api: widget.api)),
+    );
     if (mounted) {
       await _refreshNewsIndicator(forceRefresh: true);
     }
@@ -309,10 +320,10 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         final state = hasError
             ? NewsCardState.error
             : snapshot.connectionState == ConnectionState.waiting
-                ? NewsCardState.loading
-                : hasNews
-                    ? NewsCardState.ready
-                    : NewsCardState.empty;
+            ? NewsCardState.loading
+            : hasNews
+            ? NewsCardState.ready
+            : NewsCardState.empty;
         return NewsTeaserCard(
           title: t.customerNewsTitle,
           ctaLabel: t.customerNewsReadMore,
@@ -353,43 +364,41 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
-    final backgroundTop = Color.lerp(
-      scheme.primary,
-      scheme.background,
-      isDark ? 0.88 : 0.92,
-    )!;
-    final backgroundBottom = Color.lerp(
-      scheme.primary,
-      scheme.background,
-      isDark ? 0.82 : 0.88,
-    )!;
+    final backgroundTop = isDark
+        ? const Color(0xFF0D1A27)
+        : const Color(0xFFF8FAFD);
+    final backgroundBottom = theme.scaffoldBackgroundColor;
 
     final tiles = <_Entry>[
       _Entry(
         label: t.reportComplaint,
         icon: Icons.add_circle_outline,
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ComplaintFormPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ComplaintFormPage(api: widget.api),
+            ),
+          );
         },
       ),
       _Entry(
         label: t.myComplaints,
         icon: Icons.list_alt,
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => MyComplaintsPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MyComplaintsPage(api: widget.api),
+            ),
+          );
         },
       ),
       _Entry(
         label: t.supportTitle,
         icon: Icons.support_agent,
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SupportPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => SupportPage(api: widget.api)),
+          );
         },
       ),
       _Entry(
@@ -407,12 +416,20 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         label: t.myAccount,
         icon: Icons.person_outline,
         onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => AccountPage(api: widget.api),
-          ));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => AccountPage(api: widget.api)),
+          );
         },
       ),
     ];
+    final normalizedQuery = _quickActionQuery.trim().toLowerCase();
+    final visibleTiles = normalizedQuery.isEmpty
+        ? tiles
+        : tiles
+              .where(
+                (entry) => entry.label.toLowerCase().contains(normalizedQuery),
+              )
+              .toList(growable: false);
 
     return SafeArea(
       top: false,
@@ -443,7 +460,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     children: [
                       Expanded(
                         child: SingleChildScrollView(
-                          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom),
+                          padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(ctx).padding.bottom,
+                          ),
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                             child: Column(
@@ -455,7 +474,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                                     title: repTitle,
                                     loading: _repLoading,
                                     onRefreshTap: _initRep,
-                                    onMailTap: hasContact ? () => _openRepContactForm(context) : null,
+                                    onMailTap: hasContact
+                                        ? () => _openRepContactForm(context)
+                                        : null,
                                   ),
                                 const SizedBox(height: 12),
                                 _buildNewsSection(context),
@@ -469,24 +490,75 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                GridView.count(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 12,
-                                  crossAxisSpacing: 12,
-                                  childAspectRatio: 1.1,
-                                  primary: false,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  shrinkWrap: true,
-                                  children: [
-                                    for (final entry in tiles)
-                                      DashboardTile(
-                                        label: entry.label,
-                                        icon: entry.icon,
-                                        onTap: entry.onTap,
-                                        showIndicator: entry.showIndicator,
-                                        accentColor: scheme.primary,
-                                      ),
-                                  ],
+                                TextField(
+                                  onChanged: (value) =>
+                                      setState(() => _quickActionQuery = value),
+                                  textInputAction: TextInputAction.search,
+                                  decoration: InputDecoration(
+                                    hintText: t.mobile_dashboard_search_hint,
+                                    prefixIcon: const Icon(
+                                      Icons.search_rounded,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  child: visibleTiles.isEmpty
+                                      ? Container(
+                                          key: const ValueKey('empty-actions'),
+                                          padding: const EdgeInsets.all(22),
+                                          decoration: BoxDecoration(
+                                            color: scheme.surface,
+                                            borderRadius: BorderRadius.circular(
+                                              18,
+                                            ),
+                                            border: Border.all(
+                                              color: scheme.outlineVariant,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.search_off_rounded,
+                                                color: scheme.onSurfaceVariant,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  t.mobile_dashboard_no_actions,
+                                                  style: textTheme.bodyMedium
+                                                      ?.copyWith(
+                                                        color: scheme
+                                                            .onSurfaceVariant,
+                                                      ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : GridView.count(
+                                          key: ValueKey(normalizedQuery),
+                                          crossAxisCount: 2,
+                                          mainAxisSpacing: 12,
+                                          crossAxisSpacing: 12,
+                                          childAspectRatio: 1.08,
+                                          primary: false,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          shrinkWrap: true,
+                                          children: [
+                                            for (final entry in visibleTiles)
+                                              DashboardTile(
+                                                label: entry.label,
+                                                icon: entry.icon,
+                                                onTap: entry.onTap,
+                                                showIndicator:
+                                                    entry.showIndicator,
+                                                accentColor: scheme.primary,
+                                              ),
+                                          ],
+                                        ),
                                 ),
                                 const SizedBox(height: 20),
                                 Text(
@@ -577,7 +649,11 @@ class RepresentativeStrip extends StatelessWidget {
                   color: _chipFill(scheme),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.handshake_outlined, color: scheme.primary, size: 16),
+                child: Icon(
+                  Icons.handshake_outlined,
+                  color: scheme.primary,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -615,7 +691,10 @@ class RepresentativeStrip extends StatelessWidget {
                 onPressed: onMailTap,
                 icon: const Icon(Icons.mail_outline, size: 20),
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
                 padding: EdgeInsets.zero,
               ),
               IconButton(
@@ -623,7 +702,10 @@ class RepresentativeStrip extends StatelessWidget {
                 onPressed: onRefreshTap,
                 icon: const Icon(Icons.refresh, size: 20),
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
                 padding: EdgeInsets.zero,
               ),
             ],
@@ -749,7 +831,9 @@ class NewsTeaserCard extends StatelessWidget {
                   width: 4,
                   decoration: BoxDecoration(
                     color: scheme.primary.withOpacity(0.80),
-                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(20),
+                    ),
                   ),
                 ),
               ),
@@ -785,12 +869,19 @@ class NewsTeaserCard extends StatelessWidget {
                   builder: (context, constraints) {
                     final compactCta = constraints.maxWidth < 360;
                     final ctaStyle = TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       minimumSize: const Size(0, 32),
                       shape: const StadiumBorder(),
-                      backgroundColor: scheme.primary.withOpacity(isDark ? 0.22 : 0.16),
+                      backgroundColor: scheme.primary.withOpacity(
+                        isDark ? 0.22 : 0.16,
+                      ),
                       foregroundColor: scheme.primary,
-                      side: BorderSide(color: scheme.primary.withOpacity(isDark ? 0.45 : 0.35)),
+                      side: BorderSide(
+                        color: scheme.primary.withOpacity(isDark ? 0.45 : 0.35),
+                      ),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
                       textStyle: textTheme.labelMedium?.copyWith(
@@ -803,17 +894,26 @@ class NewsTeaserCard extends StatelessWidget {
                         ? TextButton(
                             onPressed: onTap,
                             style: ctaStyle,
-                            child: const Icon(Icons.chevron_right_rounded, size: 18),
+                            child: const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                            ),
                           )
                         : TextButton.icon(
                             onPressed: onTap,
                             style: ctaStyle,
-                            icon: const Icon(Icons.chevron_right_rounded, size: 16),
+                            icon: const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 16,
+                            ),
                             label: Text(shortCta),
                           );
 
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       // Title never truncated: allow 2 lines, keep CTA constrained, blob moved outward
                       child: Padding(
                         padding: const EdgeInsets.only(right: 12),
@@ -827,12 +927,16 @@ class NewsTeaserCard extends StatelessWidget {
                                   width: 42,
                                   height: 42,
                                   decoration: BoxDecoration(
-                                    color: scheme.primary.withOpacity(isDark ? 0.22 : 0.14),
+                                    color: scheme.primary.withOpacity(
+                                      isDark ? 0.22 : 0.14,
+                                    ),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Icon(
                                     Icons.campaign_outlined,
-                                    color: isDark ? scheme.onPrimary : scheme.primary,
+                                    color: isDark
+                                        ? scheme.onPrimary
+                                        : scheme.primary,
                                     size: 22,
                                   ),
                                 ),
@@ -886,7 +990,10 @@ class NewsTeaserCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 64, maxWidth: 92),
+                              constraints: const BoxConstraints(
+                                minWidth: 64,
+                                maxWidth: 92,
+                              ),
                               child: ctaButton,
                             ),
                           ],
@@ -963,7 +1070,7 @@ class _DashboardTileState extends State<DashboardTile> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    const radius = BorderRadius.all(Radius.circular(18));
+    const radius = BorderRadius.all(Radius.circular(20));
     final baseFill = cs.surface.withOpacity(isDark ? 0.88 : 0.96);
     final gradient = isDark
         ? LinearGradient(
@@ -977,61 +1084,24 @@ class _DashboardTileState extends State<DashboardTile> {
         : LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              baseFill,
-              cs.surface.withOpacity(0.90),
-            ],
+            colors: [baseFill, cs.surface.withOpacity(0.90)],
           );
-    final baseShadows = isDark
-        ? [
-            // Tiefer Hauptschatten
-            BoxShadow(
-              color: Colors.black.withOpacity(0.65),
-              blurRadius: 40,
-              offset: const Offset(0, 26),
-            ),
-            // Secondary Depth
-            BoxShadow(
-              color: Colors.black.withOpacity(0.35),
-              blurRadius: 22,
-              offset: const Offset(0, 14),
-            ),
-            // DFS-Blue Glow für Premium Look
-            BoxShadow(
-              color: cs.primary.withOpacity(0.22),
-              blurRadius: 30,
-              offset: const Offset(0, 18),
-            ),
-          ]
-        : [
-            // Hauptschatten (Tiefe)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.18),
-              blurRadius: 36,
-              offset: const Offset(0, 22),
-            ),
-            // Weicher Ambient-Schatten
-            BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-            // DFS-Blau Glow (subtil!)
-            BoxShadow(
-              color: cs.primary.withOpacity(0.12),
-              blurRadius: 28,
-              offset: const Offset(0, 16),
-            ),
-          ];
+    final baseShadows = [
+      BoxShadow(
+        color: Colors.black.withOpacity(isDark ? .24 : .07),
+        blurRadius: 22,
+        offset: const Offset(0, 10),
+      ),
+    ];
     final shadows = _pressed
         ? baseShadows
-            .map(
-              (shadow) => shadow.copyWith(
-                blurRadius: shadow.blurRadius * 0.8,
-                offset: Offset(0, shadow.offset.dy - 3),
-              ),
-            )
-            .toList()
+              .map(
+                (shadow) => shadow.copyWith(
+                  blurRadius: shadow.blurRadius * 0.8,
+                  offset: Offset(0, shadow.offset.dy - 3),
+                ),
+              )
+              .toList()
         : baseShadows;
 
     return Semantics(
@@ -1074,7 +1144,7 @@ class _DashboardTileState extends State<DashboardTile> {
                       mainAxisSize: MainAxisSize.max,
                       children: [
                         Container(
-                          height: 6,
+                          height: 4,
                           width: double.infinity,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -1105,17 +1175,16 @@ class _DashboardTileState extends State<DashboardTile> {
                                           width: iconContainerSize,
                                           height: iconContainerSize,
                                           decoration: BoxDecoration(
-                                            color: cs.primary.withOpacity(isDark ? 0.28 : 0.16),
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: cs.primary.withOpacity(isDark ? 0.30 : 0.18),
-                                                blurRadius: 12,
-                                                offset: const Offset(0, 6),
-                                              ),
-                                            ],
+                                            color: cs.primaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              17,
+                                            ),
                                           ),
-                                          child: Icon(widget.icon, color: cs.primary, size: iconSize),
+                                          child: Icon(
+                                            widget.icon,
+                                            color: cs.onPrimaryContainer,
+                                            size: iconSize,
+                                          ),
                                         ),
                                         if (widget.showIndicator)
                                           Positioned(
@@ -1126,7 +1195,10 @@ class _DashboardTileState extends State<DashboardTile> {
                                                 color: cs.primary,
                                                 shape: BoxShape.circle,
                                               ),
-                                              child: SizedBox(width: 8, height: 8),
+                                              child: SizedBox(
+                                                width: 8,
+                                                height: 8,
+                                              ),
                                             ),
                                           ),
                                       ],
@@ -1138,12 +1210,12 @@ class _DashboardTileState extends State<DashboardTile> {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       softWrap: true,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 15,
-                                        color: cs.onSurface,
-                                        height: 1.2,
-                                      ),
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: cs.onSurface,
+                                            height: 1.2,
+                                          ),
                                     ),
                                   ],
                                 );
@@ -1160,7 +1232,9 @@ class _DashboardTileState extends State<DashboardTile> {
                           alignment: Alignment.topCenter,
                           child: Container(
                             height: 1.2,
-                            color: Colors.white.withOpacity(isDark ? 0.06 : 0.35),
+                            color: Colors.white.withOpacity(
+                              isDark ? 0.06 : 0.35,
+                            ),
                           ),
                         ),
                       ),
@@ -1232,7 +1306,9 @@ class CatalogListItem extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(color: _subtitleColor(scheme)),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: _subtitleColor(scheme),
+                    ),
                   ),
                 ],
               ),
@@ -1242,7 +1318,10 @@ class CatalogListItem extends StatelessWidget {
               style: TextButton.styleFrom(
                 foregroundColor: scheme.primary,
                 minimumSize: const Size(0, 44),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
               ),
               icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
               label: Text(t.catalog_open),
@@ -1258,7 +1337,9 @@ class _CatalogList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final localeCode = Localizations.localeOf(context).languageCode.toLowerCase();
+    final localeCode = Localizations.localeOf(
+      context,
+    ).languageCode.toLowerCase();
 
     final labLink = _catalogLinkForLocale(_labCatalogLinks, localeCode);
     final dentLink = _catalogLinkForLocale(_dentCatalogLinks, localeCode);
@@ -1272,7 +1353,8 @@ class _CatalogList extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => PdfInAppPage(url: labLink.url, title: t.catalog_lab_title),
+                builder: (_) =>
+                    PdfInAppPage(url: labLink.url, title: t.catalog_lab_title),
               ),
             );
           },
@@ -1285,7 +1367,10 @@ class _CatalogList extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => PdfInAppPage(url: dentLink.url, title: t.catalog_dent_title),
+                builder: (_) => PdfInAppPage(
+                  url: dentLink.url,
+                  title: t.catalog_dent_title,
+                ),
               ),
             );
           },
@@ -1342,12 +1427,12 @@ class RepContactPage extends StatefulWidget {
 
 class _RepContactPageState extends State<RepContactPage> {
   final _firstName = TextEditingController();
-  final _lastName  = TextEditingController();
-  final _subject   = TextEditingController();
-  final _message   = TextEditingController();
+  final _lastName = TextEditingController();
+  final _subject = TextEditingController();
+  final _message = TextEditingController();
 
   bool _sending = false;
-  bool _dirty   = false;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -1360,9 +1445,9 @@ class _RepContactPageState extends State<RepContactPage> {
   void _onChanged() {
     if (!_dirty &&
         (_firstName.text.isNotEmpty ||
-         _lastName.text.isNotEmpty ||
-         _subject.text.isNotEmpty ||
-         _message.text.isNotEmpty)) {
+            _lastName.text.isNotEmpty ||
+            _subject.text.isNotEmpty ||
+            _message.text.isNotEmpty)) {
       setState(() => _dirty = true);
     }
   }
@@ -1408,48 +1493,48 @@ class _RepContactPageState extends State<RepContactPage> {
   Future<void> _handleSend() async {
     final t = AppLocalizations.of(context)!;
     final subject = _subject.text.trim();
-    final msg     = _message.text.trim();
+    final msg = _message.text.trim();
 
     if (subject.isEmpty || msg.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_validation)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_validation)));
       return;
     }
 
     final repEmail = widget.rep.email.trim();
     if (repEmail.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_no_rep_email)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_no_rep_email)));
       return;
     }
 
     setState(() => _sending = true);
     try {
-      final company      = (widget.customerCompany ?? '').trim();
+      final company = (widget.customerCompany ?? '').trim();
       final companyEmail = (widget.customerEmail ?? '').trim();
 
       final payload = <String, dynamic>{
-        'repEmail'        : repEmail,
-        'repFirstName'    : widget.rep.firstName,
-        'repLastName'     : widget.rep.lastName,
-        'company'         : company,
-        'companyEmail'    : companyEmail,
+        'repEmail': repEmail,
+        'repFirstName': widget.rep.firstName,
+        'repLastName': widget.rep.lastName,
+        'company': company,
+        'companyEmail': companyEmail,
         'contactFirstName': _firstName.text.trim(),
-        'contactLastName' : _lastName.text.trim(),
-        'subject'         : subject,
-        'message'         : msg,
-        'lang'            : Localizations.localeOf(context).languageCode,
+        'contactLastName': _lastName.text.trim(),
+        'subject': subject,
+        'message': msg,
+        'lang': Localizations.localeOf(context).languageCode,
       };
 
       // 🔴 Jetzt: Versand über dein Backend mit Kunden-Bearer-Token
       await widget.api.sendRepContact(payload);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_sent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_sent)));
       Navigator.of(context).pop(); // zurück zum Dashboard
     } on ApiError catch (e) {
       if (!mounted) return;
@@ -1458,9 +1543,9 @@ class _RepContactPageState extends State<RepContactPage> {
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_error)));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -1468,21 +1553,19 @@ class _RepContactPageState extends State<RepContactPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t     = AppLocalizations.of(context)!;
+    final t = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
+    final cs = theme.colorScheme;
 
-    final company      = (widget.customerCompany ?? '').trim();
+    final company = (widget.customerCompany ?? '').trim();
     final companyEmail = (widget.customerEmail ?? '').trim();
-    final firstRep     = widget.rep.firstName.trim();
-    final lastRep      = widget.rep.lastName.trim();
+    final firstRep = widget.rep.firstName.trim();
+    final lastRep = widget.rep.lastName.trim();
 
     return WillPopScope(
       onWillPop: _confirmLeaveIfDirty,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(t.rep_contact_title),
-        ),
+        appBar: AppBar(title: Text(t.rep_contact_title)),
         body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           child: Column(
@@ -1530,9 +1613,7 @@ class _RepContactPageState extends State<RepContactPage> {
                   Expanded(
                     child: TextField(
                       controller: _lastName,
-                      decoration: InputDecoration(
-                        labelText: t.lastName,
-                      ),
+                      decoration: InputDecoration(labelText: t.lastName),
                     ),
                   ),
                 ],
