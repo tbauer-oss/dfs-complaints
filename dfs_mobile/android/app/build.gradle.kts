@@ -17,13 +17,14 @@ kotlin {
 android {
     namespace = "de.dfs_diamon.dfs_complaints"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "de.dfs_diamon.dfs_complaints" // <- deine Paketkennung
         minSdk = 24
         targetSdk = 36
         versionCode = 2
-        versionName = "1.0.1"
+        versionName = "1.1.0"
         buildConfigField("int", "COMPILE_SDK", "$compileSdk")
         buildConfigField("int", "TARGET_SDK", "$targetSdk")
     }
@@ -86,7 +87,6 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
-
 
 
 
