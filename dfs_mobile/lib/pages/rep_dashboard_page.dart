@@ -7,7 +7,8 @@ import 'rep_profile_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dfs_mobile/web_compat/html_stub.dart'
-  if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart' as html;
+    if (dart.library.html) 'package:dfs_mobile/web_compat/html_web.dart'
+    as html;
 import '../l10n/app_localizations.dart';
 import '../widgets/dialog_content_scroll.dart';
 import '../widgets/lang_action.dart';
@@ -49,7 +50,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   /// Kundenliste (aus Backend normalisiert) – zugewiesene Kunden dieses Vertreters
   List<Map<String, Object?>> _customers = <Map<String, Object?>>[];
-  
+
   final TextEditingController _customerSearchCtrl = TextEditingController();
   String _customerQuery = '';
 
@@ -87,7 +88,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // "NEU"-Badges: lokal gemerkte "schon gesehen" Kunden (E-Mails als Key)
   Set<String> _seenCustomers = <String>{};
-  static const _legacySeenKey = 'rep_seen_customers_v1';  String get _seenKeyBase => 'rep_seen_customers_v2'; // neue Version, entkoppelt von v1 (Web)
+  static const _legacySeenKey = 'rep_seen_customers_v1';
+  String get _seenKeyBase =>
+      'rep_seen_customers_v2'; // neue Version, entkoppelt von v1 (Web)
   String get _repAwareSeenKey {
     final meMail = (_me?['email'] ?? '').toString().toLowerCase();
     return meMail.isNotEmpty ? '$_seenKeyBase:$meMail' : _seenKeyBase;
@@ -105,14 +108,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       _loadSeenAsync();
     });
   }
-  
+
   @override
   void dispose() {
     _customerSearchCtrl.dispose();
     _downloadSearchCtrl.dispose();
     super.dispose();
   }
-  
+
   // Einheitliche 401/Unauthorized-Behandlung
   Future<bool> _handleUnauthorized(Object e) async {
     final t = context.t;
@@ -135,16 +138,27 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final key = _repAwareSeenKey;
 
       if (kIsWeb) {
-        final raw = html.window.localStorage[key] ?? html.window.localStorage[_legacySeenKey];
+        final raw =
+            html.window.localStorage[key] ??
+            html.window.localStorage[_legacySeenKey];
         if (raw == null || raw.isEmpty) return;
-        final parts = raw.split(';').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet();
+        final parts = raw
+            .split(';')
+            .map((e) => e.trim().toLowerCase())
+            .where((e) => e.isNotEmpty)
+            .toSet();
         setState(() => _seenCustomers = parts);
         return;
       }
 
       final sp = await SharedPreferences.getInstance();
       final list = sp.getStringList(key) ?? const <String>[];
-      setState(() => _seenCustomers = list.map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toSet());
+      setState(
+        () => _seenCustomers = list
+            .map((e) => e.trim().toLowerCase())
+            .where((e) => e.isNotEmpty)
+            .toSet(),
+      );
     } catch (_) {
       // soft-fail
     }
@@ -203,7 +217,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       // Sicherstellen, dass repToken gültig ist
       await widget.api.ensureRepSession();
 
-      final me   = await widget.api.repMe();
+      final me = await widget.api.repMe();
       final comp = await widget.api.repComplaints();
       String? downloadsErr;
       List<RepDownloadItem> downloads = const [];
@@ -226,20 +240,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       for (final c in rawCustomers) {
         if (c is Map) {
           String s(Object? v) => (v ?? '').toString();
-          final email      = s(c['email']);
-          final name       = s(c['name']).isEmpty ? email : s(c['name']);
-          final company    = s(c['company']);
-          final address    = s(c['address']);
-          final zip        = s(c['zip']);
-          final city       = s(c['city']);
-          final country    = s(c['country']);
-          final phone      = s(c['phone']);
+          final email = s(c['email']);
+          final name = s(c['name']).isEmpty ? email : s(c['name']);
+          final company = s(c['company']);
+          final address = s(c['address']);
+          final zip = s(c['zip']);
+          final city = s(c['city']);
+          final country = s(c['country']);
+          final phone = s(c['phone']);
           final customerNo = s(c['customerNo']);
-          final vatId      = s(c['vatId']);
+          final vatId = s(c['vatId']);
 
           customers.add(<String, Object?>{
             'email': email,
-            'name' : name,
+            'name': name,
             'company': company,
             'address': address,
             'zip': zip,
@@ -252,7 +266,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         } else if (c is String) {
           customers.add(<String, Object?>{
             'email': c,
-            'name' : c,
+            'name': c,
             'company': '',
             'address': '',
             'zip': '',
@@ -268,13 +282,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (!mounted) return;
       setState(() {
         _me = me;
-        _customers  = customers;
+        _customers = customers;
         _complaints = comp;
         _downloads = downloads;
         _downloadsErr = downloadsErr;
         _downloadsLoading = false;
       });
-
     } catch (e) {
       final handled = await _handleUnauthorized(e);
       if (!mounted) return;
@@ -311,18 +324,20 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (email.isEmpty) continue;
 
       final company = s(it['company']);
-      final name    = s(it['name']);
-      final label   = company.isNotEmpty
+      final name = s(it['name']);
+      final label = company.isNotEmpty
           ? company
           : (name.isNotEmpty ? '$name • $email' : email);
 
-      final assigned = (it['assigned'] == true) ||
+      final assigned =
+          (it['assigned'] == true) ||
           (s(it['assigned']).toLowerCase() == 'true');
 
-      final assignedToLabel =
-          s(it['assignedToName']).isNotEmpty ? s(it['assignedToName'])
-              : s(it['assignedToEmail']).isNotEmpty ? s(it['assignedToEmail'])
-              : s(it['assignedTo']);
+      final assignedToLabel = s(it['assignedToName']).isNotEmpty
+          ? s(it['assignedToName'])
+          : s(it['assignedToEmail']).isNotEmpty
+          ? s(it['assignedToEmail'])
+          : s(it['assignedTo']);
 
       out.add({
         'email': email,
@@ -336,7 +351,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       final aa = (a['assigned'] == true);
       final bb = (b['assigned'] == true);
       if (aa != bb) return aa ? 1 : -1;
-      return (a['label'] as String).toLowerCase().compareTo((b['label'] as String).toLowerCase());
+      return (a['label'] as String).toLowerCase().compareTo(
+        (b['label'] as String).toLowerCase(),
+      );
     });
 
     return out;
@@ -358,9 +375,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     String _initials() {
       final fn = (_me?['firstName'] ?? '').toString().trim();
-      final ln = (_me?['lastName']  ?? '').toString().trim();
-      final em = (_me?['email']     ?? '').toString().trim();
-      if (fn.isNotEmpty && ln.isNotEmpty) return '${fn[0]}${ln[0]}'.toUpperCase();
+      final ln = (_me?['lastName'] ?? '').toString().trim();
+      final em = (_me?['email'] ?? '').toString().trim();
+      if (fn.isNotEmpty && ln.isNotEmpty)
+        return '${fn[0]}${ln[0]}'.toUpperCase();
       if (fn.isNotEmpty) return fn[0].toUpperCase();
       if (em.isNotEmpty) return em[0].toUpperCase();
       return 'U';
@@ -368,17 +386,27 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     String _fullName() {
       final fn = (_me?['firstName'] ?? '').toString().trim();
-      final ln = (_me?['lastName']  ?? '').toString().trim();
-      final em = (_me?['email']     ?? '').toString().trim();
+      final ln = (_me?['lastName'] ?? '').toString().trim();
+      final em = (_me?['email'] ?? '').toString().trim();
       final n = [fn, ln].where((e) => e.isNotEmpty).join(' ');
       return n.isNotEmpty ? n : em;
     }
 
     final base = cs.surface;
     final accent = cs.primary;
-    final bgA = _blend(base, accent, theme.brightness == Brightness.dark ? 0.12 : 0.06);
-    final bgB = _blend(base, cs.surfaceVariant, theme.brightness == Brightness.dark ? 0.10 : 0.04);
-    final borderColor = cs.outlineVariant.withOpacity(theme.brightness == Brightness.dark ? .35 : .28);
+    final bgA = _blend(
+      base,
+      accent,
+      theme.brightness == Brightness.dark ? 0.12 : 0.06,
+    );
+    final bgB = _blend(
+      base,
+      cs.surfaceVariant,
+      theme.brightness == Brightness.dark ? 0.10 : 0.04,
+    );
+    final borderColor = cs.outlineVariant.withOpacity(
+      theme.brightness == Brightness.dark ? .35 : .28,
+    );
 
     return Card(
       elevation: theme.brightness == Brightness.dark ? 2 : 1,
@@ -535,21 +563,36 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       ),
     );
   }
-  
+
   // Mail/Benachrichtigung an complaint@dfs-diamon.de bei Selbst-Zuweisung
-  Future<void> _notifySelfAssignment({required String customerEmail, required String? company}) async {
+  Future<void> _notifySelfAssignment({
+    required String customerEmail,
+    required String? company,
+  }) async {
     try {
       final dyn = widget.api as dynamic;
       final payload = {
-        'repEmail'    : _me?['email'] ?? '',
-        'repName'     : [ _me?['firstName'], _me?['lastName'] ].where((e) => (e ?? '').toString().isNotEmpty).join(' ').trim(),
+        'repEmail': _me?['email'] ?? '',
+        'repName': [
+          _me?['firstName'],
+          _me?['lastName'],
+        ].where((e) => (e ?? '').toString().isNotEmpty).join(' ').trim(),
         'customerEmail': customerEmail,
-        'company'     : company ?? '',
+        'company': company ?? '',
       };
 
-      try { await dyn.repAssignmentNotify(payload); return; } catch (_) {}
-      try { await dyn.postJson('/api/admin/notify-rep-assignment', payload); return; } catch (_) {}
-      try { await dyn.postJson('/api/rep/assignment/notify', payload); return; } catch (_) {}
+      try {
+        await dyn.repAssignmentNotify(payload);
+        return;
+      } catch (_) {}
+      try {
+        await dyn.postJson('/api/admin/notify-rep-assignment', payload);
+        return;
+      } catch (_) {}
+      try {
+        await dyn.postJson('/api/rep/assignment/notify', payload);
+        return;
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -586,7 +629,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           title: Text(t.addCustomer),
           content: DialogContentScroll(child: Text(t.noAddCustomer)),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(t.close)),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(t.close),
+            ),
           ],
         ),
       );
@@ -611,7 +657,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           return options.where((o) {
             final label = (o['label'] as String).toLowerCase();
             final email = (o['email'] as String).toLowerCase();
-            final assTo = (o['assignedToLabel']?.toString() ?? '').toLowerCase();
+            final assTo = (o['assignedToLabel']?.toString() ?? '')
+                .toLowerCase();
             return label.contains(q) || email.contains(q) || assTo.contains(q);
           }).toList();
         }
@@ -635,9 +682,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             await _loadAll();
 
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(context.t.saved)),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(context.t.saved)));
           } catch (e) {
             locErr = '${context.t.error ?? 'Fehler'}: $e';
             saving = false;
@@ -646,19 +693,22 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         }
 
         final list = filtered();
-        final listFree  = free(list);
+        final listFree = free(list);
         final listTaken = taken(list);
 
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
-            top: 12, left: 12, right: 12,
+            top: 12,
+            left: 12,
+            right: 12,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 46, height: 5,
+                width: 46,
+                height: 5,
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: Theme.of(ctx).dividerColor,
@@ -670,7 +720,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   const Icon(Icons.person_add_alt_1),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(t.addCustomer, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    child: Text(
+                      t.addCustomer,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                   IconButton(
                     tooltip: t.close,
@@ -681,12 +737,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               ),
               const SizedBox(height: 8),
               TextField(
-                onChanged: (v) { query = v; (ctx as Element).markNeedsBuild(); },
+                onChanged: (v) {
+                  query = v;
+                  (ctx as Element).markNeedsBuild();
+                },
                 decoration: InputDecoration(
                   hintText: t.search ?? 'Suchen…',
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   isDense: true,
                 ),
               ),
@@ -695,9 +756,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               if (listFree.isNotEmpty) ...[
                 Row(
                   children: [
-                    const Icon(Icons.check_circle_outline, size: 18, color: Colors.green),
+                    const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Colors.green,
+                    ),
                     const SizedBox(width: 6),
-                    Text(t.free ?? 'Frei', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      t.free ?? 'Frei',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -713,12 +781,30 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       final label = o['label'] as String;
                       return ListTile(
                         onTap: saving ? null : () => doAssign(email, label),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                        leading: const CircleAvatar(child: Icon(Icons.apartment, size: 18)),
-                        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                        ),
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.apartment, size: 18),
+                        ),
+                        title: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         trailing: saving
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
                             : const Icon(Icons.add_circle_outline),
                       );
                     },
@@ -730,9 +816,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Icon(Icons.lock_outline, size: 18, color: Colors.grey),
+                    const Icon(
+                      Icons.lock_outline,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(width: 6),
-                    Text(t.assigned ?? 'Zugewiesen', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      t.assigned ?? 'Zugewiesen',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -746,21 +839,33 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       final o = listTaken[i];
                       final label = (o['label'] as String);
                       final email = (o['email'] as String);
-                      final asTo  = (o['assignedToLabel']?.toString() ?? '');
+                      final asTo = (o['assignedToLabel']?.toString() ?? '');
                       return Opacity(
                         opacity: 0.50,
                         child: ListTile(
                           enabled: false,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                          leading: const CircleAvatar(child: Icon(Icons.apartment, size: 18)),
-                          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                          ),
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.apartment, size: 18),
+                          ),
+                          title: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           subtitle: Text(
                             asTo.isNotEmpty
                                 ? '$email  •  (${t.assigned_to ?? 'zugewiesen an'}: $asTo)'
                                 : email,
-                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: const Icon(Icons.do_not_disturb_on, color: Colors.grey),
+                          trailing: const Icon(
+                            Icons.do_not_disturb_on,
+                            color: Colors.grey,
+                          ),
                         ),
                       );
                     },
@@ -771,17 +876,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               if (listFree.isEmpty && listTaken.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: Text(
-                    t.noAddCustomer,
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text(t.noAddCustomer, textAlign: TextAlign.center),
                 ),
 
               if (locErr != null) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(locErr!, style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    locErr!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 ),
               ],
               const SizedBox(height: 6),
@@ -816,8 +921,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            (context.t.my_decision ?? 'Meine Bewertung') + ': ' +
-            (approve ? context.t.decision_accepted : context.t.decision_rejected),
+            (context.t.my_decision ?? 'Meine Bewertung') +
+                ': ' +
+                (approve
+                    ? context.t.decision_accepted
+                    : context.t.decision_rejected),
           ),
         ),
       );
@@ -838,7 +946,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.t.decision_withdrawn ?? 'Entscheidung zurückgenommen')),
+        SnackBar(
+          content: Text(
+            context.t.decision_withdrawn ?? 'Entscheidung zurückgenommen',
+          ),
+        ),
       );
       await _loadAll();
     } catch (e) {
@@ -851,7 +963,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   Future<void> _logout() async {
     final t = context.t;
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (dialogCtx) => AlertDialog(
             title: Text(t.logoutTitle),
@@ -877,9 +990,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       debugPrint('[push] rep deactivate failed: $e');
     }
     await widget.api.repLogout();
-    try { html.window.localStorage.remove('dfs_mode'); } catch (_) {}
+    try {
+      html.window.localStorage.remove('dfs_mode');
+    } catch (_) {}
     if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
   }
 
   // ---- Status-Logik (wie bisher) ----
@@ -913,8 +1030,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   List<DropdownMenuItem<String>> _decisionFilterItems(AppLocalizations t) {
     return [
-      DropdownMenuItem(value: '', child: Text(t.allDecisions ?? 'Alle Entscheidungen')),
-      DropdownMenuItem(value: 'pending', child: Text(t.decision_pending ?? 'Entscheidung offen')),
+      DropdownMenuItem(
+        value: '',
+        child: Text(t.allDecisions ?? 'Alle Entscheidungen'),
+      ),
+      DropdownMenuItem(
+        value: 'pending',
+        child: Text(t.decision_pending ?? 'Entscheidung offen'),
+      ),
       DropdownMenuItem(value: 'accepted', child: Text(t.decision_accepted)),
       DropdownMenuItem(value: 'rejected', child: Text(t.decision_rejected)),
     ];
@@ -941,7 +1064,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         return _complaints.where(_isRejected).toList(growable: false);
       case _RepFilter.finished:
         return _complaints
-            .where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5)
+            .where(
+              (c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5,
+            )
             .toList(growable: false);
     }
   }
@@ -955,7 +1080,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       if (em.isNotEmpty && co.isNotEmpty) m[em] = co;
     }
     for (final c in _complaints) {
-      final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+      final em = (c['customerEmail'] ?? c['email'] ?? '')
+          .toString()
+          .toLowerCase();
       final co = (c['payload']?['company'] ?? '').toString();
       if (em.isNotEmpty && co.isNotEmpty) m.putIfAbsent(em, () => co);
     }
@@ -969,7 +1096,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if ((_selectedCompany ?? '').isNotEmpty && !companies.contains(_selectedCompany)) {
+      if ((_selectedCompany ?? '').isNotEmpty &&
+          !companies.contains(_selectedCompany)) {
         setState(() => _selectedCompany = '');
       }
     });
@@ -978,7 +1106,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
   // ------ Anzeige-Helper ------
   String _displayCustomerFor(Map<String, dynamic> c) {
-    final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+    final em = (c['customerEmail'] ?? c['email'] ?? '')
+        .toString()
+        .toLowerCase();
     final co = _emailToCompany[em] ?? '';
     return co.isNotEmpty ? co : em;
   }
@@ -997,7 +1127,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
     }
     DateTime? dt;
-    try { dt = DateTime.parse(s).toLocal(); } catch (_) {}
+    try {
+      dt = DateTime.parse(s).toLocal();
+    } catch (_) {}
     if (dt != null) {
       String two(int x) => x < 10 ? '0$x' : '$x';
       return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
@@ -1011,42 +1143,54 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Widget build(BuildContext context) {
     final t = context.t;
     final prefs = AppPrefsScope.of(context);
-    final allCount      = _complaints.length;
-    final openCount     = _complaints.where((c) => !_isClosed(c)).length;
+    final compactAppBar = MediaQuery.sizeOf(context).width < 620;
+    final allCount = _complaints.length;
+    final openCount = _complaints.where((c) => !_isClosed(c)).length;
     final rejectedCount = _complaints.where(_isRejected).length;
-    final finishedCount = _complaints.where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5).length;
+    final finishedCount = _complaints
+        .where((c) => (int.tryParse((c['status'] ?? '').toString()) ?? 0) == 5)
+        .length;
     final title = switch (_view) {
-      _RepView.menu      => t.rep_dashboard,
-      _RepView.open      => t.complaintsMyCustomer,
-      _RepView.all       => t.rep_menu_all_title,
+      _RepView.menu => t.rep_dashboard,
+      _RepView.open => t.complaintsMyCustomer,
+      _RepView.all => t.rep_menu_all_title,
       _RepView.customers => t.myCustomers,
-      _RepView.support   => t.rep_support_contact_title,
+      _RepView.support => t.rep_support_contact_title,
       _RepView.downloads => t.rep_downloads_title,
-      _RepView.account   => t.profilePW,
-      _RepView.wiki      => 'Kundenwissen & Produktinfos',
+      _RepView.account => t.profilePW,
+      _RepView.wiki => 'Kundenwissen & Produktinfos',
     };
 
     final body = _loading
         ? const Center(child: CircularProgressIndicator())
         : _err != null
-            ? Center(child: Text(_err!, style: const TextStyle(color: Colors.red)))
-            : switch (_view) {
-                _RepView.menu      => _buildMenu(allCount, openCount, rejectedCount, finishedCount),
-                _RepView.open      => _scrollWrap(_buildOpenComplaints()),
-                _RepView.all       => _scrollWrap(_buildAllComplaints()),
-                _RepView.customers => _scrollWrap(_buildCustomersCard()),
-                _RepView.support   => _scrollWrap(_buildSupportContactCard()),
-                _RepView.downloads => _scrollWrap(_buildDownloadsView()),
-                _RepView.account   => _scrollWrap(_buildAccountCard()),
-                _RepView.wiki      => _scrollWrap(RepWikiListPage(api: widget.api)),
-              };
+        ? Center(
+            child: Text(_err!, style: const TextStyle(color: Colors.red)),
+          )
+        : switch (_view) {
+            _RepView.menu => _buildMenu(
+              allCount,
+              openCount,
+              rejectedCount,
+              finishedCount,
+            ),
+            _RepView.open => _scrollWrap(_buildOpenComplaints()),
+            _RepView.all => _scrollWrap(_buildAllComplaints()),
+            _RepView.customers => _scrollWrap(_buildCustomersCard()),
+            _RepView.support => _scrollWrap(_buildSupportContactCard()),
+            _RepView.downloads => _scrollWrap(_buildDownloadsView()),
+            _RepView.account => _scrollWrap(_buildAccountCard()),
+            _RepView.wiki => _scrollWrap(RepWikiListPage(api: widget.api)),
+          };
 
     final canGoBack = _view != _RepView.menu;
 
     return WillPopScope(
       onWillPop: () async {
         if (_view == _RepView.menu) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/', (Route<dynamic> r) => false);
           return false;
         }
         final ok = await _confirmLeaveCurrentView();
@@ -1057,7 +1201,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: Text(title),
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           centerTitle: false,
           leading: canGoBack
               ? IconButton(
@@ -1075,20 +1219,31 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               onPressed: _loading ? null : _loadAll,
               icon: const Icon(Icons.refresh),
             ),
-            const SizedBox(width: 4),
+            if (!compactAppBar) const SizedBox(width: 4),
             LangAction(onLocaleChanged: (l) => prefs.setLang(l.languageCode)),
-            const SizedBox(width: 4),
+            if (!compactAppBar) const SizedBox(width: 4),
             w.ThemeAction(),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: _logout,
-              icon: const Icon(Icons.logout),
-              label: Text(t.logout),
-            ),
-            const SizedBox(width: 8),
+            if (compactAppBar)
+              IconButton(
+                tooltip: t.logout,
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_rounded),
+              )
+            else ...[
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_rounded),
+                label: Text(t.logout),
+              ),
+              const SizedBox(width: 8),
+            ],
           ],
         ),
-        body: Padding(padding: const EdgeInsets.all(16), child: body),
+        body: Padding(
+          padding: EdgeInsets.all(compactAppBar ? 12 : 16),
+          child: body,
+        ),
         bottomNavigationBar: LegalFooter(api: widget.api),
       ),
     );
@@ -1108,154 +1263,172 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   // ---- Menü (mit Hero-Header + KPI-Chips + Kacheln) ----
-  Widget _buildMenu(int allCount, int openCount, int rejectedCount, int finishedCount) {
-    return LayoutBuilder(builder: (ctx, c) {
-      final width = c.maxWidth;
-      final isPhone = width < 520;
-      final isTablet = width < 900;
-      final scale = width >= 1200
-          ? 1.05
-          : width >= 900
-              ? 1.00
-              : width >= 700
-                  ? 0.97
-                  : width >= 420
-                      ? 0.94
-                      : 0.9;
-      final compact = width < 720;
-      final gridPadding = EdgeInsets.fromLTRB(
-        isPhone ? 12 : 18,
-        isPhone ? 12 : 18,
-        isPhone ? 12 : 18,
-        isPhone ? 26 : 34,
-      );
-      final maxExtent = isPhone
-          ? 240.0
-          : isTablet
-              ? 260.0
-              : 290.0;
-      final mainSpacing = isPhone ? 24.0 : isTablet ? 30.0 : 36.0;
-      final crossSpacing = isPhone ? 16.0 : isTablet ? 22.0 : 26.0;
-      final aspect = isPhone
-          ? (width < 360
-              ? 0.8
-              : width < 420
+  Widget _buildMenu(
+    int allCount,
+    int openCount,
+    int rejectedCount,
+    int finishedCount,
+  ) {
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final width = c.maxWidth;
+        final isPhone = width < 520;
+        final isTablet = width < 900;
+        final scale = width >= 1200
+            ? 1.05
+            : width >= 900
+            ? 1.00
+            : width >= 700
+            ? 0.97
+            : width >= 420
+            ? 0.94
+            : 0.9;
+        final compact = width < 720;
+        final gridPadding = EdgeInsets.fromLTRB(
+          isPhone ? 12 : 18,
+          isPhone ? 12 : 18,
+          isPhone ? 12 : 18,
+          isPhone ? 26 : 34,
+        );
+        final maxExtent = isPhone
+            ? 240.0
+            : isTablet
+            ? 260.0
+            : 290.0;
+        final mainSpacing = isPhone
+            ? 24.0
+            : isTablet
+            ? 30.0
+            : 36.0;
+        final crossSpacing = isPhone
+            ? 16.0
+            : isTablet
+            ? 22.0
+            : 26.0;
+        final aspect = isPhone
+            ? (width < 360
+                  ? 0.8
+                  : width < 420
                   ? 0.86
                   : 0.92)
-          : isTablet
-              ? 1.01
-              : 1.06;
-      final t = context.t;
-      final downloadBadgeCount = _downloads.where((d) => d.badge.isNotEmpty).length;
-      final downloadTileCount =
-          _downloadsLoading ? null : (downloadBadgeCount > 0 ? downloadBadgeCount : _downloads.length);
+            : isTablet
+            ? 1.01
+            : 1.06;
+        final t = context.t;
+        final downloadBadgeCount = _downloads
+            .where((d) => d.badge.isNotEmpty)
+            .length;
+        final downloadTileCount = _downloadsLoading
+            ? null
+            : (downloadBadgeCount > 0 ? downloadBadgeCount : _downloads.length);
 
-      final tiles = [
-        _MenuCard(
-          color: Colors.red,
-          icon: Icons.report_gmailerrorred_outlined,
-          title: t.rep_menu_open_title,
-          subtitle: t.rep_menu_open_subtitle,
-          count: openCount,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() {
-            _filter = _RepFilter.open;
-            _view = _RepView.open;
-          }),
-        ),
-        _MenuCard(
-          color: Colors.indigo,
-          icon: Icons.all_inbox_outlined,
-          title: t.rep_menu_all_title,
-          subtitle: t.rep_menu_all_subtitle,
-          count: allCount,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() => _view = _RepView.all),
-        ),
-        _MenuCard(
-          color: Colors.teal,
-          icon: Icons.apartment_outlined,
-          title: t.rep_menu_customers_title,
-          subtitle: t.rep_menu_customers_subtitle,
-          count: _customers.length,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() => _view = _RepView.customers),
-        ),
-        _MenuCard(
-          color: Colors.blueGrey,
-          icon: Icons.person_outline,
-          title: t.rep_menu_account_title,
-          subtitle: t.rep_menu_account_subtitle,
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() => _view = _RepView.account),
-        ),
-        _MenuCard(
-          color: Colors.deepOrange,
-          icon: Icons.support_agent_outlined,
-          title: t.rep_menu_support_title,
-          subtitle: t.rep_menu_support_subtitle,
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() => _view = _RepView.support),
-        ),
-        _MenuCard(
-          color: Colors.deepPurple,
-          icon: Icons.download_outlined,
-          title: t.rep_downloads_title,
-          subtitle: t.rep_menu_downloads_subtitle,
-          count: downloadTileCount,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() => _view = _RepView.downloads),
-        ),
-        _MenuCard(
-          color: Colors.green,
-          icon: Icons.menu_book_outlined,
-          title: 'Kundenwissen & Produktinfos',
-          subtitle: 'Vertreter-Wiki',
-          count: null,
-          compact: compact,
-          scale: scale,
-          onTap: () => setState(() => _view = _RepView.wiki),
-        ),
-      ];
-
-      return CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: _buildOverviewHeader(
-              openCount: openCount,
-              allCount: allCount,
-              rejectedCount: rejectedCount,
-              finishedCount: finishedCount,
-            ),
+        final tiles = [
+          _MenuCard(
+            color: Colors.red,
+            icon: Icons.report_gmailerrorred_outlined,
+            title: t.rep_menu_open_title,
+            subtitle: t.rep_menu_open_subtitle,
+            count: openCount,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() {
+              _filter = _RepFilter.open;
+              _view = _RepView.open;
+            }),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 18)),
-          SliverPadding(
-            padding: gridPadding,
-            sliver: SliverGrid(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => tiles[index],
-                childCount: tiles.length,
-              ),
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: maxExtent,
-                mainAxisSpacing: mainSpacing,
-                crossAxisSpacing: crossSpacing,
-                childAspectRatio: aspect,
+          _MenuCard(
+            color: Colors.indigo,
+            icon: Icons.all_inbox_outlined,
+            title: t.rep_menu_all_title,
+            subtitle: t.rep_menu_all_subtitle,
+            count: allCount,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() => _view = _RepView.all),
+          ),
+          _MenuCard(
+            color: Colors.teal,
+            icon: Icons.apartment_outlined,
+            title: t.rep_menu_customers_title,
+            subtitle: t.rep_menu_customers_subtitle,
+            count: _customers.length,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() => _view = _RepView.customers),
+          ),
+          _MenuCard(
+            color: Colors.blueGrey,
+            icon: Icons.person_outline,
+            title: t.rep_menu_account_title,
+            subtitle: t.rep_menu_account_subtitle,
+            count: null,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() => _view = _RepView.account),
+          ),
+          _MenuCard(
+            color: Colors.deepOrange,
+            icon: Icons.support_agent_outlined,
+            title: t.rep_menu_support_title,
+            subtitle: t.rep_menu_support_subtitle,
+            count: null,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() => _view = _RepView.support),
+          ),
+          _MenuCard(
+            color: Colors.deepPurple,
+            icon: Icons.download_outlined,
+            title: t.rep_downloads_title,
+            subtitle: t.rep_menu_downloads_subtitle,
+            count: downloadTileCount,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() => _view = _RepView.downloads),
+          ),
+          _MenuCard(
+            color: Colors.green,
+            icon: Icons.menu_book_outlined,
+            title: 'Kundenwissen & Produktinfos',
+            subtitle: 'Vertreter-Wiki',
+            count: null,
+            compact: compact,
+            scale: scale,
+            onTap: () => setState(() => _view = _RepView.wiki),
+          ),
+        ];
+
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: _buildOverviewHeader(
+                openCount: openCount,
+                allCount: allCount,
+                rejectedCount: rejectedCount,
+                finishedCount: finishedCount,
               ),
             ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-        ],
-      );
-    });
+            const SliverToBoxAdapter(child: SizedBox(height: 18)),
+            SliverPadding(
+              padding: gridPadding,
+              sliver: SliverGrid(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => tiles[index],
+                  childCount: tiles.length,
+                ),
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: maxExtent,
+                  mainAxisSpacing: mainSpacing,
+                  crossAxisSpacing: crossSpacing,
+                  childAspectRatio: aspect,
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          ],
+        );
+      },
+    );
   }
 
   RepDownloadItem _clearDownloadBadge(RepDownloadItem item) {
@@ -1283,28 +1456,37 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final category = _downloadCategory.toLowerCase();
     final language = _downloadLanguage.toLowerCase();
 
-    final List<RepDownloadItem> items = _downloads.where((d) {
-      final matchesQuery = query.isEmpty ||
-          d.title.toLowerCase().contains(query) ||
-          d.description.toLowerCase().contains(query) ||
-          d.fileName.toLowerCase().contains(query) ||
-          d.language.toLowerCase().contains(query);
-      final matchesCategory = category == 'all' ||
-          d.category.toLowerCase() == category;
-      final lang = d.language.trim().toLowerCase();
-      final matchesLanguage = language == 'all' ||
-          (language == 'none' && lang.isEmpty) ||
-          lang == language;
-      final matchesBadge = badge == 'all' || d.badge.toLowerCase() == badge;
-      return matchesQuery && matchesCategory && matchesLanguage && matchesBadge;
-    }).toList(growable: false);
+    final List<RepDownloadItem> items = _downloads
+        .where((d) {
+          final matchesQuery =
+              query.isEmpty ||
+              d.title.toLowerCase().contains(query) ||
+              d.description.toLowerCase().contains(query) ||
+              d.fileName.toLowerCase().contains(query) ||
+              d.language.toLowerCase().contains(query);
+          final matchesCategory =
+              category == 'all' || d.category.toLowerCase() == category;
+          final lang = d.language.trim().toLowerCase();
+          final matchesLanguage =
+              language == 'all' ||
+              (language == 'none' && lang.isEmpty) ||
+              lang == language;
+          final matchesBadge = badge == 'all' || d.badge.toLowerCase() == badge;
+          return matchesQuery &&
+              matchesCategory &&
+              matchesLanguage &&
+              matchesBadge;
+        })
+        .toList(growable: false);
 
     items.sort((a, b) {
       switch (_downloadSort) {
         case 'title':
           return a.title.toLowerCase().compareTo(b.title.toLowerCase());
         case 'category':
-          final c = a.category.toLowerCase().compareTo(b.category.toLowerCase());
+          final c = a.category.toLowerCase().compareTo(
+            b.category.toLowerCase(),
+          );
           if (c != 0) return c;
           return b.updatedAt.compareTo(a.updatedAt);
         case 'oldest':
@@ -1376,7 +1558,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   }
 
   String _languageShortLabel(String? code) {
-    return documentLanguageFor(code)?.displayShortLabel ?? (code ?? '').toUpperCase();
+    return documentLanguageFor(code)?.displayShortLabel ??
+        (code ?? '').toUpperCase();
   }
 
   String _languageFullLabel(AppLocalizations t, String? code) {
@@ -1415,17 +1598,17 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     final uri = Uri.tryParse(url);
     if (uri == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.t.complaint_help_error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.t.complaint_help_error)));
       return;
     }
 
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.t.complaint_help_error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.t.complaint_help_error)));
     }
   }
 
@@ -1438,10 +1621,7 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     if (_downloadsErr != null) {
       return Center(
-        child: Text(
-          _downloadsErr!,
-          style: const TextStyle(color: Colors.red),
-        ),
+        child: Text(_downloadsErr!, style: const TextStyle(color: Colors.red)),
       );
     }
 
@@ -1455,280 +1635,366 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
 
     final filtered = _filteredDownloads();
-    final categories = _orderedCategories(filtered.isEmpty ? _downloads : filtered);
-    final languages = _orderedLanguages(filtered.isEmpty ? _downloads : filtered);
+    final categories = _orderedCategories(
+      filtered.isEmpty ? _downloads : filtered,
+    );
+    final languages = _orderedLanguages(
+      filtered.isEmpty ? _downloads : filtered,
+    );
 
-    return LayoutBuilder(builder: (ctx, cons) {
-      Widget buildFilterChips() {
-        final List<Widget> chips = <Widget>[
-          _DownloadChoiceChip(
-            label: t.rep_downloads_all_categories ?? 'Alle',
-            selected: _downloadCategory == 'all',
-            onSelected: () => setState(() => _downloadCategory = 'all'),
-          ),
-          ...categories.map((c) {
-            final display =
-                c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : localizeDownloadCategory(t, c);
-            return _DownloadChoiceChip(
-              label: display,
-              selected: _downloadCategory.toLowerCase() == c.toLowerCase(),
-              onSelected: () => setState(() => _downloadCategory = c.isEmpty ? '' : c),
-            );
-          }),
-        ];
+    return LayoutBuilder(
+      builder: (ctx, cons) {
+        Widget buildFilterChips() {
+          final List<Widget> chips = <Widget>[
+            _DownloadChoiceChip(
+              label: t.rep_downloads_all_categories ?? 'Alle',
+              selected: _downloadCategory == 'all',
+              onSelected: () => setState(() => _downloadCategory = 'all'),
+            ),
+            ...categories.map((c) {
+              final display = c.isEmpty
+                  ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie'
+                  : localizeDownloadCategory(t, c);
+              return _DownloadChoiceChip(
+                label: display,
+                selected: _downloadCategory.toLowerCase() == c.toLowerCase(),
+                onSelected: () =>
+                    setState(() => _downloadCategory = c.isEmpty ? '' : c),
+              );
+            }),
+          ];
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Wrap(spacing: 8, runSpacing: 8, children: chips),
-        );
-      }
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+          );
+        }
 
-      Widget buildBadgeFilters() {
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _DownloadChoiceChip(
-              label: t.rep_downloads_badge_all ?? 'Alle Stati',
-              selected: _downloadBadge == 'all',
-              onSelected: () => setState(() => _downloadBadge = 'all'),
-            ),
-            _DownloadChoiceChip(
-              label: t.rep_downloads_new,
-              selected: _downloadBadge == 'new',
-              onSelected: () => setState(() => _downloadBadge = 'new'),
-              color: const Color(0xFF27AE60),
-            ),
-            _DownloadChoiceChip(
-              label: t.rep_downloads_change,
-              selected: _downloadBadge == 'change',
-              onSelected: () => setState(() => _downloadBadge = 'change'),
-              color: const Color(0xFF8548FF),
-            ),
-          ],
-        );
-      }
-
-      Widget buildLanguageFilters() {
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _DownloadChoiceChip(
-              label: t.rep_downloads_filter_language_all ?? 'Alle Sprachen',
-              selected: _downloadLanguage == 'all',
-              onSelected: () => setState(() => _downloadLanguage = 'all'),
-            ),
-            if (languages.contains(''))
+        Widget buildBadgeFilters() {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
               _DownloadChoiceChip(
-                label: t.rep_downloads_filter_language_none ?? 'Keine Sprache',
-                selected: _downloadLanguage == 'none',
-                onSelected: () => setState(() => _downloadLanguage = 'none'),
+                label: t.rep_downloads_badge_all ?? 'Alle Stati',
+                selected: _downloadBadge == 'all',
+                onSelected: () => setState(() => _downloadBadge = 'all'),
               ),
-            ...languages
-                .where((c) => c.trim().isNotEmpty)
-                .map((c) => Tooltip(
+              _DownloadChoiceChip(
+                label: t.rep_downloads_new,
+                selected: _downloadBadge == 'new',
+                onSelected: () => setState(() => _downloadBadge = 'new'),
+                color: const Color(0xFF27AE60),
+              ),
+              _DownloadChoiceChip(
+                label: t.rep_downloads_change,
+                selected: _downloadBadge == 'change',
+                onSelected: () => setState(() => _downloadBadge = 'change'),
+                color: const Color(0xFF8548FF),
+              ),
+            ],
+          );
+        }
+
+        Widget buildLanguageFilters() {
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _DownloadChoiceChip(
+                label: t.rep_downloads_filter_language_all ?? 'Alle Sprachen',
+                selected: _downloadLanguage == 'all',
+                onSelected: () => setState(() => _downloadLanguage = 'all'),
+              ),
+              if (languages.contains(''))
+                _DownloadChoiceChip(
+                  label:
+                      t.rep_downloads_filter_language_none ?? 'Keine Sprache',
+                  selected: _downloadLanguage == 'none',
+                  onSelected: () => setState(() => _downloadLanguage = 'none'),
+                ),
+              ...languages
+                  .where((c) => c.trim().isNotEmpty)
+                  .map(
+                    (c) => Tooltip(
                       message: _languageFullLabel(t, c),
                       child: _DownloadChoiceChip(
                         label: _languageShortLabel(c),
                         selected: _downloadLanguage == c.toLowerCase(),
-                        onSelected: () => setState(() => _downloadLanguage = c.toLowerCase()),
+                        onSelected: () =>
+                            setState(() => _downloadLanguage = c.toLowerCase()),
                       ),
-                    )),
-          ],
-        );
-      }
+                    ),
+                  ),
+            ],
+          );
+        }
 
-      Widget buildSortControl() {
-        return DropdownButtonFormField<String>(
-          value: _downloadSort,
-          onChanged: (v) => setState(() => _downloadSort = v ?? 'recent'),
-          items: [
-            DropdownMenuItem(value: 'recent', child: Text(t.rep_downloads_sort_recent ?? 'Neueste zuerst')),
-            DropdownMenuItem(value: 'oldest', child: Text(t.rep_downloads_sort_oldest ?? 'Älteste zuerst')),
-            DropdownMenuItem(value: 'title', child: Text(t.rep_downloads_sort_title ?? 'Titel A-Z')),
-            DropdownMenuItem(value: 'category', child: Text(t.rep_downloads_sort_category ?? 'Kategorie')),
-          ],
-          decoration: InputDecoration(
-            labelText: t.rep_downloads_sort_label ?? 'Sortierung',
-            prefixIcon: const Icon(Icons.sort_outlined),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      }
+        Widget buildSortControl() {
+          return DropdownButtonFormField<String>(
+            value: _downloadSort,
+            onChanged: (v) => setState(() => _downloadSort = v ?? 'recent'),
+            items: [
+              DropdownMenuItem(
+                value: 'recent',
+                child: Text(t.rep_downloads_sort_recent ?? 'Neueste zuerst'),
+              ),
+              DropdownMenuItem(
+                value: 'oldest',
+                child: Text(t.rep_downloads_sort_oldest ?? 'Älteste zuerst'),
+              ),
+              DropdownMenuItem(
+                value: 'title',
+                child: Text(t.rep_downloads_sort_title ?? 'Titel A-Z'),
+              ),
+              DropdownMenuItem(
+                value: 'category',
+                child: Text(t.rep_downloads_sort_category ?? 'Kategorie'),
+              ),
+            ],
+            decoration: InputDecoration(
+              labelText: t.rep_downloads_sort_label ?? 'Sortierung',
+              prefixIcon: const Icon(Icons.sort_outlined),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
 
-      Widget buildFiltersCard() {
-        return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+        Widget buildFiltersCard() {
+          return Card(
+            elevation: 3,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _downloadSearchCtrl,
+                    onChanged: (v) => setState(() => _downloadQuery = v),
+                    decoration: InputDecoration(
+                      labelText:
+                          t.rep_downloads_search_hint ??
+                          'Titel, Kategorie oder Dateiname suchen',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    t.rep_downloads_filter_label ?? 'Kategorien',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  buildFilterChips(),
+                  const SizedBox(height: 8),
+                  Text(
+                    t.rep_downloads_filter_language ?? 'Sprache',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  buildLanguageFilters(),
+                  const SizedBox(height: 8),
+                  Text(
+                    t.rep_downloads_badge_label ?? 'Status',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  buildBadgeFilters(),
+                  const SizedBox(height: 12),
+                  buildSortControl(),
+                ],
+              ),
+            ),
+          );
+        }
+
+        Widget buildSection(String categoryLabel, List<RepDownloadItem> items) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: _downloadSearchCtrl,
-                  onChanged: (v) => setState(() => _downloadQuery = v),
-                  decoration: InputDecoration(
-                    labelText: t.rep_downloads_search_hint ?? 'Titel, Kategorie oder Dateiname suchen',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        categoryLabel,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text('${items.length}'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
-                Text(t.rep_downloads_filter_label ?? 'Kategorien', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
-                buildFilterChips(),
-                const SizedBox(height: 8),
-                Text(t.rep_downloads_filter_language ?? 'Sprache', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
-                buildLanguageFilters(),
-                const SizedBox(height: 8),
-                Text(t.rep_downloads_badge_label ?? 'Status', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
-                buildBadgeFilters(),
-                const SizedBox(height: 12),
-                buildSortControl(),
+                LayoutBuilder(
+                  builder: (_, sectionCons) {
+                    final sectionWidth = sectionCons.maxWidth;
+                    final columns = sectionWidth >= 1100
+                        ? 3
+                        : sectionWidth >= 720
+                        ? 2
+                        : 1;
+                    final cardWidth =
+                        (sectionWidth - ((columns - 1) * 12)) / columns;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: items
+                          .map(
+                            (item) => SizedBox(
+                              width: cardWidth,
+                              child: _DownloadCard(
+                                item: item,
+                                badgeLabel: _badgeLabel(context, item),
+                                badgeColor: _badgeColor(item),
+                                onDownload: () => _openDownload(item),
+                                fileSize: _formatFileSize(item.size),
+                                languageLabel: _languageShortLabel(
+                                  item.language,
+                                ),
+                                languageName: _languageFullLabel(
+                                  t,
+                                  item.language,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                ),
               ],
             ),
-          ),
-        );
-      }
+          );
+        }
 
-      Widget buildSection(String categoryLabel, List<RepDownloadItem> items) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 18),
+        final sections = <Widget>[];
+        for (final c in categories) {
+          final items = filtered
+              .where((d) => d.category.trim().toLowerCase() == c.toLowerCase())
+              .toList(growable: false);
+          if (items.isEmpty) continue;
+          final label = c.isEmpty
+              ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie'
+              : localizeDownloadCategory(t, c);
+          sections.add(buildSection(label, items));
+        }
+
+        final headerCard = Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0A7BC1), Color(0xFF0E4E8F)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      categoryLabel,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blueGrey.shade50,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('${items.length}'),
-                  ),
-                ],
+              Text(
+                t.rep_downloads_title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 12),
-              LayoutBuilder(builder: (_, sectionCons) {
-                final sectionWidth = sectionCons.maxWidth;
-                final columns = sectionWidth >= 1100
-                    ? 3
-                    : sectionWidth >= 720
-                        ? 2
-                        : 1;
-                final cardWidth = (sectionWidth - ((columns - 1) * 12)) / columns;
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: items
-                      .map((item) => SizedBox(
-                            width: cardWidth,
-                            child: _DownloadCard(
-                              item: item,
-                              badgeLabel: _badgeLabel(context, item),
-                              badgeColor: _badgeColor(item),
-                              onDownload: () => _openDownload(item),
-                              fileSize: _formatFileSize(item.size),
-                              languageLabel: _languageShortLabel(item.language),
-                              languageName: _languageFullLabel(t, item.language),
-                            ),
-                          ))
-                      .toList(),
-                );
-              }),
+              const SizedBox(height: 6),
+              Text(
+                t.rep_downloads_intro ??
+                    'Alle aktuellen Dokumente nach Kategorien sortiert – immer handlich und mobilfreundlich.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.white.withOpacity(0.9),
+                ),
+              ),
             ],
           ),
         );
-      }
 
-      final sections = <Widget>[];
-      for (final c in categories) {
-        final items = filtered.where((d) => d.category.trim().toLowerCase() == c.toLowerCase()).toList(growable: false);
-        if (items.isEmpty) continue;
-        final label = c.isEmpty ? t.rep_downloads_uncategorized ?? 'Ohne Kategorie' : localizeDownloadCategory(t, c);
-        sections.add(buildSection(label, items));
-      }
-
-      final headerCard = Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0A7BC1), Color(0xFF0E4E8F)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              headerCard,
+              const SizedBox(height: 14),
+              buildFiltersCard(),
+              const SizedBox(height: 12),
+              if (filtered.isEmpty)
+                _EmptyState(
+                  icon: Icons.inbox_outlined,
+                  title: t.rep_downloads_empty,
+                )
+              else
+                ...sections,
+              const SizedBox(height: 8),
+            ],
           ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 6))],
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(t.rep_downloads_title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Text(
-              t.rep_downloads_intro ?? 'Alle aktuellen Dokumente nach Kategorien sortiert – immer handlich und mobilfreundlich.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.9)),
-            ),
-          ],
-        ),
-      );
-
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            headerCard,
-            const SizedBox(height: 14),
-            buildFiltersCard(),
-            const SizedBox(height: 12),
-            if (filtered.isEmpty)
-              _EmptyState(icon: Icons.inbox_outlined, title: t.rep_downloads_empty)
-            else
-              ...sections,
-            const SizedBox(height: 8),
-          ],
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 
   // ---- Seite: Offene Reklamationen (mit Firmen-Dropdown) ----
   Widget _buildOpenComplaints() {
     final t = context.t;
 
-    final companies = _emailToCompany.values
-        .where((s) => s.trim().isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final companies =
+        _emailToCompany.values
+            .where((s) => s.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     final selectedCompany = _validSelectedCompany(companies);
 
-    List<Map<String, dynamic>> items =
-        _complaints.where((c) => !_isClosed(c)).toList(growable: false);
+    List<Map<String, dynamic>> items = _complaints
+        .where((c) => !_isClosed(c))
+        .toList(growable: false);
 
     if (selectedCompany.isNotEmpty) {
-      items = items.where((c) {
-        final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
-        final co = (_emailToCompany[em] ?? '');
-        return co == selectedCompany;
-      }).toList(growable: false);
+      items = items
+          .where((c) {
+            final em = (c['customerEmail'] ?? c['email'] ?? '')
+                .toString()
+                .toLowerCase();
+            final co = (_emailToCompany[em] ?? '');
+            return co == selectedCompany;
+          })
+          .toList(growable: false);
     }
 
     items = items.where(_matchesDecisionFilter).toList(growable: false);
@@ -1739,7 +2005,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
       children: [
         Card(
           elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: SizedBox(
@@ -1754,12 +2022,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                         value: '',
                         child: Text(t.allCompanies ?? t.allCompanies),
                       ),
-                      ...companies.map((co) => DropdownMenuItem<String>(
-                            value: co,
-                            child: Text(co),
-                          )),
+                      ...companies.map(
+                        (co) => DropdownMenuItem<String>(
+                          value: co,
+                          child: Text(co),
+                        ),
+                      ),
                     ],
-                    onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
+                    onChanged: (v) =>
+                        setState(() => _selectedCompany = (v ?? '')),
                     decoration: InputDecoration(
                       labelText: t.rep_filter_company_label,
                       prefixIcon: const Icon(Icons.apartment_outlined),
@@ -1771,7 +2042,8 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     items: _decisionFilterItems(t),
                     onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
                     decoration: InputDecoration(
-                      labelText: t.rep_filter_decision_label ?? 'Entscheidung filtern',
+                      labelText:
+                          t.rep_filter_decision_label ?? 'Entscheidung filtern',
                       prefixIcon: const Icon(Icons.how_to_vote_outlined),
                     ),
                   ),
@@ -1795,18 +2067,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _Card(
           title: t.complaintsMyCustomer,
           child: items.isEmpty
-              ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
+              ? _EmptyState(
+                  icon: Icons.inbox_outlined,
+                  title: t.noComplaintsFound,
+                )
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
                   itemBuilder: (_, i) {
                     final c = items[i];
                     final customerDisplay = _displayCustomerFor(c);
-                    final createdDisplay  = _formatCreated(c['createdAt'] ?? c['created']);
+                    final createdDisplay = _formatCreated(
+                      c['createdAt'] ?? c['created'],
+                    );
                     return _ComplaintTile(
                       data: c,
                       isClosed: false,
-                      onDecision: (ticket, approve) => _decideComplaint(ticket, approve),
+                      onDecision: (ticket, approve) =>
+                          _decideComplaint(ticket, approve),
                       onWithdraw: (ticket) => _withdrawRepDecision(ticket),
                       useColoredButtons: true,
                       customerOverride: customerDisplay,
@@ -1825,15 +2103,18 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   Widget _buildAllComplaints() {
     final t = context.t;
 
-    final companies = _emailToCompany.values
-        .where((s) => s.trim().isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final companies =
+        _emailToCompany.values
+            .where((s) => s.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     final selectedCompany = _validSelectedCompany(companies);
 
-    List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(_complaints);
+    List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(
+      _complaints,
+    );
     final hasStatusFilter = _statusFilter.trim().isNotEmpty;
 
     if (!_showClosedAll && !hasStatusFilter) {
@@ -1841,7 +2122,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     }
     if (selectedCompany.isNotEmpty) {
       list = list.where((c) {
-        final em = (c['customerEmail'] ?? c['email'] ?? '').toString().toLowerCase();
+        final em = (c['customerEmail'] ?? c['email'] ?? '')
+            .toString()
+            .toLowerCase();
         final co = (_emailToCompany[em] ?? '');
         return co == selectedCompany;
       }).toList();
@@ -1861,7 +2144,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
             return Card(
               elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 child: Wrap(
@@ -1879,12 +2164,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                             value: '',
                             child: Text(t.allCompanies ?? t.allCompanies),
                           ),
-                          ...companies.map((co) => DropdownMenuItem<String>(
-                                value: co,
-                                child: Text(co),
-                              )),
+                          ...companies.map(
+                            (co) => DropdownMenuItem<String>(
+                              value: co,
+                              child: Text(co),
+                            ),
+                          ),
                         ],
-                        onChanged: (v) => setState(() => _selectedCompany = (v ?? '')),
+                        onChanged: (v) =>
+                            setState(() => _selectedCompany = (v ?? '')),
                         decoration: InputDecoration(
                           labelText: t.rep_filter_company_label,
                           prefixIcon: const Icon(Icons.apartment_outlined),
@@ -1901,9 +2189,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       child: DropdownButtonFormField<String>(
                         value: _decisionFilter,
                         items: _decisionFilterItems(t),
-                        onChanged: (v) => setState(() => _decisionFilter = v ?? ''),
+                        onChanged: (v) =>
+                            setState(() => _decisionFilter = v ?? ''),
                         decoration: InputDecoration(
-                          labelText: t.rep_filter_decision_label ?? 'Entscheidung filtern',
+                          labelText:
+                              t.rep_filter_decision_label ??
+                              'Entscheidung filtern',
                           prefixIcon: const Icon(Icons.how_to_vote_outlined),
                         ),
                       ),
@@ -1913,9 +2204,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                       child: DropdownButtonFormField<String>(
                         value: _statusFilter,
                         items: _statusFilterItems(t),
-                        onChanged: (v) => setState(() => _statusFilter = v ?? ''),
+                        onChanged: (v) =>
+                            setState(() => _statusFilter = v ?? ''),
                         decoration: InputDecoration(
-                          labelText: t.rep_filter_status_label ?? 'Status filtern',
+                          labelText:
+                              t.rep_filter_status_label ?? 'Status filtern',
                           prefixIcon: const Icon(Icons.flag_outlined),
                         ),
                       ),
@@ -1930,21 +2223,30 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
         _Card(
           title: t.rep_menu_all_title,
           child: list.isEmpty
-              ? _EmptyState(icon: Icons.inbox_outlined, title: t.noComplaintsFound)
+              ? _EmptyState(
+                  icon: Icons.inbox_outlined,
+                  title: t.noComplaintsFound,
+                )
               : ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
                   itemBuilder: (_, i) {
                     final c = list[i];
                     final customerDisplay = _displayCustomerFor(c);
-                    final createdDisplay  = _formatCreated(c['createdAt'] ?? c['created']);
+                    final createdDisplay = _formatCreated(
+                      c['createdAt'] ?? c['created'],
+                    );
                     return _ComplaintTile(
                       data: c,
                       isClosed: _isClosed(c),
-                      onDecision: ((c['repDecision'] ?? '') as String).isEmpty && !_isClosed(c)
+                      onDecision:
+                          ((c['repDecision'] ?? '') as String).isEmpty &&
+                              !_isClosed(c)
                           ? _decideComplaint
                           : null,
-                      onWithdraw: !_isClosed(c) ? (ticket) => _withdrawRepDecision(ticket) : null,
+                      onWithdraw: !_isClosed(c)
+                          ? (ticket) => _withdrawRepDecision(ticket)
+                          : null,
                       useColoredButtons: true,
                       customerOverride: customerDisplay,
                       createdOverride: createdDisplay,
@@ -1977,10 +2279,16 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
 
     Widget buildList() {
       if (_customers.isEmpty) {
-        return _EmptyState(icon: Icons.apartment_outlined, title: t.noAddCustomer);
+        return _EmptyState(
+          icon: Icons.apartment_outlined,
+          title: t.noAddCustomer,
+        );
       }
       if (filtered.isEmpty) {
-        return _EmptyState(icon: Icons.search_off, title: t.noDataFound ?? 'Keine Daten gefunden.');
+        return _EmptyState(
+          icon: Icons.search_off,
+          title: t.noDataFound ?? 'Keine Daten gefunden.',
+        );
       }
       return ListView.separated(
         shrinkWrap: true,
@@ -2020,7 +2328,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               icon: const Icon(Icons.add_business),
               label: Text(t.rep_create_customer ?? t.addCustomer),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 minimumSize: const Size(0, 40),
                 textStyle: Theme.of(context).textTheme.labelLarge,
                 shape: const StadiumBorder(),
@@ -2031,7 +2342,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               icon: const Icon(Icons.person_add_alt_1),
               label: Text(t.addCustomer),
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 minimumSize: const Size(0, 40),
                 textStyle: Theme.of(context).textTheme.labelLarge,
                 shape: const StadiumBorder(),
@@ -2047,7 +2361,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search),
                   hintText: t.search,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   isDense: true,
                 ),
               ),
@@ -2063,16 +2379,14 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   // ---- Seite: Account ----
   Widget _buildAccountCard() {
     final t = context.t;
-    final labelProfile   = t.profile_edit ?? t.profile_edit;
-    final labelPassword  = t.password_change ?? t.password_change;
+    final labelProfile = t.profile_edit ?? t.profile_edit;
+    final labelPassword = t.password_change ?? t.password_change;
 
     Future<void> _openProfile() async {
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RepProfilePage(
-            api: widget.api,
-            hidePasswordSection: true,
-          ),
+          builder: (_) =>
+              RepProfilePage(api: widget.api, hidePasswordSection: true),
         ),
       );
       if (!mounted) return;
@@ -2111,7 +2425,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               await widget.api.repChangePassword(n1);
               if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.saved)));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(t.saved)));
             } catch (e) {
               err = '${t.error ?? 'Fehler'}: $e';
               busy = false;
@@ -2149,7 +2465,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     const SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(err!, style: const TextStyle(color: Colors.red)),
+                      child: Text(
+                        err!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
                     ),
                   ],
                 ],
@@ -2163,7 +2482,11 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               ElevatedButton(
                 onPressed: busy ? null : _submit,
                 child: busy
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : Text(t.save),
               ),
             ],
@@ -2193,7 +2516,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color.withOpacity(0.18), cs.surfaceVariant.withOpacity(.45)],
+                colors: [
+                  color.withOpacity(0.18),
+                  cs.surfaceVariant.withOpacity(.45),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -2225,7 +2551,9 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                     children: [
                       Text(
                         label,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (description.isNotEmpty) ...[
                         const SizedBox(height: 4),
@@ -2276,13 +2604,13 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
     );
   }
 
-    Widget _buildSupportContactCard() {
-      String s(Object? v) => (v ?? '').toString().trim();
+  Widget _buildSupportContactCard() {
+    String s(Object? v) => (v ?? '').toString().trim();
 
     final firstName = s(_me?['firstName']);
-    final lastName  = s(_me?['lastName']);
-    final email     = s(_me?['email']);
-    final region    = s(_me?['region']);
+    final lastName = s(_me?['lastName']);
+    final email = s(_me?['email']);
+    final region = s(_me?['region']);
 
     return Center(
       child: ConstrainedBox(
@@ -2312,22 +2640,24 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
   void _showCustomerDetails(Map<String, Object?> c) {
     String s(Object? v) => (v ?? '').toString();
 
-    final name       = s(c['name']);
-    final email      = s(c['email']);
-    final company    = s(c['company']);
-    final address    = s(c['address']);
-    final zip        = s(c['zip']);
-    final city       = s(c['city']);
-    final country    = s(c['country']);
-    final phone      = s(c['phone']);
+    final name = s(c['name']);
+    final email = s(c['email']);
+    final company = s(c['company']);
+    final address = s(c['address']);
+    final zip = s(c['zip']);
+    final city = s(c['city']);
+    final country = s(c['country']);
+    final phone = s(c['phone']);
     final customerNo = s(c['customerNo']);
-    final vatId      = s(c['vatId']);
+    final vatId = s(c['vatId']);
 
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final contactTitle = name.isNotEmpty
         ? name
-        : (email.isNotEmpty ? email : (company.isNotEmpty ? company : context.t.customer_label));
+        : (email.isNotEmpty
+              ? email
+              : (company.isNotEmpty ? company : context.t.customer_label));
     final location = [zip, city].where((e) => e.trim().isNotEmpty).join(' ');
     final t = context.t;
 
@@ -2355,7 +2685,12 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
               if (company.isNotEmpty)
                 detailRow(
                   icon: Icons.apartment_outlined,
-                  child: Text(company, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    company,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               if (email.isNotEmpty)
                 detailRow(
@@ -2373,19 +2708,15 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
                   child: Text(address),
                 ),
               if (location.isNotEmpty)
-                detailRow(
-                  icon: Icons.map_outlined,
-                  child: Text(location),
-                ),
+                detailRow(icon: Icons.map_outlined, child: Text(location)),
               if (country.isNotEmpty)
-                detailRow(
-                  icon: Icons.public,
-                  child: Text(country),
-                ),
+                detailRow(icon: Icons.public, child: Text(country)),
               if (customerNo.isNotEmpty)
                 detailRow(
                   icon: Icons.badge_outlined,
-                  child: Text('${context.t.customer_number_label ?? 'Kundennr.'}: $customerNo'),
+                  child: Text(
+                    '${context.t.customer_number_label ?? 'Kundennr.'}: $customerNo',
+                  ),
                 ),
               if (vatId.isNotEmpty)
                 detailRow(
@@ -2396,7 +2727,10 @@ class _RepDashboardPageState extends State<RepDashboardPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(context.t.close ?? 'Schließen')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(context.t.close ?? 'Schließen'),
+          ),
         ],
       ),
     );
@@ -2486,22 +2820,22 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
     final subject = _subject.text.trim();
     final message = _message.text.trim();
     final firstName = widget.repFirstName.trim();
-    final lastName  = widget.repLastName.trim();
-    final region    = widget.repRegion.trim();
-    
+    final lastName = widget.repLastName.trim();
+    final region = widget.repRegion.trim();
+
     if (subject.isEmpty || message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_validation)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_validation)));
       return;
     }
 
     final email = widget.repEmail.trim();
     final hasValidEmail = email.contains('@');
     if (!hasValidEmail) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_support_contact_no_email)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_support_contact_no_email)));
       return;
     }
 
@@ -2519,9 +2853,9 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
       );
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_sent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_sent)));
 
       _subject.clear();
       _message.clear();
@@ -2535,9 +2869,9 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.rep_contact_error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.rep_contact_error)));
     } finally {
       if (mounted) {
         setState(() => _sending = false);
@@ -2558,12 +2892,16 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
     final cs = theme.colorScheme;
 
     final email = widget.repEmail.trim();
-    final name =
-        '${widget.repFirstName.trim()} ${widget.repLastName.trim()}'.trim();
+    final name = '${widget.repFirstName.trim()} ${widget.repLastName.trim()}'
+        .trim();
     final region = widget.repRegion.trim();
     final qmMail = 'complaint@dfs-diamon.de';
 
-    Widget infoRow({required IconData icon, required String label, required String value}) {
+    Widget infoRow({
+      required IconData icon,
+      required String label,
+      required String value,
+    }) {
       if (value.isEmpty) return const SizedBox.shrink();
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2573,10 +2911,7 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
             Icon(icon, size: 18, color: cs.primary),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                '$label: $value',
-                style: theme.textTheme.bodyMedium,
-              ),
+              child: Text('$label: $value', style: theme.textTheme.bodyMedium),
             ),
           ],
         ),
@@ -2621,11 +2956,7 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
               label: t.rep_email_label,
               value: email,
             ),
-            infoRow(
-              icon: Icons.public,
-              label: t.region,
-              value: region,
-            ),
+            infoRow(icon: Icons.public, label: t.region, value: region),
             const SizedBox(height: 20),
             TextField(
               controller: _subject,
@@ -2659,10 +2990,7 @@ class _RepSupportContactFormState extends State<_RepSupportContactForm> {
                       : Text(t.send),
                 ),
                 const SizedBox(width: 12),
-                TextButton(
-                  onPressed: _handleCancel,
-                  child: Text(t.cancel),
-                ),
+                TextButton(onPressed: _handleCancel, child: Text(t.cancel)),
               ],
             ),
           ],
@@ -2676,11 +3004,16 @@ class _Card extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
   final Widget child;
-  const _Card({required this.title, this.actions, required this.child, super.key});
+  const _Card({
+    required this.title,
+    this.actions,
+    required this.child,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final width   = MediaQuery.of(context).size.width;
+    final width = MediaQuery.of(context).size.width;
     final isPhone = width < 600;
     final fsTitle = isPhone ? 17.0 : 19.0;
 
@@ -2700,11 +3033,7 @@ class _Card extends StatelessWidget {
             final isCompactHeader = constraints.maxWidth < 420;
             final actionsWrap = actionsList.isEmpty
                 ? const SizedBox.shrink()
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: actionsList,
-                  );
+                : Wrap(spacing: 8, runSpacing: 8, children: actionsList);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2836,7 +3165,10 @@ class _MenuCardState extends State<_MenuCard> {
                 borderRadius: borderRadius,
                 border: Border.all(color: borderColor),
               ),
-              padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
+              padding: EdgeInsets.symmetric(
+                horizontal: paddingH,
+                vertical: paddingV,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -2947,101 +3279,116 @@ class _CustomerTile extends StatelessWidget {
     final isPhone = MediaQuery.of(context).size.width < 600;
     final double avatarSize = isPhone ? 40 : 44;
     final double avatarRadius = isPhone ? 12 : 14;
-    final EdgeInsets contentPadding = isPhone ? const EdgeInsets.all(12) : const EdgeInsets.all(14);
+    final EdgeInsets contentPadding = isPhone
+        ? const EdgeInsets.all(12)
+        : const EdgeInsets.all(14);
 
-    final email   = pick('email');
+    final email = pick('email');
     final contact = pick('name');
     final company = pick('company');
-    final phone   = pick('phone');
+    final phone = pick('phone');
     final address = pick('address');
-    final zip     = pick('zip');
-    final city    = pick('city');
+    final zip = pick('zip');
+    final city = pick('city');
     final country = pick('country');
 
-    final displayName = (company.isNotEmpty ? company : contact.isNotEmpty ? contact : email).trim();
-    final countryLabel = [country.trim(), [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim()]
-        .where((e) => e.isNotEmpty)
-        .firstWhere((_) => true, orElse: () => '');
+    final displayName =
+        (company.isNotEmpty
+                ? company
+                : contact.isNotEmpty
+                ? contact
+                : email)
+            .trim();
+    final countryLabel = [
+      country.trim(),
+      [zip, city].where((e) => e.trim().isNotEmpty).join(' ').trim(),
+    ].where((e) => e.isNotEmpty).firstWhere((_) => true, orElse: () => '');
 
     final accent = isNew ? cs.primary : cs.secondary;
     final initialsSource = displayName.isNotEmpty ? displayName : email;
-    final initials = initialsSource.isNotEmpty ? initialsSource[0].toUpperCase() : 'C';
+    final initials = initialsSource.isNotEmpty
+        ? initialsSource[0].toUpperCase()
+        : 'C';
     final t = context.t;
 
     // Gemeinsame Kopfzeile (links Avatar + Titel, rechts optional NEW)
-    final nameStyle = (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
-        ?.copyWith(fontWeight: FontWeight.w800);
-    final countryStyle = (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
-        ?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
+    final nameStyle =
+        (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)
+            ?.copyWith(fontWeight: FontWeight.w800);
+    final countryStyle =
+        (isPhone ? theme.textTheme.bodySmall : theme.textTheme.bodyMedium)
+            ?.copyWith(color: cs.onSurfaceVariant, height: 1.05);
 
     Widget header() => Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: avatarSize,
-              height: avatarSize,
-              decoration: BoxDecoration(
-                color: accent.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(avatarRadius),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: avatarSize,
+          height: avatarSize,
+          decoration: BoxDecoration(
+            color: accent.withOpacity(0.14),
+            borderRadius: BorderRadius.circular(avatarRadius),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            initials,
+            style:
+                (isPhone
+                        ? theme.textTheme.titleSmall
+                        : theme.textTheme.titleMedium)
+                    ?.copyWith(color: accent, fontWeight: FontWeight.w700),
+          ),
+        ),
+        SizedBox(width: isPhone ? 10 : 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Nur Firmenname und Land anzeigen (kompakt)
+              Text(
+                displayName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: nameStyle,
               ),
-              alignment: Alignment.center,
-              child: Text(
-                initials,
-                style: (isPhone ? theme.textTheme.titleSmall : theme.textTheme.titleMedium)?.copyWith(
-                  color: accent,
-                  fontWeight: FontWeight.w700,
-                ),
+              SizedBox(height: isPhone ? 4 : 6),
+              Text(
+                countryLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: countryStyle,
+              ),
+            ],
+          ),
+        ),
+        if (isNew) const SizedBox(width: 8),
+        if (isNew)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(.15),
+              border: Border.all(color: Colors.orange),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              'NEW',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                color: Colors.orange,
+                letterSpacing: .4,
               ),
             ),
-            SizedBox(width: isPhone ? 10 : 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nur Firmenname und Land anzeigen (kompakt)
-                  Text(
-                    displayName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: nameStyle,
-                  ),
-                  SizedBox(height: isPhone ? 4 : 6),
-                  Text(
-                    countryLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: countryStyle,
-                  ),
-                ],
-              ),
-            ),
-            if (isNew)
-              const SizedBox(width: 8),
-            if (isNew)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(.15),
-                  border: Border.all(color: Colors.orange),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text(
-                  'NEW',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                    color: Colors.orange,
-                    letterSpacing: .4,
-                  ),
-                ),
-              ),
-          ],
-        );
+          ),
+      ],
+    );
 
     ButtonStyle removeStyle = OutlinedButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       minimumSize: const Size(0, 36),
-      textStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+      textStyle: theme.textTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
       foregroundColor: cs.error,
       side: BorderSide(color: cs.error),
       shape: const StadiumBorder(),
@@ -3050,29 +3397,31 @@ class _CustomerTile extends StatelessWidget {
     ButtonStyle detailsStyle = TextButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       minimumSize: const Size(0, 36),
-      textStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+      textStyle: theme.textTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
       shape: const StadiumBorder(),
     );
 
     Widget actionButtons() => Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          alignment: WrapAlignment.end,
-          children: [
-            OutlinedButton.icon(
-              icon: const Icon(Icons.link_off, size: 18),
-              onPressed: onRemove,
-              label: Text(t.deleteAdd),
-              style: removeStyle,
-            ),
-            TextButton.icon(
-              icon: const Icon(Icons.unfold_more, size: 18),
-              onPressed: onOpen,
-              label: Text(t.showDetails ?? t.showDetails),
-              style: detailsStyle,
-            ),
-          ],
-        );
+      spacing: 8,
+      runSpacing: 6,
+      alignment: WrapAlignment.end,
+      children: [
+        OutlinedButton.icon(
+          icon: const Icon(Icons.link_off, size: 18),
+          onPressed: onRemove,
+          label: Text(t.deleteAdd),
+          style: removeStyle,
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.unfold_more, size: 18),
+          onPressed: onOpen,
+          label: Text(t.showDetails ?? t.showDetails),
+          style: detailsStyle,
+        ),
+      ],
+    );
 
     // Container-Optik
     return Material(
@@ -3084,8 +3433,13 @@ class _CustomerTile extends StatelessWidget {
           padding: contentPadding,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            color: Color.alphaBlend(cs.surfaceVariant.withOpacity(isNew ? 0.18 : 0.12), cs.surface),
-            border: Border.all(color: cs.outlineVariant.withOpacity(isNew ? 0.65 : 0.45)),
+            color: Color.alphaBlend(
+              cs.surfaceVariant.withOpacity(isNew ? 0.18 : 0.12),
+              cs.surface,
+            ),
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(isNew ? 0.65 : 0.45),
+            ),
           ),
           child: isPhone
               ? Column(
@@ -3119,8 +3473,8 @@ class _ComplaintTile extends StatefulWidget {
   final void Function(String ticket)? onWithdraw;
   final bool useColoredButtons;
   final String? customerOverride; // Anzeige „Kunde“ (Firma bevorzugt)
-  final String? createdOverride;  // Anzeige „Angelegt“ formatiert
-  
+  final String? createdOverride; // Anzeige „Angelegt“ formatiert
+
   const _ComplaintTile({
     required this.data,
     required this.isClosed,
@@ -3164,16 +3518,24 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return raw;
   }
 
-  String? _resolveProductArea(AppLocalizations t, String? segment, String? productType) {
+  String? _resolveProductArea(
+    AppLocalizations t,
+    String? segment,
+    String? productType,
+  ) {
     final values = <String?>[segment, productType];
     final t = context.t;
     for (final raw in values) {
       final v = (raw ?? '').trim().toLowerCase();
       if (v.isEmpty) continue;
-      if (v.contains('zahnarzt') || v.contains('zahnmedizin')) return t.product_area_medical;
-      if (v.contains('dentist') || v == t.segment_dentist.toLowerCase()) return t.product_area_medical;
-      if (v.contains('dentallabor') || v.contains('zahntechnik')) return t.product_area_lab;
-      if (v.contains('lab') || v == t.segment_lab.toLowerCase()) return t.product_area_lab;
+      if (v.contains('zahnarzt') || v.contains('zahnmedizin'))
+        return t.product_area_medical;
+      if (v.contains('dentist') || v == t.segment_dentist.toLowerCase())
+        return t.product_area_medical;
+      if (v.contains('dentallabor') || v.contains('zahntechnik'))
+        return t.product_area_lab;
+      if (v.contains('lab') || v == t.segment_lab.toLowerCase())
+        return t.product_area_lab;
     }
     return null;
   }
@@ -3186,7 +3548,11 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return cs.primary;
   }
 
-  Widget _infoPill(BuildContext context, {required IconData icon, required String text}) {
+  Widget _infoPill(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+  }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return Container(
@@ -3238,7 +3604,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
           Expanded(
             child: Text(
               text,
-              maxLines: 3,                 // <- mehr Zeilen erlaubt
+              maxLines: 3, // <- mehr Zeilen erlaubt
               overflow: TextOverflow.ellipsis,
               softWrap: true,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -3258,7 +3624,12 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     return chip; // volle Breite zulassen
   }
 
-  Widget _decisionBadge(BuildContext context, {required IconData icon, required String text, required Color color}) {
+  Widget _decisionBadge(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -3285,7 +3656,11 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     );
   }
 
-  Widget _detailField(BuildContext context, {required String label, required String value}) {
+  Widget _detailField(
+    BuildContext context, {
+    required String label,
+    required String value,
+  }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return Container(
@@ -3320,7 +3695,11 @@ class _ComplaintTileState extends State<_ComplaintTile> {
     final t = context.t;
     if (widget.onDecision == null) return const SizedBox.shrink();
 
-    Widget buildButton({required IconData icon, required Color color, required bool approve}) {
+    Widget buildButton({
+      required IconData icon,
+      required Color color,
+      required bool approve,
+    }) {
       return IconButton(
         onPressed: () => widget.onDecision!(ticket, approve),
         icon: Icon(icon, size: 22),
@@ -3330,7 +3709,9 @@ class _ComplaintTileState extends State<_ComplaintTile> {
           foregroundColor: color,
           minimumSize: const Size(48, 48),
           padding: const EdgeInsets.all(12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       );
     }
@@ -3340,14 +3721,25 @@ class _ComplaintTileState extends State<_ComplaintTile> {
       runSpacing: 10,
       alignment: WrapAlignment.end,
       children: [
-        buildButton(icon: Icons.check_rounded, color: Colors.green.shade600, approve: true),
-        buildButton(icon: Icons.close_rounded, color: Colors.red.shade600, approve: false),
+        buildButton(
+          icon: Icons.check_rounded,
+          color: Colors.green.shade600,
+          approve: true,
+        ),
+        buildButton(
+          icon: Icons.close_rounded,
+          color: Colors.red.shade600,
+          approve: false,
+        ),
       ],
     );
   }
 
-  Widget _metaRowFullWidth(BuildContext context,
-      {required IconData icon, required String text}) {
+  Widget _metaRowFullWidth(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+  }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return Container(
@@ -3384,71 +3776,143 @@ class _ComplaintTileState extends State<_ComplaintTile> {
   Widget build(BuildContext context) {
     final t = context.t;
 
-    final ticket   = (widget.data['ticket'] ?? '').toString();
-    final status   = (widget.data['status'] ?? '').toString();
+    final ticket = (widget.data['ticket'] ?? '').toString();
+    final status = (widget.data['status'] ?? '').toString();
     final decision = (widget.data['decision'] ?? '').toString();
     final repDecision = (widget.data['repDecision'] ?? '').toString();
 
-    final created   = widget.createdOverride ?? (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
-    final customer  = widget.customerOverride ?? (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
+    final created =
+        widget.createdOverride ??
+        (widget.data['createdAt'] ?? widget.data['created'] ?? '').toString();
+    final customer =
+        widget.customerOverride ??
+        (widget.data['customerEmail'] ?? widget.data['email'] ?? '').toString();
 
-    final Map<String, dynamic>? p =
-        (widget.data['payload'] is Map) ? (widget.data['payload'] as Map).cast<String, dynamic>() : null;
+    final Map<String, dynamic>? p = (widget.data['payload'] is Map)
+        ? (widget.data['payload'] as Map).cast<String, dynamic>()
+        : null;
 
-    final segment      = _pickOrNull(p, ['segment','customer_segment','segment_code']);
-    final productType  = _pickOrNull(p, ['product_type','productType','type']);
-    final articleNo    = _pickOrNull(p, ['article','article_no','articleNumber','artnr']);
-    final batch        = _pickOrNull(p, ['batch','batch_no','lot','lot_no','charge','lotnumber','lot_number']);
-    final serial       = _pickOrNull(p, ['serial','serial_no','sn']);
-    final qty          = _pickOrNull(p, ['qty','quantity','amount','menge']);
-    final reason       = _pickOrNull(p, ['reason','failure_reason','cause']);
-    final internalNo  = _pickOrNull(p, ['internalComplaintNo','internalComplaint','internalNo','internal','complaintNo','complaint_no','reklamationsnummer','rekl_nr','reklamationsnr']) ?? (widget.data['internalNo']?.toString());
+    final segment = _pickOrNull(p, [
+      'segment',
+      'customer_segment',
+      'segment_code',
+    ]);
+    final productType = _pickOrNull(p, ['product_type', 'productType', 'type']);
+    final articleNo = _pickOrNull(p, [
+      'article',
+      'article_no',
+      'articleNumber',
+      'artnr',
+    ]);
+    final batch = _pickOrNull(p, [
+      'batch',
+      'batch_no',
+      'lot',
+      'lot_no',
+      'charge',
+      'lotnumber',
+      'lot_number',
+    ]);
+    final serial = _pickOrNull(p, ['serial', 'serial_no', 'sn']);
+    final qty = _pickOrNull(p, ['qty', 'quantity', 'amount', 'menge']);
+    final reason = _pickOrNull(p, ['reason', 'failure_reason', 'cause']);
+    final internalNo =
+        _pickOrNull(p, [
+          'internalComplaintNo',
+          'internalComplaint',
+          'internalNo',
+          'internal',
+          'complaintNo',
+          'complaint_no',
+          'reklamationsnummer',
+          'rekl_nr',
+          'reklamationsnr',
+        ]) ??
+        (widget.data['internalNo']?.toString());
 
-    final desc         = _pickOrNull(p, ['desc','description','comment','details','failure_desc']);
-    final customerWish = _pickOrNull(p, ['handling','customer_wish','customerWish','wish','treatment_wish']);
+    final desc = _pickOrNull(p, [
+      'desc',
+      'description',
+      'comment',
+      'details',
+      'failure_desc',
+    ]);
+    final customerWish = _pickOrNull(p, [
+      'handling',
+      'customer_wish',
+      'customerWish',
+      'wish',
+      'treatment_wish',
+    ]);
 
-    final returned     = _pickOrNull(p, ['returned']);
-    final applied      = _pickOrNull(p, ['applied']);
-    final injury       = _pickOrNull(p, ['injury']);
-    final injuryDesc   = _pickOrNull(p, ['injuryDesc']);
+    final returned = _pickOrNull(p, ['returned']);
+    final applied = _pickOrNull(p, ['applied']);
+    final injury = _pickOrNull(p, ['injury']);
+    final injuryDesc = _pickOrNull(p, ['injuryDesc']);
 
-    final productArea  = _resolveProductArea(t, segment, productType);
+    final productArea = _resolveProductArea(t, segment, productType);
     final articleLabel = articleNo == null || articleNo.isEmpty
         ? null
         : productArea == null
-            ? articleNo
-            : '$articleNo · $productArea';
+        ? articleNo
+        : '$articleNo · $productArea';
 
     final createdLabel = created.trim().isEmpty ? null : created.trim();
-    final decisionLabel = decision.trim().isEmpty ? null : _localizeDecisionText(t, decision);
-    final repDecisionLabel = repDecision.trim().isEmpty ? null : _localizeDecisionText(t, repDecision);
+    final decisionLabel = decision.trim().isEmpty
+        ? null
+        : _localizeDecisionText(t, decision);
+    final repDecisionLabel = repDecision.trim().isEmpty
+        ? null
+        : _localizeDecisionText(t, repDecision);
     final repDecisionNormalized = repDecision.trim().toLowerCase();
 
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    Color background = Color.alphaBlend(cs.surfaceVariant.withOpacity(0.14), cs.surface);
+    Color background = Color.alphaBlend(
+      cs.surfaceVariant.withOpacity(0.14),
+      cs.surface,
+    );
     Color borderColor = cs.outlineVariant.withOpacity(0.45);
 
     if (repDecisionNormalized == 'accepted') {
-      background = Color.alphaBlend(Colors.green.shade500.withOpacity(0.08), cs.surface);
+      background = Color.alphaBlend(
+        Colors.green.shade500.withOpacity(0.08),
+        cs.surface,
+      );
       borderColor = Colors.green.shade400.withOpacity(0.4);
     } else if (repDecisionNormalized == 'rejected') {
-      background = Color.alphaBlend(Colors.red.shade500.withOpacity(0.08), cs.surface);
+      background = Color.alphaBlend(
+        Colors.red.shade500.withOpacity(0.08),
+        cs.surface,
+      );
       borderColor = Colors.red.shade400.withOpacity(0.4);
     } else if (repDecisionNormalized == 'pending') {
-      background = Color.alphaBlend(Colors.amber.shade700.withOpacity(0.08), cs.surface);
+      background = Color.alphaBlend(
+        Colors.amber.shade700.withOpacity(0.08),
+        cs.surface,
+      );
       borderColor = Colors.amber.shade600.withOpacity(0.38);
     }
 
     if (widget.isClosed) {
-      background = Color.alphaBlend(cs.surfaceContainerHighest.withOpacity(0.4), background);
+      background = Color.alphaBlend(
+        cs.surfaceContainerHighest.withOpacity(0.4),
+        background,
+      );
       borderColor = Color.alphaBlend(cs.outline.withOpacity(0.25), borderColor);
     }
 
     final decisionBadges = <Widget>[];
     if (decisionLabel != null) {
-      decisionBadges.add(_decisionBadge(context, icon: Icons.gavel_outlined, text: decisionLabel, color: cs.primary));
+      decisionBadges.add(
+        _decisionBadge(
+          context,
+          icon: Icons.gavel_outlined,
+          text: decisionLabel,
+          color: cs.primary,
+        ),
+      );
     }
     if (repDecisionLabel != null) {
       final icon = repDecisionNormalized == 'rejected'
@@ -3475,54 +3939,74 @@ class _ComplaintTileState extends State<_ComplaintTile> {
         // === Desktop/Tablet-Chips (2 Spalten) ===
         final desktopChips = <Widget>[];
         if (customer.isNotEmpty) {
-          desktopChips.add(_metaChip(
-            context,
-            icon: Icons.person_outline_rounded,
-            text: customer,
-            maxWidth: halfWidth,
-          ));
+          desktopChips.add(
+            _metaChip(
+              context,
+              icon: Icons.person_outline_rounded,
+              text: customer,
+              maxWidth: halfWidth,
+            ),
+          );
         }
         if (articleLabel != null) {
-          desktopChips.add(_metaChip(
-            context,
-            icon: Icons.qr_code_2_outlined,
-            text: articleLabel!,
-            maxWidth: halfWidth,
-          ));
+          desktopChips.add(
+            _metaChip(
+              context,
+              icon: Icons.qr_code_2_outlined,
+              text: articleLabel!,
+              maxWidth: halfWidth,
+            ),
+          );
         }
         // NEU: Charge / LOT statt Datum/Uhrzeit
         if ((batch ?? '').trim().isNotEmpty) {
-          desktopChips.add(_metaChip(
-            context,
-            icon: Icons.inventory_2_outlined,
-            text: batch!.trim(),
-            maxWidth: halfWidth,
-          ));
+          desktopChips.add(
+            _metaChip(
+              context,
+              icon: Icons.inventory_2_outlined,
+              text: batch!.trim(),
+              maxWidth: halfWidth,
+            ),
+          );
         }
         if (internalNo != null && internalNo!.trim().isNotEmpty) {
-          desktopChips.add(_metaChip(
-            context,
-            icon: Icons.confirmation_number_outlined,
-            text: internalNo!.trim(),
-            maxWidth: halfWidth,
-          ));
+          desktopChips.add(
+            _metaChip(
+              context,
+              icon: Icons.confirmation_number_outlined,
+              text: internalNo!.trim(),
+              maxWidth: halfWidth,
+            ),
+          );
         }
 
         // === Phone: volle Breite, untereinander ===
         final phoneRows = <Widget>[
           if (customer.isNotEmpty)
-            _metaRowFullWidth(context,
-                icon: Icons.person_outline_rounded, text: customer),
+            _metaRowFullWidth(
+              context,
+              icon: Icons.person_outline_rounded,
+              text: customer,
+            ),
           if (articleLabel != null)
-            _metaRowFullWidth(context,
-                icon: Icons.qr_code_2_outlined, text: articleLabel!),
+            _metaRowFullWidth(
+              context,
+              icon: Icons.qr_code_2_outlined,
+              text: articleLabel!,
+            ),
           // NEU: Charge / LOT statt Datum/Uhrzeit
           if ((batch ?? '').trim().isNotEmpty)
-            _metaRowFullWidth(context,
-                icon: Icons.inventory_2_outlined, text: batch!.trim()),
+            _metaRowFullWidth(
+              context,
+              icon: Icons.inventory_2_outlined,
+              text: batch!.trim(),
+            ),
           if (internalNo != null && internalNo!.trim().isNotEmpty)
-            _metaRowFullWidth(context,
-                icon: Icons.confirmation_number_outlined, text: internalNo!.trim()),
+            _metaRowFullWidth(
+              context,
+              icon: Icons.confirmation_number_outlined,
+              text: internalNo!.trim(),
+            ),
         ];
 
         // Header (Phone: Ticket allein + Status darunter; Desktop: links Ticket+Status+Chips, rechts Ampel)
@@ -3601,7 +4085,9 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(widget.isClosed ? 0.015 : 0.035),
+                color: Colors.black.withOpacity(
+                  widget.isClosed ? 0.015 : 0.035,
+                ),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -3628,11 +4114,7 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                 // 3) Entscheidungs-Badges (falls vorhanden)
                 if (decisionBadges.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: decisionBadges,
-                  ),
+                  Wrap(spacing: 10, runSpacing: 8, children: decisionBadges),
                 ],
 
                 const SizedBox(height: 14),
@@ -3642,8 +4124,10 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
                     style: TextButton.styleFrom(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       shape: const StadiumBorder(),
                       foregroundColor: cs.primary,
                       textStyle: const TextStyle(fontWeight: FontWeight.w600),
@@ -3716,31 +4200,43 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                     alignment: Alignment.centerRight,
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
                         shape: const StadiumBorder(),
                         textStyle: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       icon: const Icon(Icons.undo),
-                      label:
-                          Text(t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                      label: Text(
+                        t.decision_withdraw ?? 'Entscheidung zurücknehmen',
+                      ),
                       onPressed: () async {
-                        final ok = await showDialog<bool>(
+                        final ok =
+                            await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
                                 title: Text(
-                                    t.decision_withdraw ?? 'Entscheidung zurücknehmen'),
+                                  t.decision_withdraw ??
+                                      'Entscheidung zurücknehmen',
+                                ),
                                 content: DialogContentScroll(
-                                  child: Text(t.decision_withdraw_confirm ??
-                                      'Möchtest du deine Entscheidung wirklich zurücknehmen?'),
+                                  child: Text(
+                                    t.decision_withdraw_confirm ??
+                                        'Möchtest du deine Entscheidung wirklich zurücknehmen?',
+                                  ),
                                 ),
                                 actions: [
                                   TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(false),
-                                      child: Text(t.cancel ?? 'Abbrechen')),
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(false),
+                                    child: Text(t.cancel ?? 'Abbrechen'),
+                                  ),
                                   ElevatedButton(
-                                      onPressed: () => Navigator.of(ctx).pop(true),
-                                      child: Text(t.ok ?? 'OK')),
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(true),
+                                    child: Text(t.ok ?? 'OK'),
+                                  ),
                                 ],
                               ),
                             ) ??
@@ -3824,7 +4320,9 @@ class _ComplaintTileState extends State<_ComplaintTile> {
             children: [
               Text(
                 t.details ?? 'Details',
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -3834,8 +4332,12 @@ class _ComplaintTileState extends State<_ComplaintTile> {
                   for (final field in fields)
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxWidth: field.wide || !multiColumn ? maxWidth : columnWidth,
-                        minWidth: field.wide || !multiColumn ? maxWidth : math.min(columnWidth, maxWidth),
+                        maxWidth: field.wide || !multiColumn
+                            ? maxWidth
+                            : columnWidth,
+                        minWidth: field.wide || !multiColumn
+                            ? maxWidth
+                            : math.min(columnWidth, maxWidth),
                       ),
                       child: _detailField(
                         context,
@@ -3858,7 +4360,11 @@ class _DetailFieldData {
   final String value;
   final bool wide;
 
-  const _DetailFieldData({required this.label, required this.value, this.wide = false});
+  const _DetailFieldData({
+    required this.label,
+    required this.value,
+    this.wide = false,
+  });
 }
 
 // ======================================
@@ -3867,7 +4373,11 @@ class _DetailFieldData {
 class _RepTrafficLight extends StatelessWidget {
   final String? opinion;
   final bool compact;
-  const _RepTrafficLight({required this.opinion, this.compact = false, super.key});
+  const _RepTrafficLight({
+    required this.opinion,
+    this.compact = false,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3875,19 +4385,19 @@ class _RepTrafficLight extends StatelessWidget {
     if (v.isEmpty) return const SizedBox.shrink();
 
     final t = context.t;
-    
-    const colRed   = Colors.red;
+
+    const colRed = Colors.red;
     const colAmber = Colors.amber;
     const colGreen = Colors.green;
 
-    final onRed   = v == 'rejected';
+    final onRed = v == 'rejected';
     final onGreen = v == 'accepted';
     final onAmber = !(onRed || onGreen);
 
     if (!(onRed || onAmber || onGreen)) return const SizedBox.shrink();
 
-    final size   = compact ? 10.0 : 12.0;
-    final gap    = compact ? 4.0  : 6.0;
+    final size = compact ? 10.0 : 12.0;
+    final gap = compact ? 4.0 : 6.0;
     final radius = size / 2;
 
     Widget dot(Color c, bool on) => Container(
@@ -3897,15 +4407,24 @@ class _RepTrafficLight extends StatelessWidget {
         color: on ? c : c.withOpacity(0.18),
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: on ? c : c.withOpacity(0.6), width: 1),
-        boxShadow: on ? [BoxShadow(color: c.withOpacity(0.45), blurRadius: 6)] : const [],
+        boxShadow: on
+            ? [BoxShadow(color: c.withOpacity(0.45), blurRadius: 6)]
+            : const [],
       ),
     );
 
     String label;
     Color labelColor;
-    if (onGreen)      { label = context.t.decision_accepted; labelColor = colGreen; }
-    else if (onRed)   { label = context.t.decision_rejected; labelColor = colRed; }
-    else              { label = context.t.no_decision_yet ?? 'Noch keine Entscheidung'; labelColor = colAmber; }
+    if (onGreen) {
+      label = context.t.decision_accepted;
+      labelColor = colGreen;
+    } else if (onRed) {
+      label = context.t.decision_rejected;
+      labelColor = colRed;
+    } else {
+      label = context.t.no_decision_yet ?? 'Noch keine Entscheidung';
+      labelColor = colAmber;
+    }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -3913,9 +4432,13 @@ class _RepTrafficLight extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceVariant.withOpacity(0.35),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3931,7 +4454,11 @@ class _RepTrafficLight extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           '${context.t.my_decision ?? 'Meine Bewertung'}: $label',
-          style: TextStyle(fontWeight: FontWeight.w700, color: labelColor, fontSize: compact ? 12.5 : 13.5),
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: labelColor,
+            fontSize: compact ? 12.5 : 13.5,
+          ),
         ),
       ],
     );
@@ -3959,11 +4486,16 @@ class _StatusChip extends StatelessWidget {
 
   String _statusLabel(AppLocalizations t, int? value) {
     switch (value) {
-      case 1: return t.status_sent;
-      case 2: return t.status_in_progress;
-      case 3: return t.status_question;
-      case 4: return t.status_rework;
-      case 5: return t.status_closed;
+      case 1:
+        return t.status_sent;
+      case 2:
+        return t.status_in_progress;
+      case 3:
+        return t.status_question;
+      case 4:
+        return t.status_rework;
+      case 5:
+        return t.status_closed;
       default:
         final raw = status.trim();
         return raw.isEmpty ? t.status_unknown : raw;
@@ -3980,12 +4512,18 @@ class _StatusChip extends StatelessWidget {
   Color _statusColor(BuildContext context, int? value) {
     if (closed) return Colors.grey;
     switch (value) {
-      case 1: return Colors.blue;
-      case 2: return Colors.amber.shade800;
-      case 3: return Colors.orange;
-      case 4: return Colors.amber.shade600;
-      case 5: return Colors.green;
-      default: return Theme.of(context).colorScheme.primary;
+      case 1:
+        return Colors.blue;
+      case 2:
+        return Colors.amber.shade800;
+      case 3:
+        return Colors.orange;
+      case 4:
+        return Colors.amber.shade600;
+      case 5:
+        return Colors.green;
+      default:
+        return Theme.of(context).colorScheme.primary;
     }
   }
 
@@ -4005,11 +4543,11 @@ class _StatusChip extends StatelessWidget {
     final decisionLabel = _decisionLabel(t);
     final decisionColor = _decisionColor();
 
-    final padV = compact ? 4.0  : 6.0;
-    final padH = compact ? 8.0  : 10.0;
+    final padV = compact ? 4.0 : 6.0;
+    final padH = compact ? 8.0 : 10.0;
     final icon = compact ? 14.0 : 16.0;
-    final fs   = compact ? 12.0 : 13.0;
-    final rad  = compact ? 16.0 : 20.0;
+    final fs = compact ? 12.0 : 13.0;
+    final rad = compact ? 16.0 : 20.0;
     final borderOpacity = compact ? .55 : .70;
     final statusChip = _buildChip(
       icon: Icons.flag_rounded,
@@ -4068,7 +4606,11 @@ class _StatusChip extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              style: TextStyle(color: color, fontSize: fs, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: color,
+                fontSize: fs,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -4147,7 +4689,8 @@ class _FadeInOnce extends StatefulWidget {
   State<_FadeInOnce> createState() => _FadeInOnceState();
 }
 
-class _FadeInOnceState extends State<_FadeInOnce> with SingleTickerProviderStateMixin {
+class _FadeInOnceState extends State<_FadeInOnce>
+    with SingleTickerProviderStateMixin {
   double _opacity = 0.0;
 
   @override
@@ -4177,7 +4720,8 @@ class _PulseNewBadge extends StatefulWidget {
   State<_PulseNewBadge> createState() => _PulseNewBadgeState();
 }
 
-class _PulseNewBadgeState extends State<_PulseNewBadge> with SingleTickerProviderStateMixin {
+class _PulseNewBadgeState extends State<_PulseNewBadge>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ac;
   late final Animation<double> _opacity;
 
@@ -4188,10 +4732,10 @@ class _PulseNewBadgeState extends State<_PulseNewBadge> with SingleTickerProvide
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 0.35, end: 1.0).animate(CurvedAnimation(
-      parent: _ac,
-      curve: Curves.easeInOut,
-    ));
+    _opacity = Tween<double>(
+      begin: 0.35,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeInOut));
   }
 
   @override
@@ -4252,8 +4796,9 @@ class _WelcomeHeader extends StatelessWidget {
       final e = (me?['email'] ?? '').toString();
       return e.isNotEmpty ? e[0].toUpperCase() : 'R';
     }
-    return ((f.isNotEmpty ? f[0] : '') + (l.isNotEmpty ? l[0] : '')).toUpperCase();
-    }
+    return ((f.isNotEmpty ? f[0] : '') + (l.isNotEmpty ? l[0] : ''))
+        .toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4263,7 +4808,7 @@ class _WelcomeHeader extends StatelessWidget {
 
     final name = [
       (me?['firstName'] ?? '').toString().trim(),
-      (me?['lastName'] ?? '').toString().trim()
+      (me?['lastName'] ?? '').toString().trim(),
     ].where((e) => e.isNotEmpty).join(' ');
     final email = (me?['email'] ?? '').toString();
 
@@ -4277,7 +4822,11 @@ class _WelcomeHeader extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: cs.outlineVariant),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(.04), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withOpacity(.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -4314,13 +4863,17 @@ class _WelcomeHeader extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         letterSpacing: .2,
                       ),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (email.isNotEmpty)
                       Text(
                         email,
-                        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                   ],
                 ),
@@ -4335,10 +4888,30 @@ class _WelcomeHeader extends StatelessWidget {
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _KpiChip(icon: Icons.report_gmailerrorred_outlined, label: t.rep_overview_open, value: open, color: Colors.red),
-                  _KpiChip(icon: Icons.all_inbox_outlined, label: t.rep_overview_all, value: all, color: brand),
-                  _KpiChip(icon: Icons.thumb_down_alt_outlined, label: t.rep_overview_rejected, value: rejected, color: Colors.orange),
-                  _KpiChip(icon: Icons.verified_outlined, label: t.rep_overview_finished, value: finished, color: Colors.green),
+                  _KpiChip(
+                    icon: Icons.report_gmailerrorred_outlined,
+                    label: t.rep_overview_open,
+                    value: open,
+                    color: Colors.red,
+                  ),
+                  _KpiChip(
+                    icon: Icons.all_inbox_outlined,
+                    label: t.rep_overview_all,
+                    value: all,
+                    color: brand,
+                  ),
+                  _KpiChip(
+                    icon: Icons.thumb_down_alt_outlined,
+                    label: t.rep_overview_rejected,
+                    value: rejected,
+                    color: Colors.orange,
+                  ),
+                  _KpiChip(
+                    icon: Icons.verified_outlined,
+                    label: t.rep_overview_finished,
+                    value: finished,
+                    color: Colors.green,
+                  ),
                 ],
               );
             },
@@ -4373,7 +4946,13 @@ class _KpiChip extends StatelessWidget {
         color: Color.alphaBlend(color.withOpacity(.08), cs.surface),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withOpacity(.35)),
-        boxShadow: [BoxShadow(color: color.withOpacity(.08), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -4382,7 +4961,9 @@ class _KpiChip extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(width: 10),
           Container(
@@ -4393,7 +4974,11 @@ class _KpiChip extends StatelessWidget {
             ),
             child: Text(
               '$value',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
             ),
           ),
         ],
@@ -4407,7 +4992,8 @@ class _RepCreateCustomerDialog extends StatefulWidget {
   const _RepCreateCustomerDialog({required this.api});
 
   @override
-  State<_RepCreateCustomerDialog> createState() => _RepCreateCustomerDialogState();
+  State<_RepCreateCustomerDialog> createState() =>
+      _RepCreateCustomerDialogState();
 }
 
 class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
@@ -4433,16 +5019,16 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
   @override
   void initState() {
     super.initState();
-    _companyCtrl    = TextEditingController();
-    _firstNameCtrl  = TextEditingController();
-    _lastNameCtrl   = TextEditingController();
-    _emailCtrl      = TextEditingController();
-    _streetCtrl     = TextEditingController();
-    _zipCtrl        = TextEditingController();
-    _cityCtrl       = TextEditingController();
-    _phoneCtrl      = TextEditingController();
-    _passwordCtrl   = TextEditingController();
-    _password2Ctrl  = TextEditingController();
+    _companyCtrl = TextEditingController();
+    _firstNameCtrl = TextEditingController();
+    _lastNameCtrl = TextEditingController();
+    _emailCtrl = TextEditingController();
+    _streetCtrl = TextEditingController();
+    _zipCtrl = TextEditingController();
+    _cityCtrl = TextEditingController();
+    _phoneCtrl = TextEditingController();
+    _passwordCtrl = TextEditingController();
+    _password2Ctrl = TextEditingController();
 
     _selectedCountry = kCountries.firstWhere(
       (c) => c.code == 'DE',
@@ -4482,12 +5068,12 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
   }
 
   List<DropdownMenuItem<String>> _langItems(AppLocalizations t) => [
-        DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
-        DropdownMenuItem(value: 'en', child: Text(t.langNameEN)),
-        DropdownMenuItem(value: 'fr', child: Text(t.langNameFR)),
-        DropdownMenuItem(value: 'it', child: Text(t.langNameIT)),
-        DropdownMenuItem(value: 'es', child: Text(t.langNameES)),
-      ];
+    DropdownMenuItem(value: 'de', child: Text(t.langNameDE)),
+    DropdownMenuItem(value: 'en', child: Text(t.langNameEN)),
+    DropdownMenuItem(value: 'fr', child: Text(t.langNameFR)),
+    DropdownMenuItem(value: 'it', child: Text(t.langNameIT)),
+    DropdownMenuItem(value: 'es', child: Text(t.langNameES)),
+  ];
 
   String? _requiredValidator(String? value) {
     final t = context.t;
@@ -4507,26 +5093,31 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
     });
 
     final payload = <String, dynamic>{
-      'company'    : _companyCtrl.text.trim(),
-      'contact'    : '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'.trim(),
-      'firstName'  : _firstNameCtrl.text.trim(),
-      'lastName'   : _lastNameCtrl.text.trim(),
-      'email'      : _emailCtrl.text.trim(),
-      'street'     : _streetCtrl.text.trim(),
-      'zip'        : _zipCtrl.text.trim(),
-      'city'       : _cityCtrl.text.trim(),
-      'country'    : _selectedCountry?.label(context) ?? '',
+      'company': _companyCtrl.text.trim(),
+      'contact': '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'
+          .trim(),
+      'firstName': _firstNameCtrl.text.trim(),
+      'lastName': _lastNameCtrl.text.trim(),
+      'email': _emailCtrl.text.trim(),
+      'street': _streetCtrl.text.trim(),
+      'zip': _zipCtrl.text.trim(),
+      'city': _cityCtrl.text.trim(),
+      'country': _selectedCountry?.label(context) ?? '',
       'countryCode': _selectedCountry?.code ?? '',
-      'phone'      : _phoneCtrl.text.trim(),
-      'lang'       : _lang,
-      'passwordMode': _passwordMode == _RepPasswordMode.generated ? 'generated' : 'manual',
+      'phone': _phoneCtrl.text.trim(),
+      'lang': _lang,
+      'passwordMode': _passwordMode == _RepPasswordMode.generated
+          ? 'generated'
+          : 'manual',
     };
 
     if (_passwordMode == _RepPasswordMode.manual) {
       payload['password'] = _passwordCtrl.text;
     }
 
-    payload.removeWhere((key, value) => value is String && value.trim().isEmpty);
+    payload.removeWhere(
+      (key, value) => value is String && value.trim().isEmpty,
+    );
 
     try {
       await widget.api.ensureRepSession();
@@ -4553,7 +5144,9 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
     final t = context.t;
 
     return AlertDialog(
-      title: Text(t.rep_create_customer_title ?? t.rep_create_customer ?? t.addCustomer),
+      title: Text(
+        t.rep_create_customer_title ?? t.rep_create_customer ?? t.addCustomer,
+      ),
       content: Form(
         key: _formKey,
         child: DialogContentScroll(
@@ -4671,18 +5264,34 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
               RadioListTile<_RepPasswordMode>(
                 value: _RepPasswordMode.manual,
                 groupValue: _passwordMode,
-                onChanged: _saving ? null : (value) => setState(() => _passwordMode = value ?? _RepPasswordMode.manual),
-                title: Text(t.rep_create_customer_password_mode_manual ?? t.password),
-                subtitle: Text(t.rep_create_customer_password_mode_manual_hint ?? ''),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(
+                        () => _passwordMode = value ?? _RepPasswordMode.manual,
+                      ),
+                title: Text(
+                  t.rep_create_customer_password_mode_manual ?? t.password,
+                ),
+                subtitle: Text(
+                  t.rep_create_customer_password_mode_manual_hint ?? '',
+                ),
                 contentPadding: EdgeInsets.zero,
                 dense: true,
               ),
               RadioListTile<_RepPasswordMode>(
                 value: _RepPasswordMode.generated,
                 groupValue: _passwordMode,
-                onChanged: _saving ? null : (value) => setState(() => _passwordMode = value ?? _RepPasswordMode.manual),
-                title: Text(t.rep_create_customer_password_mode_generated ?? ''),
-                subtitle: Text(t.rep_create_customer_password_mode_generated_hint ?? ''),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(
+                        () => _passwordMode = value ?? _RepPasswordMode.manual,
+                      ),
+                title: Text(
+                  t.rep_create_customer_password_mode_generated ?? '',
+                ),
+                subtitle: Text(
+                  t.rep_create_customer_password_mode_generated_hint ?? '',
+                ),
                 contentPadding: EdgeInsets.zero,
                 dense: true,
               ),
@@ -4706,7 +5315,8 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
                   decoration: InputDecoration(labelText: t.password_repeat),
                   textInputAction: TextInputAction.done,
                   validator: (value) {
-                    if (value == null || value.isEmpty) return t.password_required;
+                    if (value == null || value.isEmpty)
+                      return t.password_required;
                     if (value != _passwordCtrl.text) return t.password_mismatch;
                     return null;
                   },
@@ -4731,7 +5341,11 @@ class _RepCreateCustomerDialogState extends State<_RepCreateCustomerDialog> {
         if (_saving)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
-            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           ),
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
@@ -4768,10 +5382,9 @@ class _DownloadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final metaStyle = Theme.of(context)
-        .textTheme
-        .bodySmall
-        ?.copyWith(color: cs.onSurfaceVariant);
+    final metaStyle = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant);
 
     return Material(
       elevation: 2,
@@ -4805,9 +5418,7 @@ class _DownloadCard extends StatelessWidget {
                           item.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         if (item.description.isNotEmpty) ...[
@@ -4816,9 +5427,7 @@ class _DownloadCard extends StatelessWidget {
                             item.description,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: cs.onSurfaceVariant),
                           ),
                         ],
@@ -4828,7 +5437,10 @@ class _DownloadCard extends StatelessWidget {
                   if (badgeLabel.isNotEmpty) ...[
                     const SizedBox(width: 10),
                     Chip(
-                      label: Text(badgeLabel, style: const TextStyle(color: Colors.white)),
+                      label: Text(
+                        badgeLabel,
+                        style: const TextStyle(color: Colors.white),
+                      ),
                       backgroundColor: badgeColor ?? cs.primary,
                     ),
                   ],
@@ -4855,11 +5467,14 @@ class _DownloadCard extends StatelessWidget {
                       side: BorderSide(color: cs.outlineVariant),
                       backgroundColor: cs.surfaceVariant.withOpacity(0.4),
                     ),
-                  if (fileSize.isNotEmpty)
-                    Text(fileSize, style: metaStyle),
+                  if (fileSize.isNotEmpty) Text(fileSize, style: metaStyle),
                   Text('v${item.version}', style: metaStyle),
                   if (item.fileName.isNotEmpty)
-                    Text(item.fileName, style: metaStyle, overflow: TextOverflow.ellipsis),
+                    Text(
+                      item.fileName,
+                      style: metaStyle,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -4873,12 +5488,18 @@ class _DownloadCard extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 16, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ],
               ),
             ],
@@ -4938,10 +5559,7 @@ class _EmptyState extends StatelessWidget {
           Icon(icon, color: cs.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              title,
-              style: TextStyle(color: cs.onSurfaceVariant),
-            ),
+            child: Text(title, style: TextStyle(color: cs.onSurfaceVariant)),
           ),
         ],
       ),
