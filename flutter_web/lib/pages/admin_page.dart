@@ -2104,6 +2104,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   AdminView _view = AdminView.menu;
   int _trainingInitialTab = 0;
   TrainingAdminSection _trainingSection = TrainingAdminSection.overview;
+  bool _gsprOverlayOpen = false;
 
   Country get _defaultCountry => kCountries.firstWhere(
         (c) => c.code == 'DE',
@@ -7497,6 +7498,51 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     );
   }
 
+
+  Future<void> _openGsprOverlay() async {
+    if (_gsprOverlayOpen) return;
+    _gsprOverlayOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          // Keep GSPR in-place to avoid Flutter Web URL/hash sync to /#/compliance/gspr.
+          return Dialog.fullscreen(
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                    child: Row(
+                      children: [
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Schließen',
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: GsprHomePage(
+                      api: widget.api,
+                      access: GsprAccess.fromProfile(_portalProfile),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      _gsprOverlayOpen = false;
+    }
+  }
+
   void _handleNavigation(AdminView view) {
     final shouldRefreshFaq = view == AdminView.faq &&
         !_faqLoading &&
@@ -7509,6 +7555,10 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
     if (view == AdminView.trainings) {
       _openTrainingSection(TrainingAdminSection.overview);
+      return;
+    }
+    if (view == AdminView.gspr) {
+      _openGsprOverlay();
       return;
     }
 
@@ -10696,7 +10746,7 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
           colorA: AdminPalette.blueA,
           colorB: AdminPalette.blueB,
           compact: compact,
-          onTap: isPreview ? () {} : () => setState(() => _view = AdminView.gspr),
+          onTap: isPreview ? () {} : _openGsprOverlay,
           registerOnboarding: registerOnboarding,
           actionLabel: resolvedActionLabel,
           actionIcon: resolvedActionIcon,
